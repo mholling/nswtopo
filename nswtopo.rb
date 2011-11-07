@@ -118,15 +118,15 @@ class ArcIMS < Service
     [ tile_bounds.inject(:product), tile_extents.inject(:product) ].transpose
   end
   
-  def dataset(input_bounds, input_projection, scaling, options, dir)
-    tiles(input_bounds, input_projection, scaling).each_with_index.map do |(bounds, extents), index|
-      tile_path = File.join(dir, "tile.#{index}.png")
-      
-      dpi = case
-      when options[    "line"] && options[    "line"]["scale"] then (options[    "line"]["scale"] * scaling.ppi).round
-      when options["hashline"] && options["hashline"]["scale"] then (options["hashline"]["scale"] * scaling.ppi).round
-      else 96
-      end
+  def dataset(input_bounds, input_projection, scaling, options_or_array, dir)
+    options_array = [ options_or_array ].flatten
+    
+    scales = options_array.map { |options| options["scale"] }.compact.uniq
+    abort("more than one scale specified") if scales.length > 1
+    dpi = scales.any? ? (scales.first * scaling.ppi).round : 96
+    
+    tiles(input_bounds, input_projection, scaling).each_with_index.map do |(bounds, extents), tile_index|
+      tile_path = File.join(dir, "tile.#{tile_index}.png")
       
       xml = REXML::Document.new
       xml << REXML::XMLDecl.new(1.0, "UTF-8")
@@ -141,52 +141,62 @@ class ArcIMS < Service
               properties.add_element("BACKGROUND", "color" => "0,0,0")
               properties.add_element("OUTPUT", "format" => "png")
               properties.add_element("LAYERLIST", "nodefault" => true) do |layerlist|
-                layerlist.add_element("LAYERDEF", "id" => options["image"] || "custom", "visible" => true)
+                options_array.each_with_index do |options, layer_index|
+                  layerlist.add_element("LAYERDEF", "id" => options["image"] || "custom#{layer_index}", "visible" => true)
+                end
               end
             end
-            unless options["image"]
-              get_image.add_element("LAYER", "type" => options["image"] ? "image" : "featureclass", "visible" => true, "id" => "custom") do |layer|
-                layer.add_element("DATASET", "fromlayer" => options["from"])
-                layer.add_element("SPATIALQUERY", "where" => options["where"]) if options["where"]
-                renderer = "#{options["lookup"] ? 'VALUEMAP' : 'SIMPLE'}#{'LABEL' if options["label"]}RENDERER"
-                renderer_attributes = {}
-                renderer_attributes.merge! (options["lookup"] ? "labelfield" : "field") => options["label"]["field"] if options["label"]
-                renderer_attributes.merge! options["label"].reject { |k, v| k == "field" } if options["label"]
-                renderer_attributes.merge! "lookupfield" => options["lookup"]["field"]  if options["lookup"]
-                layer.add_element(renderer, renderer_attributes) do |render|
-                  content = lambda do |element|
-                    case
-                    when options["line"]
-                      attributes = { "color" => "255,255,255" }.merge(options["line"])
-                      attributes.delete("scale")
-                      # attributes["width"] = # TODO??
-                      element.add_element("SIMPLELINESYMBOL", attributes)
-                    when options["hashline"]
-                      attributes = { "color" => "255,255,255" }.merge(options["hashline"])
-                      attributes.delete("scale")
-                      element.add_element("HASHLINESYMBOL", attributes)
-                    when options["marker"]
-                      attributes = { "color" => "255,255,255", "outline" => "0,0,0" }.merge(options["marker"])
-                      attributes["width"] = (attributes["width"] / 25.4 * scaling.ppi).round
-                      element.add_element("SIMPLEMARKERSYMBOL", attributes)
-                    when options["poly"]
-                      attributes = { "fillcolor" => "255,255,255", "boundary" => false, "antialiasing" => true }.merge(options["poly"])
-                      element.add_element("SIMPLEPOLYGONSYMBOL", attributes)
-                    when options["text"]
-                      attributes = { "fontcolor" => "255,255,255", "antialiasing" => true, "interval" => 0 }.merge(options["text"])
-                      attributes["fontsize"] = (attributes["fontsize"] * scaling.ppi / 72.0).round
-                      attributes["interval"] = (attributes["interval"] / 25.4 * scaling.ppi).round
-                      element.add_element("TEXTSYMBOL", attributes)
-                    when options["truetypemarker"]
-                      attributes = { "fontcolor" => "255,255,255", "outline" => "0,0,0", "antialiasing" => true }.merge(options["truetypemarker"])
-                      attributes["fontsize"] = (attributes["fontsize"] * scaling.ppi / 72.0).round
-                      element.add_element("TRUETYPEMARKERSYMBOL", attributes)
+            options_array.each_with_index do |options, layer_index|
+              unless options["image"]
+                get_image.add_element("LAYER", "type" => options["image"] ? "image" : "featureclass", "visible" => true, "id" => "custom#{layer_index}") do |layer|
+                  layer.add_element("DATASET", "fromlayer" => options["from"])
+                  layer.add_element("SPATIALQUERY", "where" => options["where"]) if options["where"]
+                  renderer_type = "#{options["lookup"] ? 'VALUEMAP' : 'SIMPLE'}#{'LABEL' if options["label"]}RENDERER"
+                  renderer_attributes = {}
+                  renderer_attributes.merge! (options["lookup"] ? "labelfield" : "field") => options["label"]["field"] if options["label"]
+                  renderer_attributes.merge! options["label"].reject { |k, v| k == "field" } if options["label"]
+                  renderer_attributes.merge! "lookupfield" => options["lookup"] if options["lookup"]
+                  layer.add_element(renderer_type, renderer_attributes) do |renderer|
+                    content = lambda do |parent, type, attributes|
+                      case type
+                      when "line"
+                        attrs = { "color" => "255,255,255" }.merge(attributes)
+                        # attributes["width"] = # TODO??
+                        parent.add_element("SIMPLELINESYMBOL", attrs)
+                      when "hashline"
+                        attrs = { "color" => "255,255,255" }.merge(attributes)
+                        parent.add_element("HASHLINESYMBOL", attrs)
+                      when "marker"
+                        attrs = { "color" => "255,255,255", "outline" => "0,0,0" }.merge(attributes)
+                        attrs["width"] = (attrs["width"] / 25.4 * scaling.ppi).round
+                        parent.add_element("SIMPLEMARKERSYMBOL", attrs)
+                      when "polygon"
+                        attrs = { "fillcolor" => "255,255,255", "boundary" => false }.merge(attributes)
+                        parent.add_element("SIMPLEPOLYGONSYMBOL", attrs)
+                      when "text"
+                        attrs = { "fontcolor" => "255,255,255", "antialiasing" => true, "interval" => 0 }.merge(attributes)
+                        attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
+                        attrs["interval"] = (attrs["interval"] / 25.4 * scaling.ppi).round
+                        parent.add_element("TEXTSYMBOL", attrs)
+                      when "truetypemarker"
+                        attrs = { "fontcolor" => "255,255,255", "outline" => "0,0,0", "antialiasing" => true }.merge(attributes)
+                        attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
+                        parent.add_element("TRUETYPEMARKERSYMBOL", attrs)
+                      end
                     end
-                  end
-                  if options["lookup"]
-                    render.add_element("EXACT", "value" => options["lookup"]["value"]) { |exact| content.call(exact) }
-                  else
-                    content.call(render)
+                    [ "line", "hashline", "marker", "polygon", "text", "truetypemarker" ].each do |type|
+                      if options[type]
+                        if options["lookup"]
+                          options[type].each do |value, attributes|
+                            renderer.add_element("EXACT", "value" => value) do |exact|
+                              content.call(exact, type, attributes)
+                            end
+                          end
+                        else
+                          content.call(renderer, type, options[type])
+                        end
+                      end
+                    end
                   end
                 end
               end
@@ -204,7 +214,7 @@ class ArcIMS < Service
           File.open(tile_path, "w") { |file| file << get_response.body }
         end
       end
-      sleep(params[:interval] || 0)
+      sleep(params[:interval]) if params[:interval]
       
       [ bounds, scaling.metres_per_pixel, tile_path ]
     end
@@ -417,104 +427,110 @@ oneearth_relief = OneEarthDEMRelief.new({ :interval => 0.3 }.merge(config[:relie
 
 services = {
   topo_portlet => {
-    "contours-10m" => {
-      "from" => "Contour_1",
-      "where" => "MOD(elevation, 10) = 0 AND verticalaccuracy > 1",
-      "line" => { "width" => 1, "antialiasing" => false }
-    },
-    "contours-50m" => {
-      "from" => "Contour_1",
-      "where" => "MOD(elevation, 50) = 0 AND verticalaccuracy > 1",
-      "line" => { "width" => 2, "antialiasing" => true }
-    },
-    "contours-100m" => {
-      "from" => "Contour_1",
-      "where" => "MOD(elevation, 100) = 0 AND verticalaccuracy > 1",
-      "line" => { "width" => 2, "antialiasing" => true }
-    },
+    "contours-10m-50m" => [
+      {
+        "from" => "Contour_1",
+        "where" => "MOD(elevation, 10) = 0",
+        "line" => { "width" => 1, "antialiasing" => false }
+      },
+      {
+        "from" => "Contour_1",
+        "where" => "MOD(elevation, 50) = 0",
+        "line" => { "width" => 2, "antialiasing" => true }
+      },
+    ],
+    "contours-10m-100m" => [
+      {
+        "from" => "Contour_1",
+        "where" => "MOD(elevation, 10) = 0",
+        "line" => { "width" => 1, "antialiasing" => false }
+      },
+      {
+        "from" => "Contour_1",
+        "where" => "MOD(elevation, 100) = 0",
+        "line" => { "width" => 2, "antialiasing" => true }
+      },
+    ],
     "labels-contours-50m" => {
       "from" => "Contour_1",
-      "where" => "MOD(elevation, 50) = 0 AND verticalaccuracy > 1",
+      "where" => "MOD(elevation, 50) = 0",
       "label" => { "field" => "delivsdm:geodb.Contour.Elevation delivsdm:geodb.Contour.classsubtype", "linelabelposition" => "placeontop" },
       "text" => { "font" => "Arial", "fontsize" => 3.4 }
     },
     "labels-contours-100m" => {
       "from" => "Contour_1",
-      "where" => "MOD(elevation, 100) = 0 AND verticalaccuracy > 1",
+      "where" => "MOD(elevation, 100) = 0",
       "label" => { "field" => "delivsdm:geodb.Contour.Elevation", "linelabelposition" => "placeontop" },
       "text" => { "font" => "Arial", "fontsize" => 3.4 }
     },
-    "watercourses-perennial" => {
+    "watercourses" => {
       "from" => "HydroLine_1",
-      "lookup" => { "field" => "delivsdm:geodb.HydroLine.Perenniality", "value" => 1 },
-      "line" => { "width" => 2 }
+      "lookup" => "delivsdm:geodb.HydroLine.Perenniality",
+      "line" => {
+        1 => { "width" => 2 },
+        2 => { "width" => 1 }
+      }
     },
-    "watercourses-intermittent" => {
-      "from" => "HydroLine_1",
-      "lookup" => { "field" => "delivsdm:geodb.HydroLine.Perenniality", "value" => 2 },
-      "line" => { "width" => 1 }
-    },
-    "labels-watercourses-perennial" => {
+    "labels-watercourses" => {
       "from" => "HydroLine_Label_1",
-      "lookup" => { "field" => "delivsdm:geodb.HydroLine.Perenniality", "value" => 1 },
+      "lookup" => "delivsdm:geodb.HydroLine.Perenniality",
       "label" => { "field" => "delivsdm:geodb.HydroLine.HydroName delivsdm:geodb.HydroLine.HydroNameType", "linelabelposition" => "placeabove" },
-      "text" => { "fontsize" => 4.5, "printmode" => "titlecaps", "fontstyle" => "italic" }
-    },
-    "labels-watercourses-intermittent" => {
-      "from" => "HydroLine_Label_1",
-      "lookup" => { "field" => "delivsdm:geodb.HydroLine.Perenniality", "value" => 2 },
-      "label" => { "field" => "delivsdm:geodb.HydroLine.HydroName delivsdm:geodb.HydroLine.HydroNameType", "linelabelposition" => "placeabove" },
-      "text" => { "fontsize" => 2.8, "printmode" => "titlecaps", "fontstyle" => "italic" }
+      "text" => {
+        1 => { "fontsize" => 4.0, "printmode" => "titlecaps", "fontstyle" => "italic" },
+        2 => { "fontsize" => 2.8, "printmode" => "titlecaps", "fontstyle" => "italic" }
+      }
     },
     "water-areas" => {
       "from" => "HydroArea_1",
-      "poly" => { }
+      "polygon" => { }
     },
-    "roads-primary-sealed" => {
+    "labels-water-areas" => {
+      "from" => "HydroArea_Label_1",
+      "label" => { "field" => "delivsdm:geodb.HydroArea.HydroName delivsdm:geodb.HydroArea.HydroNameType" },
+      "text" => { "fontsize" => 4, "printmode" => "titlecase" }
+    },
+    "roads-sealed" => {
+      "scale" => 0.4,
       "from" => "RoadSegment_1",
       "where" => "surface = 0 OR surface = 1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.functionhierarchy", "value" => "1;2;3" },
-      "line" => { "width" => 7, "antialiasing" => true, "scale" => 0.4 }
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => {
+        "1;2;3" => { "width" => 7, "antialiasing" => true },
+        "4;5"   => { "width" => 5, "antialiasing" => true },
+        "6;7"   => { "width" => 3, "antialiasing" => true }
+      }
     },
-    "roads-primary-unsealed" => {
+    "roads-unsealed" => {
+      "scale" => 0.4,
       "from" => "RoadSegment_1",
       "where" => "surface != 0 AND surface != 1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.functionhierarchy", "value" => "1;2;3" },
-      "line" => { "width" => 7, "antialiasing" => true, "scale" => 0.4 }
-    },
-    "roads-distributor-sealed" => {
-      "from" => "RoadSegment_1",
-      "where" => "surface = 0 OR surface = 1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.functionhierarchy", "value" => "4;5" },
-      "line" => { "width" => 5, "antialiasing" => true, "scale" => 0.4 }
-    },
-    "roads-distributor-unsealed" => {
-      "from" => "RoadSegment_1",
-      "where" => "surface != 0 AND surface != 1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.functionhierarchy", "value" => "4;5" },
-      "line" => { "width" => 5, "antialiasing" => true, "scale" => 0.4 }
-    },
-    "roads-local-sealed" => {
-      "from" => "RoadSegment_1",
-      "where" => "surface = 0 OR surface = 1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.functionhierarchy", "value" => "6;7" },
-      "line" => { "width" => 3, "antialiasing" => true, "scale" => 0.4 }
-    },
-    "roads-local-unsealed" => {
-      "from" => "RoadSegment_1",
-      "where" => "surface != 0 AND surface != 1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.functionhierarchy", "value" => "6;7" },
-      "line" => { "width" => 3, "antialiasing" => true, "scale" => 0.4 }
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => {
+        "1;2;3" => { "width" => 7, "antialiasing" => true },
+        "4;5"   => { "width" => 5, "antialiasing" => true },
+        "6;7"   => { "width" => 3, "antialiasing" => true }
+      }
     },
     "vehicular-tracks" => {
+      "scale" => 0.6,
       "from" => "RoadSegment_1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.functionhierarchy", "value" => 8 },
-      "line" => { "width" => 2, "type" => "dash", "antialiasing" => true, "scale" => 0.6 },
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => { 8 => { "width" => 2, "type" => "dash", "antialiasing" => true } },
     },
     "pathways" => {
+      "scale" => 0.4,
       "from" => "RoadSegment_1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.functionhierarchy", "value" => 9 },
-      "line" => { "width" => 2, "type" => "dash", "antialiasing" => true, "scale" => 0.4 },
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => { 9 => { "width" => 2, "type" => "dash", "antialiasing" => true } },
+    },
+    "labels-roads" => {
+      "from" => "RoadSegment_Label_1",
+      "lookup" => "delivsdm:geodb.RoadSegment.FunctionHierarchy",
+      "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
+      "text" => {
+        "1;2;3;4;5" => { "fontsize" => 4.5, "fontstyle" => "italic", "printmode" => "allupper" },
+        "6;7;8" => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper" },
+      }
     },
     "buildings" => {
       "from" => "BuildingComplexPoint_1",
@@ -527,221 +543,147 @@ services = {
     },
     "dams" => {
       "from" => "HydroPoint_1",
-      "lookup" => { "field" => "delivsdm:geodb.HydroPoint.ClassSubtype", "value" => 1 },
-      "marker" => { "type" => "square", "width" => 0.8 }
+      "lookup" => "delivsdm:geodb.HydroPoint.ClassSubtype",
+      "marker" => { 1 => { "type" => "square", "width" => 0.8 } }
     },
     "built-up-areas" => {
       "from" => "GeneralCulturalArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype", "value" => 7 },
-      "poly" => { }
+      "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
+      "polygon" => { 7 => { } }
     },
     "plantations" => {
       "from" => "GeneralCulturalArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype", "value" => 6 },
-      "poly" => { }
+      "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
+      "polygon" => { 6 => { } }
     },
     "building-areas" => {
       "from" => "GeneralCulturalArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype", "value" => 5 },
-      "poly" => { }
+      "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
+      "polygon" => { 5 => { } }
     },
     "vegetation" => {
       "image" => "Vegetation_1"
     },
-    
-    
-    "dam-walls" => {
-      "from" => "GeneralCulturalLine_1",
-      "lookup" => { "field" => "delivsdm:geodb.GeneralCulturalLine.ClassSubtype", "value" => 4 },
-      "line" => { "width" => 2 }
-    },
     "intertidal" => {
       "from" => "DLSArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSArea.ClassSubtype", "value" => 1 },
-      "poly" => { }
+      "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
+      "polygon" => { 1 => { } }
     },
     "inundation" => {
       "from" => "DLSArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSArea.ClassSubtype", "value" => 2 },
-      "poly" => { }
+      "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
+      "polygon" => { 2 => { } }
+    },
+    "reef" => {
+      "from" => "DLSArea_1",
+      "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
+      "polygon" => { 4 => { } }
     },
     "rock-area" => {
       "from" => "DLSArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSArea.ClassSubtype", "value" => "5;6" },
-      "poly" => { }
+      "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
+      "polygon" => { "5;6" => { } }
     },
     "sand" => {
       "from" => "DLSArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSArea.ClassSubtype", "value" => 7 },
-      "poly" => { }
+      "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
+      "polygon" => { 7 => { } }
     },
     "swamp-wet" => {
       "from" => "DLSArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSArea.ClassSubtype", "value" => 8 },
-      "poly" => { }
+      "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
+      "polygon" => { 8 => { } }
     },
     "swamp-dry" => {
       "from" => "DLSArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSArea.ClassSubtype", "value" => 9 },
-      "poly" => { }
+      "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
+      "polygon" => { 9 => { } }
     },
     "cliffs" => {
       "from" => "DLSArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSArea.ClassSubtype", "value" => 11 },
-      "poly" => { }
+      "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
+      "polygon" => { 11 => { } }
     },
     "clifftops" => {
       "from" => "DLSLine_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSLine.ClassSubtype", "value" => 1 },
-      "line" => { "width" => 1, "type" => "dot" }
+      "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
+      "line" => { 1 => { "width" => 1, "type" => "dot" } }
     },
     "excavation" => {
       "from" => "DLSLine_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSLine.ClassSubtype", "value" => 3 },
-      "line" => { "width" => 1, "type" => "dot" }
+      "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
+      "line" => { 3 => { "width" => 1, "type" => "dot" } }
     },
     "rock-inland-line" => {
       "from" => "DLSLine_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSLine.ClassSubtype", "value" => 6 },
-      "line" => { "width" => 1, "type" => "dot" }
-    },
-    "pinnacles" => {
-      "from" => "DLSPoint_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSPoint.ClassSubtype", "value" => 2 },
-      "marker" => { "type" => "star", "width" => 1.0 }
+      "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
+      "line" => { 6 => { "width" => 1, "type" => "dot" } }
     },
     "caves" => {
       "from" => "DLSPoint_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSPoint.ClassSubtype", "value" => 1 },
-      "marker" => { "type" => "star", "width" => 1.0 }
+      "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+      "marker" => { 1 => { "type" => "star", "width" => 1.0 } }
+    },
+    "pinnacles" => {
+      "from" => "DLSPoint_1",
+      "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+      "marker" => { 2 => { "type" => "star", "width" => 1.0 } }
     },
     "rock-inland-point" => {
       "from" => "DLSPoint_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSPoint.ClassSubtype", "value" => 6 },
-      "marker" => { "type" => "star", "width" => 1.0 }
+      "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+      "marker" => { 6 => { "type" => "star", "width" => 1.0 } }
     },
     "ocean" => {
       "from" => "FuzzyExtentWaterArea_1",
-      "poly" => { }
+      "polygon" => { }
     },
     "coastline" => {
       "from" => "Coastline_1",
       "line" => { "width" => 1 }
     },
-    "reef" => {
-      "from" => "DLSArea_1",
-      "lookup" => { "field" => "delivsdm:geodb.DLSArea.ClassSubtype", "value" => 4 },
-      "poly" => { }
-    },
-    
-    "labels-fuzzy-extent-area" => {
-      "from" => "FuzzyExtentArea_Label_1",
-      "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
-      "text" => { "font" => "Arial", "fontsize" => 4, "printmode" => "titlecaps" }
-    },
-    "labels-fuzzy-extent-line" => {
-      "from" => "FuzzyExtentLine_Label_1",
-      "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
-      "text" => { "font" => "Arial", "fontsize" => 4, "printmode" => "titlecaps" }
+    "labels-fuzzy-extent" => [
+      {
+        "from" => "FuzzyExtentArea_Label_1",
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
+        "text" => { "font" => "Arial", "fontsize" => 4, "printmode" => "titlecaps" }
+      },
+      {
+        "from" => "FuzzyExtentLine_Label_1",
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentLine.GeneralName" },
+        "text" => { "font" => "Arial", "fontsize" => 4, "printmode" => "titlecaps" }
+      },
+    ],
+    "dam-walls" => {
+      "from" => "GeneralCulturalLine_1",
+      "lookup" => "delivsdm:geodb.GeneralCulturalLine.ClassSubtype",
+      "line" => { 4 => { "width" => 2 } }
     },
     "towers" => {
       "from" => "GeneralCulturalPoint_1",
-      "lookup" => { "field" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype", "value" => 7 },
-      "marker" => { "type" => "cross", "width" => 1.0 }
-    },
-    "labels-roads-primary" => {
-      "from" => "RoadSegment_Label_1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.FunctionHierarchy", "value" => "1;2;3" },
-      "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
-      "text" => { "fontsize" => 4.5, "fontstyle" => "italic", "printmode" => "allupper" }
-    },
-    "labels-roads-distributor" => {
-      "from" => "RoadSegment_Label_1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.FunctionHierarchy", "value" => "4;5" },
-      "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
-      "text" => { "fontsize" => 4.5, "fontstyle" => "italic", "printmode" => "allupper" }
-    },
-    "labels-roads-local" => {
-      "from" => "RoadSegment_Label_1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.FunctionHierarchy", "value" => "6;7" },
-      "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
-      "text" => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper" }
-    },
-    "labels-vehicular-tracks" => {
-      "from" => "RoadSegment_Label_1",
-      "lookup" => { "field" => "delivsdm:geodb.RoadSegment.FunctionHierarchy", "value" => 8 },
-      "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
-      "text" => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper" }
+      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+      "marker" => { 7 => { "type" => "cross", "width" => 1.0 } }
     },
     "transmission-lines" => {
+      "scale" => 0.7,
       "from" => "ElectricityTransmissionLine_1",
-      "line" => { "width" => 1, "scale" => 0.7, "type" => "dash_dot", "antialiasing" => true }
+      "line" => { "width" => 1, "type" => "dash_dot", "antialiasing" => true }
     },
     "railways" => {
+      "scale" => 0.7,
       "from" => "Railway_1",
-      "hashline" => { "scale" => 0.7, "width" => 3, "linethickness" => 1, "tickthickness" => 1, "interval" => 6, "antialiasing" => true }
-    },
-    "labels-water-areas" => {
-      "from" => "HydroArea_Label_1",
-      "label" => { "field" => "delivsdm:geodb.HydroArea.HydroName delivsdm:geodb.HydroArea.HydroNameType" },
-      "text" => { "fontsize" => 4, "printmode" => "titlecase" }
+      "hashline" => { "width" => 3, "linethickness" => 1, "tickthickness" => 1, "interval" => 6, "antialiasing" => true }
     },
     "runways" => {
+      "scale" => 1.0,
       "from" => "Runway_1",
-      "line" => { "width" => 3, "scale" => 1.0, "antialiasing" => true }
+      "line" => { "width" => 3, "antialiasing" => true }
     },
     "gates-grids" => {
       "from" => "TrafficControlDevice_1",
-      "lookup" => { "field" => "delivsdm:geodb.TrafficControlDevice.ClassSubtype", "value" => "1;2" },
-      "truetypemarker" => { "font" => "ESRI Weather", "fontsize" => 5, "character" => 122, "fontstyle" => "regular" }
+      "lookup" => "delivsdm:geodb.TrafficControlDevice.ClassSubtype",
+      "truetypemarker" => { "1;2" => { "font" => "ESRI Weather", "fontsize" => 5, "character" => 122, "fontstyle" => "regular" } }
     },
-    
-    
-    # "labels-runways" => {
-    #   "from" => "Runway_Label_1",
-    #   "label" => { "field" => "delivsdm:geodb.Runway.GeneralName" },
-    #   "text" => { "fontsize" => 3, "printmode" => "none" }
-    # }
-    # "beacons" => {
-    #   "from" => "GeneralCulturalPoint_1",
-    #   "lookup" => { "field" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype", "value" => 12 },
-    #   "marker" => { "type" => "cross", "width" => 1.0 }
-    # },
-    # "fences" => {
-    #   "from" => "GeneralCulturalLine_1",
-    #   "lookup" => { "field" => "delivsdm:geodb.GeneralCulturalLine.ClassSubtype", "value" => 2 },
-    #   "line" => { "width" => 2 }
-    # },
-    # "dam-batters" => {
-    #   "from" => "GeneralCulturalArea_1",
-    #   "lookup" => { "field" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype", "value" => 10 },
-    #   "poly" => { }
-    # },
-    # "pondage" => {
-    #   "from" => "GeneralCulturalArea_1",
-    #   "lookup" => { "field" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype", "value" => 9 },
-    #   "poly" => { }
-    # },
-    # "fuzzy-water-labels" => {
-    #   "from" => "FuzzyExtentWaterArea_Label_1",
-    #   "label" => { "field" => "delivsdm:geodb.FuzzyExtentWaterArea.HydroName delivsdm:geodb.FuzzyExtentWaterArea.HydroNameType" },
-    #   "text" => { "fontsize" => 8 }
-    # }
-    # "rock-awash-line" => {
-    #   "from" => "DLSLine_1",
-    #   "lookup" => { "field" => "delivsdm:geodb.DLSLine.ClassSubtype", "value" => 5 },
-    #   "line" => { "width" => 1, "type" => "dot" }
-    # },
-    # "reef-point" => {
-    #   "from" => "DLSPoint_1",
-    #   "lookup" => { "field" => "delivsdm:geodb.DLSPoint.ClassSubtype", "value" => 4 },
-    #   "marker" => { "type" => "star", "width" => 1.0 }
-    # },
-    # "rock-awash-point" => {
-    #   "from" => "DLSPoint_1",
-    #   "lookup" => { "field" => "delivsdm:geodb.DLSPoint.ClassSubtype", "value" => 5 },
-    #   "marker" => { "type" => "star", "width" => 1.0 }
-    # },
   },
   cad_portlet => {
     "cadastre" => {
@@ -749,8 +691,9 @@ services = {
       "line" => { "width" => 1, "type" => "solid" }
     },
     "nsw-border" => {
+      "scale" => 0.5,
       "from" => "Border_1",
-      "line" => { "width" => 2, "type" => "dash_dot_dot", "scale" => 0.5, "antialiasing" => true }
+      "line" => { "width" => 2, "type" => "dash_dot_dot", "antialiasing" => true }
     }
   },
   act_heritage => {
@@ -758,17 +701,17 @@ services = {
       "from" => 30,
       "line" => { "width" => 1, "type" => "solid" }
     },
-    "act-blocks" => {
+    "act-cadastre" => {
       "from" => 27,
       "line" => { "width" => 1, "type" => "solid" }
     },
     "act-urban-land" => {
       "from" => 71,
-      "poly" => { }
+      "polygon" => { }
     },
-    "act-lakes-major-rivers" => {
+    "act-lakes-and-major-rivers" => {
       "from" => 28,
-      "poly" => { }
+      "polygon" => { }
     }
   },
   nokia_maps => {
@@ -817,7 +760,7 @@ services.each do |service, layers|
             path
           end.join " "
         
-          puts "  reprojecting..."
+          puts "  assembling..."
           %x[gdalbuildvrt #{vrt_path} #{dataset_path}]
           %x[gdalwarp -s_srs "#{service.projection}" -r cubic #{vrt_path} #{working_path}]
         end
@@ -839,15 +782,12 @@ end
 # TODO: quote all file paths to allow spaces in dir names
 # TODO: have all default configs in a single hash, use deep-merge
 # TODO: have coastal as a config option
-# TODO: have more than one ArcIMS layers in one of our layers (e.g. the fuzzy extent labels for areas & lines)
-# TODO: have script that combines layers into an overview
 # TODO: control circle and control number layers from GPX file
 # TODO: 20m contours layer (easy)
 # TODO: fix Nokia dropped tiles?
 # TODO: various label spacings ("interval" attribute)
 # TODO: line styles, etc.
 # TODO: remove extraneous layers
-# TODO: combine layers (e.g. sealed roads, fuzzy extent labels, etc.) in ArcIMS
 # TODO: replace simple markers with truetype markers?
 # TODO: compose layers into final image for use without photoshop
 # TODO: save as layered PSD?

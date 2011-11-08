@@ -19,7 +19,7 @@ class REXML::Element
 end
 
 def http_request(uri, req, options)
-  retries = options[:retries] || 0
+  retries = options["retries"] || 0
   begin
     response = Net::HTTP.start(uri.host, uri.port) { |http| http.request(req) }
     case response
@@ -87,13 +87,13 @@ end
 class Service
   def initialize(params)
     @params = params
-    @projection = params[:projection]
+    @projection = params["projection"]
   end
   
   def data?(input_bounds, input_projection)
-    return true unless params[:envelope]
-    projected_bounds = transform_bounds(input_projection, params[:envelope][:projection], input_bounds)
-    return [ projected_bounds, params[:envelope][:bounds] ].transpose.map do |projected_bound, envelope_bound|
+    return true unless params["envelope"]
+    projected_bounds = transform_bounds(input_projection, params["envelope"]["projection"], input_bounds)
+    return [ projected_bounds, params["envelope"]["bounds"] ].transpose.map do |projected_bound, envelope_bound|
       projected_bound.max > envelope_bound.min && projected_bound.min < envelope_bound.max
     end.inject(:&)
   end
@@ -103,7 +103,7 @@ end
 
 class ArcIMS < Service
   def tiles(input_bounds, input_projection, scaling)
-    tile_sizes = params[:tile_sizes]
+    tile_sizes = params["tile_sizes"]
     bounds = transform_bounds(input_projection, projection, input_bounds)
     extents = bounds.map { |bound| bound.max - bound.min }
     pixels = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
@@ -142,8 +142,8 @@ class ArcIMS < Service
         arcxml.add_element("REQUEST") do |request|
           request.add_element("GET_IMAGE") do |get_image|
             get_image.add_element("PROPERTIES") do |properties|
-              properties.add_element("FEATURECOORDSYS", "string" => params[:wkt])
-              properties.add_element("FILTERCOORDSYS", "string" => params[:wkt])
+              properties.add_element("FEATURECOORDSYS", "string" => params["wkt"])
+              properties.add_element("FILTERCOORDSYS", "string" => params["wkt"])
               properties.add_element("ENVELOPE", "minx" => bounds.first.first, "maxx" => bounds.first.last, "miny" => bounds.last.first, "maxy" => bounds.last.last)
               properties.add_element("IMAGESIZE", "width" => extents.first, "height" => extents.last, "dpi" => dpi, "scalesymbols" => true)
               properties.add_element("BACKGROUND", "color" => "0,0,0")
@@ -213,16 +213,16 @@ class ArcIMS < Service
         end
       end
       
-      post_uri = URI::HTTP.build :host => params[:host], :path => params[:path], :query => "ServiceName=#{params[:name]}"
-      http_post(post_uri, xml, :retries => 5) do |post_response|
+      post_uri = URI::HTTP.build :host => params["host"], :path => params["path"], :query => "ServiceName=#{params["name"]}"
+      http_post(post_uri, xml, "retries" => 5) do |post_response|
         xml = REXML::Document.new(post_response.body)
         abort(xml.elements["ARCXML"].elements["RESPONSE"].elements["ERROR"].text) if xml.elements["ARCXML"].elements["RESPONSE"].elements["ERROR"]
         get_uri = URI.parse xml.elements["ARCXML"].elements["RESPONSE"].elements["IMAGE"].elements["OUTPUT"].attributes["url"]
-        http_get(get_uri, :retries => 5) do |get_response|
+        http_get(get_uri, "retries" => 5) do |get_response|
           File.open(tile_path, "w") { |file| file << get_response.body }
         end
       end
-      sleep(params[:interval]) if params[:interval]
+      sleep(params["interval"]) if params["interval"]
       
       [ bounds, scaling.metres_per_pixel, tile_path ]
     end
@@ -231,8 +231,8 @@ end
 
 class TiledMapService < Service
   def dataset(input_bounds, input_projection, scaling, options, dir)
-    tile_sizes = params[:tile_sizes]
-    crops = params[:crops] || [ [ 0, 0 ], [ 0, 0 ] ]
+    tile_sizes = params["tile_sizes"]
+    crops = params["crops"] || [ [ 0, 0 ], [ 0, 0 ] ]
     bounds = transform_bounds(input_projection, projection, input_bounds)
     origins = bounds.transpose.first
     zoom = (Math::log2(Math::PI * EARTH_RADIUS / scaling.metres_per_pixel) - 7 - 0.5).ceil
@@ -248,7 +248,7 @@ class TiledMapService < Service
     puts "    (downloading #{counts.inject(:*)} tiles)"
     
     counts.map { |count| (0...count).to_a }.inject(:product).map do |indices|
-      sleep(params[:interval] || 0)
+      sleep(params["interval"] || 0)
       tile_path = File.join(dir, "tile.#{indices.join('.')}.png")
       
       cropped_centre = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
@@ -261,15 +261,15 @@ class TiledMapService < Service
       
       longitude, latitude = transform_coordinates(projection, "EPSG:4326", centre)
       
-      attributes = [ :longitude, :latitude, :zoom, :format, :hsize, :vsize, :name ]
-      values     = [  longitude,  latitude,  zoom,  format,    *tile_sizes,  name ]
-      uri_string = [ attributes, values ].transpose.inject(params[:uri]) do |string, array|
+      attributes = [ "longitude", "latitude", "zoom", "format", "hsize", "vsize", "name" ]
+      values     = [  longitude,   latitude,   zoom,   format,      *tile_sizes,   name  ]
+      uri_string = [ attributes, values ].transpose.inject(params["uri"]) do |string, array|
         attribute, value = array
-        string.gsub(Regexp.new(":#{attribute}"), value.to_s)
+        string.gsub(Regexp.new("\\$\\{#{attribute}\\}"), value.to_s)
       end
       uri = URI.parse(uri_string)
       
-      http_get(uri, :retries => 5) do |response|
+      http_get(uri, "retries" => 5) do |response|
         File.open(tile_path, "w") { |file| file << response.body }
         %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 #{tile_path}]
         %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} #{tile_path}]
@@ -281,9 +281,8 @@ end
 
 class GridService < Service
   def dataset(input_bounds, input_projection, scaling, options, dir)
-    intervals = params[:intervals]
-    pointsize = params[:pointsize] || 4.5
-    ppi = params[:ppi]
+    intervals = params["intervals"]
+    pointsize = params["pointsize"] || 4.5
     
     bounds = transform_bounds(input_projection, projection, input_bounds)
     origins = bounds.transpose.first
@@ -317,17 +316,17 @@ class GridService < Service
       draw = "-stroke white -strokewidth 1 " + draw 
     when "eastings"
       centre_pixel = tick_pixels.last[centre_indices.last]
-      dx, dy = [ 0.04 * ppi ] * 2
+      dx, dy = [ 0.04 * scaling.ppi ] * 2
       draw = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| "-draw \"translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick}'\"" }.join " "
       draw = "-fill white -pointsize #{pointsize} -family 'Arial Narrow' -weight 100 " + draw  
     when "northings"
       centre_pixel = tick_pixels.first[centre_indices.first]
-      dx, dy = [ 0.04 * ppi ] * 2
+      dx, dy = [ 0.04 * scaling.ppi ] * 2
       draw = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| "-draw \"text #{centre_pixel+dx},#{pixel-dy} '#{tick}'\"" }.join " "
       draw = "-fill white -pointsize #{pointsize} -family 'Arial Narrow' -weight 100 " + draw  
     end
     
-    %x[convert -units PixelsPerInch -density #{ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 #{draw} #{tile_path}]
+    %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 #{draw} #{tile_path}]
     [ [ bounds, units_per_pixel, tile_path ] ]
   end
 end
@@ -351,21 +350,21 @@ class OneEarthDEMRelief < Service
       tile_path = File.join(dir, "tile.#{index}.png")
       bbox = tile_bounds.transpose.map { |corner| corner.join "," }.join ","
       query = {
-        :request => "GetMap",
-        :layers => "gdem",
-        :srs => projection,
-        :width => 300,
-        :height => 300,
-        :format => "image/png",
-        :styles => "short_int",
-        :bbox => bbox
+        "request" => "GetMap",
+        "layers" => "gdem",
+        "srs" => projection,
+        "width" => 300,
+        "height" => 300,
+        "format" => "image/png",
+        "styles" => "short_int",
+        "bbox" => bbox
       }.map { |key, value| "#{key}=#{value}" }.join("&")
       uri = URI::HTTP.build :host => "onearth.jpl.nasa.gov", :path => "/wms.cgi", :query => URI.escape(query)
 
-      http_get(uri, :retries => 5) do |response|
+      http_get(uri, "retries" => 5) do |response|
         File.open(tile_path, "w") { |file| file << response.body }
         write_world_file([ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, "#{tile_path}w")
-        sleep(@params[:interval] || 0)
+        sleep(@params["interval"] || 0)
       end
     end
     vrt_path = File.join(dir, "dem.vrt")
@@ -375,12 +374,12 @@ class OneEarthDEMRelief < Service
     %x[gdalbuildvrt #{vrt_path} #{wildcard_path}]
     case options["name"]
     when "hillshade"
-      altitude = @params[:altitude] || 45
-      azimuth = @params[:azimuth] || 315
-      exaggeration = @params[:exaggeration] || 1
+      altitude = @params["altitude"] || 45
+      azimuth = @params["azimuth"] || 315
+      exaggeration = @params["exaggeration"] || 1
       %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} #{vrt_path} #{relief_path} -q]
     when "color-relief"
-      colours = @params[:colours] || { "0%" => "black", "100%" => "white" }
+      colours = @params["colours"] || { "0%" => "black", "100%" => "white" }
       colour_path = File.join(dir, "colours")
       File.open(colour_path, "w") do |file|
         colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
@@ -390,6 +389,36 @@ class OneEarthDEMRelief < Service
     %x[convert #{relief_path} -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 #{output_path}]
     
     [ [ bounds, units_per_pixel, output_path ] ]
+  end
+end
+
+class DeclinationService < Service
+  def dataset(input_bounds, input_projection, scaling, options, dir)
+    spacing = params["spacing"]
+    angle = params["angle"]
+    
+    bounds = transform_bounds(input_projection, projection, input_bounds)
+    origins = bounds.transpose.first
+    
+    # TODO: this is wrong if the projection is not a UTM grid!
+    units_per_pixel = scaling.metres_per_pixel / 1.0
+    
+    extents = bounds.map { |bound| bound.max - bound.min }
+    pixels = extents.map { |extent| (extent / units_per_pixel).ceil }
+    
+    tile_path = File.join(dir, "tile.0.png") # just one big tile
+    
+    radians = angle * Math::PI / 180.0
+    x_spacing = spacing / Math::cos(radians) / units_per_pixel
+    dx = extents.last * Math::tan(radians)
+    x_min = [ 0, dx ].min
+    x_max = [ extents.first, extents.first + dx ].max
+    line_count = (x_max - x_min) / x_spacing
+    x_starts = (1..line_count).map { |n| x_min + n * x_spacing }
+    draw = x_starts.map { |x| "-draw 'line #{x.to_i},0 #{(x - dx).to_i},#{extents.last}'" }.join " "
+    
+    %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 -stroke white -strokewidth 1 #{draw} #{tile_path}]
+    [ [ bounds, units_per_pixel, tile_path ] ]
   end
 end
 
@@ -426,64 +455,68 @@ puts "  %.1fcm x %.1fcm @ %i ppi" % [ *target_extents.map { |extent| extent * 2.
 puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * target_extents.inject(:*), *target_extents ]
 
 topo_portlet = ArcIMS.new(
-  :host => "maps.nsw.gov.au",
-  :path => "/servlet/com.esri.esrimap.Esrimap",
-  :name => "topo_portlet",
-  :projection => target_projection,
-  :wkt => target_wkt,
-  :tile_sizes => [ 1024, 1024 ],
-  :interval => 0.1,
-  :envelope => {
-    :bounds => [ [ 140.011127032369, 154.62466299763 ], [ -37.740334035, -27.924909045 ] ],
-    :projection => "EPSG:4283"
+  "host" => "maps.nsw.gov.au",
+  "path" => "/servlet/com.esri.esrimap.Esrimap",
+  "name" => "topo_portlet",
+  "projection" => target_projection,
+  "wkt" => target_wkt,
+  "tile_sizes" => [ 1024, 1024 ],
+  "interval" => 0.1,
+  "envelope" => {
+    "bounds" => [ [ 140.011127032369, 154.62466299763 ], [ -37.740334035, -27.924909045 ] ],
+    "projection" => "EPSG:4283"
   })
 cad_portlet = ArcIMS.new(
-  :host => "maps.nsw.gov.au",
-  :path => "/servlet/com.esri.esrimap.Esrimap",
-  :name => "cad_portlet",
-  :projection => target_projection,
-  :wkt => target_wkt,
-  :tile_sizes => [ 1024, 1024 ],
-  :interval => 0.1,
-  :envelope => {
-    :bounds => [ [ 140.05983881892, 154.575951211079 ], [ -37.740334035, -27.924909045 ] ],
-    :projection => "EPSG:4283"
+  "host" => "maps.nsw.gov.au",
+  "path" => "/servlet/com.esri.esrimap.Esrimap",
+  "name" => "cad_portlet",
+  "projection" => target_projection,
+  "wkt" => target_wkt,
+  "tile_sizes" => [ 1024, 1024 ],
+  "interval" => 0.1,
+  "envelope" => {
+    "bounds" => [ [ 140.05983881892, 154.575951211079 ], [ -37.740334035, -27.924909045 ] ],
+    "projection" => "EPSG:4283"
   })
 act_heritage = ArcIMS.new(
-  :host => "www.gim.act.gov.au",
-  :path => "/arcims/ims",
-  :name => "Heritage",
-  :projection => target_projection,
-  :wkt => target_wkt,
-  :tile_sizes => [ 1024, 1024 ],
-  :interval => 0.1,
-  :envelope => {
-    :bounds => [ [ 660000, 718000 ], [ 6020000, 6107000 ] ],
-    :projection => "EPSG:32755"
+  "host" => "www.gim.act.gov.au",
+  "path" => "/arcims/ims",
+  "name" => "Heritage",
+  "projection" => target_projection,
+  "wkt" => target_wkt,
+  "tile_sizes" => [ 1024, 1024 ],
+  "interval" => 0.1,
+  "envelope" => {
+    "bounds" => [ [ 660000, 718000 ], [ 6020000, 6107000 ] ],
+    "projection" => "EPSG:32755"
   })
 nokia_maps = TiledMapService.new(
-  :uri => "http://m.ovi.me/?c=:latitude,:longitude&t=:name&z=:zoom&h=:vsize&w=:hsize&f=:format&nord&nodot",
-  :projection => "EPSG:3857",
-  :tile_sizes => [ 1024, 1024 ],
-  :interval => 0.3,
-  :crops => [ [ 0, 0 ], [ 26, 0 ] ]
+  "uri" => "http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot",
+  "projection" => "EPSG:3857",
+  "tile_sizes" => [ 1024, 1024 ],
+  "interval" => 0.3,
+  "crops" => [ [ 0, 0 ], [ 26, 0 ] ]
 )
 google_maps = TiledMapService.new(
-  :uri => "http://maps.googleapis.com/maps/api/staticmap?zoom=:zoom&size=:hsizex:vsize&scale=1&format=:format&maptype=:name&sensor=false&center=:latitude,:longitude",
-  :projection => "EPSG:3857",
-  :tile_sizes => [ 640, 640 ],
-  :crops => [ [ 0, 0 ], [ 30, 0 ] ],
-  :interval => 1
+  "uri" => "http://maps.googleapis.com/maps/api/staticmap?zoom=${zoom}&size=${hsize}x${vsize}&scale=1&format=${format}&maptype=${name}&sensor=false&center=${latitude},${longitude}",
+  "projection" => "EPSG:3857",
+  "tile_sizes" => [ 640, 640 ],
+  "crops" => [ [ 0, 0 ], [ 30, 0 ] ],
+  "interval" => 1
 )
 grid_service = GridService.new({
-    :projection => nearest_utm,
-    :intervals => [ 1000, 1000 ],
-    :ppi => scaling.ppi
-  }.merge(config[:grid] || {})
+    "projection" => nearest_utm,
+    "intervals" => [ 1000, 1000 ],
+  }.merge(config["grid"] || {})
 )
 oneearth_relief = OneEarthDEMRelief.new({
-    :interval => 0.3
-  }.merge(config[:relief] || {})
+    "interval" => 0.3
+  }.merge(config["relief"] || {})
+)
+declination_service = DeclinationService.new({
+    "projection" => target_projection,
+    "spacing" => 1000,
+  }.merge(config["declination"])
 )
 
 services = {
@@ -760,7 +793,11 @@ services = {
   act_heritage => {
     "act-rivers-and-creeks" => {
       "from" => 30,
-      "line" => { "width" => 1, "type" => "solid" }
+      "lookup" => "PEREN_TEXT",
+      "line" => {
+        "Water Feature contains water infrequently" => { "width" => 1 },
+        "Water Feature contains water frequently" => { "width" => 2 }
+      }
     },
     "act-cadastre" => {
       "from" => 27,
@@ -795,6 +832,9 @@ services = {
   oneearth_relief => {
     "hillshade" => { "name" => "hillshade" },
     "colour-relief" => { "name" => "color-relief" }
+  },
+  declination_service => {
+    "declination" => { }
   }
 }
 
@@ -853,6 +893,7 @@ end
 # TODO: convert TiledMapService to use ${} for placeholders
 # TODO: control label spacing with labelrenderer attributes?
 # TODO: use ranges for bounds? use a Bounds class?
+# TODO: render perenniality in act-rivers-streams?
 
 # TODO: try ArcGIS explorer??
 

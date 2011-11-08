@@ -813,7 +813,37 @@ services = {
     "act-plantations" => {
       "from" => 51,
       "polygon" => { }
-    }
+    },
+    "act-roads-sealed" => {
+      "scale" => 0.4,
+      "from" => 42,
+      "lookup" => "RTYPE_TEXT",
+      "line" => {
+        "HIGHWAY;MAIN ROAD" => { "width" => 7, "type" => "solid", "antialiasing" => true },
+        "LOCAL CONNECTOR ROAD" => { "width" => 5, "type" => "solid", "antialiasing" => true },
+        "SEALED ROAD" => { "width" => 3, "type" => "solid", "antialiasing" => true }
+      }
+    },
+    "act-roads-unsealed" => {
+      "scale" => 0.4,
+      "from" => 42,
+      "lookup" => "RTYPE_TEXT",
+      "line" => {
+        "UNSEALED ROAD" => { "width" => 3, "type" => "solid", "antialiasing" => true }
+      }
+    },
+    "act-vehicular-tracks" => {
+      "scale" => 0.6,
+      "from" => 42,
+      "lookup" => "RTYPE_TEXT",
+      "line" => {
+        "VEHICULAR TRACK" => { "width" => 2, "type" => "dash", "antialiasing" => true }
+      },
+    },
+    # "act-trails" => {
+    #   "from" => 39,
+    #   "line" => { "width" => 1 }
+    # }
   },
   nokia_maps => {
     "aerial-nokia" => {

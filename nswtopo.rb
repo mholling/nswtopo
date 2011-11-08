@@ -88,14 +88,22 @@ class Service
   def initialize(params)
     @params = params
     @projection = params[:projection]
-    @tile_sizes = params[:tile_sizes]
   end
   
-  attr_reader :projection, :params, :tile_sizes
+  def data?(input_bounds, input_projection)
+    return true unless params[:envelope]
+    projected_bounds = transform_bounds(input_projection, params[:envelope][:projection], input_bounds)
+    return [ projected_bounds, params[:envelope][:bounds] ].transpose.map do |projected_bound, envelope_bound|
+      projected_bound.max > envelope_bound.min && projected_bound.min < envelope_bound.max
+    end.inject(:&)
+  end
+  
+  attr_reader :projection, :params
 end
 
 class ArcIMS < Service
   def tiles(input_bounds, input_projection, scaling)
+    tile_sizes = params[:tile_sizes]
     bounds = transform_bounds(input_projection, projection, input_bounds)
     extents = bounds.map { |bound| bound.max - bound.min }
     pixels = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
@@ -223,6 +231,7 @@ end
 
 class TiledMapService < Service
   def dataset(input_bounds, input_projection, scaling, options, dir)
+    tile_sizes = params[:tile_sizes]
     crops = params[:crops] || [ [ 0, 0 ], [ 0, 0 ] ]
     bounds = transform_bounds(input_projection, projection, input_bounds)
     origins = bounds.transpose.first
@@ -323,12 +332,11 @@ class GridService < Service
   end
 end
 
-class OneEarthDEMRelief
+class OneEarthDEMRelief < Service
   def initialize(params)
-    @params = params
+    super(params)
+    @projection = "EPSG:4326"
   end
-  
-  def projection; "EPSG:4326"; end
   
   def dataset(input_bounds, input_projection, scaling, options, dir)
     bounds = transform_bounds(input_projection, projection, input_bounds)
@@ -417,13 +425,66 @@ puts "Final map size:"
 puts "  %.1fcm x %.1fcm @ %i ppi" % [ *target_extents.map { |extent| extent * 2.54 / scaling.ppi }, scaling.ppi ]
 puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * target_extents.inject(:*), *target_extents ]
 
-topo_portlet = ArcIMS.new(:host => "maps.nsw.gov.au", :path => "/servlet/com.esri.esrimap.Esrimap", :name => "topo_portlet", :projection => target_projection, :wkt => target_wkt, :tile_sizes => [ 1024, 1024 ], :interval => 0.1)
-cad_portlet = ArcIMS.new(:host => "maps.nsw.gov.au", :path => "/servlet/com.esri.esrimap.Esrimap", :name => "cad_portlet", :projection => target_projection, :wkt => target_wkt, :tile_sizes => [ 1024, 1024 ], :interval => 0.1)
-act_heritage = ArcIMS.new(:host => "www.gim.act.gov.au", :path => "/arcims/ims", :name => "Heritage", :projection => target_projection, :wkt => target_wkt, :tile_sizes => [ 1024, 1024 ], :interval => 0.1)
-nokia_maps = TiledMapService.new(:uri => "http://m.ovi.me/?c=:latitude,:longitude&t=:name&z=:zoom&h=:vsize&w=:hsize&f=:format&nord&nodot", :projection => "EPSG:3857", :tile_sizes => [ 1024, 1024 ], :interval => 0.3, :crops => [ [ 0, 0 ], [ 26, 0 ] ])
-google_maps = TiledMapService.new(:uri => "http://maps.googleapis.com/maps/api/staticmap?zoom=:zoom&size=:hsizex:vsize&scale=1&format=:format&maptype=:name&sensor=false&center=:latitude,:longitude", :projection => "EPSG:3857", :tile_sizes => [ 640, 640 ], :crops => [ [ 0, 0 ], [ 30, 0 ] ], :interval => 1)
-grid_service = GridService.new({ :projection => nearest_utm, :intervals => [ 1000, 1000 ], :ppi => scaling.ppi }.merge(config[:grid] || {}))
-oneearth_relief = OneEarthDEMRelief.new({ :interval => 0.3 }.merge(config[:relief] || {}))
+topo_portlet = ArcIMS.new(
+  :host => "maps.nsw.gov.au",
+  :path => "/servlet/com.esri.esrimap.Esrimap",
+  :name => "topo_portlet",
+  :projection => target_projection,
+  :wkt => target_wkt,
+  :tile_sizes => [ 1024, 1024 ],
+  :interval => 0.1,
+  :envelope => {
+    :bounds => [ [ 140.011127032369, 154.62466299763 ], [ -37.740334035, -27.924909045 ] ],
+    :projection => "EPSG:4283"
+  })
+cad_portlet = ArcIMS.new(
+  :host => "maps.nsw.gov.au",
+  :path => "/servlet/com.esri.esrimap.Esrimap",
+  :name => "cad_portlet",
+  :projection => target_projection,
+  :wkt => target_wkt,
+  :tile_sizes => [ 1024, 1024 ],
+  :interval => 0.1,
+  :envelope => {
+    :bounds => [ [ 140.05983881892, 154.575951211079 ], [ -37.740334035, -27.924909045 ] ],
+    :projection => "EPSG:4283"
+  })
+act_heritage = ArcIMS.new(
+  :host => "www.gim.act.gov.au",
+  :path => "/arcims/ims",
+  :name => "Heritage",
+  :projection => target_projection,
+  :wkt => target_wkt,
+  :tile_sizes => [ 1024, 1024 ],
+  :interval => 0.1,
+  :envelope => {
+    :bounds => [ [ 660000, 718000 ], [ 6020000, 6107000 ] ],
+    :projection => "EPSG:32755"
+  })
+nokia_maps = TiledMapService.new(
+  :uri => "http://m.ovi.me/?c=:latitude,:longitude&t=:name&z=:zoom&h=:vsize&w=:hsize&f=:format&nord&nodot",
+  :projection => "EPSG:3857",
+  :tile_sizes => [ 1024, 1024 ],
+  :interval => 0.3,
+  :crops => [ [ 0, 0 ], [ 26, 0 ] ]
+)
+google_maps = TiledMapService.new(
+  :uri => "http://maps.googleapis.com/maps/api/staticmap?zoom=:zoom&size=:hsizex:vsize&scale=1&format=:format&maptype=:name&sensor=false&center=:latitude,:longitude",
+  :projection => "EPSG:3857",
+  :tile_sizes => [ 640, 640 ],
+  :crops => [ [ 0, 0 ], [ 30, 0 ] ],
+  :interval => 1
+)
+grid_service = GridService.new({
+    :projection => nearest_utm,
+    :intervals => [ 1000, 1000 ],
+    :ppi => scaling.ppi
+  }.merge(config[:grid] || {})
+)
+oneearth_relief = OneEarthDEMRelief.new({
+    :interval => 0.3
+  }.merge(config[:relief] || {})
+)
 
 services = {
   topo_portlet => {
@@ -740,17 +801,17 @@ services = {
 services.each do |service, layers|
   layers.each do |filename, options|
     output_path = File.join(output_dir, "#{filename}.tif")
-    unless File.exists? output_path
+    unless File.exists?(output_path) || !service.data?(target_bounds, target_projection)
       puts "Layer: #{filename}"
       Dir.mktmpdir do |temp_dir|
         canvas_path = File.join(temp_dir, "canvas.tif")
         vrt_path = File.join(temp_dir, "#{filename}.vrt")
         working_path = File.join(temp_dir, "#{filename}.tif")
-      
+        
         puts "  preparing..."
-        %x[convert -quiet -size #{target_extents.join 'x'} canvas:white -type TrueColor -depth 8 #{canvas_path}]
+        %x[convert -quiet -size #{target_extents.join 'x'} canvas:black -type TrueColor -depth 8 #{canvas_path}]
         %x[geotifcp -c lzw -e #{tfw_path} -4 '#{target_projection}' #{canvas_path} #{working_path}]
-      
+        
         if service
           puts "  downloading..."
           dataset_path = service.dataset(target_bounds, target_projection, scaling, options, temp_dir).collect do |bounds, resolution, path|
@@ -759,12 +820,12 @@ services.each do |service, layers|
             %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 #{path}]
             path
           end.join " "
-        
+          
           puts "  assembling..."
           %x[gdalbuildvrt #{vrt_path} #{dataset_path}]
           %x[gdalwarp -s_srs "#{service.projection}" -r cubic #{vrt_path} #{working_path}]
         end
-      
+        
         %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} -compress LZW #{working_path}]
         %x[geotifcp -e #{tfw_path} -4 '#{target_projection}' #{working_path} #{output_path}]
       end
@@ -772,7 +833,6 @@ services.each do |service, layers|
   end
 end
 
-# TODO: have service bounding boxes, and check each tile for presence within bounding box, return no tile if outside
 # TODO: colour relief settings
 # TODO: have antialiasing as a config option
 # TODO: antialiasing polygons??
@@ -787,11 +847,12 @@ end
 # TODO: fix Nokia dropped tiles?
 # TODO: various label spacings ("interval" attribute)
 # TODO: line styles, etc.
-# TODO: remove extraneous layers
 # TODO: replace simple markers with truetype markers?
 # TODO: compose layers into final image for use without photoshop
 # TODO: save as layered PSD?
 # TODO: convert TiledMapService to use ${} for placeholders
+# TODO: control label spacing with labelrenderer attributes?
+# TODO: use ranges for bounds? use a Bounds class?
 
 # TODO: try ArcGIS explorer??
 

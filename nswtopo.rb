@@ -809,6 +809,10 @@ services = {
     "act-lakes-and-major-rivers" => {
       "from" => 28,
       "polygon" => { }
+    },
+    "act-plantations" => {
+      "from" => 51,
+      "polygon" => { }
     }
   },
   nokia_maps => {

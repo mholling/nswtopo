@@ -490,6 +490,18 @@ act_heritage = ArcIMS.new(
     "bounds" => [ [ 660000, 718000 ], [ 6020000, 6107000 ] ],
     "projection" => "EPSG:32755"
   })
+act_dog = ArcIMS.new(
+  "host" => "www.gim.act.gov.au",
+  "path" => "/arcims/ims",
+  "name" => "dog",
+  "projection" => target_projection,
+  "wkt" => target_wkt,
+  "tile_sizes" => [ 1024, 1024 ],
+  "interval" => 0.1,
+  "envelope" => {
+    "bounds" => [ [ 659890.105040274, 720782.12808229 ], [ 6022931.0546655, 6111100.93973127 ] ],
+    "projection" => "EPSG:32755"
+  })
 nokia_maps = TiledMapService.new(
   "uri" => "http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot",
   "projection" => "EPSG:3857",
@@ -814,16 +826,24 @@ services = {
       "from" => 51,
       "polygon" => { }
     },
-    "act-roads-sealed" => {
-      "scale" => 0.4,
-      "from" => 42,
-      "lookup" => "RTYPE_TEXT",
-      "line" => {
-        "HIGHWAY;MAIN ROAD" => { "width" => 7, "type" => "solid", "antialiasing" => true },
-        "LOCAL CONNECTOR ROAD" => { "width" => 5, "type" => "solid", "antialiasing" => true },
-        "SEALED ROAD" => { "width" => 3, "type" => "solid", "antialiasing" => true }
+    "act-roads-sealed" => [
+      {
+        "scale" => 0.4,
+        "from" => 42,
+        "lookup" => "RTYPE_TEXT",
+        "line" => {
+          "MAIN ROAD" => { "width" => 7, "type" => "solid", "antialiasing" => true },
+          "LOCAL CONNECTOR ROAD" => { "width" => 5, "type" => "solid", "antialiasing" => true },
+          "SEALED ROAD" => { "width" => 3, "type" => "solid", "antialiasing" => true }
+        }
+      },
+      {
+        "scale" => 0.4,
+        "from" => 67,
+        "lookup" => "RTYPE_TEXT",
+        "line" => { "HIGHWAY" => { "width" => 7, "type" => "solid", "antialiasing" => true } }
       }
-    },
+    ],
     "act-roads-unsealed" => {
       "scale" => 0.4,
       "from" => 42,
@@ -840,10 +860,14 @@ services = {
         "VEHICULAR TRACK" => { "width" => 2, "type" => "dash", "antialiasing" => true }
       },
     },
-    # "act-trails" => {
-    #   "from" => 39,
-    #   "line" => { "width" => 1 }
-    # }
+  },
+  act_dog => {
+    "act-adhoc-fire-access" => {
+      "from" => 39,
+      "scale" => 0.4,
+      "lookup" => "STANDARD",
+      "line" => { "Adhoc" => { "width" => 2, "type" => "dash", "antialiasing" => true } }
+    }
   },
   nokia_maps => {
     "aerial-nokia" => {
@@ -923,6 +947,7 @@ end
 # TODO: save as layered PSD?
 # TODO: control label spacing with labelrenderer attributes?
 # TODO: use ranges for bounds? use a Bounds class?
+# TODO: don't abort on ArcIMS server error, just get next layer
 
 # TODO: try ArcGIS explorer??
 

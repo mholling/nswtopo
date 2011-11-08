@@ -708,25 +708,21 @@ services = {
       "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
       "line" => { 3 => { "width" => 1, "type" => "dot" } }
     },
-    "rock-inland-line" => {
-      "from" => "DLSLine_1",
-      "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
-      "line" => { 6 => { "width" => 1, "type" => "dot" } }
-    },
     "caves" => {
       "from" => "DLSPoint_1",
       "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "marker" => { 1 => { "type" => "star", "width" => 1.0 } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Caves 3", "fontsize" => 8, "character" => 47 } }
+    },
+    "labels-caves" => {
+      "from" => "DLSPoint_Label_1",
+      "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+      "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName" },
+      "text" => { 1 => { "font" => "Arial", "fontsize" => 3, "printmode" => "titlecaps", "interval" => 2.0 } }
     },
     "pinnacles" => {
       "from" => "DLSPoint_1",
       "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "marker" => { 2 => { "type" => "star", "width" => 1.0 } }
-    },
-    "rock-inland-point" => {
-      "from" => "DLSPoint_1",
-      "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "marker" => { 6 => { "type" => "star", "width" => 1.0 } }
+      "truetypemarker" => { 2 => { "font" => "ESRI Default Marker", "character" => 107, "fontsize" => 3 } }
     },
     "ocean" => {
       "from" => "FuzzyExtentWaterArea_1",
@@ -756,7 +752,7 @@ services = {
     "towers" => {
       "from" => "GeneralCulturalPoint_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "marker" => { 7 => { "type" => "cross", "width" => 1.0 } }
+      "truetypemarker" => { 7 => { "font" => "ESRI Cartography", "character" => 100, "fontsize" => 7 } }
     },
     "transmission-lines" => {
       "scale" => 0.7,
@@ -776,7 +772,10 @@ services = {
     "gates-grids" => {
       "from" => "TrafficControlDevice_1",
       "lookup" => "delivsdm:geodb.TrafficControlDevice.ClassSubtype",
-      "truetypemarker" => { "1;2" => { "font" => "ESRI Weather", "fontsize" => 5, "character" => 122, "fontstyle" => "regular" } }
+      "truetypemarker" => {
+        1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 4, "character" => 178 },
+        2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 4, "character" => 177 }
+      }
     },
   },
   cad_portlet => {
@@ -886,14 +885,19 @@ end
 # TODO: fix Nokia dropped tiles?
 # TODO: various label spacings ("interval" attribute)
 # TODO: line styles, etc.
-# TODO: replace simple markers with truetype markers?
 # TODO: compose layers into final image for use without photoshop
 # TODO: save as layered PSD?
 # TODO: control label spacing with labelrenderer attributes?
 # TODO: use ranges for bounds? use a Bounds class?
-# TODO: render perenniality in act-rivers-streams?
 
 # TODO: try ArcGIS explorer??
 
 # swamp: ESRI IGL Font20, character 87?
-# also:  Mapsymbs – WD – Map Icons2
+# swamp: ESRI Caves 1, 195, 196, 197
+# pine: ESRI Geometric Symbols, 221
+# pine: ESRI Environmental & Icons, 50
+# pine: ESRI US Forestry 2
+# pine: ESRI US MUTCD 3, 241
+# pine: ESRI Enviro Hazard Analysis, 111
+
+

@@ -877,7 +877,6 @@ end
 # TODO: have antialiasing as a config option
 # TODO: antialiasing polygons??
 # TODO: bring back post-actions
-# TODO: magnetic declination
 # TODO: in TiledMapService, reduce zoom level if too many tiles (as set in config)
 # TODO: quote all file paths to allow spaces in dir names
 # TODO: have all default configs in a single hash, use deep-merge
@@ -890,7 +889,6 @@ end
 # TODO: replace simple markers with truetype markers?
 # TODO: compose layers into final image for use without photoshop
 # TODO: save as layered PSD?
-# TODO: convert TiledMapService to use ${} for placeholders
 # TODO: control label spacing with labelrenderer attributes?
 # TODO: use ranges for bounds? use a Bounds class?
 # TODO: render perenniality in act-rivers-streams?

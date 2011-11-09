@@ -282,7 +282,7 @@ end
 class GridService < Service
   def dataset(input_bounds, input_projection, scaling, options, dir)
     intervals = params["intervals"]
-    pointsize = params["pointsize"] || 4.5
+    fontsize = params["fontsize"] || 4.5
     
     bounds = transform_bounds(input_projection, projection, input_bounds)
     origins = bounds.transpose.first
@@ -318,12 +318,12 @@ class GridService < Service
       centre_pixel = tick_pixels.last[centre_indices.last]
       dx, dy = [ 0.04 * scaling.ppi ] * 2
       draw = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| "-draw \"translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick}'\"" }.join " "
-      draw = "-fill white -pointsize #{pointsize} -family 'Arial Narrow' -weight 100 " + draw  
+      draw = "-fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 " + draw  
     when "northings"
       centre_pixel = tick_pixels.first[centre_indices.first]
       dx, dy = [ 0.04 * scaling.ppi ] * 2
       draw = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| "-draw \"text #{centre_pixel+dx},#{pixel-dy} '#{tick}'\"" }.join " "
-      draw = "-fill white -pointsize #{pointsize} -family 'Arial Narrow' -weight 100 " + draw  
+      draw = "-fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 " + draw  
     end
     
     %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 #{draw} #{tile_path}]
@@ -418,6 +418,59 @@ class DeclinationService < Service
     draw = x_starts.map { |x| "-draw 'line #{x.to_i},0 #{(x - dx).to_i},#{extents.last}'" }.join " "
     
     %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 -stroke white -strokewidth 1 #{draw} #{tile_path}]
+    [ [ bounds, units_per_pixel, tile_path ] ]
+  end
+end
+
+class ControlService < Service
+  def data?(input_bounds, input_projection)
+    return File.exists?(params["gpx_path"])
+  end
+  
+  def dataset(input_bounds, input_projection, scaling, options, dir)
+    bounds = transform_bounds(input_projection, projection, input_bounds)
+    
+    # TODO: this is wrong if the projection is not a UTM grid!
+    units_per_pixel = scaling.metres_per_pixel / 1.0
+    
+    extents = bounds.map { |bound| bound.max - bound.min }
+    pixels = extents.map { |extent| (extent / units_per_pixel).ceil }
+    
+    tile_path = File.join(dir, "tile.0.png") # just one big tile
+    
+    xml = REXML::Document.new(File.open params["gpx_path"])
+    waypoints = xml.elements["gpx"].elements.collect("wpt") do |element|
+      [ element.attributes["lon"].to_f, element.attributes["lat"].to_f ]
+    end
+    numbers = xml.elements["gpx"].elements.collect("wpt") do |element|
+      element.elements["name"].text
+    end
+    
+    radius = params["diameter"] * scaling.ppi / 25.4 / 2
+    strokewidth = params["thickness"] * scaling.ppi / 25.4
+    draw = [ transform_coordinates("EPSG:4326", projection, *waypoints), numbers ].transpose.map do |coordinates, number|
+      x = (coordinates.first - bounds.first.min) / units_per_pixel
+      y = (bounds.last.max - coordinates.last) / units_per_pixel
+      case options["name"]
+      when "circles"
+        if number == "HH"
+          "-draw 'polygon #{x},#{y-radius} #{x+radius*Math::sqrt(0.75)},#{y+radius/2}, #{x-radius*Math::sqrt(0.75)},#{y+radius/2}'"
+        else
+          "-draw 'circle #{x},#{y} #{x+radius},#{y}'"
+        end
+      when "numbers"
+        "-draw \"text #{x+radius},#{y-radius} '#{number}'\""
+      end
+    end.join " "
+    
+    draw = case options["name"]
+    when "circles"
+      "-stroke white -strokewidth #{strokewidth} #{draw}"
+    when "numbers"
+      "-fill white -pointsize #{params['fontsize']} -family 'Arial' -weight 100 #{draw}"
+    end
+    
+    %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 #{draw} #{tile_path}]
     [ [ bounds, units_per_pixel, tile_path ] ]
   end
 end
@@ -530,6 +583,14 @@ declination_service = DeclinationService.new({
     "spacing" => 1000,
   }.merge(config["declination"])
 )
+control_service = ControlService.new({
+  "gpx_path" => File.join(output_dir, "controls.gpx"),
+  "projection" => target_projection,
+  "fontsize" => 14,
+  "diameter" => 7,
+  "thickness" => 0.2
+  }.merge(config["controls"] || {})
+)
 
 services = {
   topo_portlet => {
@@ -560,7 +621,7 @@ services = {
     "labels-contours-50m" => {
       "from" => "Contour_1",
       "where" => "MOD(elevation, 50) = 0",
-      "label" => { "field" => "delivsdm:geodb.Contour.Elevation delivsdm:geodb.Contour.classsubtype", "linelabelposition" => "placeontop" },
+      "label" => { "field" => "delivsdm:geodb.Contour.Elevation", "linelabelposition" => "placeontop" },
       "text" => { "font" => "Arial", "fontsize" => 3.4 }
     },
     "labels-contours-100m" => {
@@ -892,6 +953,10 @@ services = {
   },
   declination_service => {
     "declination" => { }
+  },
+  control_service => {
+    "control-numbers" => { "name" => "numbers" },
+    "control-circles" => { "name" => "circles" }
   }
 }
 
@@ -948,6 +1013,7 @@ end
 # TODO: control label spacing with labelrenderer attributes?
 # TODO: use ranges for bounds? use a Bounds class?
 # TODO: don't abort on ArcIMS server error, just get next layer
+# TODO: extract commonality from GridService, DeclinationService, ControlService into AnnotationService
 
 # TODO: try ArcGIS explorer??
 

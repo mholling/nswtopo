@@ -168,18 +168,18 @@ class ArcIMS < Service
                     content = lambda do |parent, type, attributes|
                       case type
                       when "line"
-                        attrs = { "color" => "255,255,255" }.merge(attributes)
-                        # attributes["width"] = # TODO??
+                        attrs = { "color" => "255,255,255", "antialiasing" => true }.merge(attributes)
                         parent.add_element("SIMPLELINESYMBOL", attrs)
                       when "hashline"
-                        attrs = { "color" => "255,255,255" }.merge(attributes)
+                        attrs = { "color" => "255,255,255", "antialiasing" => true }.merge(attributes)
                         parent.add_element("HASHLINESYMBOL", attrs)
                       when "marker"
                         attrs = { "color" => "255,255,255", "outline" => "0,0,0" }.merge(attributes)
                         attrs["width"] = (attrs["width"] / 25.4 * scaling.ppi).round
                         parent.add_element("SIMPLEMARKERSYMBOL", attrs)
                       when "polygon"
-                        attrs = { "fillcolor" => "255,255,255", "boundary" => false }.merge(attributes)
+                        attrs = { "fillcolor" => "255,255,255", "boundarycolor" => "255,255,255" }.merge(attributes)
+                        attrs["boundarywidth"] ||= 2 if attrs["antialiasing"]
                         parent.add_element("SIMPLEPOLYGONSYMBOL", attrs)
                       when "text"
                         attrs = { "fontcolor" => "255,255,255", "antialiasing" => true, "interval" => 0 }.merge(attributes)
@@ -570,24 +570,36 @@ services = {
       {
         "from" => "Contour_1",
         "where" => "MOD(elevation, 10) = 0",
-        "line" => { "width" => 1, "antialiasing" => false }
+        "line" => { "width" => 1 }
       },
       {
         "from" => "Contour_1",
         "where" => "MOD(elevation, 50) = 0",
-        "line" => { "width" => 2, "antialiasing" => true }
+        "line" => { "width" => 2 }
       },
     ],
     "contours-10m-100m" => [
       {
         "from" => "Contour_1",
         "where" => "MOD(elevation, 10) = 0",
-        "line" => { "width" => 1, "antialiasing" => false }
+        "line" => { "width" => 1 }
       },
       {
         "from" => "Contour_1",
         "where" => "MOD(elevation, 100) = 0",
-        "line" => { "width" => 2, "antialiasing" => true }
+        "line" => { "width" => 2 }
+      },
+    ],
+    "contours-20m-100m" => [
+      {
+        "from" => "Contour_1",
+        "where" => "MOD(elevation, 20) = 0",
+        "line" => { "width" => 1 }
+      },
+      {
+        "from" => "Contour_1",
+        "where" => "MOD(elevation, 100) = 0",
+        "line" => { "width" => 2 }
       },
     ],
     "labels-contours-50m" => {
@@ -621,7 +633,7 @@ services = {
     },
     "water-areas" => {
       "from" => "HydroArea_1",
-      "polygon" => { }
+      "polygon" => { "antialiasing" => true }
     },
     "labels-water-areas" => {
       "from" => "HydroArea_Label_1",
@@ -634,9 +646,9 @@ services = {
       "where" => "surface = 0 OR surface = 1",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => {
-        "1;2;3" => { "width" => 7, "antialiasing" => true },
-        "4;5"   => { "width" => 5, "antialiasing" => true },
-        "6;7"   => { "width" => 3, "antialiasing" => true }
+        "1;2;3" => { "width" => 7 },
+        "4;5"   => { "width" => 5 },
+        "6;7"   => { "width" => 3 }
       }
     },
     "roads-unsealed" => {
@@ -645,22 +657,22 @@ services = {
       "where" => "surface != 0 AND surface != 1",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => {
-        "1;2;3" => { "width" => 7, "antialiasing" => true },
-        "4;5"   => { "width" => 5, "antialiasing" => true },
-        "6;7"   => { "width" => 3, "antialiasing" => true }
+        "1;2;3" => { "width" => 7 },
+        "4;5"   => { "width" => 5 },
+        "6;7"   => { "width" => 3 }
       }
     },
     "vehicular-tracks" => {
       "scale" => 0.6,
       "from" => "RoadSegment_1",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => { 8 => { "width" => 2, "type" => "dash", "antialiasing" => true } },
+      "line" => { 8 => { "width" => 2, "type" => "dash" } },
     },
     "pathways" => {
       "scale" => 0.4,
       "from" => "RoadSegment_1",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => { 9 => { "width" => 2, "type" => "dash", "antialiasing" => true } },
+      "line" => { 9 => { "width" => 2, "type" => "dash" } },
     },
     "labels-roads" => {
       "from" => "RoadSegment_Label_1",
@@ -673,7 +685,7 @@ services = {
     },
     "buildings" => {
       "from" => "BuildingComplexPoint_1",
-      "marker" => { "type" => "square", "width" => 0.6 }
+      "marker" => { "type" => "square", "width" => 0.6, "antialiasing" => false }
     },
     "labels-buildings" => {
       "from" => "BuildingComplexPoint_Label_1",
@@ -683,7 +695,7 @@ services = {
     "dams" => {
       "from" => "HydroPoint_1",
       "lookup" => "delivsdm:geodb.HydroPoint.ClassSubtype",
-      "marker" => { 1 => { "type" => "square", "width" => 0.8 } }
+      "marker" => { 1 => { "type" => "square", "width" => 0.8, "antialiasing" => false } }
     },
     "built-up-areas" => {
       "from" => "GeneralCulturalArea_1",
@@ -746,12 +758,12 @@ services = {
     "clifftops" => {
       "from" => "DLSLine_1",
       "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
-      "line" => { 1 => { "width" => 1, "type" => "dot" } }
+      "line" => { 1 => { "width" => 1, "type" => "dot", "antialiasing" => false } }
     },
     "excavation" => {
       "from" => "DLSLine_1",
       "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
-      "line" => { 3 => { "width" => 1, "type" => "dot" } }
+      "line" => { 3 => { "width" => 1, "type" => "dot", "antialiasing" => false } }
     },
     "caves" => {
       "from" => "DLSPoint_1",
@@ -802,17 +814,17 @@ services = {
     "transmission-lines" => {
       "scale" => 0.7,
       "from" => "ElectricityTransmissionLine_1",
-      "line" => { "width" => 1, "type" => "dash_dot", "antialiasing" => true }
+      "line" => { "width" => 1, "type" => "dash_dot" }
     },
     "railways" => {
       "scale" => 0.7,
       "from" => "Railway_1",
-      "hashline" => { "width" => 3, "linethickness" => 1, "tickthickness" => 1, "interval" => 6, "antialiasing" => true }
+      "hashline" => { "width" => 3, "linethickness" => 1, "tickthickness" => 1, "interval" => 6 }
     },
     "runways" => {
       "scale" => 1.0,
       "from" => "Runway_1",
-      "line" => { "width" => 3, "antialiasing" => true }
+      "line" => { "width" => 3 }
     },
     "gates-grids" => {
       "from" => "TrafficControlDevice_1",
@@ -826,12 +838,12 @@ services = {
   cad_portlet => {
     "cadastre" => {
       "from" => "Address_1",
-      "line" => { "width" => 1, "type" => "solid" }
+      "line" => { "width" => 1 }
     },
     "nsw-border" => {
       "scale" => 0.5,
       "from" => "Border_1",
-      "line" => { "width" => 2, "type" => "dash_dot_dot", "antialiasing" => true }
+      "line" => { "width" => 2, "type" => "dash_dot_dot" }
     }
   },
   act_heritage => {
@@ -845,7 +857,7 @@ services = {
     },
     "act-cadastre" => {
       "from" => 27,
-      "line" => { "width" => 1, "type" => "solid" }
+      "line" => { "width" => 1 }
     },
     "act-urban-land" => {
       "from" => 71,
@@ -853,7 +865,7 @@ services = {
     },
     "act-lakes-and-major-rivers" => {
       "from" => 28,
-      "polygon" => { }
+      "polygon" => { "antialiasing" => true }
     },
     "act-plantations" => {
       "from" => 51,
@@ -865,16 +877,16 @@ services = {
         "from" => 42,
         "lookup" => "RTYPE_TEXT",
         "line" => {
-          "MAIN ROAD" => { "width" => 7, "type" => "solid", "antialiasing" => true },
-          "LOCAL CONNECTOR ROAD" => { "width" => 5, "type" => "solid", "antialiasing" => true },
-          "SEALED ROAD" => { "width" => 3, "type" => "solid", "antialiasing" => true }
+          "MAIN ROAD" => { "width" => 7 },
+          "LOCAL CONNECTOR ROAD" => { "width" => 5 },
+          "SEALED ROAD" => { "width" => 3 }
         }
       },
       {
         "scale" => 0.4,
         "from" => 67,
         "lookup" => "RTYPE_TEXT",
-        "line" => { "HIGHWAY" => { "width" => 7, "type" => "solid", "antialiasing" => true } }
+        "line" => { "HIGHWAY" => { "width" => 7 } }
       }
     ],
     "act-roads-unsealed" => {
@@ -882,7 +894,7 @@ services = {
       "from" => 42,
       "lookup" => "RTYPE_TEXT",
       "line" => {
-        "UNSEALED ROAD" => { "width" => 3, "type" => "solid", "antialiasing" => true }
+        "UNSEALED ROAD" => { "width" => 3 }
       }
     },
     "act-vehicular-tracks" => {
@@ -890,7 +902,7 @@ services = {
       "from" => 42,
       "lookup" => "RTYPE_TEXT",
       "line" => {
-        "VEHICULAR TRACK" => { "width" => 2, "type" => "dash", "antialiasing" => true }
+        "VEHICULAR TRACK" => { "width" => 2, "type" => "dash" }
       },
     },
   },
@@ -899,7 +911,7 @@ services = {
       "from" => 39,
       "scale" => 0.4,
       "lookup" => "STANDARD",
-      "line" => { "Adhoc" => { "width" => 2, "type" => "dash", "antialiasing" => true } }
+      "line" => { "Adhoc" => { "width" => 2, "type" => "dash" } }
     }
   },
   nokia_maps => {
@@ -968,20 +980,15 @@ services.each do |service, layers|
 end
 
 # TODO: colour relief settings
-# TODO: have antialiasing as a config option
-# TODO: antialiasing polygons??
 # TODO: bring back post-actions
 # TODO: in TiledMapService, reduce zoom level if too many tiles (as set in config)
 # TODO: quote all file paths to allow spaces in dir names
 # TODO: have all default configs in a single hash, use deep-merge
-# TODO: have coastal as a config option
-# TODO: 20m contours layer (easy)
 # TODO: fix Nokia dropped tiles?
 # TODO: various label spacings ("interval" attribute)
 # TODO: line styles, etc.
 # TODO: compose layers into final image for use without photoshop
 # TODO: save as layered PSD?
-# TODO: control label spacing with labelrenderer attributes?
 # TODO: use ranges for bounds? use a Bounds class?
 # TODO: don't abort on ArcIMS server error, just get next layer
 

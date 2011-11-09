@@ -279,58 +279,6 @@ class TiledMapService < Service
   end
 end
 
-class GridService < Service
-  def dataset(input_bounds, input_projection, scaling, options, dir)
-    intervals = params["intervals"]
-    fontsize = params["fontsize"] || 4.5
-    
-    bounds = transform_bounds(input_projection, projection, input_bounds)
-    origins = bounds.transpose.first
-    
-    # TODO: this is wrong if the projection is not a UTM grid!
-    units_per_pixel = scaling.metres_per_pixel / 1.0
-    
-    extents = bounds.map { |bound| bound.max - bound.min }
-    pixels = extents.map { |extent| (extent / units_per_pixel).ceil }
-    origins = bounds.transpose.first
-    
-    tile_path = File.join(dir, "tile.0.png") # just one big tile
-    
-    indices = [ bounds, intervals ].transpose.map do |bound, interval|
-      ((bound.first / interval).floor .. (bound.last / interval).ceil).to_a
-    end
-    tick_coords = [ indices, intervals ].transpose.map { |range, interval| range.map { |index| index * interval } }
-    tick_pixels = [ tick_coords, bounds, extents, [ 0, 1 ], [ 1, -1 ] ].transpose.map do |coords, bound, extent, index, sign|
-      coords.map { |coord| ((coord - bound[index]) * sign / units_per_pixel).round }
-    end
-    
-    centre_coords = bounds.map { |bound| 0.5 * bound.inject(:+) }
-    centre_indices = [ centre_coords, indices, intervals ].transpose.map do |coord, range, interval|
-      range.index((coord / interval).round)
-    end
-    
-    case options["name"]
-    when "grid"
-      commands = [ "-draw 'line %d,0 %d,#{extents.last}'", "-draw 'line 0,%d #{extents.first},%d'" ]
-      draw = [ tick_pixels, commands ].transpose.map { |pixelz, command| pixelz.map { |pixel| command % [ pixel, pixel ] }.join " "}.join " "
-      draw = "-stroke white -strokewidth 1 " + draw 
-    when "eastings"
-      centre_pixel = tick_pixels.last[centre_indices.last]
-      dx, dy = [ 0.04 * scaling.ppi ] * 2
-      draw = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| "-draw \"translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick}'\"" }.join " "
-      draw = "-fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 " + draw  
-    when "northings"
-      centre_pixel = tick_pixels.first[centre_indices.first]
-      dx, dy = [ 0.04 * scaling.ppi ] * 2
-      draw = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| "-draw \"text #{centre_pixel+dx},#{pixel-dy} '#{tick}'\"" }.join " "
-      draw = "-fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 " + draw  
-    end
-    
-    %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 #{draw} #{tile_path}]
-    [ [ bounds, units_per_pixel, tile_path ] ]
-  end
-end
-
 class OneEarthDEMRelief < Service
   def initialize(params)
     super(params)
@@ -364,7 +312,7 @@ class OneEarthDEMRelief < Service
       http_get(uri, "retries" => 5) do |response|
         File.open(tile_path, "w") { |file| file << response.body }
         write_world_file([ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, "#{tile_path}w")
-        sleep(@params["interval"] || 0)
+        sleep(params["interval"] || 0)
       end
     end
     vrt_path = File.join(dir, "dem.vrt")
@@ -374,12 +322,12 @@ class OneEarthDEMRelief < Service
     %x[gdalbuildvrt #{vrt_path} #{wildcard_path}]
     case options["name"]
     when "hillshade"
-      altitude = @params["altitude"] || 45
-      azimuth = @params["azimuth"] || 315
-      exaggeration = @params["exaggeration"] || 1
+      altitude = params["altitude"] || 45
+      azimuth = params["azimuth"] || 315
+      exaggeration = params["exaggeration"] || 1
       %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} #{vrt_path} #{relief_path} -q]
     when "color-relief"
-      colours = @params["colours"] || { "0%" => "black", "100%" => "white" }
+      colours = params["colours"] || { "0%" => "black", "100%" => "white" }
       colour_path = File.join(dir, "colours")
       File.open(colour_path, "w") do |file|
         colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
@@ -392,52 +340,79 @@ class OneEarthDEMRelief < Service
   end
 end
 
-class DeclinationService < Service
+class AnnotationService < Service
   def dataset(input_bounds, input_projection, scaling, options, dir)
+    # TODO: this is wrong if the projection is not a UTM grid!
+    bounds = transform_bounds(input_projection, projection, input_bounds)
+    extents = bounds.map { |bound| bound.max - bound.min }
+    pixels = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
+    tile_path = File.join(dir, "tile.0.png") # just one big tile
+    draw_string = draw(bounds, extents, scaling, options);
+    %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 #{draw_string} #{tile_path}]
+    [ [ bounds, scaling.metres_per_pixel, tile_path ] ]
+  end
+end
+
+class GridService < AnnotationService
+  def draw(bounds, extents, scaling, options)
+    intervals = params["intervals"]
+    fontsize = params["fontsize"] || 4.5
+    
+    indices = [ bounds, intervals ].transpose.map do |bound, interval|
+      ((bound.first / interval).floor .. (bound.last / interval).ceil).to_a
+    end
+    tick_coords = [ indices, intervals ].transpose.map { |range, interval| range.map { |index| index * interval } }
+    tick_pixels = [ tick_coords, bounds, extents, [ 0, 1 ], [ 1, -1 ] ].transpose.map do |coords, bound, extent, index, sign|
+      coords.map { |coord| ((coord - bound[index]) * sign / scaling.metres_per_pixel).round }
+    end
+    
+    centre_coords = bounds.map { |bound| 0.5 * bound.inject(:+) }
+    centre_indices = [ centre_coords, indices, intervals ].transpose.map do |coord, range, interval|
+      range.index((coord / interval).round)
+    end
+    
+    case options["name"]
+    when "grid"
+      commands = [ "-draw 'line %d,0 %d,#{extents.last}'", "-draw 'line 0,%d #{extents.first},%d'" ]
+      string = [ tick_pixels, commands ].transpose.map { |pixelz, command| pixelz.map { |pixel| command % [ pixel, pixel ] }.join " "}.join " "
+      "-stroke white -strokewidth 1 #{string}"
+    when "eastings"
+      centre_pixel = tick_pixels.last[centre_indices.last]
+      dx, dy = [ 0.04 * scaling.ppi ] * 2
+      string = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| "-draw \"translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick}'\"" }.join " "
+      "-fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 #{string}"
+    when "northings"
+      centre_pixel = tick_pixels.first[centre_indices.first]
+      dx, dy = [ 0.04 * scaling.ppi ] * 2
+      string = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| "-draw \"text #{centre_pixel+dx},#{pixel-dy} '#{tick}'\"" }.join " "
+      "-fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 #{string}"
+    end
+  end
+end
+
+class DeclinationService < AnnotationService
+  def draw(bounds, extents, scaling, options)
     spacing = params["spacing"]
     angle = params["angle"]
     
-    bounds = transform_bounds(input_projection, projection, input_bounds)
-    origins = bounds.transpose.first
-    
-    # TODO: this is wrong if the projection is not a UTM grid!
-    units_per_pixel = scaling.metres_per_pixel / 1.0
-    
-    extents = bounds.map { |bound| bound.max - bound.min }
-    pixels = extents.map { |extent| (extent / units_per_pixel).ceil }
-    
-    tile_path = File.join(dir, "tile.0.png") # just one big tile
-    
     radians = angle * Math::PI / 180.0
-    x_spacing = spacing / Math::cos(radians) / units_per_pixel
+    x_spacing = spacing / Math::cos(radians) / scaling.metres_per_pixel
     dx = extents.last * Math::tan(radians)
     x_min = [ 0, dx ].min
     x_max = [ extents.first, extents.first + dx ].max
     line_count = (x_max - x_min) / x_spacing
     x_starts = (1..line_count).map { |n| x_min + n * x_spacing }
-    draw = x_starts.map { |x| "-draw 'line #{x.to_i},0 #{(x - dx).to_i},#{extents.last}'" }.join " "
-    
-    %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 -stroke white -strokewidth 1 #{draw} #{tile_path}]
-    [ [ bounds, units_per_pixel, tile_path ] ]
+    string = x_starts.map { |x| "-draw 'line #{x.to_i},0 #{(x - dx).to_i},#{extents.last}'" }.join " "
+    "-stroke white -strokewidth 1 #{string}"
   end
 end
 
-class ControlService < Service
+class ControlService < AnnotationService
   def data?(input_bounds, input_projection)
     return File.exists?(params["gpx_path"])
   end
   
-  def dataset(input_bounds, input_projection, scaling, options, dir)
-    bounds = transform_bounds(input_projection, projection, input_bounds)
-    
-    # TODO: this is wrong if the projection is not a UTM grid!
-    units_per_pixel = scaling.metres_per_pixel / 1.0
-    
-    extents = bounds.map { |bound| bound.max - bound.min }
-    pixels = extents.map { |extent| (extent / units_per_pixel).ceil }
-    
-    tile_path = File.join(dir, "tile.0.png") # just one big tile
-    
+  def draw(bounds, extents, scaling, options)
     xml = REXML::Document.new(File.open params["gpx_path"])
     waypoints = xml.elements["gpx"].elements.collect("wpt") do |element|
       [ element.attributes["lon"].to_f, element.attributes["lat"].to_f ]
@@ -448,30 +423,27 @@ class ControlService < Service
     
     radius = params["diameter"] * scaling.ppi / 25.4 / 2
     strokewidth = params["thickness"] * scaling.ppi / 25.4
-    draw = [ transform_coordinates("EPSG:4326", projection, *waypoints), numbers ].transpose.map do |coordinates, number|
-      x = (coordinates.first - bounds.first.min) / units_per_pixel
-      y = (bounds.last.max - coordinates.last) / units_per_pixel
+    string = [ transform_coordinates("EPSG:4326", projection, *waypoints), numbers ].transpose.map do |coordinates, number|
+      x = (coordinates.first - bounds.first.min) / scaling.metres_per_pixel
+      y = (bounds.last.max - coordinates.last) / scaling.metres_per_pixel
       case options["name"]
       when "circles"
         if number == "HH"
-          "-draw 'polygon #{x},#{y-radius} #{x+radius*Math::sqrt(0.75)},#{y+radius/2}, #{x-radius*Math::sqrt(0.75)},#{y+radius/2}'"
+          "-draw 'polygon #{x},#{y - radius} #{x + radius * Math::sqrt(0.75)},#{y + radius * 0.5}, #{x - radius * Math::sqrt(0.75)},#{y + radius * 0.5}'"
         else
-          "-draw 'circle #{x},#{y} #{x+radius},#{y}'"
+          "-draw 'circle #{x},#{y} #{x + radius},#{y}'"
         end
       when "numbers"
-        "-draw \"text #{x+radius},#{y-radius} '#{number}'\""
+        "-draw \"text #{x + radius},#{y - radius} '#{number}'\""
       end
     end.join " "
     
-    draw = case options["name"]
+    case options["name"]
     when "circles"
-      "-stroke white -strokewidth #{strokewidth} #{draw}"
+      "-stroke white -strokewidth #{strokewidth} #{string}"
     when "numbers"
-      "-fill white -pointsize #{params['fontsize']} -family 'Arial' -weight 100 #{draw}"
+      "-fill white -pointsize #{params['fontsize']} -family 'Arial' -weight Normal #{string}"
     end
-    
-    %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 #{draw} #{tile_path}]
-    [ [ bounds, units_per_pixel, tile_path ] ]
   end
 end
 
@@ -1003,7 +975,6 @@ end
 # TODO: quote all file paths to allow spaces in dir names
 # TODO: have all default configs in a single hash, use deep-merge
 # TODO: have coastal as a config option
-# TODO: control circle and control number layers from GPX file
 # TODO: 20m contours layer (easy)
 # TODO: fix Nokia dropped tiles?
 # TODO: various label spacings ("interval" attribute)
@@ -1013,7 +984,6 @@ end
 # TODO: control label spacing with labelrenderer attributes?
 # TODO: use ranges for bounds? use a Bounds class?
 # TODO: don't abort on ArcIMS server error, just get next layer
-# TODO: extract commonality from GridService, DeclinationService, ControlService into AnnotationService
 
 # TODO: try ArcGIS explorer??
 

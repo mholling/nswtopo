@@ -4,6 +4,7 @@ require 'uri'
 require 'net/http'
 require 'rexml/document'
 require 'tmpdir'
+require 'tempfile'
 require 'yaml'
 require 'erb'
 
@@ -690,7 +691,7 @@ services = {
     "labels-buildings" => {
       "from" => "BuildingComplexPoint_Label_1",
       "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName" },
-      "text" => { "font" => "Arial", "fontsize" => 3, "printmode" => "titlecaps", "interval" => 1.0 }
+      "text" => { "font" => "Arial", "fontsize" => 3, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 1.0 }
     },
     "dams" => {
       "from" => "HydroPoint_1",
@@ -804,7 +805,8 @@ services = {
     "dam-walls" => {
       "from" => "GeneralCulturalLine_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalLine.ClassSubtype",
-      "line" => { 4 => { "width" => 2 } }
+      "scale" => 0.4,
+      "line" => { 4 => { "width" => 3 } }
     },
     "towers" => {
       "from" => "GeneralCulturalPoint_1",
@@ -830,8 +832,8 @@ services = {
       "from" => "TrafficControlDevice_1",
       "lookup" => "delivsdm:geodb.TrafficControlDevice.ClassSubtype",
       "truetypemarker" => {
-        1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 4, "character" => 178 },
-        2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 4, "character" => 177 }
+        1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178 },
+        2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177 }
       }
     },
   },
@@ -979,6 +981,89 @@ services.each do |service, layers|
   end
 end
 
+sequences = {
+  # "caves" => 
+  # "cliffs" => 
+  # "clifftops" => 
+  # "coastline" => 
+  # "excavation" => 
+  # "hillshade" => 
+  # "intertidal" => 
+  # "inundation" => 
+  # "labels-caves" => 
+  # "nsw-border" => 
+  # "pinnacles" => 
+  # "reef" => 
+  # "rock-area" => 
+  
+  "aerial-google" => { },
+  "vegetation" => { },
+  # "ocean" => 
+  "built-up-areas" => { "color" => "#F8FF73" },
+  # "plantations" => 
+  "contours-10m-100m" => { "color" => "Dark Magenta" },
+  "building-areas" => { "color" => "#666667" },
+  # "sand" => 
+  # "swamp-dry" => 
+  # "swamp-wet" => 
+  "cadastre" => { "color" => "#888889" },
+  "act-cadastre" => { "color" => "#888889" },
+  "watercourses" => { "color" => "#3860FF" },
+  "water-areas" => { "color" => "#3860FF" },
+  "dams" => { "color" => "#3860FF" },
+  "pathways" => { "color" => "#000001" },
+  "vehicular-tracks" => { "color" => "Dark Orange" },
+  "roads-unsealed" => { "color" => "Dark Orange" },
+  "roads-sealed" => { "color" => "Red" },
+  "railways" => { "color" => "#000001" },
+  "runways" => { "color" => "#000001" },
+  "gates-grids" => { "color" => "#000001" },
+  "dam-walls" => { "color" => "#000001" },
+  "buildings" => { "color" => "#000001" },
+  "transmission-lines" => { "color" => "#000001" },
+  "towers" => { "color" => "#000001" },
+  "labels-buildings" => { "color" => "#000001" },
+  "labels-watercourses" => { "color" => "#000001" },
+  "labels-water-areas" => { "color" => "#000001" },
+  "labels-roads" => { "color" => "#000001" },
+  "labels-contours-100m" => { "color" => "#000001" },
+  "labels-fuzzy-extent" => { "color" => "#555556" },
+  "control-circles" => { "color" => "Red" },
+  "control-numbers" => { "color" => "Red" },
+  "declination" => { "color" => "#000001" }
+}.map do |filename, options|
+  [ filename, File.join(output_dir, "#{filename}.tif"), options ]
+end.select do |filename, path, options|
+  File.exists? path
+end.reject do |filename, path, options|
+  %x[convert -quiet #{path} -format '%[max]' info:].to_i == 0
+end.map do |filename, path, options|
+  switches = { "set" => "label #{filename}", "type" => "TrueColorMatte" }
+  if options["color"]
+    switches["background"] = "'#{options["color"]}'"
+    switches["alpha"] = "Shape"
+  end
+  switches = switches.map { |switch, value| "-#{switch} #{value}" }.join " "
+  "#{path} #{switches}"
+end
+
+tif_path = File.join(output_dir, "#{map_name}.tif")
+unless File.exist? tif_path
+  puts "Compositing #{map_name}.tif ..."
+  Tempfile.open([map_name, ".tif"]) do |file|
+    sequence_string = sequences.map { |sequence| "\\( #{sequence} \\) -flatten" }.join " "
+    %x[convert -quiet #{sequence_string} #{file.path}]
+    %x[geotifcp -c packbits -e #{tfw_path} -4 '#{target_projection}' #{file.path} #{tif_path}]
+  end
+end
+
+psd_path = File.join(output_dir, "#{map_name}.psd")
+unless File.exist? psd_path
+  puts "Building #{map_name}.psd ..."
+  sequence_string = sequences.map { |sequence| "\\( #{sequence} \\)" }.join " "
+  %x[convert -quiet #{tif_path} #{sequence_string} #{psd_path}]
+end
+
 # TODO: colour relief settings
 # TODO: bring back post-actions
 # TODO: in TiledMapService, reduce zoom level if too many tiles (as set in config)
@@ -987,10 +1072,14 @@ end
 # TODO: fix Nokia dropped tiles?
 # TODO: various label spacings ("interval" attribute)
 # TODO: line styles, etc.
-# TODO: compose layers into final image for use without photoshop
-# TODO: save as layered PSD?
+# TODO: label styles (italics, stretched, etc.) c.f. paper maps
 # TODO: use ranges for bounds? use a Bounds class?
 # TODO: don't abort on ArcIMS server error, just get next layer
+# TODO: use raster fills for swamps, etc.?
+# TODO: split water-areas by perenniality?
+# TODO: have tiff compression (lzw,packbits,zip) be set by config option
+# TODO: add multi-layer tiff output for use with GIMP?
+# TODO: add compression to PSD?
 
 # TODO: try ArcGIS explorer??
 

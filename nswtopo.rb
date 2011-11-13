@@ -4,7 +4,6 @@ require 'uri'
 require 'net/http'
 require 'rexml/document'
 require 'tmpdir'
-require 'tempfile'
 require 'yaml'
 require 'erb'
 
@@ -570,48 +569,48 @@ services = {
     "contours-10m-50m" => [
       {
         "from" => "Contour_1",
-        "where" => "MOD(elevation, 10) = 0",
+        "where" => "MOD(elevation, 10) = 0 AND verticalaccuracy > 1",
         "line" => { "width" => 1 }
       },
       {
         "from" => "Contour_1",
-        "where" => "MOD(elevation, 50) = 0",
+        "where" => "MOD(elevation, 50) = 0 AND verticalaccuracy > 1 AND elevation > 0",
         "line" => { "width" => 2 }
       },
     ],
     "contours-10m-100m" => [
       {
         "from" => "Contour_1",
-        "where" => "MOD(elevation, 10) = 0",
+        "where" => "MOD(elevation, 10) = 0 AND verticalaccuracy > 1",
         "line" => { "width" => 1 }
       },
       {
         "from" => "Contour_1",
-        "where" => "MOD(elevation, 100) = 0",
+        "where" => "MOD(elevation, 100) = 0 AND verticalaccuracy > 1 AND elevation > 0",
         "line" => { "width" => 2 }
       },
     ],
     "contours-20m-100m" => [
       {
         "from" => "Contour_1",
-        "where" => "MOD(elevation, 20) = 0",
+        "where" => "MOD(elevation, 20) = 0 AND verticalaccuracy > 1",
         "line" => { "width" => 1 }
       },
       {
         "from" => "Contour_1",
-        "where" => "MOD(elevation, 100) = 0",
+        "where" => "MOD(elevation, 100) = 0 AND verticalaccuracy > 1 AND elevation > 0",
         "line" => { "width" => 2 }
       },
     ],
     "labels-contours-50m" => {
       "from" => "Contour_1",
-      "where" => "MOD(elevation, 50) = 0",
+      "where" => "MOD(elevation, 50) = 0 AND verticalaccuracy > 1 AND elevation > 0",
       "label" => { "field" => "delivsdm:geodb.Contour.Elevation", "linelabelposition" => "placeontop" },
       "text" => { "font" => "Arial", "fontsize" => 3.4 }
     },
     "labels-contours-100m" => {
       "from" => "Contour_1",
-      "where" => "MOD(elevation, 100) = 0",
+      "where" => "MOD(elevation, 100) = 0 AND verticalaccuracy > 1 AND elevation > 0",
       "label" => { "field" => "delivsdm:geodb.Contour.Elevation", "linelabelposition" => "placeontop" },
       "text" => { "font" => "Arial", "fontsize" => 3.4 }
     },
@@ -759,7 +758,9 @@ services = {
     "clifftops" => {
       "from" => "DLSLine_1",
       "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
-      "line" => { 1 => { "width" => 1, "type" => "dot", "antialiasing" => false } }
+      # "line" => { 1 => { "width" => 1, "type" => "dot", "antialiasing" => false } }
+      "scale" => 0.25,
+      "line" => { 1 => { "width" => 2, "type" => "dot", "antialiasing" => false } }
     },
     "excavation" => {
       "from" => "DLSLine_1",
@@ -947,14 +948,14 @@ services = {
 }
 
 services.each do |service, layers|
-  layers.each do |filename, options|
-    output_path = File.join(output_dir, "#{filename}.tif")
+  layers.each do |label, options|
+    output_path = File.join(output_dir, "#{label}.tif")
     unless File.exists?(output_path) || !service.data?(target_bounds, target_projection)
-      puts "Layer: #{filename}"
+      puts "Layer: #{label}"
       Dir.mktmpdir do |temp_dir|
         canvas_path = File.join(temp_dir, "canvas.tif")
-        vrt_path = File.join(temp_dir, "#{filename}.vrt")
-        working_path = File.join(temp_dir, "#{filename}.tif")
+        vrt_path = File.join(temp_dir, "#{label}.vrt")
+        working_path = File.join(temp_dir, "#{label}.tif")
         
         puts "  preparing..."
         %x[convert -quiet -size #{target_extents.join 'x'} canvas:black -type TrueColor -depth 8 #{canvas_path}]
@@ -974,94 +975,158 @@ services.each do |service, layers|
           %x[gdalwarp -s_srs "#{service.projection}" -r cubic #{vrt_path} #{working_path}]
         end
         
-        %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} -compress LZW #{working_path}]
-        %x[geotifcp -e #{tfw_path} -4 '#{target_projection}' #{working_path} #{output_path}]
+        %x[convert -quiet #{working_path} -units PixelsPerInch -density #{scaling.ppi} -compress LZW #{output_path}]
       end
     end
   end
 end
 
-sequences = {
-  # "caves" => 
-  # "cliffs" => 
-  # "clifftops" => 
-  # "coastline" => 
-  # "excavation" => 
-  # "hillshade" => 
-  # "intertidal" => 
-  # "inundation" => 
-  # "labels-caves" => 
-  # "nsw-border" => 
-  # "pinnacles" => 
-  # "reef" => 
-  # "rock-area" => 
-  
-  "aerial-google" => { },
-  "vegetation" => { },
-  # "ocean" => 
-  "built-up-areas" => { "color" => "#F8FF73" },
-  # "plantations" => 
-  "contours-10m-100m" => { "color" => "Dark Magenta" },
-  "building-areas" => { "color" => "#666667" },
-  # "sand" => 
-  # "swamp-dry" => 
-  # "swamp-wet" => 
-  "cadastre" => { "color" => "#888889" },
-  "act-cadastre" => { "color" => "#888889" },
-  "watercourses" => { "color" => "#3860FF" },
-  "water-areas" => { "color" => "#3860FF" },
-  "dams" => { "color" => "#3860FF" },
-  "pathways" => { "color" => "#000001" },
-  "vehicular-tracks" => { "color" => "Dark Orange" },
-  "roads-unsealed" => { "color" => "Dark Orange" },
-  "roads-sealed" => { "color" => "Red" },
-  "railways" => { "color" => "#000001" },
-  "runways" => { "color" => "#000001" },
-  "gates-grids" => { "color" => "#000001" },
-  "dam-walls" => { "color" => "#000001" },
-  "buildings" => { "color" => "#000001" },
-  "transmission-lines" => { "color" => "#000001" },
-  "towers" => { "color" => "#000001" },
-  "labels-buildings" => { "color" => "#000001" },
-  "labels-watercourses" => { "color" => "#000001" },
-  "labels-water-areas" => { "color" => "#000001" },
-  "labels-roads" => { "color" => "#000001" },
-  "labels-contours-100m" => { "color" => "#000001" },
-  "labels-fuzzy-extent" => { "color" => "#555556" },
-  "control-circles" => { "color" => "Red" },
-  "control-numbers" => { "color" => "Red" },
-  "declination" => { "color" => "#000001" }
-}.map do |filename, options|
-  [ filename, File.join(output_dir, "#{filename}.tif"), options ]
-end.select do |filename, path, options|
-  File.exists? path
-end.reject do |filename, path, options|
-  %x[convert -quiet #{path} -format '%[max]' info:].to_i == 0
-end.map do |filename, path, options|
-  switches = { "set" => "label #{filename}", "type" => "TrueColorMatte" }
-  if options["color"]
-    switches["background"] = "'#{options["color"]}'"
-    switches["alpha"] = "Shape"
-  end
-  switches = switches.map { |switch, value| "-#{switch} #{value}" }.join " "
-  "#{path} #{switches}"
-end
-
 tif_path = File.join(output_dir, "#{map_name}.tif")
-unless File.exist? tif_path
-  puts "Compositing #{map_name}.tif ..."
-  Tempfile.open([map_name, ".tif"]) do |file|
-    sequence_string = sequences.map { |sequence| "\\( #{sequence} \\) -flatten" }.join " "
-    %x[convert -quiet #{sequence_string} #{file.path}]
-    %x[geotifcp -c packbits -e #{tfw_path} -4 '#{target_projection}' #{file.path} #{tif_path}]
-  end
-end
-
 psd_path = File.join(output_dir, "#{map_name}.psd")
-unless File.exist? psd_path
-  puts "Building #{map_name}.psd ..."
-  sequence_string = sequences.map { |sequence| "\\( #{sequence} \\)" }.join " "
-  %x[convert -quiet #{tif_path} #{sequence_string} #{psd_path}]
+unless File.exist?(tif_path) && File.exist?(psd_path)
+  puts "Building composite files:"
+  Dir.mktmpdir do |temp_dir|
+    pine = %w[
+      0000000000000000000
+      0000000001000000000
+      0000000001000000000
+      0000000011100000000
+      0000000011100000000
+      0000000111110000000
+      0000000111110000000
+      0000001111111000000
+      0000001111111000000
+      0000011111111100000
+      0000011111111100000
+      0000000011100000000
+      0000000111110000000
+      0000001111111000000
+      0000011111111100000
+      0000111111111110000
+      0001111111111111000
+      0000000001000000000
+      0000000001000000000
+    ].map { |line| line.split("").join(",") }.join(" ")
+
+    swamp = %w[
+      00000100000
+      00000100000
+      00100100000
+      00100100010
+      00010100100
+      00010100100
+      00010101000
+      01001101000
+      00101110011
+      00011111100
+      11111111111
+    ].map { |line| line.split("").join(",") }.join(" ")
+
+    inundation_tile_path = File.join(temp_dir, "inundation-tile.tif");
+    swamp_tile_path = File.join(temp_dir, "swamp-tile.tif");
+    sand_tile_path = File.join(temp_dir, "sand-tile.tif");
+    pine_tile_path = File.join(temp_dir, "pine-tile.tif");
+    rock_tile_path = File.join(temp_dir, "rock-tile.tif");
+    reef_tile_path = File.join(temp_dir, "reef-tile.tif");
+    
+    puts "  generating patterns..."
+    %x[convert -size 38x38 -virtual-pixel tile canvas: -fx '(i+h+j)%38+(i+h-j)%38==0' -morphology Dilate '19: #{pine}' #{pine_tile_path}]
+    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==0' \\( +clone +noise Random -blur 0x2 -threshold 50% \\) -compose Multiply -composite #{inundation_tile_path}]
+    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' #{inundation_tile_path} -compose Plus -composite #{swamp_tile_path}]
+    %x[convert -size 6x6 canvas: -fx '(i+h+j)%6+(i+h-j)%6==0' #{sand_tile_path}]
+    %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x2 -modulate 100,1,100 -auto-level -ordered-dither threshold,3 +level 60%,80% #{rock_tile_path}]
+    %x[convert -size 5x5 canvas: -fx 'i==2&&j==2' -morphology Dilate Cross:1 #{reef_tile_path}]
+    
+    layers = {
+      "aerial-google" => { "psd-only" => true },
+      "aerial-nokia" => { "psd-only" => true },
+      "hillshade" => { "psd-only" => true },
+      "vegetation" => { },
+      "ocean" => { "color" => "#3860FF" },
+      "reef" => { "tile" => reef_tile_path, "color" => "Cyan" },
+      "sand" => { "tile" => sand_tile_path, "color" => "Brown" },
+      "inundation" => { "tile" => inundation_tile_path, "color" => "#00d3ff" },
+      "swamp-wet" => { "tile" => swamp_tile_path, "color" => "#00d3ff" },
+      "swamp-dry" => { "tile" => swamp_tile_path, "color" => "#e3bf9a" },
+      "plantations" => { "tile" => pine_tile_path, "color" => "Green" },
+      "rock-area" => { "tile" => rock_tile_path },
+      "built-up-areas" => { "color" => "#F8FF73" },
+      "contours-10m-100m" => { "color" => "Dark Magenta" },
+      "cliffs" => { "color" => "#ddddde" },
+      "clifftops" => { "color" => "#ff00ba" },
+      "pinnacles" => { "color" => "#ff00ba" },
+      "building-areas" => { "color" => "#666667" },
+      "cadastre" => { "color" => "#888889" },
+      "act-cadastre" => { "color" => "#888889" },
+      "watercourses" => { "color" => "#3860FF" },
+      "water-areas" => { "color" => "#3860FF" },
+      "intertidal" => { "tile" => sand_tile_path, "color" => "#1b2e7b" },
+      "excavation" => { "color" => "#333334" },
+      "coastline" => { "color" => "#000001" },
+      "caves" => { "color" => "#000001" },
+      "dams" => { "color" => "#3860FF" },
+      "pathways" => { "color" => "#000001" },
+      "vehicular-tracks" => { "color" => "Dark Orange" },
+      "roads-unsealed" => { "color" => "Dark Orange" },
+      "roads-sealed" => { "color" => "Red" },
+      "railways" => { "color" => "#000001" },
+      "runways" => { "color" => "#333334" },
+      "gates-grids" => { "color" => "#000001" },
+      "dam-walls" => { "color" => "#000001" },
+      "buildings" => { "color" => "#000001" },
+      "transmission-lines" => { "color" => "#000001" },
+      "towers" => { "color" => "#000001" },
+      "labels-buildings" => { "color" => "#000001" },
+      "labels-watercourses" => { "color" => "#000001" },
+      "labels-water-areas" => { "color" => "#000001" },
+      "labels-roads" => { "color" => "#000001" },
+      "labels-contours-100m" => { "color" => "#000001" },
+      "labels-fuzzy-extent" => { "color" => "#555556" },
+      "labels-caves" => { "color" => "#000001" },
+      "control-circles" => { "color" => "Red" },
+      "control-numbers" => { "color" => "Red" },
+      "declination" => { "color" => "#000001" },
+      "utm-grid" => { "psd-only" => true, "color" => "#000001"},
+      "utm-eastings" => { "psd-only" => true, "color" => "#000001"},
+      "utm-northings" => { "psd-only" => true, "color" => "#000001"}
+    }.map do |label, options|
+      [ label, File.join(output_dir, "#{label}.tif"), options ]
+    end.select do |label, path, options|
+      File.exists? path
+    end.reject do |label, path, options|
+      %x[convert -quiet #{path} -format '%[max]' info:].to_i == 0
+    end.map do |label, path, options|
+      puts "  colouring #{label}..."
+      layer_path = File.join(temp_dir, "#{label}.tif")
+      sequence = case
+      when options["tile"] && options["color"]
+        "-alpha Copy \\( +clone -tile #{options["tile"]} -draw 'color 0,0 reset' -background '#{options["color"]}' -alpha Shape \\) -compose In -composite"
+      when options["tile"]
+        "-alpha Copy \\( +clone -tile #{options["tile"]} -draw 'color 0,0 reset' \\) -compose In -composite"
+      when options["color"]
+        "-background '#{options["color"]}' -alpha Shape"
+      else
+        ""
+      end
+      %x[convert #{path} #{sequence} -type TrueColorMatte -depth 8 #{layer_path}]
+      [ label, layer_path, options["psd-only"] ]
+    end
+  
+    temp_tif_path = File.join(temp_dir, "composite.tif")
+    unless File.exist? tif_path
+      puts "  compositing #{map_name}.tif..."
+      sequence = layers.reject { |label, layer_path, psdonly| psdonly }.map { |label, layer_path, psdonly| layer_path }.join " -flatten "
+      %x[convert -quiet #{sequence} -flatten #{temp_tif_path}]
+      %x[geotifcp -c packbits -e #{tfw_path} -4 '#{target_projection}' #{temp_tif_path} #{tif_path}]
+    end
+
+    unless File.exist? psd_path
+      puts "  compositing #{map_name}.psd..."
+      sequence = layers.map { |label, layer_path, psdonly| "\\( #{layer_path} -set label #{label} \\)"}.join " "
+      %x[convert -quiet #{tif_path} #{sequence} #{psd_path}]
+      # TODO: build this in temp_dir then copy out at the end
+    end
+  end
 end
 
 # TODO: colour relief settings
@@ -1070,9 +1135,7 @@ end
 # TODO: quote all file paths to allow spaces in dir names
 # TODO: have all default configs in a single hash, use deep-merge
 # TODO: fix Nokia dropped tiles?
-# TODO: various label spacings ("interval" attribute)
 # TODO: line styles, etc.
-# TODO: label styles (italics, stretched, etc.) c.f. paper maps
 # TODO: use ranges for bounds? use a Bounds class?
 # TODO: don't abort on ArcIMS server error, just get next layer
 # TODO: use raster fills for swamps, etc.?
@@ -1080,7 +1143,23 @@ end
 # TODO: have tiff compression (lzw,packbits,zip) be set by config option
 # TODO: add multi-layer tiff output for use with GIMP?
 # TODO: add compression to PSD?
+# TODO: add margins to tiles then crop to avoid cut-offs?
 
+# TODO: various label spacings ("interval" attribute)
+# TODO: label styles (italics, stretched, etc.) c.f. paper maps
+# TODO: combine some/all label layers to avoid overlapping? (what about grey labels? maybe keep fuzzy labels and water area labels separate)
+
+# TODO: borders around water areas/lighter interiors?
+# TODO: pack pine trees more tightly
+# TODO: add cemetary?
+# TODO: add lighthouse/beacon layer
+# TODO: color inundation and swamp differently?
+# TODO: solve hillshade cyan problem in PSD
+# TODO: excavation as a polygon? possible?
+# TODO: save layers as PNGs instead, if we aren't georeferencing them?
+# TODO: set ppi on PSD file?
+# TODO: remove -quiet?
+# TODO: any faster way to generate the grids for sand/inundation/plantations?
 # TODO: try ArcGIS explorer??
 
 # swamp: ESRI IGL Font20, character 87?

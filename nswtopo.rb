@@ -26,6 +26,8 @@ class Hash
   end
 end
 
+InternetError = Class.new(Exception)
+
 def http_request(uri, req, options)
   retries = options["retries"] || 0
   begin
@@ -38,7 +40,7 @@ def http_request(uri, req, options)
     if retries > 0
       retries -= 1 and retry
     else
-      $stderr.puts e.message and return nil
+      raise InternetError.new(e.message)
     end
   end
 end
@@ -139,7 +141,7 @@ class ArcIMS < Service
     
     scales = options_array.map { |options| options["scale"] }.compact.uniq
     abort("more than one scale specified") if scales.length > 1
-    dpi = scales.any? ? (scales.first * scaling.ppi).round : 96
+    dpi = scales.any? ? (scales.first * scaling.ppi).round : params["dpi"]
     
     tiles(input_bounds, input_projection, scaling).each_with_index.map do |(bounds, extents), tile_index|
       tile_path = File.join(dir, "tile.#{tile_index}.png")
@@ -222,14 +224,14 @@ class ArcIMS < Service
       
       post_uri = URI::HTTP.build :host => params["host"], :path => params["path"], :query => "ServiceName=#{params["name"]}"
       http_post(post_uri, xml, "retries" => 5) do |post_response|
+        sleep params["interval"] if params["interval"]
         xml = REXML::Document.new(post_response.body)
-        abort(xml.elements["ARCXML"].elements["RESPONSE"].elements["ERROR"].text) if xml.elements["ARCXML"].elements["RESPONSE"].elements["ERROR"]
+        raise InternetError.new(xml.elements["ARCXML"].elements["RESPONSE"].elements["ERROR"].text) if xml.elements["ARCXML"].elements["RESPONSE"].elements["ERROR"]
         get_uri = URI.parse xml.elements["ARCXML"].elements["RESPONSE"].elements["IMAGE"].elements["OUTPUT"].attributes["url"]
         http_get(get_uri, "retries" => 5) do |get_response|
           File.open(tile_path, "w") { |file| file << get_response.body }
         end
       end
-      sleep(params["interval"]) if params["interval"]
       
       [ bounds, scaling.metres_per_pixel, tile_path ]
     end
@@ -473,6 +475,8 @@ output_dir = Dir.pwd
 config = YAML.load(
 %q[
 name: map
+scale: 25000
+ppi: 300
 contours:
   interval: 10
   index: 100
@@ -488,7 +492,7 @@ grid:
 relief:
   altitude: 45
   azimuth: 315
-  exaggeration: 1
+  exaggeration: 2
   colours:
     0%: black
     100%: white
@@ -496,9 +500,20 @@ controls:
   fontsize: 14
   diameter: 7.0
   thickness: 0.2
+formats:
+  - tif
+  - layered.tif
+exclude:
+  - utm-grid
+  - utm-eastings
+  - utm-northings
+  - aerial-nokia
 ]
 ).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
-puts config.inspect; gets;
+
+puts "Map configuration:"
+puts config.to_yaml
+
 map_name = config["name"]
 tfw_path = File.join(output_dir, "#{map_name}.tfw")
 proj_path = File.join(output_dir, "#{map_name}.prj")
@@ -537,6 +552,7 @@ topo_portlet = ArcIMS.new(
   "wkt" => target_wkt,
   "tile_sizes" => [ 1024, 1024 ],
   "interval" => 0.1,
+  "dpi" => 96,
   "envelope" => {
     "bounds" => [ [ 140.011127032369, 154.62466299763 ], [ -37.740334035, -27.924909045 ] ],
     "projection" => "EPSG:4283"
@@ -549,6 +565,7 @@ cad_portlet = ArcIMS.new(
   "wkt" => target_wkt,
   "tile_sizes" => [ 1024, 1024 ],
   "interval" => 0.1,
+  "dpi" => 74,
   "envelope" => {
     "bounds" => [ [ 140.05983881892, 154.575951211079 ], [ -37.740334035, -27.924909045 ] ],
     "projection" => "EPSG:4283"
@@ -561,6 +578,7 @@ act_heritage = ArcIMS.new(
   "wkt" => target_wkt,
   "tile_sizes" => [ 1024, 1024 ],
   "interval" => 0.1,
+  "dpi" => 96,
   "envelope" => {
     "bounds" => [ [ 660000, 718000 ], [ 6020000, 6107000 ] ],
     "projection" => "EPSG:32755"
@@ -573,6 +591,7 @@ act_dog = ArcIMS.new(
   "wkt" => target_wkt,
   "tile_sizes" => [ 1024, 1024 ],
   "interval" => 0.1,
+  "dpi" => 96,
   "envelope" => {
     "bounds" => [ [ 659890.105040274, 720782.12808229 ], [ 6022931.0546655, 6111100.93973127 ] ],
     "projection" => "EPSG:32755"
@@ -1065,29 +1084,35 @@ services.each do |service, layers|
         %x[convert -quiet -size #{target_extents.join 'x'} canvas:black -type TrueColor -depth 8 '#{canvas_path}']
         %x[geotifcp -c lzw -e '#{tfw_path}' -4 '#{target_projection}' '#{canvas_path}' '#{working_path}']
         
-        if service
-          puts "  downloading..."
-          dataset_path = service.dataset(target_bounds, target_projection, scaling, options, temp_dir).collect do |bounds, resolution, path|
+        puts "  downloading..."
+        begin
+          dataset_paths = service.dataset(target_bounds, target_projection, scaling, options, temp_dir).collect do |bounds, resolution, path|
             topleft = [ bounds.first.min, bounds.last.max ]
             write_world_file(topleft, resolution, "#{path}w")
             %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 '#{path}']
             path
-          end.join " "
-          
-          puts "  assembling..."
-          %x[gdalbuildvrt '#{vrt_path}' '#{dataset_path}']
-          %x[gdalwarp -s_srs "#{service.projection}" -r cubic '#{vrt_path}' '#{working_path}']
-        end
+          end
         
-        %x[convert -quiet '#{working_path}' -units PixelsPerInch -density #{scaling.ppi} -compress LZW '#{output_path}']
+          unless dataset_paths.empty?
+            puts "  assembling..."
+            %x[gdalbuildvrt '#{vrt_path}' '#{dataset_paths.join " "}']
+            %x[gdalwarp -s_srs "#{service.projection}" -r cubic '#{vrt_path}' '#{working_path}']
+            %x[convert -quiet '#{working_path}' -units PixelsPerInch -density #{scaling.ppi} -compress LZW '#{output_path}']
+          end
+        rescue InternetError => e
+          puts "  skipping layer; error: #{e.message}"
+        end
       end
     end
   end
 end
 
-tif_path = File.join(output_dir, "#{map_name}.tif")
-psd_path = File.join(output_dir, "#{map_name}.psd")
-unless File.exist?(tif_path) && File.exist?(psd_path)
+formats_paths = config["formats"].map do |format|
+  { format => File.join(output_dir, "#{map_name}.#{format}") }
+end.inject(:merge).reject do |format, path|
+  File.exists? path
+end
+unless formats_paths.empty?
   puts "Building composite files:"
   Dir.mktmpdir do |temp_dir|
     pine = %w[
@@ -1126,7 +1151,7 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
 
     inundation_tile_path = File.join(temp_dir, "inundation-tile.tif");
     swamp_tile_path = File.join(temp_dir, "swamp-tile.tif");
-    sand_tile_path = File.join(temp_dir, "sand-tile.tif");
+    dotted_tile_path = File.join(temp_dir, "dotted-tile.tif");
     pine_tile_path = File.join(temp_dir, "pine-tile.tif");
     orchard_tile_path = File.join(temp_dir, "orchard-tile-path.tif");
     rock_tile_path = File.join(temp_dir, "rock-tile.tif");
@@ -1137,67 +1162,69 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
     %x[convert -size 9x9 canvas: -fx 'i<5&&j<5' '#{orchard_tile_path}']
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==0' \\( +clone +noise Random -blur 0x2 -threshold 50% \\) -compose Multiply -composite '#{inundation_tile_path}']
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_tile_path}']
-    %x[convert -size 6x6 -virtual-pixel tile canvas: -fx '(i==0&&j==0)||(i==3&&j==3)' -gaussian-blur 0x0.5 -auto-level '#{sand_tile_path}']
+    %x[convert -size 6x6 -virtual-pixel tile canvas: -fx '(i==0&&j==0)||(i==3&&j==3)' -gaussian-blur 0x0.5 -auto-level '#{dotted_tile_path}']
     %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x2 -modulate 100,1,100 -auto-level -ordered-dither threshold,3 +level 60%,80% '#{rock_tile_path}']
     %x[convert -size 5x5 -virtual-pixel tile canvas: -fx 'i==0&&j==0' -morphology Dilate Cross:1 '#{reef_tile_path}']
     
     layers = {
-      "aerial-google" => { "psd-only" => true },
-      "aerial-nokia" => { "psd-only" => true },
-      "hillshade" => { "psd-only" => true },
+      "aerial-google" => { },
+      "aerial-nokia" => { },
+      "hillshade" => { },
       "vegetation" => { },
-      "pine" => { "tile" => pine_tile_path, "color" => "#009f00" },
-      "orchards-vineyards" => { "tile" => orchard_tile_path, "color" => "#009f00" },
-      "built-up-areas" => { "color" => "#F8FF73" },
+      "pine" => { "tile" => pine_tile_path, "colour" => "#009f00" },
+      "orchards-vineyards" => { "tile" => orchard_tile_path, "colour" => "#009f00" },
+      "built-up-areas" => { "colour" => "#F8FF73" },
       "rock-area" => { "tile" => rock_tile_path },
-      "contours" => { "color" => "Dark Magenta" },
-      "swamp-wet" => { "tile" => swamp_tile_path, "color" => "#00d3ff" },
-      "swamp-dry" => { "tile" => swamp_tile_path, "color" => "#e3bf9a" },
-      "watercourses" => { "color" => "#0033ff" },
-      "ocean" => { "color" => "#7b96ff" },
-      "dams" => { "color" => "#0033ff" },
-      "water-areas-perennial" => { "color" => "#7b96ff" },
-      "water-areas-intermittent" => { "color" => "#7b96ff" },
-      "water-areas-dry" => { "color" => "#7b96ff" }, # TODO: use dot pattern instead?
-      "water-area-boundaries" => { "color" => "#0033ff" },
-      "reef" => { "tile" => reef_tile_path, "color" => "Cyan" },
-      "sand" => { "tile" => sand_tile_path, "color" => "#ff6600" },
-      "intertidal" => { "tile" => sand_tile_path, "color" => "#1b2e7b" },
-      "inundation" => { "tile" => inundation_tile_path, "color" => "#00d3ff" },
-      "cliffs" => { "color" => "#ddddde" },
-      "clifftops" => { "color" => "#ff00ba" },
-      "pinnacles" => { "color" => "#ff00ba" },
-      "buildings" => { "color" => "#222223" },
-      "building-areas" => { "color" => "#666667" },
-      "cadastre" => { "color" => "#888889" },
-      "act-cadastre" => { "color" => "#888889" },
-      "excavation" => { "color" => "#333334" },
-      "coastline" => { "color" => "#000001" },
-      "dam-walls" => { "color" => "#000001" },
-      "wharves" => { "color" => "#000001" },
-      "pathways" => { "color" => "#000001" },
-      "tracks-4wd" => { "color" => "Dark Orange" },
-      "tracks-vehicular" => { "color" => "Dark Orange" },
-      "roads-unsealed" => { "color" => "Dark Orange" },
-      "roads-sealed" => { "color" => "Red" },
-      "gates-grids" => { "color" => "#000001" },
-      "railways" => { "color" => "#000001" },
-      "landing-grounds" => { "color" => "#333334" },
-      "transmission-lines" => { "color" => "#000001" },
-      "caves" => { "color" => "#000001" },
-      "towers" => { "color" => "#000001" },
-      "windmills" => { "color" => "#000001" },
-      "lighthouses" => { "color" => "#000001" },
-      "mines" => { "color" => "#000001" },
-      "yards" => { "color" => "#000001" },
-      "labels" => { "color" => "#000001" },
-      "control-circles" => { "color" => "Red" },
-      "control-numbers" => { "color" => "Red" },
-      "declination" => { "color" => "#000001" },
-      "utm-grid" => { "psd-only" => true, "color" => "#000001"},
-      "utm-eastings" => { "psd-only" => true, "color" => "#000001"},
-      "utm-northings" => { "psd-only" => true, "color" => "#000001"}
-    }.map do |label, options|
+      "contours" => { "colour" => "Dark Magenta" },
+      "swamp-wet" => { "tile" => swamp_tile_path, "colour" => "#00d3ff" },
+      "swamp-dry" => { "tile" => swamp_tile_path, "colour" => "#e3bf9a" },
+      "watercourses" => { "colour" => "#0033ff" },
+      "ocean" => { "colour" => "#7b96ff" },
+      "dams" => { "colour" => "#0033ff" },
+      "water-areas-perennial" => { "colour" => "#7b96ff" },
+      "water-areas-intermittent" => { "colour" => "#7b96ff" },
+      "water-areas-dry" => { "colour" => "#7b96ff" }, # TODO: use dot pattern instead?
+      "water-area-boundaries" => { "colour" => "#0033ff" },
+      "reef" => { "tile" => reef_tile_path, "colour" => "Cyan" },
+      "sand" => { "tile" => dotted_tile_path, "colour" => "#ff6600" },
+      "intertidal" => { "tile" => dotted_tile_path, "colour" => "#1b2e7b" },
+      "inundation" => { "tile" => inundation_tile_path, "colour" => "#00d3ff" },
+      "cliffs" => { "colour" => "#ddddde" },
+      "clifftops" => { "colour" => "#ff00ba" },
+      "pinnacles" => { "colour" => "#ff00ba" },
+      "buildings" => { "colour" => "#222223" },
+      "building-areas" => { "colour" => "#666667" },
+      "cadastre" => { "colour" => "#888889" },
+      "act-cadastre" => { "colour" => "#888889" },
+      "excavation" => { "colour" => "#333334" },
+      "coastline" => { "colour" => "#000001" },
+      "dam-walls" => { "colour" => "#000001" },
+      "wharves" => { "colour" => "#000001" },
+      "pathways" => { "colour" => "#000001" },
+      "tracks-4wd" => { "colour" => "Dark Orange" },
+      "tracks-vehicular" => { "colour" => "Dark Orange" },
+      "roads-unsealed" => { "colour" => "Dark Orange" },
+      "roads-sealed" => { "colour" => "Red" },
+      "gates-grids" => { "colour" => "#000001" },
+      "railways" => { "colour" => "#000001" },
+      "landing-grounds" => { "colour" => "#333334" },
+      "transmission-lines" => { "colour" => "#000001" },
+      "caves" => { "colour" => "#000001" },
+      "towers" => { "colour" => "#000001" },
+      "windmills" => { "colour" => "#000001" },
+      "lighthouses" => { "colour" => "#000001" },
+      "mines" => { "colour" => "#000001" },
+      "yards" => { "colour" => "#000001" },
+      "labels" => { "colour" => "#000001" },
+      "control-circles" => { "colour" => "Red" },
+      "control-numbers" => { "colour" => "Red" },
+      "declination" => { "colour" => "#000001" },
+      "utm-grid" => { "colour" => "#000001"},
+      "utm-eastings" => { "colour" => "#000001"},
+      "utm-northings" => { "colour" => "#000001"}
+    }.reject do |label, options|
+      config["exclude"].include? label
+    end.map do |label, options|
       [ label, File.join(output_dir, "#{label}.tif"), options ]
     end.select do |label, path, options|
       File.exists? path
@@ -1207,33 +1234,39 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
       puts "  colouring #{label}..."
       layer_path = File.join(temp_dir, "#{label}.tif")
       sequence = case
-      when options["tile"] && options["color"]
-        "-alpha Copy \\( +clone -tile #{options["tile"]} -draw 'color 0,0 reset' -background '#{options["color"]}' -alpha Shape \\) -compose In -composite"
+      when options["tile"] && options["colour"]
+        "-alpha Copy \\( +clone -tile #{options["tile"]} -draw 'color 0,0 reset' -background '#{options["colour"]}' -alpha Shape \\) -compose In -composite"
       when options["tile"]
         "-alpha Copy \\( +clone -tile #{options["tile"]} -draw 'color 0,0 reset' \\) -compose In -composite"
-      when options["color"]
-        "-background '#{options["color"]}' -alpha Shape"
+      when options["colour"]
+        "-background '#{options["colour"]}' -alpha Shape"
       else
         ""
       end
       %x[convert '#{path}' #{sequence} -type TrueColorMatte -depth 8 '#{layer_path}']
-      [ label, layer_path, options["psd-only"] ]
-    end
-  
-    temp_tif_path = File.join(temp_dir, "composite.tif")
-    unless File.exist? tif_path
-      puts "  compositing #{map_name}.tif..."
-      sequence = layers.reject { |label, layer_path, psdonly| psdonly }.map { |label, layer_path, psdonly| layer_path }.join " -flatten "
-      %x[convert -quiet #{sequence} -flatten '#{temp_tif_path}']
-      %x[geotifcp -c packbits -e '#{tfw_path}' -4 '#{target_projection}' '#{temp_tif_path}' '#{tif_path}']
+      [ label, layer_path ]
     end
     
-    temp_psd_path = File.join(temp_dir, "composite.psd")
-    unless File.exist? psd_path
-      puts "  compositing #{map_name}.psd..."
-      sequence = layers.map { |label, layer_path, psdonly| "\\( '#{layer_path}' -set label #{label} \\)"}.join " "
-      %x[convert -quiet '#{tif_path}' #{sequence} -units PixelsPerInch -density #{scaling.ppi} '#{temp_psd_path}']
-      FileUtils.cp(temp_psd_path, psd_path)
+    flattened, layered = [ " -flatten", "" ].map do |compose|
+      layers.map do |label, layer_path|
+        "\\( '#{layer_path}' -set label #{label} \\)#{compose}"
+      end.join " "
+    end
+    
+    formats_paths.each do |format, path|
+      temp_path = File.join(temp_dir, "composite.#{format}")
+      puts "  compositing #{map_name}.#{format}"
+      sequence = case format.downcase
+      when "psd" then "#{flattened} #{layered}"
+      when /layer/ then layered
+      else flattened
+      end
+      %x[convert -quiet #{sequence} '#{temp_path}']
+      if format =~ /tif/
+        %x[geotifcp -e '#{tfw_path}' -4 '#{target_projection}' '#{temp_path}' '#{path}']
+      else
+        FileUtils.mv(temp_path, path)
+      end
     end
   end
 end
@@ -1253,13 +1286,11 @@ end
 # TODO: differentiate different cadastral lines?
 # TODO: change font from default Arial?
 # TODO: colour relief settings
+# TODO: reduce watercourse label sizes
 
 # TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
-# TODO: remove -quiet?
-# TODO: don't abort on ArcIMS server error, just get next layer
-# TODO: add compression to PSD?
 # TODO: add margins to tiles then crop to avoid cut-offs?
 # TODO: bring back post-actions
 # TODO: in TiledMapService, reduce zoom level if too many tiles (as set in config)
 # TODO: fix Nokia dropped tiles?
-# TODO: use ranges for bounds? use a Bounds class?
+# TODO: configurable colour settings?

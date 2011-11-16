@@ -5,7 +5,7 @@ require 'net/http'
 require 'rexml/document'
 require 'tmpdir'
 require 'yaml'
-require 'erb'
+require 'fileutils'
 
 EARTH_RADIUS = 6378137.0
 
@@ -15,6 +15,14 @@ class REXML::Element
     result = unadorned_add_element(name, attrs)
     yield result if block_given?
     result
+  end
+end
+
+class Hash
+  def deep_merge(hash)
+    hash.inject(self.dup) do |result, (key, value)|
+      result.merge(key => result[key].is_a?(Hash) ? result[key].deep_merge(value) : value)
+    end
   end
 end
 
@@ -179,7 +187,7 @@ class ArcIMS < Service
                         parent.add_element("SIMPLEMARKERSYMBOL", attrs)
                       when "polygon"
                         attrs = { "fillcolor" => "255,255,255", "boundarycolor" => "255,255,255" }.merge(attributes)
-                        attrs["boundarywidth"] ||= 2 if attrs["antialiasing"]
+                        attrs["boundarywidth"] ||= 2 if attrs["antialiasing"] # TODO: needed?
                         parent.add_element("SIMPLEPOLYGONSYMBOL", attrs)
                       when "text"
                         attrs = { "fontcolor" => "255,255,255", "antialiasing" => true, "interval" => 0 }.merge(attributes)
@@ -448,7 +456,16 @@ class ControlService < AnnotationService
 end
 
 output_dir = Dir.pwd
-config = YAML.load(File.open(File.join(output_dir, "config.yml")))
+config = YAML.load(
+%q[
+contours:
+  interval: 10
+  index: 100
+  labels: 50
+  source: 1
+]
+).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
+
 map_name = config["name"] || "map"
 tfw_path = File.join(output_dir, "#{map_name}.tfw")
 proj_path = File.join(output_dir, "#{map_name}.prj")
@@ -566,105 +583,176 @@ control_service = ControlService.new({
 
 services = {
   topo_portlet => {
-    "contours-10m-50m" => [
-      {
-        "from" => "Contour_1",
-        "where" => "MOD(elevation, 10) = 0 AND verticalaccuracy > 1",
-        "line" => { "width" => 1 }
-      },
-      {
-        "from" => "Contour_1",
-        "where" => "MOD(elevation, 50) = 0 AND verticalaccuracy > 1 AND elevation > 0",
-        "line" => { "width" => 2 }
-      },
-    ],
-    "contours-10m-100m" => [
-      {
-        "from" => "Contour_1",
-        "where" => "MOD(elevation, 10) = 0 AND verticalaccuracy > 1",
-        "line" => { "width" => 1 }
-      },
-      {
-        "from" => "Contour_1",
-        "where" => "MOD(elevation, 100) = 0 AND verticalaccuracy > 1 AND elevation > 0",
-        "line" => { "width" => 2 }
-      },
-    ],
-    "contours-20m-100m" => [
-      {
-        "from" => "Contour_1",
-        "where" => "MOD(elevation, 20) = 0 AND verticalaccuracy > 1",
-        "line" => { "width" => 1 }
-      },
-      {
-        "from" => "Contour_1",
-        "where" => "MOD(elevation, 100) = 0 AND verticalaccuracy > 1 AND elevation > 0",
-        "line" => { "width" => 2 }
-      },
-    ],
-    "labels-contours-50m" => {
-      "from" => "Contour_1",
-      "where" => "MOD(elevation, 50) = 0 AND verticalaccuracy > 1 AND elevation > 0",
-      "label" => { "field" => "delivsdm:geodb.Contour.Elevation", "linelabelposition" => "placeontop" },
-      "text" => { "font" => "Arial", "fontsize" => 3.4 }
+    "vegetation" => {
+      "image" => "Vegetation_1"
     },
-    "labels-contours-100m" => {
-      "from" => "Contour_1",
-      "where" => "MOD(elevation, 100) = 0 AND verticalaccuracy > 1 AND elevation > 0",
-      "label" => { "field" => "delivsdm:geodb.Contour.Elevation", "linelabelposition" => "placeontop" },
-      "text" => { "font" => "Arial", "fontsize" => 3.4 }
-    },
+    "labels" => [
+      { # contour labels
+        "from" => "Contour_1",
+        "where" => "MOD(elevation, #{config["contours"]["labels"]}) = 0 AND elevation > 0",
+        "label" => { "field" => "delivsdm:geodb.Contour.Elevation", "linelabelposition" => "placeontop" },
+        "lookup" => "delivsdm:geodb.Contour.sourceprogram",
+        "text" => { config["contours"]["source"] => { "fontsize" => 3.4 } }
+      },
+      { # watercourse labels
+        "from" => "HydroLine_Label_1",
+        "where" => "ClassSubtype = 1",
+        "label" => { "field" => "delivsdm:geodb.HydroLine.HydroName delivsdm:geodb.HydroLine.HydroNameType", "linelabelposition" => "placeabove" },
+        "lookup" => "delivsdm:geodb.HydroLine.relevance",
+        "text" => {
+          1 => { "fontsize" => 10.9, "printmode" => "allcaps", "fontstyle" => "italic" },
+          2 => { "fontsize" => 10.1, "printmode" => "allcaps", "fontstyle" => "italic" },
+          3 => { "fontsize" => 9.3, "printmode" => "allcaps", "fontstyle" => "italic" },
+          4 => { "fontsize" => 8.5, "printmode" => "allcaps", "fontstyle" => "italic" },
+          5 => { "fontsize" => 7.7, "printmode" => "titlecaps", "fontstyle" => "italic" },
+          6 => { "fontsize" => 6.9, "printmode" => "titlecaps", "fontstyle" => "italic" },
+          7 => { "fontsize" => 6.1, "printmode" => "titlecaps", "fontstyle" => "italic" },
+          8 => { "fontsize" => 5.3, "printmode" => "titlecaps", "fontstyle" => "italic" },
+          9 => { "fontsize" => 4.5, "printmode" => "titlecaps", "fontstyle" => "italic" },
+          10 => { "fontsize" => 3.7, "printmode" => "titlecaps", "fontstyle" => "italic" }
+        }
+      },
+      { # waterbody labels
+        "from" => "HydroArea_Label_1",
+        "label" => { "field" => "delivsdm:geodb.HydroArea.HydroName delivsdm:geodb.HydroArea.HydroNameType" },
+        "lookup" => "delivsdm:geodb.HydroArea.classsubtype",
+        "text" => { 1 => { "fontsize" => 5.5, "printmode" => "titlecase" } }
+      },
+      { # fuzzy water labels
+        "from" => "FuzzyExtentWaterArea_1",
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentWaterArea.HydroName delivsdm:geodb.FuzzyExtentWaterArea.HydroNameType" },
+        "lookup" => "delivsdm:geodb.FuzzyExtentWaterArea.classsubtype",
+        "text" => { 2 => { "fontsize" => 4.2, "fontstyle" => "italic", "printmode" => "titlecaps" } }
+      },
+      { # road labels
+        "from" => "RoadSegment_Label_1",
+        "lookup" => "delivsdm:geodb.RoadSegment.FunctionHierarchy",
+        "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
+        "text" => {
+          "1;2;3;4;5" => { "fontsize" => 4.5, "fontstyle" => "italic", "printmode" => "allupper" },
+          "6;7;8" => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper" },
+        }
+      },
+      { # fuzzy area labels
+        "from" => "FuzzyExtentArea_Label_1",
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
+        "text" => { "fontsize" => 5.5, "printmode" => "allcaps" }
+      },
+      { # fuzzy line labels
+        "from" => "FuzzyExtentLine_Label_1",
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentLine.GeneralName" },
+        "text" => { "fontsize" => 5.5, "printmode" => "allcaps" }
+      },
+      { # building labels
+        "from" => "BuildingComplexPoint_Label_1",
+        "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName" },
+        "text" => { "fontsize" => 3, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 }
+        # # TODO: just show homestead names?
+        # "from" => "BuildingComplexPoint_Label_1",
+        # "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName" },
+        # "lookup" => "delivsdm:geodb.BuildingComplexPoint.ClassSubtype",
+        # "where" => "BuildingComplexType = 7",
+        # "text" => { 4 => { "fontsize" => 3, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
+      },
+      { # cave labels
+        "from" => "DLSPoint_Label_1",
+        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+        "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName" },
+        "text" => { 1 => { "fontsize" => 3, "printmode" => "titlecaps", "interval" => 2.0 } }
+      },
+    ],
+    "contours" => [
+      {
+        "from" => "Contour_1",
+        "where" => "MOD(elevation, #{config["contours"]["interval"]}) = 0",
+        "lookup" => "delivsdm:geodb.Contour.sourceprogram",
+        "line" => { config["contours"]["source"] => { "width" => 1 } }
+      },
+      {
+        "from" => "Contour_1",
+        "where" => "MOD(elevation, #{config["contours"]["index"]}) = 0 AND elevation > 0",
+        "lookup" => "delivsdm:geodb.Contour.sourceprogram",
+        "line" => { config["contours"]["source"] => { "width" => 2 } }
+      },
+    ],
     "watercourses" => {
       "from" => "HydroLine_1",
+      "where" => "ClassSubtype = 1",
       "lookup" => "delivsdm:geodb.HydroLine.Perenniality",
       "line" => {
-        1 => { "width" => 2 },
-        2 => { "width" => 1 }
+        1 => { "width" => 2, "antialiasing" => false },
+        2 => { "width" => 1 },
+        3 => { "width" => 1, "type" => "dash" }
       }
     },
-    "labels-watercourses" => {
-      "from" => "HydroLine_Label_1",
-      "lookup" => "delivsdm:geodb.HydroLine.Perenniality",
-      "label" => { "field" => "delivsdm:geodb.HydroLine.HydroName delivsdm:geodb.HydroLine.HydroNameType", "linelabelposition" => "placeabove" },
-      "text" => {
-        1 => { "fontsize" => 4.0, "printmode" => "titlecaps", "fontstyle" => "italic" },
-        2 => { "fontsize" => 2.8, "printmode" => "titlecaps", "fontstyle" => "italic" }
-      }
-    },
-    "water-areas" => {
+    "water-areas-perennial" => { # TODO: merge water areas?
       "from" => "HydroArea_1",
-      "polygon" => { "antialiasing" => true }
+      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+      "polygon" => { 1 => { "boundary" => false } }
     },
-    "labels-water-areas" => {
-      "from" => "HydroArea_Label_1",
-      "label" => { "field" => "delivsdm:geodb.HydroArea.HydroName delivsdm:geodb.HydroArea.HydroNameType" },
-      "text" => { "fontsize" => 4, "printmode" => "titlecase" }
+    "water-areas-intermittent" => {
+      "from" => "HydroArea_1",
+      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+      "polygon" => { 2 => { "boundary" => false } }
+    },
+    "water-areas-dry" => {
+      "from" => "HydroArea_1",
+      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+      "polygon" => { 3 => { "boundary" => false } }
+    },
+    "water-area-boundaries" => {
+      "from" => "HydroArea_1",
+      "line" => { "width" => 1 }
+    },
+    "dams" => {
+      "from" => "HydroPoint_1",
+      "lookup" => "delivsdm:geodb.HydroPoint.ClassSubtype",
+      "marker" => { 1 => { "type" => "square", "width" => 0.8 } }
+    },
+    "ocean" => {
+      "from" => "FuzzyExtentWaterArea_1",
+      "lookup" => "delivsdm:geodb.FuzzyExtentWaterArea.classsubtype",
+      "polygon" => { 3 => { } }
+    },
+    "coastline" => {
+      "from" => "Coastline_1",
+      "line" => { "width" => 1 }
     },
     "roads-sealed" => {
       "scale" => 0.4,
       "from" => "RoadSegment_1",
-      "where" => "surface = 0 OR surface = 1",
+      "where" => "(Surface = 0 OR Surface = 1) AND ClassSubtype != 8",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => {
         "1;2;3" => { "width" => 7 },
         "4;5"   => { "width" => 5 },
-        "6;7"   => { "width" => 3 }
+        "6"     => { "width" => 3 },
+        "7"     => { "width" => 2 }
       }
     },
     "roads-unsealed" => {
       "scale" => 0.4,
       "from" => "RoadSegment_1",
-      "where" => "surface != 0 AND surface != 1",
+      "where" => "Surface = 2",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => {
         "1;2;3" => { "width" => 7 },
         "4;5"   => { "width" => 5 },
-        "6;7"   => { "width" => 3 }
+        "6"     => { "width" => 3 },
+        "7"     => { "width" => 2 }
       }
     },
-    "vehicular-tracks" => {
+    "tracks-vehicular" => {
       "scale" => 0.6,
       "from" => "RoadSegment_1",
+      "where" => "Surface = 2",
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => { 8 => { "width" => 2, "type" => "dash" } },
+    },
+    "tracks-4wd" => {
+      "scale" => 0.4,
+      "from" => "RoadSegment_1",
+      "where" => "Surface = 3 OR Surface = 4",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => { 8 => { "width" => 2, "type" => "dash" } },
     },
@@ -674,46 +762,10 @@ services = {
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => { 9 => { "width" => 2, "type" => "dash" } },
     },
-    "labels-roads" => {
-      "from" => "RoadSegment_Label_1",
-      "lookup" => "delivsdm:geodb.RoadSegment.FunctionHierarchy",
-      "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
-      "text" => {
-        "1;2;3;4;5" => { "fontsize" => 4.5, "fontstyle" => "italic", "printmode" => "allupper" },
-        "6;7;8" => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper" },
-      }
-    },
     "buildings" => {
-      "from" => "BuildingComplexPoint_1",
-      "marker" => { "type" => "square", "width" => 0.6, "antialiasing" => false }
-    },
-    "labels-buildings" => {
-      "from" => "BuildingComplexPoint_Label_1",
-      "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName" },
-      "text" => { "font" => "Arial", "fontsize" => 3, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 1.0 }
-    },
-    "dams" => {
-      "from" => "HydroPoint_1",
-      "lookup" => "delivsdm:geodb.HydroPoint.ClassSubtype",
-      "marker" => { 1 => { "type" => "square", "width" => 0.8, "antialiasing" => false } }
-    },
-    "built-up-areas" => {
-      "from" => "GeneralCulturalArea_1",
-      "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
-      "polygon" => { 7 => { } }
-    },
-    "plantations" => {
-      "from" => "GeneralCulturalArea_1",
-      "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
-      "polygon" => { 6 => { } }
-    },
-    "building-areas" => {
-      "from" => "GeneralCulturalArea_1",
-      "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
-      "polygon" => { 5 => { } }
-    },
-    "vegetation" => {
-      "image" => "Vegetation_1"
+      "from" => "GeneralCulturalPoint_1",
+      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
+      "marker" => { 5 => { "type" => "square", "width" => 0.5 } }
     },
     "intertidal" => {
       "from" => "DLSArea_1",
@@ -758,7 +810,6 @@ services = {
     "clifftops" => {
       "from" => "DLSLine_1",
       "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
-      # "line" => { 1 => { "width" => 1, "type" => "dot", "antialiasing" => false } }
       "scale" => 0.25,
       "line" => { 1 => { "width" => 2, "type" => "dot", "antialiasing" => false } }
     },
@@ -772,37 +823,33 @@ services = {
       "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
       "truetypemarker" => { 1 => { "font" => "ESRI Caves 3", "fontsize" => 8, "character" => 47 } }
     },
-    "labels-caves" => {
-      "from" => "DLSPoint_Label_1",
-      "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName" },
-      "text" => { 1 => { "font" => "Arial", "fontsize" => 3, "printmode" => "titlecaps", "interval" => 2.0 } }
-    },
     "pinnacles" => {
       "from" => "DLSPoint_1",
       "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
       "truetypemarker" => { 2 => { "font" => "ESRI Default Marker", "character" => 107, "fontsize" => 3 } }
     },
-    "ocean" => {
-      "from" => "FuzzyExtentWaterArea_1",
-      "polygon" => { }
+    "built-up-areas" => {
+      "from" => "GeneralCulturalArea_1",
+      "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
+      "polygon" => { 7 => { } }
     },
-    "coastline" => {
-      "from" => "Coastline_1",
-      "line" => { "width" => 1 }
+    "pine" => {
+      "from" => "GeneralCulturalArea_1",
+      "where" => "ClassSubtype = 6",
+      "lookup" => "delivsdm:geodb.GeneralCulturalArea.GeneralCulturalType",
+      "polygon" => { 1 => { } }
     },
-    "labels-fuzzy-extent" => [
-      {
-        "from" => "FuzzyExtentArea_Label_1",
-        "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
-        "text" => { "font" => "Arial", "fontsize" => 4, "printmode" => "titlecaps" }
-      },
-      {
-        "from" => "FuzzyExtentLine_Label_1",
-        "label" => { "field" => "delivsdm:geodb.FuzzyExtentLine.GeneralName" },
-        "text" => { "font" => "Arial", "fontsize" => 4, "printmode" => "titlecaps" }
-      },
-    ],
+    "orchards-vineyards" => {
+      "from" => "GeneralCulturalArea_1",
+      "where" => "ClassSubtype = 6",
+      "lookup" => "delivsdm:geodb.GeneralCulturalArea.GeneralCulturalType",
+      "polygon" => { "0;2;4" => { } }
+    },
+    "building-areas" => {
+      "from" => "GeneralCulturalArea_1",
+      "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
+      "polygon" => { 5 => { } }
+    },
     "dam-walls" => {
       "from" => "GeneralCulturalLine_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalLine.ClassSubtype",
@@ -812,22 +859,55 @@ services = {
     "towers" => {
       "from" => "GeneralCulturalPoint_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 7 => { "font" => "ESRI Cartography", "character" => 100, "fontsize" => 7 } }
+      "truetypemarker" => { 7 => { "font" => "ESRI Cartography", "character" => 203, "fontsize" => 7 } }
+    },
+    "mines" => {
+      "from" => "GeneralCulturalPoint_1",
+      "where" => "generalculturaltype = 11 OR generalculturaltype = 12",
+      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+      "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 204, "fontsize" => 7 } }
+    },
+    "yards" => {
+      "from" => "GeneralCulturalPoint_1",
+      "where" => "generalculturaltype = 9",
+      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+      "marker" => { 4 => { "type" => "square", "width" => 0.8, "color" => "0,0,0", "outline" => "255,255,255" } }
+    },
+    "windmills" => {
+      "from" => "GeneralCulturalPoint_1",
+      "where" => "generalculturaltype = 8",
+      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+      "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 228, "fontsize" => 7 } }
+    },
+    "lighthouses" => {
+      "from" => "GeneralCulturalPoint_1",
+      "where" => "generalculturaltype = 1",
+      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+      "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 227, "fontsize" => 7 } }
+    },
+    "railways" => {
+      "scale" => 0.35,
+      "from" => "Railway_1",
+      "lookup" => "delivsdm:geodb.Railway.classsubtype",
+      "hashline" => {
+        "1;4" => { "width" => 6, "linethickness" => 3, "tickthickness" => 2, "interval" => 12 },
+        "2;3" => { "width" => 4, "linethickness" => 2, "tickthickness" => 2, "interval" => 12 }
+      }
     },
     "transmission-lines" => {
       "scale" => 0.7,
       "from" => "ElectricityTransmissionLine_1",
       "line" => { "width" => 1, "type" => "dash_dot" }
     },
-    "railways" => {
-      "scale" => 0.7,
-      "from" => "Railway_1",
-      "hashline" => { "width" => 3, "linethickness" => 1, "tickthickness" => 1, "interval" => 6 }
-    },
-    "runways" => {
+    "landing-grounds" => {
       "scale" => 1.0,
       "from" => "Runway_1",
-      "line" => { "width" => 3 }
+      "lookup" => "delivsdm:geodb.Runway.runwaydefinition",
+      "line" => {
+        1 => { "width" => 3 },
+        2 => { "width" => 6 },
+        3 => { "width" => 0.5 }
+      }
     },
     "gates-grids" => {
       "from" => "TrafficControlDevice_1",
@@ -836,6 +916,12 @@ services = {
         1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178 },
         2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177 }
       }
+    },
+    "wharves" => {
+      "from" => "TransportFacilityLine_1",
+      "lookup" => "delivsdm:geodb.TransportFacilityLine.classsubtype",
+      "scale" => 0.4,
+      "line" => { 3 => { "width" => 3 } }
     },
   },
   cad_portlet => {
@@ -1026,63 +1112,69 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
     swamp_tile_path = File.join(temp_dir, "swamp-tile.tif");
     sand_tile_path = File.join(temp_dir, "sand-tile.tif");
     pine_tile_path = File.join(temp_dir, "pine-tile.tif");
+    orchard_tile_path = File.join(temp_dir, "orchard-tile-path.tif");
     rock_tile_path = File.join(temp_dir, "rock-tile.tif");
     reef_tile_path = File.join(temp_dir, "reef-tile.tif");
     
     puts "  generating patterns..."
-    %x[convert -size 38x38 -virtual-pixel tile canvas: -fx '(i+h+j)%38+(i+h-j)%38==0' -morphology Dilate '19: #{pine}' #{pine_tile_path}]
+    %x[convert -size 38x26 -virtual-pixel tile canvas: -fx '(i==0&&j==0)||(i==19&&j==13)' -morphology Dilate '19: #{pine}' #{pine_tile_path}]
+    %x[convert -size 9x9 canvas: -fx 'i<5&&j<5' #{orchard_tile_path}]
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==0' \\( +clone +noise Random -blur 0x2 -threshold 50% \\) -compose Multiply -composite #{inundation_tile_path}]
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' #{inundation_tile_path} -compose Plus -composite #{swamp_tile_path}]
-    %x[convert -size 6x6 canvas: -fx '(i+h+j)%6+(i+h-j)%6==0' #{sand_tile_path}]
+    %x[convert -size 6x6 -virtual-pixel tile canvas: -fx '(i==0&&j==0)||(i==3&&j==3)' -gaussian-blur 0x0.5 -auto-level #{sand_tile_path}]
     %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x2 -modulate 100,1,100 -auto-level -ordered-dither threshold,3 +level 60%,80% #{rock_tile_path}]
-    %x[convert -size 5x5 canvas: -fx 'i==2&&j==2' -morphology Dilate Cross:1 #{reef_tile_path}]
+    %x[convert -size 5x5 -virtual-pixel tile canvas: -fx 'i==0&&j==0' -morphology Dilate Cross:1 #{reef_tile_path}]
     
     layers = {
       "aerial-google" => { "psd-only" => true },
       "aerial-nokia" => { "psd-only" => true },
       "hillshade" => { "psd-only" => true },
       "vegetation" => { },
-      "ocean" => { "color" => "#3860FF" },
-      "reef" => { "tile" => reef_tile_path, "color" => "Cyan" },
-      "sand" => { "tile" => sand_tile_path, "color" => "Brown" },
-      "inundation" => { "tile" => inundation_tile_path, "color" => "#00d3ff" },
+      "pine" => { "tile" => pine_tile_path, "color" => "#009f00" },
+      "orchards-vineyards" => { "tile" => orchard_tile_path, "color" => "#009f00" },
+      "built-up-areas" => { "color" => "#F8FF73" },
+      "rock-area" => { "tile" => rock_tile_path },
+      "contours" => { "color" => "Dark Magenta" },
       "swamp-wet" => { "tile" => swamp_tile_path, "color" => "#00d3ff" },
       "swamp-dry" => { "tile" => swamp_tile_path, "color" => "#e3bf9a" },
-      "plantations" => { "tile" => pine_tile_path, "color" => "Green" },
-      "rock-area" => { "tile" => rock_tile_path },
-      "built-up-areas" => { "color" => "#F8FF73" },
-      "contours-10m-100m" => { "color" => "Dark Magenta" },
+      "watercourses" => { "color" => "#0033ff" },
+      "ocean" => { "color" => "#7b96ff" },
+      "dams" => { "color" => "#0033ff" },
+      "water-areas-perennial" => { "color" => "#7b96ff" },
+      "water-areas-intermittent" => { "color" => "#7b96ff" },
+      "water-areas-dry" => { "color" => "#7b96ff" }, # TODO: use dot pattern instead?
+      "water-area-boundaries" => { "color" => "#0033ff" },
+      "reef" => { "tile" => reef_tile_path, "color" => "Cyan" },
+      "sand" => { "tile" => sand_tile_path, "color" => "#ff6600" },
+      "intertidal" => { "tile" => sand_tile_path, "color" => "#1b2e7b" },
+      "inundation" => { "tile" => inundation_tile_path, "color" => "#00d3ff" },
       "cliffs" => { "color" => "#ddddde" },
       "clifftops" => { "color" => "#ff00ba" },
       "pinnacles" => { "color" => "#ff00ba" },
       "building-areas" => { "color" => "#666667" },
+      "buildings" => { "color" => "#222223" },
       "cadastre" => { "color" => "#888889" },
       "act-cadastre" => { "color" => "#888889" },
-      "watercourses" => { "color" => "#3860FF" },
-      "water-areas" => { "color" => "#3860FF" },
-      "intertidal" => { "tile" => sand_tile_path, "color" => "#1b2e7b" },
       "excavation" => { "color" => "#333334" },
       "coastline" => { "color" => "#000001" },
-      "caves" => { "color" => "#000001" },
-      "dams" => { "color" => "#3860FF" },
+      "dam-walls" => { "color" => "#000001" },
+      "wharves" => { "color" => "#000001" },
       "pathways" => { "color" => "#000001" },
-      "vehicular-tracks" => { "color" => "Dark Orange" },
+      "tracks-4wd" => { "color" => "Dark Orange" },
+      "tracks-vehicular" => { "color" => "Dark Orange" },
       "roads-unsealed" => { "color" => "Dark Orange" },
       "roads-sealed" => { "color" => "Red" },
-      "railways" => { "color" => "#000001" },
-      "runways" => { "color" => "#333334" },
       "gates-grids" => { "color" => "#000001" },
-      "dam-walls" => { "color" => "#000001" },
-      "buildings" => { "color" => "#000001" },
+      "railways" => { "color" => "#000001" },
+      "landing-grounds" => { "color" => "#333334" },
       "transmission-lines" => { "color" => "#000001" },
+      "caves" => { "color" => "#000001" },
       "towers" => { "color" => "#000001" },
-      "labels-buildings" => { "color" => "#000001" },
-      "labels-watercourses" => { "color" => "#000001" },
-      "labels-water-areas" => { "color" => "#000001" },
-      "labels-roads" => { "color" => "#000001" },
-      "labels-contours-100m" => { "color" => "#000001" },
-      "labels-fuzzy-extent" => { "color" => "#555556" },
-      "labels-caves" => { "color" => "#000001" },
+      "windmills" => { "color" => "#000001" },
+      "lighthouses" => { "color" => "#000001" },
+      "mines" => { "color" => "#000001" },
+      "yards" => { "color" => "#000001" },
+      "labels" => { "color" => "#000001" },
       "control-circles" => { "color" => "Red" },
       "control-numbers" => { "color" => "Red" },
       "declination" => { "color" => "#000001" },
@@ -1119,55 +1211,44 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
       %x[convert -quiet #{sequence} -flatten #{temp_tif_path}]
       %x[geotifcp -c packbits -e #{tfw_path} -4 '#{target_projection}' #{temp_tif_path} #{tif_path}]
     end
-
+    
+    temp_psd_path = File.join(temp_dir, "composite.psd")
     unless File.exist? psd_path
       puts "  compositing #{map_name}.psd..."
       sequence = layers.map { |label, layer_path, psdonly| "\\( #{layer_path} -set label #{label} \\)"}.join " "
-      %x[convert -quiet #{tif_path} #{sequence} #{psd_path}]
-      # TODO: build this in temp_dir then copy out at the end
+      %x[convert -quiet #{tif_path} #{sequence} -units PixelsPerInch -density #{scaling.ppi} #{temp_psd_path}]
+      FileUtils.cp(temp_psd_path, psd_path)
     end
   end
 end
 
+# TODO: various label spacings ("interval" attribute)
+# TODO: any way to make fuzzy extent labels stretched?
+# TODO: solve hillshade cyan problem in PSD
+# TODO: excavation as a polygon? possible?
+# TODO: add back rock-awash/rock-inland?
+# TODO: add towns?
+# TODO: depression contours??
+# TODO: solve water-area-boundaries problem (e.g. for test-edent)
+# TODO: have water boundaries only on perennial water bodies? (solves dam overlap problem)
+# TODO: differentiate intermittent and perennial water areas?
+# TODO: HydroPoint subclass 2 = Ancillary Hydro (rapids etc.) ??
+# TODO: include point layers as invisible layers in label layer to avoid overlap?
+# TODO: differentiate different cadastral lines?
+# TODO: change font from default Arial?
 # TODO: colour relief settings
+
+# TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
+# TODO: save layers as PNGs instead, if we aren't georeferencing them?
+# TODO: remove -quiet?
+# TODO: scrape magnetic declination from geoscience australia website?
+# TODO: don't abort on ArcIMS server error, just get next layer
+# TODO: have tiff compression (lzw,packbits,zip) be set by config option
+# TODO: add compression to PSD?
+# TODO: add margins to tiles then crop to avoid cut-offs?
 # TODO: bring back post-actions
 # TODO: in TiledMapService, reduce zoom level if too many tiles (as set in config)
 # TODO: quote all file paths to allow spaces in dir names
 # TODO: have all default configs in a single hash, use deep-merge
 # TODO: fix Nokia dropped tiles?
-# TODO: line styles, etc.
 # TODO: use ranges for bounds? use a Bounds class?
-# TODO: don't abort on ArcIMS server error, just get next layer
-# TODO: use raster fills for swamps, etc.?
-# TODO: split water-areas by perenniality?
-# TODO: have tiff compression (lzw,packbits,zip) be set by config option
-# TODO: add multi-layer tiff output for use with GIMP?
-# TODO: add compression to PSD?
-# TODO: add margins to tiles then crop to avoid cut-offs?
-
-# TODO: various label spacings ("interval" attribute)
-# TODO: label styles (italics, stretched, etc.) c.f. paper maps
-# TODO: combine some/all label layers to avoid overlapping? (what about grey labels? maybe keep fuzzy labels and water area labels separate)
-
-# TODO: borders around water areas/lighter interiors?
-# TODO: pack pine trees more tightly
-# TODO: add cemetary?
-# TODO: add lighthouse/beacon layer
-# TODO: color inundation and swamp differently?
-# TODO: solve hillshade cyan problem in PSD
-# TODO: excavation as a polygon? possible?
-# TODO: save layers as PNGs instead, if we aren't georeferencing them?
-# TODO: set ppi on PSD file?
-# TODO: remove -quiet?
-# TODO: any faster way to generate the grids for sand/inundation/plantations?
-# TODO: try ArcGIS explorer??
-
-# swamp: ESRI IGL Font20, character 87?
-# swamp: ESRI Caves 1, 195, 196, 197
-# pine: ESRI Geometric Symbols, 221
-# pine: ESRI Environmental & Icons, 50
-# pine: ESRI US Forestry 2
-# pine: ESRI US MUTCD 3, 241
-# pine: ESRI Enviro Hazard Analysis, 111
-
-

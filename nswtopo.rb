@@ -399,19 +399,34 @@ class GridService < AnnotationService
 end
 
 class DeclinationService < AnnotationService
+  def get_declination(coords)
+    wgs84_coords = transform_coordinates(projection, "EPSG:4326", coords)
+    degrees_minutes_seconds = wgs84_coords.map do |coord|
+      [ (coord > 0 ? 1 : -1) * coord.abs.floor, (coord.abs * 60).floor % 60, (coord.abs * 3600).round % 60 ]
+    end
+    today = Date.today
+    year_month_day = [ today.year, today.month, today.day ]
+    url = "http://www.ga.gov.au/bin/geoAGRF?latd=%i&latm=%i&lats=%i&lond=%i&lonm=%i&lons=%i&elev=0&year=%i&month=%i&day=%i&Ein=D" % (degrees_minutes_seconds.reverse.flatten + year_month_day)
+    http_get(URI.parse url) do |response|
+      /D\s*=\s*(\d+\.\d+)/.match(response.body) { |match| match.captures[0].to_f }
+    end
+  end
+  
   def draw(bounds, extents, scaling, options)
     spacing = params["spacing"]
-    angle = params["angle"]
+    angle = params["angle"] || get_declination(bounds.map { |bound| 0.5 * bound.inject(:+) })
     
-    radians = angle * Math::PI / 180.0
-    x_spacing = spacing / Math::cos(radians) / scaling.metres_per_pixel
-    dx = extents.last * Math::tan(radians)
-    x_min = [ 0, dx ].min
-    x_max = [ extents.first, extents.first + dx ].max
-    line_count = (x_max - x_min) / x_spacing
-    x_starts = (1..line_count).map { |n| x_min + n * x_spacing }
-    string = x_starts.map { |x| "-draw 'line #{x.to_i},0 #{(x - dx).to_i},#{extents.last}'" }.join " "
-    "-stroke white -strokewidth 1 #{string}"
+    if angle
+      radians = angle * Math::PI / 180.0
+      x_spacing = spacing / Math::cos(radians) / scaling.metres_per_pixel
+      dx = extents.last * Math::tan(radians)
+      x_min = [ 0, dx ].min
+      x_max = [ extents.first, extents.first + dx ].max
+      line_count = (x_max - x_min) / x_spacing
+      x_starts = (1..line_count).map { |n| x_min + n * x_spacing }
+      string = x_starts.map { |x| "-draw 'line #{x.to_i},0 #{(x - dx).to_i},#{extents.last}'" }.join " "
+      "-stroke white -strokewidth 1 #{string}"
+    end
   end
 end
 
@@ -463,6 +478,8 @@ contours:
   index: 100
   labels: 50
   source: 1
+declination:
+  spacing: 1000
 ]
 ).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
 
@@ -1151,8 +1168,8 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
       "cliffs" => { "color" => "#ddddde" },
       "clifftops" => { "color" => "#ff00ba" },
       "pinnacles" => { "color" => "#ff00ba" },
-      "building-areas" => { "color" => "#666667" },
       "buildings" => { "color" => "#222223" },
+      "building-areas" => { "color" => "#666667" },
       "cadastre" => { "color" => "#888889" },
       "act-cadastre" => { "color" => "#888889" },
       "excavation" => { "color" => "#333334" },
@@ -1241,7 +1258,6 @@ end
 # TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
 # TODO: save layers as PNGs instead, if we aren't georeferencing them?
 # TODO: remove -quiet?
-# TODO: scrape magnetic declination from geoscience australia website?
 # TODO: don't abort on ArcIMS server error, just get next layer
 # TODO: have tiff compression (lzw,packbits,zip) be set by config option
 # TODO: add compression to PSD?

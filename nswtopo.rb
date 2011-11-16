@@ -187,7 +187,6 @@ class ArcIMS < Service
                         parent.add_element("SIMPLEMARKERSYMBOL", attrs)
                       when "polygon"
                         attrs = { "fillcolor" => "255,255,255", "boundarycolor" => "255,255,255" }.merge(attributes)
-                        attrs["boundarywidth"] ||= 2 if attrs["antialiasing"] # TODO: needed?
                         parent.add_element("SIMPLEPOLYGONSYMBOL", attrs)
                       when "text"
                         attrs = { "fontcolor" => "255,255,255", "antialiasing" => true, "interval" => 0 }.merge(attributes)
@@ -256,7 +255,7 @@ class TiledMapService < Service
     puts "    (downloading #{counts.inject(:*)} tiles)"
     
     counts.map { |count| (0...count).to_a }.inject(:product).map do |indices|
-      sleep(params["interval"] || 0)
+      sleep params["interval"]
       tile_path = File.join(dir, "tile.#{indices.join('.')}.png")
       
       cropped_centre = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
@@ -279,8 +278,8 @@ class TiledMapService < Service
       
       http_get(uri, "retries" => 5) do |response|
         File.open(tile_path, "w") { |file| file << response.body }
-        %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 #{tile_path}]
-        %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} #{tile_path}]
+        %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 '#{tile_path}']
+        %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} '#{tile_path}']
         [ bounds, metres_per_pixel, tile_path ]
       end
     end.compact
@@ -320,29 +319,29 @@ class OneEarthDEMRelief < Service
       http_get(uri, "retries" => 5) do |response|
         File.open(tile_path, "w") { |file| file << response.body }
         write_world_file([ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, "#{tile_path}w")
-        sleep(params["interval"] || 0)
+        sleep params["interval"]
       end
     end
     vrt_path = File.join(dir, "dem.vrt")
     wildcard_path = File.join(dir, "*.png")
     relief_path = File.join(dir, "output.tif")
     output_path = File.join(dir, "output.png")
-    %x[gdalbuildvrt #{vrt_path} #{wildcard_path}]
+    %x[gdalbuildvrt '#{vrt_path}' '#{wildcard_path}']
     case options["name"]
     when "hillshade"
-      altitude = params["altitude"] || 45
-      azimuth = params["azimuth"] || 315
-      exaggeration = params["exaggeration"] || 1
-      %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} #{vrt_path} #{relief_path} -q]
+      altitude = params["altitude"]
+      azimuth = params["azimuth"]
+      exaggeration = params["exaggeration"]
+      %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} '#{vrt_path}' '#{relief_path}' -q]
     when "color-relief"
-      colours = params["colours"] || { "0%" => "black", "100%" => "white" }
+      colours = params["colours"]
       colour_path = File.join(dir, "colours")
       File.open(colour_path, "w") do |file|
         colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
       end
-      %x[gdaldem color-relief #{vrt_path} #{colour_path} #{relief_path} -q]
+      %x[gdaldem color-relief '#{vrt_path}' '#{colour_path}' '#{relief_path}' -q]
     end
-    %x[convert #{relief_path} -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 #{output_path}]
+    %x[convert '#{relief_path}' -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 '#{output_path}']
     
     [ [ bounds, units_per_pixel, output_path ] ]
   end
@@ -356,7 +355,7 @@ class AnnotationService < Service
     pixels = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
     tile_path = File.join(dir, "tile.0.png") # just one big tile
     draw_string = draw(bounds, extents, scaling, options);
-    %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 #{draw_string} #{tile_path}]
+    %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 #{draw_string} '#{tile_path}']
     [ [ bounds, scaling.metres_per_pixel, tile_path ] ]
   end
 end
@@ -364,7 +363,7 @@ end
 class GridService < AnnotationService
   def draw(bounds, extents, scaling, options)
     intervals = params["intervals"]
-    fontsize = params["fontsize"] || 4.5
+    fontsize = params["fontsize"]
     
     indices = [ bounds, intervals ].transpose.map do |bound, interval|
       ((bound.first / interval).floor .. (bound.last / interval).ceil).to_a
@@ -473,6 +472,7 @@ end
 output_dir = Dir.pwd
 config = YAML.load(
 %q[
+name: map
 contours:
   interval: 10
   index: 100
@@ -480,10 +480,26 @@ contours:
   source: 1
 declination:
   spacing: 1000
+grid:
+  intervals:
+    - 1000
+    - 1000
+  fontsize: 4.5
+relief:
+  altitude: 45
+  azimuth: 315
+  exaggeration: 1
+  colours:
+    0%: black
+    100%: white
+controls:
+  fontsize: 14
+  diameter: 7.0
+  thickness: 0.2
 ]
 ).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
-
-map_name = config["name"] || "map"
+puts config.inspect; gets;
+map_name = config["name"]
 tfw_path = File.join(output_dir, "#{map_name}.tfw")
 proj_path = File.join(output_dir, "#{map_name}.prj")
 
@@ -575,28 +591,13 @@ google_maps = TiledMapService.new(
   "crops" => [ [ 0, 0 ], [ 30, 0 ] ],
   "interval" => 1
 )
-grid_service = GridService.new({
-    "projection" => nearest_utm,
-    "intervals" => [ 1000, 1000 ],
-  }.merge(config["grid"] || {})
-)
-oneearth_relief = OneEarthDEMRelief.new({
-    "interval" => 0.3
-  }.merge(config["relief"] || {})
-)
-declination_service = DeclinationService.new({
-    "projection" => target_projection,
-    "spacing" => 1000,
-  }.merge(config["declination"])
-)
+grid_service = GridService.new({ "projection" => nearest_utm }.merge config["grid"])
+oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
+declination_service = DeclinationService.new({ "projection" => target_projection }.merge config["declination"])
 control_service = ControlService.new({
   "gpx_path" => File.join(output_dir, "controls.gpx"),
   "projection" => target_projection,
-  "fontsize" => 14,
-  "diameter" => 7,
-  "thickness" => 0.2
-  }.merge(config["controls"] || {})
-)
+}.merge config["controls"])
 
 services = {
   topo_portlet => {
@@ -971,7 +972,7 @@ services = {
     },
     "act-lakes-and-major-rivers" => {
       "from" => 28,
-      "polygon" => { "antialiasing" => true }
+      "polygon" => { }
     },
     "act-plantations" => {
       "from" => 51,
@@ -1061,24 +1062,24 @@ services.each do |service, layers|
         working_path = File.join(temp_dir, "#{label}.tif")
         
         puts "  preparing..."
-        %x[convert -quiet -size #{target_extents.join 'x'} canvas:black -type TrueColor -depth 8 #{canvas_path}]
-        %x[geotifcp -c lzw -e #{tfw_path} -4 '#{target_projection}' #{canvas_path} #{working_path}]
+        %x[convert -quiet -size #{target_extents.join 'x'} canvas:black -type TrueColor -depth 8 '#{canvas_path}']
+        %x[geotifcp -c lzw -e '#{tfw_path}' -4 '#{target_projection}' '#{canvas_path}' '#{working_path}']
         
         if service
           puts "  downloading..."
           dataset_path = service.dataset(target_bounds, target_projection, scaling, options, temp_dir).collect do |bounds, resolution, path|
             topleft = [ bounds.first.min, bounds.last.max ]
             write_world_file(topleft, resolution, "#{path}w")
-            %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 #{path}]
+            %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 '#{path}']
             path
           end.join " "
           
           puts "  assembling..."
-          %x[gdalbuildvrt #{vrt_path} #{dataset_path}]
-          %x[gdalwarp -s_srs "#{service.projection}" -r cubic #{vrt_path} #{working_path}]
+          %x[gdalbuildvrt '#{vrt_path}' '#{dataset_path}']
+          %x[gdalwarp -s_srs "#{service.projection}" -r cubic '#{vrt_path}' '#{working_path}']
         end
         
-        %x[convert -quiet #{working_path} -units PixelsPerInch -density #{scaling.ppi} -compress LZW #{output_path}]
+        %x[convert -quiet '#{working_path}' -units PixelsPerInch -density #{scaling.ppi} -compress LZW '#{output_path}']
       end
     end
   end
@@ -1090,25 +1091,23 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
   puts "Building composite files:"
   Dir.mktmpdir do |temp_dir|
     pine = %w[
-      0000000000000000000
-      0000000001000000000
-      0000000001000000000
-      0000000011100000000
-      0000000011100000000
-      0000000111110000000
-      0000000111110000000
-      0000001111111000000
-      0000001111111000000
-      0000011111111100000
-      0000011111111100000
-      0000000011100000000
-      0000000111110000000
-      0000001111111000000
-      0000011111111100000
-      0000111111111110000
-      0001111111111111000
-      0000000001000000000
-      0000000001000000000
+      00000000000000000
+      00000000100000000
+      00000000100000000
+      00000001110000000
+      00000001110000000
+      00000011111000000
+      00000011111000000
+      00000111111100000
+      00000111111100000
+      00000000100000000
+      00000001110000000
+      00000011111000000
+      00000111111100000
+      00001111111110000
+      00011111111111000
+      00000000100000000
+      00000000100000000
     ].map { |line| line.split("").join(",") }.join(" ")
 
     swamp = %w[
@@ -1134,13 +1133,13 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
     reef_tile_path = File.join(temp_dir, "reef-tile.tif");
     
     puts "  generating patterns..."
-    %x[convert -size 38x26 -virtual-pixel tile canvas: -fx '(i==0&&j==0)||(i==19&&j==13)' -morphology Dilate '19: #{pine}' #{pine_tile_path}]
-    %x[convert -size 9x9 canvas: -fx 'i<5&&j<5' #{orchard_tile_path}]
-    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==0' \\( +clone +noise Random -blur 0x2 -threshold 50% \\) -compose Multiply -composite #{inundation_tile_path}]
-    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' #{inundation_tile_path} -compose Plus -composite #{swamp_tile_path}]
-    %x[convert -size 6x6 -virtual-pixel tile canvas: -fx '(i==0&&j==0)||(i==3&&j==3)' -gaussian-blur 0x0.5 -auto-level #{sand_tile_path}]
-    %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x2 -modulate 100,1,100 -auto-level -ordered-dither threshold,3 +level 60%,80% #{rock_tile_path}]
-    %x[convert -size 5x5 -virtual-pixel tile canvas: -fx 'i==0&&j==0' -morphology Dilate Cross:1 #{reef_tile_path}]
+    %x[convert -size 38x26 -virtual-pixel tile canvas: -fx '(i==0&&j==0)||(i==19&&j==13)' -morphology Dilate '17: #{pine}' '#{pine_tile_path}']
+    %x[convert -size 9x9 canvas: -fx 'i<5&&j<5' '#{orchard_tile_path}']
+    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==0' \\( +clone +noise Random -blur 0x2 -threshold 50% \\) -compose Multiply -composite '#{inundation_tile_path}']
+    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_tile_path}']
+    %x[convert -size 6x6 -virtual-pixel tile canvas: -fx '(i==0&&j==0)||(i==3&&j==3)' -gaussian-blur 0x0.5 -auto-level '#{sand_tile_path}']
+    %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x2 -modulate 100,1,100 -auto-level -ordered-dither threshold,3 +level 60%,80% '#{rock_tile_path}']
+    %x[convert -size 5x5 -virtual-pixel tile canvas: -fx 'i==0&&j==0' -morphology Dilate Cross:1 '#{reef_tile_path}']
     
     layers = {
       "aerial-google" => { "psd-only" => true },
@@ -1203,7 +1202,7 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
     end.select do |label, path, options|
       File.exists? path
     end.reject do |label, path, options|
-      %x[convert -quiet #{path} -format '%[max]' info:].to_i == 0
+      %x[convert -quiet '#{path}' -format '%[max]' info:].to_i == 0
     end.map do |label, path, options|
       puts "  colouring #{label}..."
       layer_path = File.join(temp_dir, "#{label}.tif")
@@ -1217,7 +1216,7 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
       else
         ""
       end
-      %x[convert #{path} #{sequence} -type TrueColorMatte -depth 8 #{layer_path}]
+      %x[convert '#{path}' #{sequence} -type TrueColorMatte -depth 8 '#{layer_path}']
       [ label, layer_path, options["psd-only"] ]
     end
   
@@ -1225,15 +1224,15 @@ unless File.exist?(tif_path) && File.exist?(psd_path)
     unless File.exist? tif_path
       puts "  compositing #{map_name}.tif..."
       sequence = layers.reject { |label, layer_path, psdonly| psdonly }.map { |label, layer_path, psdonly| layer_path }.join " -flatten "
-      %x[convert -quiet #{sequence} -flatten #{temp_tif_path}]
-      %x[geotifcp -c packbits -e #{tfw_path} -4 '#{target_projection}' #{temp_tif_path} #{tif_path}]
+      %x[convert -quiet #{sequence} -flatten '#{temp_tif_path}']
+      %x[geotifcp -c packbits -e '#{tfw_path}' -4 '#{target_projection}' '#{temp_tif_path}' '#{tif_path}']
     end
     
     temp_psd_path = File.join(temp_dir, "composite.psd")
     unless File.exist? psd_path
       puts "  compositing #{map_name}.psd..."
-      sequence = layers.map { |label, layer_path, psdonly| "\\( #{layer_path} -set label #{label} \\)"}.join " "
-      %x[convert -quiet #{tif_path} #{sequence} -units PixelsPerInch -density #{scaling.ppi} #{temp_psd_path}]
+      sequence = layers.map { |label, layer_path, psdonly| "\\( '#{layer_path}' -set label #{label} \\)"}.join " "
+      %x[convert -quiet '#{tif_path}' #{sequence} -units PixelsPerInch -density #{scaling.ppi} '#{temp_psd_path}']
       FileUtils.cp(temp_psd_path, psd_path)
     end
   end
@@ -1256,15 +1255,11 @@ end
 # TODO: colour relief settings
 
 # TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
-# TODO: save layers as PNGs instead, if we aren't georeferencing them?
 # TODO: remove -quiet?
 # TODO: don't abort on ArcIMS server error, just get next layer
-# TODO: have tiff compression (lzw,packbits,zip) be set by config option
 # TODO: add compression to PSD?
 # TODO: add margins to tiles then crop to avoid cut-offs?
 # TODO: bring back post-actions
 # TODO: in TiledMapService, reduce zoom level if too many tiles (as set in config)
-# TODO: quote all file paths to allow spaces in dir names
-# TODO: have all default configs in a single hash, use deep-merge
 # TODO: fix Nokia dropped tiles?
 # TODO: use ranges for bounds? use a Bounds class?

@@ -249,20 +249,26 @@ end
 class TiledMapService < Service
   def dataset(input_bounds, input_projection, scaling, options, dir)
     tile_sizes = params["tile_sizes"]
+    tile_limit = params["tile_limit"]
     crops = params["crops"] || [ [ 0, 0 ], [ 0, 0 ] ]
-    bounds = transform_bounds(input_projection, projection, input_bounds)
-    origins = bounds.transpose.first
-    zoom = (Math::log2(Math::PI * EARTH_RADIUS / scaling.metres_per_pixel) - 7 - 0.5).ceil
-    metres_per_pixel = Math::PI * EARTH_RADIUS / 2 ** (zoom + 7)
     
-    extents = bounds.map { |bound| bound.max - bound.min }
     cropped_tile_sizes = [ tile_sizes, crops ].transpose.map { |tile_size, crop| tile_size - crop.inject(:+) }
-    counts = [ extents, cropped_tile_sizes ].transpose.map { |extent, tile_size| (extent / metres_per_pixel / tile_size).ceil }
+    bounds = transform_bounds(input_projection, projection, input_bounds)
+    extents = bounds.map { |bound| bound.max - bound.min }
+    origins = bounds.transpose.first
+    
+    zoom, metres_per_pixel, counts = (Math::log2(Math::PI * EARTH_RADIUS / scaling.metres_per_pixel) - 7).ceil.downto(1).map do |zoom|
+      metres_per_pixel = Math::PI * EARTH_RADIUS / 2 ** (zoom + 7)
+      counts = [ extents, cropped_tile_sizes ].transpose.map { |extent, tile_size| (extent / metres_per_pixel / tile_size).ceil }
+      [ zoom, metres_per_pixel, counts ]
+    end.find do |zoom, metres_per_pixel, counts|
+      counts.inject(:*) < tile_limit
+    end
     
     format = options["format"]
     name = options["name"]
     
-    puts "    (downloading #{counts.inject(:*)} tiles)"
+    puts "    (downloading #{counts.inject(:*)} tiles at zoom level #{zoom})"
     
     counts.map { |count| (0...count).to_a }.inject(:product).map do |indices|
       sleep params["interval"]
@@ -286,13 +292,19 @@ class TiledMapService < Service
       end
       uri = URI.parse(uri_string)
       
-      http_get(uri, "retries" => 5) do |response|
-        File.open(tile_path, "w") { |file| file << response.body }
-        %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 '#{tile_path}']
-        %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} '#{tile_path}']
-        [ bounds, metres_per_pixel, tile_path ]
+      retries_on_blank = params["retries_on_blank"] || 0
+      (1 + retries_on_blank).times do
+        http_get(uri, "retries" => 5) do |response|
+          File.open(tile_path, "w") { |file| file << response.body }
+          %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 '#{tile_path}']
+          %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} '#{tile_path}']
+        end
+        non_blank_fraction = %x[convert '#{tile_path}' -fill white +opaque black -format "%[fx:mean]" info:].to_f
+        break if non_blank_fraction > 0.95
       end
-    end.compact
+      
+      [ bounds, metres_per_pixel, tile_path ]
+    end
   end
 end
 
@@ -608,15 +620,18 @@ nokia_maps = TiledMapService.new(
   "uri" => "http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot",
   "projection" => "EPSG:3857",
   "tile_sizes" => [ 1024, 1024 ],
-  "interval" => 0.3,
-  "crops" => [ [ 0, 0 ], [ 26, 0 ] ]
+  "interval" => 1.2,
+  "crops" => [ [ 0, 0 ], [ 26, 0 ] ],
+  "tile_limit" => 250,
+  "retries_on_blank" => 1
 )
 google_maps = TiledMapService.new(
   "uri" => "http://maps.googleapis.com/maps/api/staticmap?zoom=${zoom}&size=${hsize}x${vsize}&scale=1&format=${format}&maptype=${name}&sensor=false&center=${latitude},${longitude}",
   "projection" => "EPSG:3857",
   "tile_sizes" => [ 640, 640 ],
+  "interval" => 1.2,
   "crops" => [ [ 0, 0 ], [ 30, 0 ] ],
-  "interval" => 1
+  "tile_limit" => 250
 )
 grid_service = GridService.new({ "projection" => nearest_utm }.merge config["grid"])
 oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
@@ -1098,12 +1113,12 @@ services.each do |service, layers|
             topleft = [ bounds.first.min, bounds.last.max ]
             write_world_file(topleft, resolution, "#{path}w")
             %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 '#{path}']
-            path
+            "'#{path}'"
           end
         
           unless dataset_paths.empty?
             puts "  assembling..."
-            %x[gdalbuildvrt '#{vrt_path}' '#{dataset_paths.join " "}']
+            %x[gdalbuildvrt '#{vrt_path}' #{dataset_paths.join " "}]
             %x[gdalwarp -s_srs "#{service.projection}" -r cubic '#{vrt_path}' '#{working_path}']
             %x[convert -quiet '#{working_path}' -units PixelsPerInch -density #{scaling.ppi} -compress LZW '#{output_path}']
           end
@@ -1300,7 +1315,7 @@ end
 # TODO: windmill/tower/lighthouse symbols too big
 
 # TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
-# TODO: bring back post-actions
-# TODO: in TiledMapService, reduce zoom level if too many tiles (as set in config)
-# TODO: fix Nokia dropped tiles?
 # TODO: configurable colour settings?
+# TODO: have gpx_path be a config option
+# TODO: show tile counters/progress bars?
+

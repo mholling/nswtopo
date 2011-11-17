@@ -112,8 +112,7 @@ class Service
 end
 
 class ArcIMS < Service
-  def tiles(input_bounds, input_projection, scaling)
-    tile_sizes = params["tile_sizes"]
+  def tiles(tile_sizes, input_bounds, input_projection, scaling)
     bounds = transform_bounds(input_projection, projection, input_bounds)
     extents = bounds.map { |bound| bound.max - bound.min }
     pixels = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
@@ -139,11 +138,19 @@ class ArcIMS < Service
   def dataset(input_bounds, input_projection, scaling, options_or_array, dir)
     options_array = [ options_or_array ].flatten
     
+    margin = options_array.any? { |options| options["text"] } ? 0 : (1.27 * scaling.ppi / 25.4).ceil
+    cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - 2 * margin }
+    
     scales = options_array.map { |options| options["scale"] }.compact.uniq
     abort("more than one scale specified") if scales.length > 1
     dpi = scales.any? ? (scales.first * scaling.ppi).round : params["dpi"]
     
-    tiles(input_bounds, input_projection, scaling).each_with_index.map do |(bounds, extents), tile_index|
+    tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).each_with_index.map do |(cropped_bounds, cropped_extents), tile_index|
+      extents = cropped_extents.map { |cropped_extent| cropped_extent + 2 * margin }
+      bounds = cropped_bounds.map do |cropped_bound|
+        [ cropped_bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
+      end
+      
       tile_path = File.join(dir, "tile.#{tile_index}.png")
       
       xml = REXML::Document.new
@@ -233,7 +240,8 @@ class ArcIMS < Service
         end
       end
       
-      [ bounds, scaling.metres_per_pixel, tile_path ]
+      %x[mogrify -crop #{cropped_extents.join "x"}+#{margin}+#{margin}'#{tile_path}']
+      [ cropped_bounds, scaling.metres_per_pixel, tile_path ]
     end
   end
 end
@@ -1275,10 +1283,10 @@ end
 # TODO: any way to make fuzzy extent labels stretched?
 # TODO: solve hillshade cyan problem in PSD
 # TODO: excavation as a polygon? possible?
-# TODO: add back rock-awash/rock-inland?
+# TODO: add back rock-awash/rock-inland? (combine with pinnacles)
 # TODO: add towns?
 # TODO: depression contours??
-# TODO: solve water-area-boundaries problem (e.g. for test-edent)
+# TODO: solve water-area-boundaries problem (e.g. for test-eden)
 # TODO: have water boundaries only on perennial water bodies? (solves dam overlap problem)
 # TODO: differentiate intermittent and perennial water areas?
 # TODO: HydroPoint subclass 2 = Ancillary Hydro (rapids etc.) ??
@@ -1287,9 +1295,11 @@ end
 # TODO: change font from default Arial?
 # TODO: colour relief settings
 # TODO: reduce watercourse label sizes
+# TODO: change gates-grids font to ESRI Cartography (169 & 170 or 184 & 185) or ESRI Default Marker (61 & 62, or 60 & 61)
+# TODO: change caves symbol to ESRI Default Marker (168 or 216, rotated 180 degrees)
+# TODO: windmill/tower/lighthouse symbols too big
 
 # TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
-# TODO: add margins to tiles then crop to avoid cut-offs?
 # TODO: bring back post-actions
 # TODO: in TiledMapService, reduce zoom level if too many tiles (as set in config)
 # TODO: fix Nokia dropped tiles?

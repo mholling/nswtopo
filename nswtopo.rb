@@ -27,6 +27,7 @@ class Hash
 end
 
 InternetError = Class.new(Exception)
+BadLayer = Class.new(Exception)
 
 def http_request(uri, req, options)
   retries = options["retries"] || 0
@@ -453,16 +454,23 @@ end
 
 class ControlService < AnnotationService
   def data?(input_bounds, input_projection)
-    return File.exists?(params["gpx_path"])
+    return File.exists?(params["path"])
   end
   
   def draw(bounds, extents, scaling, options)
-    xml = REXML::Document.new(File.open params["gpx_path"])
-    waypoints = xml.elements["gpx"].elements.collect("wpt") do |element|
-      [ element.attributes["lon"].to_f, element.attributes["lat"].to_f ]
-    end
-    numbers = xml.elements["gpx"].elements.collect("wpt") do |element|
-      element.elements["name"].text
+    xml = REXML::Document.new(File.open params["path"])
+    
+    waypoints, numbers = case
+    when xml.elements["/gpx"]
+      xml.elements.collect("/gpx//wpt") do |element|
+        [ [ element.attributes["lon"].to_f, element.attributes["lat"].to_f ], element.elements["name"].text ]
+      end.transpose
+    when xml.elements["/kml"]
+      xml.elements.collect("/kml//Placemark") do |element|
+        [ element.elements["Point/coordinates"].text.split(',')[0..1].map { |coord| coord.to_f }, element.elements["name"].text ]
+      end.transpose
+    else
+      raise BadLayer.new("#{params["path"]} not a valid GPX or KML file")
     end
     
     radius = params["diameter"] * scaling.ppi / 25.4 / 2
@@ -488,6 +496,8 @@ class ControlService < AnnotationService
     when "numbers"
       "-fill white -pointsize #{params['fontsize']} -family 'Arial' -weight Normal #{string}"
     end
+  rescue REXML::ParseException
+    raise BadLayer.new("#{params["path"]} not a valid GPX or KML file")
   end
 end
 
@@ -637,7 +647,7 @@ grid_service = GridService.new({ "projection" => nearest_utm }.merge config["gri
 oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
 declination_service = DeclinationService.new({ "projection" => target_projection }.merge config["declination"])
 control_service = ControlService.new({
-  "gpx_path" => File.join(output_dir, "controls.gpx"),
+  "path" => config["controls"]["path"] || File.join(output_dir, config["controls"]["file"] || "controls.gpx"),
   "projection" => target_projection,
 }.merge config["controls"])
 
@@ -1122,7 +1132,7 @@ services.each do |service, layers|
             %x[gdalwarp -s_srs "#{service.projection}" -r cubic '#{vrt_path}' '#{working_path}']
             %x[convert -quiet '#{working_path}' -units PixelsPerInch -density #{scaling.ppi} -compress LZW '#{output_path}']
           end
-        rescue InternetError => e
+        rescue InternetError, BadLayer => e
           puts "  skipping layer; error: #{e.message}"
         end
       end
@@ -1316,6 +1326,5 @@ end
 
 # TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
 # TODO: configurable colour settings?
-# TODO: have gpx_path be a config option
 # TODO: show tile counters/progress bars?
 

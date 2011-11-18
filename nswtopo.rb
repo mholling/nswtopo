@@ -26,6 +26,22 @@ class Hash
   end
 end
 
+class Array
+  def with_progress(symbol = ?-, container = "    [%s]", bars = 70)
+    divider = (length - 1) / 40 + 1
+    Enumerator.new do |yielder|
+      $stdout << container % (?\s * bars)
+      each_with_index do |object, index|
+        yielder << object
+        filled = (index + 1) * bars / length
+        content = (symbol * filled) << (?\s * (bars - filled))
+        $stdout << "\r" << container % content
+      end
+      puts
+    end
+  end
+end
+
 InternetError = Class.new(Exception)
 BadLayer = Class.new(Exception)
 
@@ -146,7 +162,7 @@ class ArcIMS < Service
     abort("more than one scale specified") if scales.length > 1
     dpi = scales.any? ? (scales.first * scaling.ppi).round : params["dpi"]
     
-    tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).each_with_index.map do |(cropped_bounds, cropped_extents), tile_index|
+    tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(cropped_bounds, cropped_extents), tile_index|
       extents = cropped_extents.map { |cropped_extent| cropped_extent + 2 * margin }
       bounds = cropped_bounds.map do |cropped_bound|
         [ cropped_bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
@@ -241,7 +257,7 @@ class ArcIMS < Service
         end
       end
       
-      %x[mogrify -crop #{cropped_extents.join "x"}+#{margin}+#{margin}'#{tile_path}']
+      %x[mogrify -crop #{cropped_extents.join "x"}+#{margin}+#{margin} '#{tile_path}']
       [ cropped_bounds, scaling.metres_per_pixel, tile_path ]
     end
   end
@@ -271,7 +287,7 @@ class TiledMapService < Service
     
     puts "    (downloading #{counts.inject(:*)} tiles at zoom level #{zoom})"
     
-    counts.map { |count| (0...count).to_a }.inject(:product).map do |indices|
+    counts.map { |count| (0...count).to_a }.inject(:product).with_progress.map do |indices|
       sleep params["interval"]
       tile_path = File.join(dir, "tile.#{indices.join('.')}.png")
       
@@ -321,10 +337,10 @@ class OneEarthDEMRelief < Service
     counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
     units_per_pixel = 0.125 / 300
     
-    [ counts, bounds ].transpose.map do |count, bound|
+    tile_paths = [ counts, bounds ].transpose.map do |count, bound|
       boundaries = (0..count).map { |index| bound.first + index * 0.125 }
       [ boundaries[0..-2], boundaries[1..-1] ].transpose
-    end.inject(:product).each_with_index do |tile_bounds, index|
+    end.inject(:product).with_progress.map.with_index do |tile_bounds, index|
       tile_path = File.join(dir, "tile.#{index}.png")
       bbox = tile_bounds.transpose.map { |corner| corner.join "," }.join ","
       query = {
@@ -344,12 +360,14 @@ class OneEarthDEMRelief < Service
         write_world_file([ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, "#{tile_path}w")
         sleep params["interval"]
       end
+      "'#{tile_path}'"
     end
+    
     vrt_path = File.join(dir, "dem.vrt")
-    wildcard_path = File.join(dir, "*.png")
     relief_path = File.join(dir, "output.tif")
     output_path = File.join(dir, "output.png")
-    %x[gdalbuildvrt '#{vrt_path}' '#{wildcard_path}']
+    %x[gdalbuildvrt '#{vrt_path}' #{tile_paths.join " "}]
+    
     case options["name"]
     when "hillshade"
       altitude = params["altitude"]
@@ -1199,6 +1217,7 @@ unless formats_paths.empty?
     %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x2 -modulate 100,1,100 -auto-level -ordered-dither threshold,3 +level 60%,80% '#{rock_tile_path}']
     %x[convert -size 5x5 -virtual-pixel tile canvas: -fx 'i==0&&j==0' -morphology Dilate Cross:1 '#{reef_tile_path}']
     
+    puts "  preparing layers..."
     layers = {
       "aerial-google" => { },
       "aerial-nokia" => { },
@@ -1263,8 +1282,7 @@ unless formats_paths.empty?
       File.exists? path
     end.reject do |label, path, options|
       %x[convert -quiet '#{path}' -format '%[max]' info:].to_i == 0
-    end.map do |label, path, options|
-      puts "  colouring #{label}..."
+    end.with_progress.map do |label, path, options|
       layer_path = File.join(temp_dir, "#{label}.tif")
       sequence = case
       when options["tile"] && options["colour"]
@@ -1326,5 +1344,6 @@ end
 
 # TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
 # TODO: configurable colour settings?
-# TODO: show tile counters/progress bars?
+
+# TODO: check tile overlapping
 

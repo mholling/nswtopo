@@ -556,11 +556,59 @@ exclude:
   - utm-eastings
   - utm-northings
   - aerial-nokia
+colours:
+  pine: '#009f00'
+  orchards-vineyards: '#009f00'
+  built-up-areas: '#F8FF73'
+  contours: 'Dark Magenta'
+  swamp-wet: '#00d3ff'
+  swamp-dry: '#e3bf9a'
+  watercourses: '#0033ff'
+  ocean: '#7b96ff'
+  dams: '#0033ff'
+  water-areas-perennial: '#7b96ff'
+  water-areas-intermittent: '#7b96ff'
+  water-areas-dry: '#7b96ff'
+  water-area-boundaries: '#0033ff'
+  reef: 'Cyan'
+  sand: '#ff6600'
+  intertidal: '#1b2e7b'
+  inundation: '#00d3ff'
+  cliffs: '#ddddde'
+  clifftops: '#ff00ba'
+  rocks-pinnacles: '#ff00ba'
+  buildings: '#222223'
+  building-areas: '#666667'
+  cadastre: '#888889'
+  act-cadastre: '#888889'
+  excavation: '#333334'
+  coastline: '#000001'
+  dam-walls: '#000001'
+  wharves: '#000001'
+  pathways: '#000001'
+  tracks-4wd: 'Dark Orange'
+  tracks-vehicular: 'Dark Orange'
+  roads-unsealed: 'Dark Orange'
+  roads-sealed: 'Red'
+  gates-grids: '#000001'
+  railways: '#000001'
+  landing-grounds: '#333334'
+  transmission-lines: '#000001'
+  caves: '#000001'
+  towers: '#000001'
+  windmills: '#000001'
+  lighthouses: '#000001'
+  mines: '#000001'
+  yards: '#000001'
+  labels: '#000001'
+  control-circles: 'Red'
+  control-numbers: 'Red'
+  declination: '#000001'
+  utm-grid: '#000001'
+  utm-eastings: '#000001'
+  utm-northings: '#000001'
 ]
 ).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
-
-puts "Map configuration:"
-puts config.to_yaml
 
 map_name = config["name"]
 tfw_path = File.join(output_dir, "#{map_name}.tfw")
@@ -749,18 +797,38 @@ services = {
         "text" => { 1 => { "fontsize" => 3, "printmode" => "titlecaps", "interval" => 2.0 } }
       },
     ],
-    "contours" => [
+    # "contours" => [
+    #   {
+    #     "from" => "Contour_1",
+    #     "where" => "MOD(elevation, #{config["contours"]["interval"]}) = 0",
+    #     "lookup" => "delivsdm:geodb.Contour.sourceprogram",
+    #     "line" => { config["contours"]["source"] => { "width" => 1 } }
+    #   },
+    #   {
+    #     "from" => "Contour_1",
+    #     "where" => "MOD(elevation, #{config["contours"]["index"]}) = 0 AND elevation > 0",
+    #     "lookup" => "delivsdm:geodb.Contour.sourceprogram",
+    #     "line" => { config["contours"]["source"] => { "width" => 2 } }
+    #   },
+    # ],
+    "contours" => [ # TODO: sourceprogram needed if the large-scale mapping programs are classed 'ancillary'?
       {
         "from" => "Contour_1",
-        "where" => "MOD(elevation, #{config["contours"]["interval"]}) = 0",
-        "lookup" => "delivsdm:geodb.Contour.sourceprogram",
-        "line" => { config["contours"]["source"] => { "width" => 1 } }
+        "where" => "MOD(elevation, #{config["contours"]["interval"]}) = 0 AND sourceprogram = #{config["contours"]["source"]}",
+        "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
+        "line" => {
+          1 => { "width" => 1 },
+          2 => { "width" => 1, "type" => "dash" }
+        }
       },
       {
         "from" => "Contour_1",
-        "where" => "MOD(elevation, #{config["contours"]["index"]}) = 0 AND elevation > 0",
-        "lookup" => "delivsdm:geodb.Contour.sourceprogram",
-        "line" => { config["contours"]["source"] => { "width" => 2 } }
+        "where" => "MOD(elevation, #{config["contours"]["index"]}) = 0 AND elevation > 0 AND sourceprogram = #{config["contours"]["source"]}",
+        "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
+        "line" => {
+          1 => { "width" => 2 },
+          2 => { "width" => 2, "type" => "dash" }
+        }
       },
     ],
     "watercourses" => {
@@ -909,12 +977,13 @@ services = {
     "caves" => {
       "from" => "DLSPoint_1",
       "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Caves 3", "fontsize" => 8, "character" => 47 } }
+      # "truetypemarker" => { 1 => { "font" => "ESRI Caves 3", "fontsize" => 8, "character" => 47 } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Default Marker", "fontsize" => 7, "character" => 216, "angle" => 180 } }
     },
-    "pinnacles" => {
+    "rocks-pinnacles" => {
       "from" => "DLSPoint_1",
       "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "truetypemarker" => { 2 => { "font" => "ESRI Default Marker", "character" => 107, "fontsize" => 3 } }
+      "truetypemarker" => { "2;4;5" => { "font" => "ESRI Default Marker", "character" => 107, "fontsize" => 3 } }
     },
     "built-up-areas" => {
       "from" => "GeneralCulturalArea_1",
@@ -1021,6 +1090,16 @@ services = {
       "scale" => 0.5,
       "from" => "Border_1",
       "line" => { "width" => 2, "type" => "dash_dot_dot" }
+    },
+    "trig-points" => {
+      "from" => "SurveyMarks_1",
+      "lookup" => "delivsdm:geodb.SurveyMark.ClassSubtype", # TODO: add label too?
+      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 180 } }
+    },
+    "town-labels" => {
+      "from" => "Town_Label_1",
+      "label" => { "field" => "NAME" },
+      "text" => { "fontsize" => 6 }
     }
   },
   act_heritage => {
@@ -1167,7 +1246,6 @@ unless formats_paths.empty?
   puts "Building composite files:"
   Dir.mktmpdir do |temp_dir|
     pine = %w[
-      00000000000000000
       00000000100000000
       00000000100000000
       00000001110000000
@@ -1184,6 +1262,7 @@ unless formats_paths.empty?
       00011111111111000
       00000000100000000
       00000000100000000
+      00000000000000000
     ].map { |line| line.split("").join(",") }.join(" ")
 
     swamp = %w[
@@ -1219,61 +1298,61 @@ unless formats_paths.empty?
     
     puts "  preparing layers..."
     layers = {
-      "aerial-google" => { },
-      "aerial-nokia" => { },
-      "hillshade" => { },
-      "vegetation" => { },
-      "pine" => { "tile" => pine_tile_path, "colour" => "#009f00" },
-      "orchards-vineyards" => { "tile" => orchard_tile_path, "colour" => "#009f00" },
-      "built-up-areas" => { "colour" => "#F8FF73" },
-      "rock-area" => { "tile" => rock_tile_path },
-      "contours" => { "colour" => "Dark Magenta" },
-      "swamp-wet" => { "tile" => swamp_tile_path, "colour" => "#00d3ff" },
-      "swamp-dry" => { "tile" => swamp_tile_path, "colour" => "#e3bf9a" },
-      "watercourses" => { "colour" => "#0033ff" },
-      "ocean" => { "colour" => "#7b96ff" },
-      "dams" => { "colour" => "#0033ff" },
-      "water-areas-perennial" => { "colour" => "#7b96ff" },
-      "water-areas-intermittent" => { "colour" => "#7b96ff" },
-      "water-areas-dry" => { "colour" => "#7b96ff" }, # TODO: use dot pattern instead?
-      "water-area-boundaries" => { "colour" => "#0033ff" },
-      "reef" => { "tile" => reef_tile_path, "colour" => "Cyan" },
-      "sand" => { "tile" => dotted_tile_path, "colour" => "#ff6600" },
-      "intertidal" => { "tile" => dotted_tile_path, "colour" => "#1b2e7b" },
-      "inundation" => { "tile" => inundation_tile_path, "colour" => "#00d3ff" },
-      "cliffs" => { "colour" => "#ddddde" },
-      "clifftops" => { "colour" => "#ff00ba" },
-      "pinnacles" => { "colour" => "#ff00ba" },
-      "buildings" => { "colour" => "#222223" },
-      "building-areas" => { "colour" => "#666667" },
-      "cadastre" => { "colour" => "#888889" },
-      "act-cadastre" => { "colour" => "#888889" },
-      "excavation" => { "colour" => "#333334" },
-      "coastline" => { "colour" => "#000001" },
-      "dam-walls" => { "colour" => "#000001" },
-      "wharves" => { "colour" => "#000001" },
-      "pathways" => { "colour" => "#000001" },
-      "tracks-4wd" => { "colour" => "Dark Orange" },
-      "tracks-vehicular" => { "colour" => "Dark Orange" },
-      "roads-unsealed" => { "colour" => "Dark Orange" },
-      "roads-sealed" => { "colour" => "Red" },
-      "gates-grids" => { "colour" => "#000001" },
-      "railways" => { "colour" => "#000001" },
-      "landing-grounds" => { "colour" => "#333334" },
-      "transmission-lines" => { "colour" => "#000001" },
-      "caves" => { "colour" => "#000001" },
-      "towers" => { "colour" => "#000001" },
-      "windmills" => { "colour" => "#000001" },
-      "lighthouses" => { "colour" => "#000001" },
-      "mines" => { "colour" => "#000001" },
-      "yards" => { "colour" => "#000001" },
-      "labels" => { "colour" => "#000001" },
-      "control-circles" => { "colour" => "Red" },
-      "control-numbers" => { "colour" => "Red" },
-      "declination" => { "colour" => "#000001" },
-      "utm-grid" => { "colour" => "#000001"},
-      "utm-eastings" => { "colour" => "#000001"},
-      "utm-northings" => { "colour" => "#000001"}
+      "aerial-google" => :image,
+      "aerial-nokia" => :image,
+      "hillshade" => :image,
+      "vegetation" => :image,
+      "pine" => pine_tile_path,
+      "orchards-vineyards" => orchard_tile_path,
+      "built-up-areas" => :mask,
+      "rock-area" => rock_tile_path,
+      "contours" => :mask,
+      "swamp-wet" => swamp_tile_path,
+      "swamp-dry" => swamp_tile_path,
+      "watercourses" => :mask,
+      "ocean" => :mask,
+      "dams" => :mask,
+      "water-areas-perennial" => :mask,
+      "water-areas-intermittent" => :mask,
+      "water-areas-dry" => :mask, # TODO: use dot pattern instead?
+      "water-area-boundaries" => :mask,
+      "reef" => reef_tile_path,
+      "sand" => dotted_tile_path,
+      "intertidal" => dotted_tile_path,
+      "inundation" => inundation_tile_path,
+      "cliffs" => :mask,
+      "clifftops" => :mask,
+      "rocks-pinnacles" => :mask,
+      "buildings" => :mask,
+      "building-areas" => :mask,
+      "cadastre" => :mask,
+      "act-cadastre" => :mask,
+      "excavation" => :mask,
+      "coastline" => :mask,
+      "dam-walls" => :mask,
+      "wharves" => :mask,
+      "pathways" => :mask,
+      "tracks-4wd" => :mask,
+      "tracks-vehicular" => :mask,
+      "roads-unsealed" => :mask,
+      "roads-sealed" => :mask,
+      "gates-grids" => :mask,
+      "railways" => :mask,
+      "landing-grounds" => :mask,
+      "transmission-lines" => :mask,
+      "caves" => :mask,
+      "towers" => :mask,
+      "windmills" => :mask,
+      "lighthouses" => :mask,
+      "mines" => :mask,
+      "yards" => :mask,
+      "labels" => :mask,
+      "control-circles" => :mask,
+      "control-numbers" => :mask,
+      "declination" => :mask,
+      "utm-grid" => :mask,
+      "utm-eastings" => :mask,
+      "utm-northings" => :mask
     }.reject do |label, options|
       config["exclude"].include? label
     end.map do |label, options|
@@ -1284,14 +1363,17 @@ unless formats_paths.empty?
       %x[convert -quiet '#{path}' -format '%[max]' info:].to_i == 0
     end.with_progress.map do |label, path, options|
       layer_path = File.join(temp_dir, "#{label}.tif")
-      sequence = case
-      when options["tile"] && options["colour"]
-        "-alpha Copy \\( +clone -tile #{options["tile"]} -draw 'color 0,0 reset' -background '#{options["colour"]}' -alpha Shape \\) -compose In -composite"
-      when options["tile"]
-        "-alpha Copy \\( +clone -tile #{options["tile"]} -draw 'color 0,0 reset' \\) -compose In -composite"
-      when options["colour"]
-        "-background '#{options["colour"]}' -alpha Shape"
-      else
+      colour = config["colours"][label]
+      sequence = case options
+      when String
+        if colour
+          "-alpha Copy \\( +clone -tile '#{options}' -draw 'color 0,0 reset' -background '#{colour}' -alpha Shape \\) -compose In -composite"
+        else
+          "-alpha Copy \\( +clone -tile '#{options}' -draw 'color 0,0 reset' \\) -compose In -composite"
+        end
+      when :mask
+        "-background '#{colour}' -alpha Shape"
+      when :image
         ""
       end
       %x[convert '#{path}' #{sequence} -type TrueColorMatte -depth 8 '#{layer_path}']
@@ -1313,7 +1395,7 @@ unless formats_paths.empty?
       else flattened
       end
       %x[convert -quiet #{sequence} '#{temp_path}']
-      if format =~ /tif/
+      if format.downcase =~ /tif/
         %x[geotifcp -e '#{tfw_path}' -4 '#{target_projection}' '#{temp_path}' '#{path}']
       else
         FileUtils.mv(temp_path, path)
@@ -1322,13 +1404,10 @@ unless formats_paths.empty?
   end
 end
 
+
 # TODO: various label spacings ("interval" attribute)
 # TODO: any way to make fuzzy extent labels stretched?
 # TODO: solve hillshade cyan problem in PSD
-# TODO: excavation as a polygon? possible?
-# TODO: add back rock-awash/rock-inland? (combine with pinnacles)
-# TODO: add towns?
-# TODO: depression contours??
 # TODO: solve water-area-boundaries problem (e.g. for test-eden)
 # TODO: have water boundaries only on perennial water bodies? (solves dam overlap problem)
 # TODO: differentiate intermittent and perennial water areas?
@@ -1337,13 +1416,19 @@ end
 # TODO: differentiate different cadastral lines?
 # TODO: change font from default Arial?
 # TODO: colour relief settings
-# TODO: reduce watercourse label sizes
+# TODO: reduce watercourse label sizes?
 # TODO: change gates-grids font to ESRI Cartography (169 & 170 or 184 & 185) or ESRI Default Marker (61 & 62, or 60 & 61)
-# TODO: change caves symbol to ESRI Default Marker (168 or 216, rotated 180 degrees)
 # TODO: windmill/tower/lighthouse symbols too big
+# TODO: national park/reserve/state forest boundaries from cad_portlet/crown_portlet/etc?
+# TODO: check crown_portlet, cadboost_portlet, cadweb_lga, gpr_portlet, imagery_portlet_themes, img_index_airview, img_index_topo, img_portlet, nswfb_portlet_themes, ov_portlet, smk_topo_portlet, fireplan, lsb_overview_landsat, etc.
 
 # TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
-# TODO: configurable colour settings?
+# TODO: mask tiles in config?
 
-# TODO: check tile overlapping
+# TODO: check rocks (e.g. Orroral)
+# TODO: check tile overlap
+# TODO: check trig points (and add to composite list)
+# TODO: check town-labels (and add to composite list) (get towns from PlaceArea in topo_portlet instead of cad_portlet?)
+# TODO: check new cave marker & size
+# TODO: check new contour layer (and need for sourceprogram)
 

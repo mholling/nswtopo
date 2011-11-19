@@ -607,6 +607,64 @@ colours:
   utm-grid: '#000001'
   utm-eastings: '#000001'
   utm-northings: '#000001'
+patterns:
+  pine:
+    00000000100000000000001111111111100000
+    00000000100000000000000000010000000000
+    00000001110000000000000000010000000000
+    00000001110000000000000000000000000000
+    00000011111000000000000000000000000000
+    00000011111000000000000000000000000000
+    00000111111100000000000000000000000000
+    00000111111100000000000000000000000000
+    00000000100000000000000000000000000000
+    00000001110000000000000000000000000000
+    00000011111000000000000000000000000000
+    00000111111100000000000000000000000000
+    00001111111110000000000000000000000000
+    00011111111111000000000000010000000000
+    00000000100000000000000000010000000000
+    00000000100000000000000000111000000000
+    00000000000000000000000000111000000000
+    00000000000000000000000001111100000000
+    00000000000000000000000001111100000000
+    00000000000000000000000011111110000000
+    00000000000000000000000011111110000000
+    00000000000000000000000000010000000000
+    00000000000000000000000000111000000000
+    00000000000000000000000001111100000000
+    00000000000000000000000011111110000000
+    00000000000000000000000111111111000000
+  sand:
+    01,10,01,00,00,00
+    10,50,10,00,00,00
+    01,10,01,00,00,00
+    00,00,00,01,10,01
+    00,00,00,10,50,10
+    00,00,00,01,10,01
+  intertidal:
+    004,050,004,000,000,000
+    050,255,050,000,000,000
+    004,050,004,000,000,000
+    000,000,000,004,050,004
+    000,000,000,050,255,050
+    000,000,000,004,050,004
+  reef:
+    00000
+    00100
+    01110
+    00100
+    00000
+  orchards-vineyards:
+    111110000
+    111110000
+    111110000
+    111110000
+    111110000
+    000000000
+    000000000
+    000000000
+    000000000
 ]
 ).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
 
@@ -1245,25 +1303,7 @@ end
 unless formats_paths.empty?
   puts "Building composite files:"
   Dir.mktmpdir do |temp_dir|
-    pine = %w[
-      00000000100000000
-      00000000100000000
-      00000001110000000
-      00000001110000000
-      00000011111000000
-      00000011111000000
-      00000111111100000
-      00000111111100000
-      00000000100000000
-      00000001110000000
-      00000011111000000
-      00000111111100000
-      00001111111110000
-      00011111111111000
-      00000000100000000
-      00000000100000000
-      00000000000000000
-    ].map { |line| line.split("").join(",") }.join(" ")
+    puts "  generating patterns..."
 
     swamp = %w[
       00000100000
@@ -1279,101 +1319,68 @@ unless formats_paths.empty?
       11111111111
     ].map { |line| line.split("").join(",") }.join(" ")
 
-    inundation_tile_path = File.join(temp_dir, "inundation-tile.tif");
-    swamp_tile_path = File.join(temp_dir, "swamp-tile.tif");
-    dotted_tile_path = File.join(temp_dir, "dotted-tile.tif");
-    pine_tile_path = File.join(temp_dir, "pine-tile.tif");
-    orchard_tile_path = File.join(temp_dir, "orchard-tile-path.tif");
-    rock_tile_path = File.join(temp_dir, "rock-tile.tif");
-    reef_tile_path = File.join(temp_dir, "reef-tile.tif");
+    inundation_tile_path = File.join(temp_dir, "tile-inundation.tif");
+    swamp_wet_tile_path = File.join(temp_dir, "tile-swamp-wet.tif");
+    swamp_dry_tile_path = File.join(temp_dir, "tile-swamp-dry.tif");
+    rock_tile_path = File.join(temp_dir, "tile-rock.tif");
     
-    puts "  generating patterns..."
-    %x[convert -size 38x26 -virtual-pixel tile canvas: -fx '(i==0&&j==0)||(i==19&&j==13)' -morphology Dilate '17: #{pine}' '#{pine_tile_path}']
-    %x[convert -size 9x9 canvas: -fx 'i<5&&j<5' '#{orchard_tile_path}']
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==0' \\( +clone +noise Random -blur 0x2 -threshold 50% \\) -compose Multiply -composite '#{inundation_tile_path}']
-    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_tile_path}']
-    %x[convert -size 6x6 -virtual-pixel tile canvas: -fx '(i==0&&j==0)||(i==3&&j==3)' -gaussian-blur 0x0.5 -auto-level '#{dotted_tile_path}']
+    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_wet_tile_path}']
+    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_dry_tile_path}']
     %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x2 -modulate 100,1,100 -auto-level -ordered-dither threshold,3 +level 60%,80% '#{rock_tile_path}']
-    %x[convert -size 5x5 -virtual-pixel tile canvas: -fx 'i==0&&j==0' -morphology Dilate Cross:1 '#{reef_tile_path}']
+    
+    config["patterns"].each do |label, string|
+      if File.exists?(string)
+        tile_path = string
+      elsif File.exists?(File.join(output_dir, string))
+        tile_path = File.join(output_dir, string)
+      else
+        tile_path = File.join(temp_dir, "tile-#{label}.tif")
+        tile = string.split(" ").map { |line| line.split(line =~ /,/ ? "," : "").map { |number| number.to_f } }
+        abort("Error: fill pattern for '#{label}' must be rectangular") unless tile.map { |line| line.length }.uniq.length == 1
+        maximum = tile.flatten.max
+        tile.map! { |row| row.map { |number| number / maximum } }
+        size = "#{tile.first.length}x#{tile.length}"
+        kernel = "#{size}: #{tile.map { |row| row.join "," }.join " "}"
+        %x[convert -size #{size} -virtual-pixel tile canvas: -fx '(i==0)&&(j==0)' -morphology Convolve '#{kernel}' '#{tile_path}']
+      end
+    end
     
     puts "  preparing layers..."
-    layers = {
-      "aerial-google" => :image,
-      "aerial-nokia" => :image,
-      "hillshade" => :image,
-      "vegetation" => :image,
-      "pine" => pine_tile_path,
-      "orchards-vineyards" => orchard_tile_path,
-      "built-up-areas" => :mask,
-      "rock-area" => rock_tile_path,
-      "contours" => :mask,
-      "swamp-wet" => swamp_tile_path,
-      "swamp-dry" => swamp_tile_path,
-      "watercourses" => :mask,
-      "ocean" => :mask,
-      "dams" => :mask,
-      "water-areas-perennial" => :mask,
-      "water-areas-intermittent" => :mask,
-      "water-areas-dry" => :mask, # TODO: use dot pattern instead?
-      "water-area-boundaries" => :mask,
-      "reef" => reef_tile_path,
-      "sand" => dotted_tile_path,
-      "intertidal" => dotted_tile_path,
-      "inundation" => inundation_tile_path,
-      "cliffs" => :mask,
-      "clifftops" => :mask,
-      "rocks-pinnacles" => :mask,
-      "buildings" => :mask,
-      "building-areas" => :mask,
-      "cadastre" => :mask,
-      "act-cadastre" => :mask,
-      "excavation" => :mask,
-      "coastline" => :mask,
-      "dam-walls" => :mask,
-      "wharves" => :mask,
-      "pathways" => :mask,
-      "tracks-4wd" => :mask,
-      "tracks-vehicular" => :mask,
-      "roads-unsealed" => :mask,
-      "roads-sealed" => :mask,
-      "gates-grids" => :mask,
-      "railways" => :mask,
-      "landing-grounds" => :mask,
-      "transmission-lines" => :mask,
-      "caves" => :mask,
-      "towers" => :mask,
-      "windmills" => :mask,
-      "lighthouses" => :mask,
-      "mines" => :mask,
-      "yards" => :mask,
-      "labels" => :mask,
-      "control-circles" => :mask,
-      "control-numbers" => :mask,
-      "declination" => :mask,
-      "utm-grid" => :mask,
-      "utm-eastings" => :mask,
-      "utm-northings" => :mask
-    }.reject do |label, options|
+    layers = [
+      "aerial-google", "aerial-nokia", "hillshade", "vegetation", "pine",
+      "orchards-vineyards", "built-up-areas", "rock-area", "contours", "swamp-wet",
+      "swamp-dry", "sand", "watercourses", "ocean", "dams", "water-areas-perennial",
+      "water-areas-intermittent", "water-areas-dry", "water-area-boundaries", "reef",
+      "intertidal", "inundation", "cliffs", "clifftops", "rocks-pinnacles",
+      "buildings", "building-areas", "cadastre", "act-cadastre", "excavation",
+      "coastline", "dam-walls", "wharves", "pathways", "tracks-4wd", "tracks-vehicular",
+      "roads-unsealed", "roads-sealed", "gates-grids", "railways", "landing-grounds",
+      "transmission-lines", "caves", "towers", "windmills", "lighthouses", "mines",
+      "yards", "labels", "control-circles", "control-numbers", "declination",
+      "utm-grid", "utm-eastings", "utm-northings"
+    ].reject do |label|
       config["exclude"].include? label
-    end.map do |label, options|
-      [ label, File.join(output_dir, "#{label}.tif"), options ]
-    end.select do |label, path, options|
+    end.map do |label|
+      [ label, File.join(output_dir, "#{label}.tif") ]
+    end.select do |label, path|
       File.exists? path
-    end.reject do |label, path, options|
+    end.reject do |label, path|
       %x[convert -quiet '#{path}' -format '%[max]' info:].to_i == 0
-    end.with_progress.map do |label, path, options|
+    end.with_progress.map do |label, path|
       layer_path = File.join(temp_dir, "#{label}.tif")
+      tile_path = File.join(temp_dir, "tile-#{label}.tif")
       colour = config["colours"][label]
-      sequence = case options
-      when String
+      sequence = case
+      when File.exist?(tile_path)
         if colour
-          "-alpha Copy \\( +clone -tile '#{options}' -draw 'color 0,0 reset' -background '#{colour}' -alpha Shape \\) -compose In -composite"
+          "-alpha Copy \\( +clone -tile '#{tile_path}' -draw 'color 0,0 reset' -background '#{colour}' -alpha Shape \\) -compose In -composite"
         else
-          "-alpha Copy \\( +clone -tile '#{options}' -draw 'color 0,0 reset' \\) -compose In -composite"
+          "-alpha Copy \\( +clone -tile '#{tile_path}' -draw 'color 0,0 reset' \\) -compose In -composite"
         end
-      when :mask
+      when colour
         "-background '#{colour}' -alpha Shape"
-      when :image
+      else
         ""
       end
       %x[convert '#{path}' #{sequence} -type TrueColorMatte -depth 8 '#{layer_path}']
@@ -1411,6 +1418,7 @@ end
 # TODO: solve water-area-boundaries problem (e.g. for test-eden)
 # TODO: have water boundaries only on perennial water bodies? (solves dam overlap problem)
 # TODO: differentiate intermittent and perennial water areas?
+# TODO: use dot pattern for water-areas-dry instead?
 # TODO: HydroPoint subclass 2 = Ancillary Hydro (rapids etc.) ??
 # TODO: include point layers as invisible layers in label layer to avoid overlap?
 # TODO: differentiate different cadastral lines?
@@ -1423,7 +1431,6 @@ end
 # TODO: check crown_portlet, cadboost_portlet, cadweb_lga, gpr_portlet, imagery_portlet_themes, img_index_airview, img_index_topo, img_portlet, nswfb_portlet_themes, ov_portlet, smk_topo_portlet, fireplan, lsb_overview_landsat, etc.
 
 # TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
-# TODO: mask tiles in config?
 
 # TODO: check rocks (e.g. Orroral)
 # TODO: check tile overlap

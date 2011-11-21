@@ -105,10 +105,11 @@ end
 class Scaling
   def initialize(scale, ppi)
     @ppi = ppi
+    @scale = scale
     @metres_per_pixel = scale * 0.0254 / ppi
   end
   
-  attr_reader :ppi, :metres_per_pixel
+  attr_reader :ppi, :scale, :metres_per_pixel
 end
 
 class Service
@@ -250,8 +251,9 @@ class ArcIMS < Service
       http_post(post_uri, xml, "retries" => 5) do |post_response|
         sleep params["interval"] if params["interval"]
         xml = REXML::Document.new(post_response.body)
-        raise InternetError.new(xml.elements["ARCXML"].elements["RESPONSE"].elements["ERROR"].text) if xml.elements["ARCXML"].elements["RESPONSE"].elements["ERROR"]
-        get_uri = URI.parse xml.elements["ARCXML"].elements["RESPONSE"].elements["IMAGE"].elements["OUTPUT"].attributes["url"]
+        error = xml.elements["/ARCXML/RESPONSE/ERROR"]
+        raise InternetError.new(error.text) if error
+        get_uri = URI.parse xml.elements["/ARCXML/RESPONSE/IMAGE/OUTPUT"].attributes["url"]
         http_get(get_uri, "retries" => 5) do |get_response|
           File.open(tile_path, "w") { |file| file << get_response.body }
         end
@@ -369,14 +371,14 @@ class OneEarthDEMRelief < Service
     %x[gdalbuildvrt '#{vrt_path}' #{tile_paths.join " "}]
     
     case options["name"]
-    when "hillshade"
+    when "shaded-relief"
       altitude = params["altitude"]
-      azimuth = params["azimuth"]
+      azimuth = options["azimuth"]
       exaggeration = params["exaggeration"]
       %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} '#{vrt_path}' '#{relief_path}' -q]
     when "color-relief"
-      colours = params["colours"]
-      colour_path = File.join(dir, "colours")
+      colours = { "0%" => "black", "100%" => "white" }
+      colour_path = File.join(dir, "colours.txt")
       File.open(colour_path, "w") do |file|
         colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
       end
@@ -539,11 +541,10 @@ grid:
   fontsize: 4.5
 relief:
   altitude: 45
-  azimuth: 315
-  exaggeration: 2
-  colours:
-    0%: black
-    100%: white
+  azimuth:
+    - 315
+    - 45
+  exaggeration: 1
 controls:
   fontsize: 14
   diameter: 7.0
@@ -643,12 +644,12 @@ patterns:
     00,00,00,10,50,10
     00,00,00,01,10,01
   intertidal:
-    004,050,004,000,000,000
-    050,255,050,000,000,000
-    004,050,004,000,000,000
-    000,000,000,004,050,004
-    000,000,000,050,255,050
-    000,000,000,004,050,004
+    01,10,01,00,00,00
+    10,50,10,00,00,00
+    01,10,01,00,00,00
+    00,00,00,01,10,01
+    00,00,00,10,50,10
+    00,00,00,01,10,01
   reef:
     00000
     00100
@@ -695,6 +696,7 @@ write_world_file(topleft, scaling.metres_per_pixel, tfw_path)
 File.open(proj_path, "w") { |file| file.puts target_projection }
 
 puts "Final map size:"
+puts "  1:%i scale" % scaling.scale
 puts "  %.1fcm x %.1fcm @ %i ppi" % [ *target_extents.map { |extent| extent * 2.54 / scaling.ppi }, scaling.ppi ]
 puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * target_extents.inject(:*), *target_extents ]
 
@@ -1245,10 +1247,11 @@ services = {
     "utm-eastings" => { "name" => "eastings" },
     "utm-northings" => { "name" => "northings" }
   },
-  oneearth_relief => {
-    "hillshade" => { "name" => "hillshade" },
-    "colour-relief" => { "name" => "color-relief" }
-  },
+  oneearth_relief => config["relief"]["azimuth"].map do |azimuth|
+    { "shaded-relief-#{azimuth}" => { "name" => "shaded-relief", "azimuth" => azimuth } }
+  end.inject(:merge).merge(
+    "elevation" => { "name" => "color-relief" }
+  ),
   declination_service => {
     "declination" => { }
   },
@@ -1348,17 +1351,16 @@ unless formats_paths.empty?
     
     puts "  preparing layers..."
     layers = [
-      "aerial-google", "aerial-nokia", "hillshade", "vegetation", "pine",
-      "orchards-vineyards", "built-up-areas", "rock-area", "contours", "swamp-wet",
-      "swamp-dry", "sand", "watercourses", "ocean", "dams", "water-areas-perennial",
-      "water-areas-intermittent", "water-areas-dry", "water-area-boundaries", "reef",
-      "intertidal", "inundation", "cliffs", "clifftops", "rocks-pinnacles",
-      "buildings", "building-areas", "cadastre", "act-cadastre", "excavation",
-      "coastline", "dam-walls", "wharves", "pathways", "tracks-4wd", "tracks-vehicular",
-      "roads-unsealed", "roads-sealed", "gates-grids", "railways", "landing-grounds",
-      "transmission-lines", "caves", "towers", "windmills", "lighthouses", "mines",
-      "yards", "labels", "control-circles", "control-numbers", "declination",
-      "utm-grid", "utm-eastings", "utm-northings"
+      "aerial-google", "aerial-nokia", "vegetation", "pine", "orchards-vineyards",
+      "built-up-areas", "rock-area", "contours", "swamp-wet", "swamp-dry", "sand",
+      "watercourses", "ocean", "dams", "water-areas-perennial", "water-areas-intermittent",
+      "water-areas-dry", "water-area-boundaries", "reef", "intertidal", "inundation",
+      "cliffs", "clifftops", "rocks-pinnacles", "buildings", "building-areas", "cadastre",
+      "act-cadastre", "excavation", "coastline", "dam-walls", "wharves", "pathways",
+      "tracks-4wd", "tracks-vehicular", "roads-unsealed", "roads-sealed", "gates-grids",
+      "railways", "landing-grounds", "transmission-lines", "caves", "towers", "windmills",
+      "lighthouses", "mines", "yards", "labels", "control-circles", "control-numbers",
+      "declination", "utm-grid", "utm-eastings", "utm-northings"
     ].reject do |label|
       config["exclude"].include? label
     end.map do |label|
@@ -1413,24 +1415,23 @@ end
 
 
 # TODO: various label spacings ("interval" attribute)
-# TODO: any way to make fuzzy extent labels stretched?
-# TODO: solve hillshade cyan problem in PSD
 # TODO: solve water-area-boundaries problem (e.g. for test-eden)
 # TODO: have water boundaries only on perennial water bodies? (solves dam overlap problem)
 # TODO: differentiate intermittent and perennial water areas?
 # TODO: use dot pattern for water-areas-dry instead?
 # TODO: HydroPoint subclass 2 = Ancillary Hydro (rapids etc.) ??
-# TODO: include point layers as invisible layers in label layer to avoid overlap?
 # TODO: differentiate different cadastral lines?
-# TODO: change font from default Arial?
-# TODO: colour relief settings
 # TODO: reduce watercourse label sizes?
 # TODO: change gates-grids font to ESRI Cartography (169 & 170 or 184 & 185) or ESRI Default Marker (61 & 62, or 60 & 61)
 # TODO: windmill/tower/lighthouse symbols too big
 # TODO: national park/reserve/state forest boundaries from cad_portlet/crown_portlet/etc?
 # TODO: check crown_portlet, cadboost_portlet, cadweb_lga, gpr_portlet, imagery_portlet_themes, img_index_airview, img_index_topo, img_portlet, nswfb_portlet_themes, ov_portlet, smk_topo_portlet, fireplan, lsb_overview_landsat, etc.
+# TODO: yards as polygon?
+# TODO: non-pine plantation
 
-# TODO: access missing content (e.g. other fuzzy extent labels) via workspace name?
+# TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
+# TODO: do relief calculations after reprojection to avoid distortions (use :post actions?)
+# TODO: include point layers as invisible layers in label layer to avoid overlap?
 
 # TODO: check rocks (e.g. Orroral)
 # TODO: check tile overlap

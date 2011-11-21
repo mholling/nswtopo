@@ -392,14 +392,14 @@ end
 
 class AnnotationService < Service
   def dataset(input_bounds, input_projection, scaling, options, dir)
-    # TODO: this is wrong if the projection is not a UTM grid!
-    bounds = transform_bounds(input_projection, projection, input_bounds)
+    []
+  end
+  
+  # TODO: this is wrong if the projection is not a UTM grid!
+  def post_process(path, bounds, scaling, options, dir)
     extents = bounds.map { |bound| bound.max - bound.min }
-    pixels = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
-    tile_path = File.join(dir, "tile.0.png") # just one big tile
     draw_string = draw(bounds, extents, scaling, options);
-    %x[convert -units PixelsPerInch -density #{scaling.ppi} -size #{pixels.join 'x'} canvas:black -type TrueColor -define png:color-type=2 -depth 8 #{draw_string} '#{tile_path}']
-    [ [ bounds, scaling.metres_per_pixel, tile_path ] ]
+    %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} #{draw_string} '#{path}']
   end
 end
 
@@ -1272,11 +1272,11 @@ services.each do |service, layers|
         working_path = File.join(temp_dir, "#{label}.tif")
         
         puts "  preparing..."
-        %x[convert -quiet -size #{target_extents.join 'x'} canvas:black -type TrueColor -depth 8 '#{canvas_path}']
+        %x[convert -quiet -size #{target_extents.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 '#{canvas_path}']
         %x[geotifcp -c lzw -e '#{tfw_path}' -4 '#{target_projection}' '#{canvas_path}' '#{working_path}']
         
-        puts "  downloading..."
         begin
+          puts "  downloading..."
           dataset_paths = service.dataset(target_bounds, target_projection, scaling, options, temp_dir).collect do |bounds, resolution, path|
             topleft = [ bounds.first.min, bounds.last.max ]
             write_world_file(topleft, resolution, "#{path}w")
@@ -1288,8 +1288,14 @@ services.each do |service, layers|
             puts "  assembling..."
             %x[gdalbuildvrt '#{vrt_path}' #{dataset_paths.join " "}]
             %x[gdalwarp -s_srs "#{service.projection}" -r cubic '#{vrt_path}' '#{working_path}']
-            %x[convert -quiet '#{working_path}' -units PixelsPerInch -density #{scaling.ppi} -compress LZW '#{output_path}']
           end
+          
+          if service.respond_to? :post_process
+            puts "  processing..."
+            service.post_process(working_path, target_bounds, scaling, options, temp_dir)
+          end
+          
+          %x[convert -quiet '#{working_path}' -compress LZW '#{output_path}']
         rescue InternetError, BadLayer => e
           puts "  skipping layer; error: #{e.message}"
         end
@@ -1430,7 +1436,6 @@ end
 # TODO: non-pine plantation
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
-# TODO: do relief calculations after reprojection to avoid distortions (use :post actions?)
 # TODO: include point layers as invisible layers in label layer to avoid overlap?
 
 # TODO: check rocks (e.g. Orroral)

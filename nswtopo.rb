@@ -327,6 +327,93 @@ class TiledMapService < Service
   end
 end
 
+class LPIOrthoService < Service
+  attr_reader :layers
+  
+  def layers_including(bounds)
+    layers.select do |layer|
+      [ bounds, layer["bounds"] ].transpose.map do |bound, layer_bound|
+        bound.max > layer_bound.min && bound.min < layer_bound.max
+      end.inject(:&)
+    end
+  end
+  
+  def data?(input_bounds, input_projection)
+    puts "Getting LPI orthographic imagery metadata..."
+    images_clips = params["imagery_config_paths"].map do |path|
+      http_get(URI::HTTP.build(:host => params["host"], :path => path), "retries" => 5) do |response|
+        vars, paths = response.body.scan(/(.+)_ECWP_URL\s*?=\s*?.*"(.+)";/x).transpose
+        clip_regions = vars.map do |var|
+          response.body.match(/#{var}_CLIP_REGION\s*?=\s*?\[(.+)\]/x) do |match|
+            match[1].scan(/\[(.+?),(.+?)\]/x).map { |coords| coords.map { |coord| coord.to_f } }
+          end
+        end
+        [ paths, clip_regions ].transpose.map { |path, clip_region| { path => clip_region } }
+      end
+    end.inject(:+).inject(:merge)
+    images = images_clips.keys.join(',')
+    uri = URI::HTTP.build(:host => params["host"], :path => "/ImageX/ImageX.dll", :query => "?dsinfo?verbose=true&layers=#{images}")
+    @layers = http_get(uri, "retries" => 5) do |response|
+      xml = REXML::Document.new(response.body)
+      raise BadLayer.new(xml.elements["//Error"].text) if xml.elements["//Error"]
+      coordspace = xml.elements["/DSINFO/COORDSPACE"]
+      meterfactor = coordspace.attributes["meterfactor"].to_f
+      epsg = coordspace.attributes["epsg"]
+      @projection = "EPSG:#{epsg}"
+      
+      xml.elements.collect("/DSINFO/LAYERS/LAYER") do |layer|
+        image = layer.attributes["name"]
+        sizes = [ "width", "height" ].map { |key| layer.attributes[key].to_i }
+        bbox = layer.elements["BBOX"]
+        bounds = [ [ "tlX", "brX" ], [ "brY", "tlY" ] ].map { |keys| keys.map { |key| bbox.attributes[key].to_f } }
+        resolutions = [ "cellsizeX", "cellsizeY" ].map { |key| bbox.attributes[key].to_f * meterfactor }
+        
+        { "image" => image, "sizes" => sizes, "bounds" => bounds, "resolutions" => resolutions, "clip_region" => images_clips[image] }
+      end
+    end
+    bounds = transform_bounds(input_projection, projection, input_bounds)
+    puts "  no LPI data found" unless layers_including(bounds).any?
+    layers_including(bounds).any?
+  end
+  
+  def dataset(input_bounds, input_projection, scaling, options, dir)
+    bounds = transform_bounds(input_projection, projection, input_bounds)
+    tile_size = params["tile_size"]
+    layers_including(bounds).map.with_index do |layer, layer_index|
+      image = layer["image"]
+      zoom = [ Math::log2(scaling.metres_per_pixel / layer["resolutions"].first).floor, 0 ].max
+      [ bounds, layer["bounds"], layer["sizes"], layer["resolutions"] ].transpose.map do |bound, layer_bound, size, resolution|
+        layer_extent = layer_bound.reverse.inject(:-)
+        first, order, plus = resolution > 0 ? [ :first, :to_a, :+ ] : [ :last, :reverse, :- ]
+        tile_indices = bound.map do |coord|
+          index = [ coord, layer_bound.send(first) ].send(order).inject(:-) * size / layer_extent
+          [ [ index, 0 ].max, size - 1 ].min
+        end.map do |pixel|
+          (pixel / tile_size / 2**zoom).floor
+        end.send(order).inject(:upto).to_a
+        tile_bounds = tile_indices.map do |tile_index|
+          [ tile_index, tile_index + 1 ].map do |index|
+            layer_bound.send(first).send(plus, layer_extent * index * tile_size * (2**zoom) / size)
+          end.send(order)
+        end
+        [ tile_indices, tile_bounds ].transpose
+      end.inject(:product).map { |pair| pair.transpose }.map do |(tx, ty), tile_bounds|
+        query = "?image?type=png&transparent=true&l=#{zoom}&tx=#{tx}&ty=#{ty}&ts=#{tile_size}&layers=#{image}"
+        query += "&inregion=#{layer['clip_region'].flatten.join(',')},INSRC" if layer['clip_region']
+        [ query, tile_bounds ]
+      end.with_progress.with_index.map do |(query, tile_bounds), tile_index|
+        uri = URI::HTTP.build :host => params["host"], :path => "/ImageX/ImageX.dll", :query => query
+        tile_path = File.join(dir, "tile.#{layer_index}.#{tile_index}.png")
+        http_get(uri, "retries" => 5) do |response|
+          File.open(tile_path, "w") { |file| file << response.body }
+        end
+        sleep params["interval"]
+        [ tile_bounds, layer["resolutions"].first * 2**zoom, tile_path ]
+      end
+    end.inject(:+)
+  end
+end
+
 class OneEarthDEMRelief < Service
   def initialize(params)
     super(params)
@@ -398,7 +485,7 @@ class AnnotationService < Service
   # TODO: this is wrong if the projection is not a UTM grid!
   def post_process(path, bounds, scaling, options, dir)
     extents = bounds.map { |bound| bound.max - bound.min }
-    draw_string = draw(bounds, extents, scaling, options);
+    draw_string = draw(bounds, extents, scaling, options)
     %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} #{draw_string} '#{path}']
   end
 end
@@ -700,6 +787,29 @@ puts "  1:%i scale" % scaling.scale
 puts "  %.1fcm x %.1fcm @ %i ppi" % [ *target_extents.map { |extent| extent * 2.54 / scaling.ppi }, scaling.ppi ]
 puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * target_extents.inject(:*), *target_extents ]
 
+lpi_ortho = LPIOrthoService.new(
+  "host" => "lite.maps.nsw.gov.au",
+  "imagery_config_paths" => [ "/ADS40ImagesConfig.js", "/SydneyImagesConfig.js", "/NSWRegionalCentresConfig.js" ],
+  "tile_size" => 1024,
+  "interval" => 1.0,
+)
+nokia_maps = TiledMapService.new(
+  "uri" => "http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot",
+  "projection" => "EPSG:3857",
+  "tile_sizes" => [ 1024, 1024 ],
+  "interval" => 1.2,
+  "crops" => [ [ 0, 0 ], [ 26, 0 ] ],
+  "tile_limit" => 250,
+  "retries_on_blank" => 1
+)
+google_maps = TiledMapService.new(
+  "uri" => "http://maps.googleapis.com/maps/api/staticmap?zoom=${zoom}&size=${hsize}x${vsize}&scale=1&format=${format}&maptype=${name}&sensor=false&center=${latitude},${longitude}",
+  "projection" => "EPSG:3857",
+  "tile_sizes" => [ 640, 640 ],
+  "interval" => 1.2,
+  "crops" => [ [ 0, 0 ], [ 30, 0 ] ],
+  "tile_limit" => 250
+)
 topo_portlet = ArcIMS.new(
   "host" => "maps.nsw.gov.au",
   "path" => "/servlet/com.esri.esrimap.Esrimap",
@@ -752,23 +862,6 @@ act_dog = ArcIMS.new(
     "bounds" => [ [ 659890.105040274, 720782.12808229 ], [ 6022931.0546655, 6111100.93973127 ] ],
     "projection" => "EPSG:32755"
   })
-nokia_maps = TiledMapService.new(
-  "uri" => "http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot",
-  "projection" => "EPSG:3857",
-  "tile_sizes" => [ 1024, 1024 ],
-  "interval" => 1.2,
-  "crops" => [ [ 0, 0 ], [ 26, 0 ] ],
-  "tile_limit" => 250,
-  "retries_on_blank" => 1
-)
-google_maps = TiledMapService.new(
-  "uri" => "http://maps.googleapis.com/maps/api/staticmap?zoom=${zoom}&size=${hsize}x${vsize}&scale=1&format=${format}&maptype=${name}&sensor=false&center=${latitude},${longitude}",
-  "projection" => "EPSG:3857",
-  "tile_sizes" => [ 640, 640 ],
-  "interval" => 1.2,
-  "crops" => [ [ 0, 0 ], [ 30, 0 ] ],
-  "tile_limit" => 250
-)
 grid_service = GridService.new({ "projection" => nearest_utm }.merge config["grid"])
 oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
 declination_service = DeclinationService.new({ "projection" => target_projection }.merge config["declination"])
@@ -778,6 +871,21 @@ control_service = ControlService.new({
 }.merge config["controls"])
 
 services = {
+  lpi_ortho => {
+    "aerial-lpi" => { }
+  },
+  nokia_maps => {
+    "aerial-nokia" => {
+      "name" => 1,
+      "format" => 1
+    }
+  },
+  google_maps => {
+    "aerial-google" => {
+      "name" => "satellite",
+      "format" => "jpg"
+    }
+  },
   topo_portlet => {
     "vegetation" => {
       "image" => "Vegetation_1"
@@ -1230,18 +1338,6 @@ services = {
       "line" => { "Adhoc" => { "width" => 2, "type" => "dash" } }
     }
   },
-  nokia_maps => {
-    "aerial-nokia" => {
-      "name" => 1,
-      "format" => 1
-    }
-  },
-  google_maps => {
-    "aerial-google" => {
-      "name" => "satellite",
-      "format" => "jpg"
-    }
-  },
   grid_service => {
     "utm-grid" => { "name" => "grid" },
     "utm-eastings" => { "name" => "eastings" },
@@ -1263,43 +1359,43 @@ services = {
 
 services.each do |service, layers|
   layers.each do |label, options|
-    output_path = File.join(output_dir, "#{label}.tif")
-    unless File.exists?(output_path) || !service.data?(target_bounds, target_projection)
-      puts "Layer: #{label}"
-      Dir.mktmpdir do |temp_dir|
-        canvas_path = File.join(temp_dir, "canvas.tif")
-        vrt_path = File.join(temp_dir, "#{label}.vrt")
-        working_path = File.join(temp_dir, "#{label}.tif")
+    begin
+      output_path = File.join(output_dir, "#{label}.tif")
+      unless File.exists?(output_path) || !service.data?(target_bounds, target_projection)
+        puts "Layer: #{label}"
+        Dir.mktmpdir do |temp_dir|
+          canvas_path = File.join(temp_dir, "canvas.tif")
+          vrt_path = File.join(temp_dir, "#{label}.vrt")
+          working_path = File.join(temp_dir, "#{label}.tif")
         
-        puts "  preparing..."
-        %x[convert -quiet -size #{target_extents.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 '#{canvas_path}']
-        %x[geotifcp -c lzw -e '#{tfw_path}' -4 '#{target_projection}' '#{canvas_path}' '#{working_path}']
+          puts "  preparing..."
+          %x[convert -quiet -size #{target_extents.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 '#{canvas_path}']
+          %x[geotifcp -c lzw -e '#{tfw_path}' -4 '#{target_projection}' '#{canvas_path}' '#{working_path}']
         
-        begin
           puts "  downloading..."
           dataset_paths = service.dataset(target_bounds, target_projection, scaling, options, temp_dir).collect do |bounds, resolution, path|
             topleft = [ bounds.first.min, bounds.last.max ]
             write_world_file(topleft, resolution, "#{path}w")
-            %x[mogrify -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 '#{path}']
+            %x[mogrify -quiet -type TrueColorMatte -depth 8 -format png -define png:color-type=2 '#{path}']
             "'#{path}'"
           end
-        
+      
           unless dataset_paths.empty?
             puts "  assembling..."
             %x[gdalbuildvrt '#{vrt_path}' #{dataset_paths.join " "}]
             %x[gdalwarp -s_srs "#{service.projection}" -r cubic '#{vrt_path}' '#{working_path}']
           end
-          
+        
           if service.respond_to? :post_process
             puts "  processing..."
             service.post_process(working_path, target_bounds, scaling, options, temp_dir)
           end
-          
+        
           %x[convert -quiet '#{working_path}' -compress LZW '#{output_path}']
-        rescue InternetError, BadLayer => e
-          puts "  skipping layer; error: #{e.message}"
         end
       end
+    rescue InternetError, BadLayer => e
+      puts "  skipping layer; error: #{e.message}"
     end
   end
 end
@@ -1432,11 +1528,13 @@ end
 # TODO: windmill/tower/lighthouse symbols too big
 # TODO: national park/reserve/state forest boundaries from cad_portlet/crown_portlet/etc?
 # TODO: check crown_portlet, cadboost_portlet, cadweb_lga, gpr_portlet, imagery_portlet_themes, img_index_airview, img_index_topo, img_portlet, nswfb_portlet_themes, ov_portlet, smk_topo_portlet, fireplan, lsb_overview_landsat, etc.
+# TODO: check http://lite/IMS/servlet/com.esri.esrimap.Esrimap?ServiceName=six_combo
 # TODO: yards as polygon?
 # TODO: non-pine plantation
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
 # TODO: include point layers as invisible layers in label layer to avoid overlap?
+# TODO: TrueColor vs. TrueColorMatte?
 
 # TODO: check rocks (e.g. Orroral)
 # TODO: check tile overlap

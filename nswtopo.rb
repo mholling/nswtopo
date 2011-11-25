@@ -232,7 +232,13 @@ class ArcIMS < Service
                       if options[type]
                         if options["lookup"]
                           options[type].each do |value, attributes|
-                            renderer.add_element("EXACT", "value" => value) do |exact|
+                            tag, tag_attributes = case value
+                            when Range
+                              [ "RANGE", { "lower" => value.min, "upper" => value.max } ]
+                            else
+                              [ "EXACT", { "value" => value } ]
+                            end
+                            renderer.add_element(tag, tag_attributes) do |exact|
                               content.call(exact, type, attributes)
                             end
                           end
@@ -900,10 +906,10 @@ services = {
         "label" => { "field" => "delivsdm:geodb.HydroLine.HydroName delivsdm:geodb.HydroLine.HydroNameType", "linelabelposition" => "placeabove" },
         "lookup" => "delivsdm:geodb.HydroLine.relevance",
         "text" => {
-          1 => { "fontsize" => 10.9, "printmode" => "allcaps", "fontstyle" => "italic" },
-          2 => { "fontsize" => 10.1, "printmode" => "allcaps", "fontstyle" => "italic" },
-          3 => { "fontsize" => 9.3, "printmode" => "allcaps", "fontstyle" => "italic" },
-          4 => { "fontsize" => 8.5, "printmode" => "allcaps", "fontstyle" => "italic" },
+          1 => { "fontsize" => 10.9, "printmode" => "allupper", "fontstyle" => "italic" },
+          2 => { "fontsize" => 10.1, "printmode" => "allupper", "fontstyle" => "italic" },
+          3 => { "fontsize" => 9.3, "printmode" => "allupper", "fontstyle" => "italic" },
+          4 => { "fontsize" => 8.5, "printmode" => "allupper", "fontstyle" => "italic" },
           5 => { "fontsize" => 7.7, "printmode" => "titlecaps", "fontstyle" => "italic" },
           6 => { "fontsize" => 6.9, "printmode" => "titlecaps", "fontstyle" => "italic" },
           7 => { "fontsize" => 6.1, "printmode" => "titlecaps", "fontstyle" => "italic" },
@@ -916,7 +922,7 @@ services = {
         "from" => "HydroArea_Label_1",
         "label" => { "field" => "delivsdm:geodb.HydroArea.HydroName delivsdm:geodb.HydroArea.HydroNameType" },
         "lookup" => "delivsdm:geodb.HydroArea.classsubtype",
-        "text" => { 1 => { "fontsize" => 5.5, "printmode" => "titlecase" } }
+        "text" => { 1 => { "fontsize" => 5.5, "printmode" => "titlecaps" } }
       },
       { # fuzzy water labels
         "from" => "FuzzyExtentWaterArea_1",
@@ -936,12 +942,12 @@ services = {
       { # fuzzy area labels
         "from" => "FuzzyExtentArea_Label_1",
         "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
-        "text" => { "fontsize" => 5.5, "printmode" => "allcaps" }
+        "text" => { "fontsize" => 5.5, "printmode" => "allupper" }
       },
       { # fuzzy line labels
         "from" => "FuzzyExtentLine_Label_1",
         "label" => { "field" => "delivsdm:geodb.FuzzyExtentLine.GeneralName" },
-        "text" => { "fontsize" => 5.5, "printmode" => "allcaps" }
+        "text" => { "fontsize" => 5.5, "printmode" => "allupper" }
       },
       { # building labels
         "from" => "BuildingComplexPoint_Label_1",
@@ -1249,11 +1255,6 @@ services = {
       "lookup" => "delivsdm:geodb.SurveyMark.ClassSubtype",
       "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 6, "character" => 180 } }
     },
-    "town-labels" => {
-      "from" => "Town_Label_1",
-      "label" => { "field" => "name" },
-      "text" => { "fontsize" => 11 }
-    }
   },
   crown_portlet => {
     "crown-reserves" => {
@@ -1343,22 +1344,16 @@ services = {
     "control-circles" => { "name" => "circles" }
   },
   lpi_ortho => {
-    "aerial-lpi-ads40" => { "config" => "/ADS40ImagesConfig.js" },
-    "aerial-lpi-sydney" => { "config" => "/SydneyImagesConfig.js" },
-    "aerial-lpi-regional" => { "config" => "/NSWRegionalCentresConfig.js" },
-    "aerial-lpi-eastcoast" => { "image" => "/Imagery/lr94ortho1m.ecw" }
+    "aerial-lpi-ads40" => { "config" => "/ADS40ImagesConfig.js", "resample" => "bicubic" },
+    "aerial-lpi-sydney" => { "config" => "/SydneyImagesConfig.js", "resample" => "bicubic" },
+    "aerial-lpi-regional" => { "config" => "/NSWRegionalCentresConfig.js", "resample" => "bicubic" },
+    "aerial-lpi-eastcoast" => { "image" => "/Imagery/lr94ortho1m.ecw", "resample" => "bicubic" }
   },
   google_maps => {
-    "aerial-google" => {
-      "name" => "satellite",
-      "format" => "jpg"
-    }
+    "aerial-google" => { "name" => "satellite", "format" => "jpg", "resample" => "bicubic" }
   },
   nokia_maps => {
-    "aerial-nokia" => {
-      "name" => 1,
-      "format" => 1
-    }
+    "aerial-nokia" => { "name" => 1, "format" => 1, "resample" => "bicubic" }
   },
   oneearth_relief => config["relief"]["azimuth"].map do |azimuth|
     { "shaded-relief-#{azimuth}" => { "name" => "shaded-relief", "azimuth" => azimuth } }
@@ -1391,9 +1386,10 @@ services.each do |service, layers|
                 "'#{path}'"
               end
               
+              resample = options["resample"] || "bilinear"
               vrt_path = File.join(temp_dir, "#{label}.vrt")
               %x[gdalbuildvrt '#{vrt_path}' #{dataset_paths.join " "}]
-              %x[gdalwarp -s_srs "#{service.projection}" -dstalpha -r bilinear '#{vrt_path}' '#{working_path}']
+              %x[gdalwarp -s_srs "#{service.projection}" -dstalpha -r #{resample} '#{vrt_path}' '#{working_path}']
             end
           
             if service.respond_to? :post_process
@@ -1586,16 +1582,14 @@ end
 # TODO: differentiate intermittent and perennial water areas?
 # TODO: use dot pattern for water-areas-dry instead?
 
-# TODO: add trig-point labels?
-# TODO: town labels font-size? make it a value map according to population?
-# TODO: better vegetation labels?
+# TODO: better vegetation layer?
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
-# TODO: include point layers as invisible layers in label layer to avoid overlap?
-# TODO: specify resampling algorithm on a layer-by-layer basis?
 # TODO: sort out file format issue for LPI ortho service
 # TODO: add LPI orthographic images to composite stack
 # TODO: legends?
 # TODO: have imagemagick and gdal paths be configurable
 # TODO: remove transparency channel before final save (or have transparency be a layer option)
+# TODO: have exclude option prevent downloading as well as compositing
+# TODO: config option of specifying bottom-left and extent
 

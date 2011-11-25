@@ -640,7 +640,7 @@ exclude:
   - aerial-nokia
 colours:
   pine: '#009f00'
-  orchards-vineyards: '#009f00'
+  orchards-plantations: '#009f00'
   built-up-areas: '#F8FF73'
   contours: 'Dark Magenta'
   swamp-wet: '#00d3ff'
@@ -738,7 +738,7 @@ patterns:
     01110
     00100
     00000
-  orchards-vineyards:
+  orchards-plantations:
     111110000
     111110000
     111110000
@@ -823,6 +823,20 @@ cad_portlet = ArcIMS.new(
   "host" => "gsp.maps.nsw.gov.au",
   "path" => "/servlet/com.esri.esrimap.Esrimap",
   "name" => "cad_portlet",
+  "keep_host" => true,
+  "projection" => target_projection,
+  "wkt" => target_wkt,
+  "tile_sizes" => [ 1024, 1024 ],
+  "interval" => 0.1,
+  "dpi" => 74,
+  "envelope" => {
+    "bounds" => [ [ 140.05983881892, 154.575951211079 ], [ -37.740334035, -27.924909045 ] ],
+    "projection" => "EPSG:4283"
+  })
+crown_portlet = ArcIMS.new(
+  "host" => "gsp.maps.nsw.gov.au",
+  "path" => "/servlet/com.esri.esrimap.Esrimap",
+  "name" => "crown_portlet",
   "keep_host" => true,
   "projection" => target_projection,
   "wkt" => target_wkt,
@@ -1130,11 +1144,11 @@ services = {
       "lookup" => "delivsdm:geodb.GeneralCulturalArea.GeneralCulturalType",
       "polygon" => { 1 => { } }
     },
-    "orchards-vineyards" => {
+    "orchards-plantations" => {
       "from" => "GeneralCulturalArea_1",
       "where" => "ClassSubtype = 6",
       "lookup" => "delivsdm:geodb.GeneralCulturalArea.GeneralCulturalType",
-      "polygon" => { "0;2;4" => { } }
+      "polygon" => { "0;2;3;4" => { } }
     },
     "building-areas" => {
       "from" => "GeneralCulturalArea_1",
@@ -1147,10 +1161,15 @@ services = {
       "scale" => 0.4,
       "line" => { 4 => { "width" => 3 } }
     },
+    "misc-perimeters" => {
+      "from" => "GeneralCulturalLine_1",
+      "lookup" => "delivsdm:geodb.GeneralCulturalLine.classsubtype",
+      "line" => { 3 => { "width" => 1 } },
+    },
     "towers" => {
       "from" => "GeneralCulturalPoint_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 7 => { "font" => "ESRI Cartography", "character" => 203, "fontsize" => 7 } }
+      "truetypemarker" => { 7 => { "font" => "ESRI Cartography", "character" => 100, "fontsize" => 7 } }
     },
     "mines" => {
       "from" => "GeneralCulturalPoint_1",
@@ -1160,15 +1179,15 @@ services = {
     },
     "yards" => {
       "from" => "GeneralCulturalPoint_1",
-      "where" => "generalculturaltype = 9",
-      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "marker" => { 4 => { "type" => "square", "width" => 0.8, "color" => "0,0,0", "outline" => "255,255,255" } }
+      "where" => "ClassSubtype = 4",
+      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.generalculturaltype",
+      "marker" => { "6;9" => { "type" => "square", "width" => 0.8, "color" => "0,0,0", "outline" => "255,255,255" } }
     },
     "windmills" => {
       "from" => "GeneralCulturalPoint_1",
       "where" => "generalculturaltype = 8",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 228, "fontsize" => 7 } }
+      "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 228, "fontsize" => 5.5 } }
     },
     "lighthouses" => {
       "from" => "GeneralCulturalPoint_1",
@@ -1204,8 +1223,8 @@ services = {
       "from" => "TrafficControlDevice_1",
       "lookup" => "delivsdm:geodb.TrafficControlDevice.ClassSubtype",
       "truetypemarker" => {
-        1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178 },
-        2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177 }
+        1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178 }, # gate
+        2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177 }  # grid
       }
     },
     "wharves" => {
@@ -1217,7 +1236,7 @@ services = {
   },
   cad_portlet => {
     "cadastre" => {
-      "from" => "Address_1",
+      "from" => "Lot_1",
       "line" => { "width" => 1 }
     },
     "nsw-border" => {
@@ -1229,6 +1248,18 @@ services = {
       "from" => "SurveyMarks_1",
       "lookup" => "delivsdm:geodb.SurveyMark.ClassSubtype",
       "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 6, "character" => 180 } }
+    },
+    "town-labels" => {
+      "from" => "Town_Label_1",
+      "label" => { "field" => "name" },
+      "text" => { "fontsize" => 11 }
+    }
+  },
+  crown_portlet => {
+    "crown-reserves" => {
+      "from" => "CrownReserve_Lot_1",
+      "lookup" => "delivsdm:geodb.crownaccountpolygon.crownlandsubtype",
+      "polygon" => { 1 => { } }
     }
   },
   act_heritage => {
@@ -1377,6 +1408,7 @@ services.each do |service, layers|
         end
       end
     rescue InternetError, BadLayer => e
+      puts
       puts "  skipping layer; error: #{e.message}"
     end
   end
@@ -1435,15 +1467,64 @@ unless formats_paths.empty?
     
     puts "  preparing layers..."
     layers = [
-      "aerial-google", "aerial-nokia", "aerial-lpi-ads40", "aerial-lpi-eastcoast", "aerial-lpi-regional",
-      "vegetation", "pine", "orchards-vineyards", "built-up-areas", "rock-area", "contours", "swamp-wet",
-      "swamp-dry", "sand", "inundation", "watercourses", "ocean", "dams", "water-areas-perennial",
-      "water-areas-intermittent", "water-areas-dry", "water-area-boundaries", "reef", "intertidal",
-      "cliffs", "clifftops", "rocks-pinnacles", "buildings", "building-areas", "cadastre", "act-cadastre",
-      "excavation", "coastline", "dam-walls", "wharves", "pathways", "tracks-4wd", "tracks-vehicular",
-      "roads-unsealed", "roads-sealed", "gates-grids", "railways", "landing-grounds", "transmission-lines",
-      "caves", "towers", "windmills", "lighthouses", "mines", "yards", "trig-points", "labels",
-      "control-circles", "control-numbers", "declination", "utm-grid", "utm-eastings", "utm-northings"
+      "aerial-google",
+      "aerial-nokia",
+      "aerial-lpi-ads40",
+      "aerial-lpi-eastcoast",
+      "aerial-lpi-regional",
+      "vegetation",
+      "pine",
+      "orchards-plantations",
+      "built-up-areas",
+      "rock-area",
+      "contours",
+      "swamp-wet",
+      "swamp-dry",
+      "sand",
+      "inundation",
+      "cadastre",
+      "act-cadastre",
+      "watercourses",
+      "ocean",
+      "dams",
+      "water-areas-perennial",
+      "water-areas-intermittent",
+      "water-areas-dry",
+      "water-area-boundaries",
+      "reef",
+      "intertidal",
+      "cliffs",
+      "clifftops",
+      "rocks-pinnacles",
+      "excavation",
+      "coastline",
+      "dam-walls",
+      "wharves",
+      "pathways",
+      "tracks-4wd",
+      "tracks-vehicular",
+      "roads-unsealed",
+      "roads-sealed",
+      "gates-grids",
+      "railways",
+      "landing-grounds",
+      "transmission-lines",
+      "buildings",
+      "building-areas",
+      "caves",
+      "towers",
+      "windmills",
+      "lighthouses",
+      "mines",
+      "yards",
+      "trig-points",
+      "labels",
+      "control-circles",
+      "control-numbers",
+      "declination",
+      "utm-grid",
+      "utm-eastings",
+      "utm-northings"
     ].reject do |label|
       config["exclude"].include? label
     end.map do |label|
@@ -1498,28 +1579,23 @@ end
 
 
 # TODO: various label spacings ("interval" attribute)
+
 # TODO: solve water-area-boundaries problem (e.g. for test-eden)
 # TODO: have water boundaries only on perennial water bodies? (solves dam overlap problem)
 # TODO: merge water areas?
 # TODO: differentiate intermittent and perennial water areas?
 # TODO: use dot pattern for water-areas-dry instead?
-# TODO: HydroPoint subclass 2 = Ancillary Hydro (rapids etc.) ??
-# TODO: differentiate different cadastral lines?
-# TODO: reduce watercourse label sizes?
-# TODO: change gates-grids font to ESRI Cartography (169 & 170 or 184 & 185) or ESRI Default Marker (61 & 62, or 60 & 61)
-# TODO: windmill/tower/lighthouse symbols too big
-# TODO: national park/reserve/state forest boundaries from cad_portlet/crown_portlet/etc?
-# TODO: check crown_portlet, cadboost_portlet, cadweb_lga, gpr_portlet, imagery_portlet_themes, img_index_airview, img_index_topo, img_portlet, nswfb_portlet_themes, ov_portlet, smk_topo_portlet, fireplan, lsb_overview_landsat, etc.
-# TODO: check http://lite/IMS/servlet/com.esri.esrimap.Esrimap?ServiceName=six_combo
-# TODO: yards as polygon? (test-yards-quarry no good)
-# TODO: non-pine plantation
-# TODO: not all trig points showing up in test-banks
+
 # TODO: add trig-point labels?
-# TODO: add town labels?
+# TODO: town labels font-size? make it a value map according to population?
+# TODO: better vegetation labels?
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
 # TODO: include point layers as invisible layers in label layer to avoid overlap?
 # TODO: specify resampling algorithm on a layer-by-layer basis?
 # TODO: sort out file format issue for LPI ortho service
 # TODO: add LPI orthographic images to composite stack
+# TODO: legends?
+# TODO: have imagemagick and gdal paths be configurable
+# TODO: remove transparency channel before final save (or have transparency be a layer option)
 

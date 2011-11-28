@@ -485,6 +485,53 @@ class OneEarthDEMRelief < Service
   end
 end
 
+class GridService < Service
+  def dataset(input_bounds, input_projection, scaling, label, options, dir)
+    puts "Layer: #{label}"
+    intervals = params["intervals"]
+    fontsize = params["fontsize"]
+    
+    bounds = transform_bounds(input_projection, projection, input_bounds)
+    extents = bounds.map { |bound| bound.max - bound.min }
+    
+    tick_indices = [ bounds, intervals ].transpose.map do |bound, interval|
+      ((bound.first / interval).floor .. (bound.last / interval).ceil).to_a
+    end
+    tick_coords = [ tick_indices, intervals ].transpose.map { |indices, interval| indices.map { |index| index * interval } }
+    tick_pixels = [ tick_coords, bounds, [ 1, -1 ] ].transpose.map.with_index do |(coords, bound, sign), index|
+      coords.map { |coord| ((coord - bound[index]) * sign / scaling.metres_per_pixel).round }
+    end
+    
+    centre_coords = bounds.map { |bound| 0.5 * bound.inject(:+) }
+    centre_indices = [ centre_coords, tick_indices, intervals ].transpose.map do |coord, indices, interval|
+      indices.index((coord / interval).round)
+    end
+    
+    draw_string = case options["name"]
+    when "grid"
+      commands = [ "-draw 'line %d,0 %d,#{extents.last}'", "-draw 'line 0,%d #{extents.first},%d'" ]
+      string = [ tick_pixels, commands ].transpose.map { |pixelz, command| pixelz.map { |pixel| command % [ pixel, pixel ] }.join " "}.join " "
+      "-stroke white -strokewidth 1 #{string}"
+    when "eastings"
+      centre_pixel = tick_pixels.last[centre_indices.last]
+      dx, dy = [ 0.04 * scaling.ppi ] * 2
+      string = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| "-draw \"translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick}'\"" }.join " "
+      "-fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 #{string}"
+    when "northings"
+      centre_pixel = tick_pixels.first[centre_indices.first]
+      dx, dy = [ 0.04 * scaling.ppi ] * 2
+      string = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| "-draw \"text #{centre_pixel+dx},#{pixel-dy} '#{tick}'\"" }.join " "
+      "-fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 #{string}"
+    end
+    
+    dimensions = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
+    path = File.join(dir, "#{options["name"]}.tif")
+    %x[convert -size #{dimensions.join 'x'} canvas:black -units PixelsPerInch -density #{scaling.ppi} -type TrueColor -depth 8 #{draw_string} '#{path}']
+
+    [ [ bounds, scaling.metres_per_pixel, path ] ]
+  end
+end
+
 class AnnotationService < Service
   def dataset(input_bounds, input_projection, scaling, label, options, dir)
     puts "Layer: #{label}"
@@ -492,52 +539,14 @@ class AnnotationService < Service
   end
   
   # TODO: this is wrong if the projection is not a UTM grid!
-  def post_process(path, bounds, scaling, options, dir)
-    extents = bounds.map { |bound| bound.max - bound.min }
-    draw_string = draw(bounds, extents, scaling, options)
+  def post_process(path, bounds, projection, scaling, options, dir)
+    draw_string = draw(bounds, projection, scaling, options)
     %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} #{draw_string} '#{path}']
   end
 end
 
-class GridService < AnnotationService
-  def draw(bounds, extents, scaling, options)
-    intervals = params["intervals"]
-    fontsize = params["fontsize"]
-    
-    indices = [ bounds, intervals ].transpose.map do |bound, interval|
-      ((bound.first / interval).floor .. (bound.last / interval).ceil).to_a
-    end
-    tick_coords = [ indices, intervals ].transpose.map { |range, interval| range.map { |index| index * interval } }
-    tick_pixels = [ tick_coords, bounds, extents, [ 0, 1 ], [ 1, -1 ] ].transpose.map do |coords, bound, extent, index, sign|
-      coords.map { |coord| ((coord - bound[index]) * sign / scaling.metres_per_pixel).round }
-    end
-    
-    centre_coords = bounds.map { |bound| 0.5 * bound.inject(:+) }
-    centre_indices = [ centre_coords, indices, intervals ].transpose.map do |coord, range, interval|
-      range.index((coord / interval).round)
-    end
-    
-    case options["name"]
-    when "grid"
-      commands = [ "-draw 'line %d,0 %d,#{extents.last}'", "-draw 'line 0,%d #{extents.first},%d'" ]
-      string = [ tick_pixels, commands ].transpose.map { |pixelz, command| pixelz.map { |pixel| command % [ pixel, pixel ] }.join " "}.join " "
-      "-fill black -draw 'color 0,0 reset' -stroke white -strokewidth 1 #{string}"
-    when "eastings"
-      centre_pixel = tick_pixels.last[centre_indices.last]
-      dx, dy = [ 0.04 * scaling.ppi ] * 2
-      string = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| "-draw \"translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick}'\"" }.join " "
-      "-fill black -draw 'color 0,0 reset' -fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 #{string}"
-    when "northings"
-      centre_pixel = tick_pixels.first[centre_indices.first]
-      dx, dy = [ 0.04 * scaling.ppi ] * 2
-      string = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| "-draw \"text #{centre_pixel+dx},#{pixel-dy} '#{tick}'\"" }.join " "
-      "-fill black -draw 'color 0,0 reset' -fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 #{string}"
-    end
-  end
-end
-
 class DeclinationService < AnnotationService
-  def get_declination(coords)
+  def get_declination(coords, projection)
     wgs84_coords = transform_coordinates(projection, "EPSG:4326", coords)
     degrees_minutes_seconds = wgs84_coords.map do |coord|
       [ (coord > 0 ? 1 : -1) * coord.abs.floor, (coord.abs * 60).floor % 60, (coord.abs * 3600).round % 60 ]
@@ -550,9 +559,10 @@ class DeclinationService < AnnotationService
     end
   end
   
-  def draw(bounds, extents, scaling, options)
+  def draw(bounds, projection, scaling, options)
+    extents = bounds.map { |bound| bound.max - bound.min }
     spacing = params["spacing"]
-    angle = params["angle"] || get_declination(bounds.map { |bound| 0.5 * bound.inject(:+) })
+    angle = params["angle"] || get_declination(bounds.map { |bound| 0.5 * bound.inject(:+) }, projection)
     
     if angle
       radians = angle * Math::PI / 180.0
@@ -570,10 +580,10 @@ end
 
 class ControlService < AnnotationService
   def dataset(*args)
-    File.exists?(params["path"]) ? super(args) : nil
+    File.exists?(params["path"]) ? super(*args) : nil
   end
   
-  def draw(bounds, extents, scaling, options)
+  def draw(bounds, projection, scaling, options)
     xml = REXML::Document.new(File.open params["path"])
     
     waypoints, numbers = case
@@ -649,9 +659,7 @@ formats:
   - tif
   - layered.tif
 exclude:
-  - utm-grid
-  - utm-eastings
-  - utm-northings
+  - utm
   - aerial-lpi-sydney
 colours:
   pine: '#009f00'
@@ -766,44 +774,80 @@ patterns:
 ]
 ).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
 
+{
+  "utm" => %w{utm-grid utm-eastings utm-northings},
+  "aerial" => %w{aerial-google aerial-nokia aerial-lpi-sydney aerial-lpi-eastcoast aerial-lpi-regional aerial-lpi-ads40},
+  "coastal" => %w{ocean reef intertidal coastline wharves lighthouses}
+}.each do |shortcut, layers|
+  config["exclude"] += layers if config["exclude"].delete(shortcut)
+end
+
 map_name = config["name"]
 tfw_path = File.join(output_dir, "#{map_name}.tfw")
 proj_path = File.join(output_dir, "#{map_name}.prj")
 
-if config["easting"] && config["northing"] && config["zone"]
-  input_projection = "+proj=utm +zone=#{config["zone"]} +south +datum=WGS84"
-  input_bounds = [ config["easting"].values.sort, config["northing"].values.sort ]
-elsif config["latitude"] && config["longitude"]
-  input_projection = "EPSG:4326"
-  input_bounds = [ config["longitude"].values.sort, config["latitude"].values.sort ]
-else
-  abort("Error: must provide map bounds in UTM or WGS84.")
-end
-
 scaling = Scaling.new(config["scale"], config["ppi"])
 
-central_meridian, central_latitude = transform_coordinates(input_projection, "EPSG:4326", input_bounds.map { |bound| 0.5 * bound.inject(:+) })
-target_projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{central_meridian} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
-target_wkt = %Q{PROJCS["BLAH",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{central_meridian}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
-nearest_utm = "+proj=utm +zone=#{central_meridian > 150.0 ? 56 : 55} +south +datum=WGS84"
-target_bounds = transform_bounds(input_projection, target_projection, input_bounds)
-target_extents = target_bounds.map { |bound| ((bound.max - bound.min) / scaling.metres_per_pixel).ceil }
-topleft = [ target_bounds.first.min, target_bounds.last.max ]
+centres = case
+when config["zone"] && config["eastings"] && config["northings"] then transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", "EPSG:4326", config.values_at("eastings", "northings").map { |bound| 0.5 * bound.inject(:+) })
+when config["zone"] && config["easting"]  && config["northing"]  && config["size"] then transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", "EPSG:4326", config.values_at("easting", "northing"))
+when config["longitudes"] && config["latitudes"] then config.values_at("longitudes", "latitudes").map { |bound| 0.5 * bound.inject(:+) }
+when config["longitude"]  && config["latitude"]  && config["size"] then config.values_at("longitude", "latitude")
+else abort "Error: map extent must be provided as zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
+end
+
+projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{centres.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
+wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{centres.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
+nearest_utm = "+proj=utm +zone=#{centres.first > 150.0 ? 56 : centres.first > 144.0 ? 55 : 54 } +south +datum=WGS84"
+
+bounds = case
+when config["eastings"]   && config["northings"] then transform_bounds("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", projection, config.values_at("eastings", "northings"))
+when config["longitudes"] && config["latitudes"] then transform_bounds("EPSG:4326", projection, config.values_at("longitudes", "latitudes"))
+when config["size"]
+  size_regexp = /(\d+(\.\d+)?)\s*(mm|cm|in|")\s*[x,]\s*(\d+(\.\d+)?)\s*(mm|cm|in|")/
+  multiplier = { "mm" => 1 / 25.4, "cm" => 10 / 25.4, "in" => 1.0, '"' => 1.0 }
+  sizes_units = config["size"].match(size_regexp) { |captures| captures.values_at(1,3,4,6).each_slice(2).to_a }
+  abort("Error: invalid map size: #{config["size"]}") unless sizes_units
+  extents = sizes_units.map { |size, unit| size.to_f * multiplier[unit] * scaling.ppi * scaling.metres_per_pixel }
+  [ transform_coordinates("EPSG:4326", projection, centres), extents ].transpose.map do |coord, extent|
+    [ coord - 0.5 * extent, coord + 0.5 * extent ]
+  end
+end
+
+# if config["easting"] && config["northing"] && config["zone"]
+#   input_projection = "+proj=utm +zone=#{config["zone"]} +south +datum=WGS84"
+#   input_bounds = [ config["easting"].values.sort, config["northing"].values.sort ]
+# elsif config["latitude"] && config["longitude"]
+#   input_projection = "EPSG:4326"
+#   input_bounds = [ config["longitude"].values.sort, config["latitude"].values.sort ]
+# else
+#   abort("Error: must provide map bounds in UTM or WGS84.")
+# end
+# 
+# central_meridian, central_latitude = transform_coordinates(input_projection, "EPSG:4326", input_bounds.map { |bound| 0.5 * bound.inject(:+) })
+# projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{central_meridian} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
+# wkt = %Q{PROJCS["BLAH",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{central_meridian}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
+# nearest_utm = "+proj=utm +zone=#{central_meridian > 150.0 ? 56 : 55} +south +datum=WGS84"
+# bounds = transform_bounds(input_projection, projection, input_bounds)
+# dimensions = bounds.map { |bound| ((bound.max - bound.min) / scaling.metres_per_pixel).ceil }
+
+dimensions = bounds.map { |bound| (bound.reverse.inject(:-) / scaling.metres_per_pixel).ceil }
+topleft = [ bounds.first.min, bounds.last.max ]
 write_world_file(topleft, scaling.metres_per_pixel, tfw_path)
-File.open(proj_path, "w") { |file| file.puts target_projection }
+File.open(proj_path, "w") { |file| file.puts projection }
 
 puts "Final map size:"
 puts "  1:%i scale" % scaling.scale
-puts "  %.1fcm x %.1fcm @ %i ppi" % [ *target_extents.map { |extent| extent * 2.54 / scaling.ppi }, scaling.ppi ]
-puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * target_extents.inject(:*), *target_extents ]
+puts "  %.1fcm x %.1fcm @ %i ppi" % [ *dimensions.map { |dimension| dimension * 2.54 / scaling.ppi }, scaling.ppi ]
+puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * dimensions.inject(:*), *dimensions ]
 
 topo_portlet = ArcIMS.new(
   "host" => "gsp.maps.nsw.gov.au",
   "path" => "/servlet/com.esri.esrimap.Esrimap",
   "name" => "topo_portlet",
   "keep_host" => true,
-  "projection" => target_projection,
-  "wkt" => target_wkt,
+  "projection" => projection,
+  "wkt" => wkt,
   "tile_sizes" => [ 1024, 1024 ],
   "interval" => 0.1,
   "dpi" => 96,
@@ -816,8 +860,8 @@ cad_portlet = ArcIMS.new(
   "path" => "/servlet/com.esri.esrimap.Esrimap",
   "name" => "cad_portlet",
   "keep_host" => true,
-  "projection" => target_projection,
-  "wkt" => target_wkt,
+  "projection" => projection,
+  "wkt" => wkt,
   "tile_sizes" => [ 1024, 1024 ],
   "interval" => 0.1,
   "dpi" => 74,
@@ -830,8 +874,8 @@ crown_portlet = ArcIMS.new(
   "path" => "/servlet/com.esri.esrimap.Esrimap",
   "name" => "crown_portlet",
   "keep_host" => true,
-  "projection" => target_projection,
-  "wkt" => target_wkt,
+  "projection" => projection,
+  "wkt" => wkt,
   "tile_sizes" => [ 1024, 1024 ],
   "interval" => 0.1,
   "dpi" => 74,
@@ -843,8 +887,8 @@ act_heritage = ArcIMS.new(
   "host" => "www.gim.act.gov.au",
   "path" => "/arcims/ims",
   "name" => "Heritage",
-  "projection" => target_projection,
-  "wkt" => target_wkt,
+  "projection" => projection,
+  "wkt" => wkt,
   "tile_sizes" => [ 1024, 1024 ],
   "interval" => 0.1,
   "dpi" => 96,
@@ -856,8 +900,8 @@ act_dog = ArcIMS.new(
   "host" => "www.gim.act.gov.au",
   "path" => "/arcims/ims",
   "name" => "dog",
-  "projection" => target_projection,
-  "wkt" => target_wkt,
+  "projection" => projection,
+  "wkt" => wkt,
   "tile_sizes" => [ 1024, 1024 ],
   "interval" => 0.1,
   "dpi" => 96,
@@ -866,10 +910,9 @@ act_dog = ArcIMS.new(
     "projection" => "EPSG:32755"
   })
 grid_service = GridService.new({ "projection" => nearest_utm }.merge config["grid"])
-declination_service = DeclinationService.new({ "projection" => target_projection }.merge config["declination"])
+declination_service = DeclinationService.new(config["declination"])
 control_service = ControlService.new({
   "path" => config["controls"]["path"] || File.join(output_dir, config["controls"]["file"] || "controls.gpx"),
-  "projection" => target_projection,
 }.merge config["controls"])
 lpi_ortho = LPIOrthoService.new(
   "host" => "lite.maps.nsw.gov.au",
@@ -1383,18 +1426,18 @@ services.each do |service, layers|
       unless File.exists?(output_path)
         # puts "Layer: #{label}"
         Dir.mktmpdir do |temp_dir|
-          dataset = service.dataset(target_bounds, target_projection, scaling, label, options, temp_dir)
+          dataset = service.dataset(bounds, projection, scaling, label, options, temp_dir)
           if dataset
             working_path = File.join(temp_dir, "layer.tif")
             canvas_path = File.join(temp_dir, "canvas.tif")
             
             puts "  assembling..."
-            %x[convert -size #{target_extents.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 '#{canvas_path}']
-            %x[geotifcp -c lzw -e '#{tfw_path}' -4 '#{target_projection}' '#{canvas_path}' '#{working_path}']
+            %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 '#{canvas_path}']
+            %x[geotifcp -c lzw -e '#{tfw_path}' -4 '#{projection}' '#{canvas_path}' '#{working_path}']
             
             unless dataset.empty?
-              dataset_paths = dataset.collect do |bounds, resolution, path|
-                topleft = [ bounds.first.min, bounds.last.max ]
+              dataset_paths = dataset.collect do |tile_bounds, resolution, path|
+                topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
                 write_world_file(topleft, resolution, "#{path}w")
                 "'#{path}'"
               end
@@ -1407,7 +1450,7 @@ services.each do |service, layers|
           
             if service.respond_to? :post_process
               puts "  processing..."
-              service.post_process(working_path, target_bounds, scaling, options, temp_dir)
+              service.post_process(working_path, bounds, projection, scaling, options, temp_dir)
             end
         
             %x[convert -quiet '#{working_path}' -compress LZW '#{output_path}']
@@ -1577,7 +1620,7 @@ unless formats_paths.empty?
       end
       %x[convert -quiet #{sequence} '#{temp_path}']
       if format.downcase =~ /tif/
-        %x[geotifcp -e '#{tfw_path}' -4 '#{target_projection}' '#{temp_path}' '#{path}']
+        %x[geotifcp -e '#{tfw_path}' -4 '#{projection}' '#{temp_path}' '#{path}']
       else
         FileUtils.mv(temp_path, path)
       end
@@ -1593,10 +1636,13 @@ end
 # TODO: use dot pattern for water-areas-dry instead?
 
 # TODO: better vegetation layer?
+# TODO: add misc-perimeters as a dashed sark-grey line?
+# TODO: transmission line voltage as label?
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
 # TODO: have imagemagick and gdal paths be configurable
-# TODO: config option of specifying bottom-left and extent
 # TODO: have all other layers included as invisible in label layers to avoid feature overlap (see test-sydney)?
 # TODO: explore density option for reprojections (e.g. test-warrumbungles)
+# TODO: add worldfile for every output format that is saved
+# TODO: add marker layers as invisible layers in label layers
 

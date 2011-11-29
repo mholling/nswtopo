@@ -488,8 +488,7 @@ end
 class GridService < Service
   def dataset(input_bounds, input_projection, scaling, label, options, dir)
     puts "Layer: #{label}"
-    intervals = params["intervals"]
-    fontsize = params["fontsize"]
+    intervals, fontsize, family, weight = params.values_at("intervals", "fontsize", "family", "weight")
     
     bounds = transform_bounds(input_projection, projection, input_bounds)
     extents = bounds.map { |bound| bound.max - bound.min }
@@ -516,12 +515,12 @@ class GridService < Service
       centre_pixel = tick_pixels.last[centre_indices.last]
       dx, dy = [ 0.04 * scaling.ppi ] * 2
       string = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| "-draw \"translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick}'\"" }.join " "
-      "-fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 #{string}"
+      "-fill white -style Normal -pointsize #{fontsize} -family '#{family}' -weight #{weight} #{string}"
     when "northings"
       centre_pixel = tick_pixels.first[centre_indices.first]
       dx, dy = [ 0.04 * scaling.ppi ] * 2
       string = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| "-draw \"text #{centre_pixel+dx},#{pixel-dy} '#{tick}'\"" }.join " "
-      "-fill white -pointsize #{fontsize} -family 'Arial Narrow' -weight 100 #{string}"
+      "-fill white -style Normal -pointsize #{fontsize} -family '#{family}' -weight #{weight} #{string}"
     end
     
     dimensions = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
@@ -644,7 +643,9 @@ grid:
   intervals:
     - 1000
     - 1000
-  fontsize: 4.5
+  fontsize: 6.0
+  family: Arial Narrow
+  weight: 200
 relief:
   altitude: 45
   azimuth:
@@ -656,7 +657,7 @@ controls:
   diameter: 7.0
   thickness: 0.2
 formats:
-  - tif
+  - png
   - layered.tif
 exclude:
   - utm
@@ -686,6 +687,7 @@ colours:
   building-areas: '#666667'
   cadastre: '#888889'
   act-cadastre: '#888889'
+  misc-perimeters: '#333334'
   excavation: '#333334'
   coastline: '#000001'
   dam-walls: '#000001'
@@ -776,14 +778,14 @@ patterns:
 
 {
   "utm" => %w{utm-grid utm-eastings utm-northings},
-  "aerial" => %w{aerial-google aerial-nokia aerial-lpi-sydney aerial-lpi-eastcoast aerial-lpi-regional aerial-lpi-ads40},
+  "aerial" => %w{aerial-google aerial-nokia aerial-lpi-sydney aerial-lpi-eastcoast aerial-lpi-towns aerial-lpi-ads40},
   "coastal" => %w{ocean reef intertidal coastline wharves lighthouses}
 }.each do |shortcut, layers|
   config["exclude"] += layers if config["exclude"].delete(shortcut)
 end
 
 map_name = config["name"]
-tfw_path = File.join(output_dir, "#{map_name}.tfw")
+world_file_path = File.join(output_dir, "#{map_name}.wld")
 proj_path = File.join(output_dir, "#{map_name}.prj")
 
 scaling = Scaling.new(config["scale"], config["ppi"])
@@ -814,26 +816,9 @@ when config["size"]
   end
 end
 
-# if config["easting"] && config["northing"] && config["zone"]
-#   input_projection = "+proj=utm +zone=#{config["zone"]} +south +datum=WGS84"
-#   input_bounds = [ config["easting"].values.sort, config["northing"].values.sort ]
-# elsif config["latitude"] && config["longitude"]
-#   input_projection = "EPSG:4326"
-#   input_bounds = [ config["longitude"].values.sort, config["latitude"].values.sort ]
-# else
-#   abort("Error: must provide map bounds in UTM or WGS84.")
-# end
-# 
-# central_meridian, central_latitude = transform_coordinates(input_projection, "EPSG:4326", input_bounds.map { |bound| 0.5 * bound.inject(:+) })
-# projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{central_meridian} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
-# wkt = %Q{PROJCS["BLAH",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{central_meridian}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
-# nearest_utm = "+proj=utm +zone=#{central_meridian > 150.0 ? 56 : 55} +south +datum=WGS84"
-# bounds = transform_bounds(input_projection, projection, input_bounds)
-# dimensions = bounds.map { |bound| ((bound.max - bound.min) / scaling.metres_per_pixel).ceil }
-
 dimensions = bounds.map { |bound| (bound.reverse.inject(:-) / scaling.metres_per_pixel).ceil }
 topleft = [ bounds.first.min, bounds.last.max ]
-write_world_file(topleft, scaling.metres_per_pixel, tfw_path)
+write_world_file(topleft, scaling.metres_per_pixel, world_file_path)
 File.open(proj_path, "w") { |file| file.puts projection }
 
 puts "Final map size:"
@@ -1046,7 +1031,7 @@ services = {
       "where" => "ClassSubtype = 1",
       "lookup" => "delivsdm:geodb.HydroLine.Perenniality",
       "line" => {
-        1 => { "width" => 2, "antialiasing" => false },
+        1 => { "width" => 2 },
         2 => { "width" => 1 },
         3 => { "width" => 1, "type" => "dash" }
       }
@@ -1068,7 +1053,7 @@ services = {
     },
     "water-area-boundaries" => {
       "from" => "HydroArea_1",
-      "line" => { "width" => 1 }
+      "line" => { "width" => 2 }
     },
     "dams" => {
       "from" => "HydroPoint_1",
@@ -1182,7 +1167,8 @@ services = {
     "excavation" => {
       "from" => "DLSLine_1",
       "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
-      "line" => { 3 => { "width" => 1, "type" => "dot", "antialiasing" => false } }
+      "scale" => 0.25,
+      "line" => { 3 => { "width" => 2, "type" => "dot", "antialiasing" => false } }
     },
     "caves" => {
       "from" => "DLSPoint_1",
@@ -1225,7 +1211,8 @@ services = {
     "misc-perimeters" => {
       "from" => "GeneralCulturalLine_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalLine.classsubtype",
-      "line" => { 3 => { "width" => 1 } },
+      "scale" => 0.15,
+      "line" => { 3 => { "width" => 1, "type" => "dash" } }
     },
     "towers" => {
       "from" => "GeneralCulturalPoint_1",
@@ -1401,7 +1388,7 @@ services = {
   lpi_ortho => {
     "aerial-lpi-ads40" => { "config" => "/ADS40ImagesConfig.js" },
     "aerial-lpi-sydney" => { "config" => "/SydneyImagesConfig.js" },
-    "aerial-lpi-regional" => { "config" => "/NSWRegionalCentresConfig.js" },
+    "aerial-lpi-towns" => { "config" => "/NSWRegionalCentresConfig.js" },
     "aerial-lpi-eastcoast" => { "image" => "/Imagery/lr94ortho1m.ecw" }
   },
   google_maps => {
@@ -1424,7 +1411,6 @@ services.each do |service, layers|
     begin
       output_path = File.join(output_dir, "#{label}.tif")
       unless File.exists?(output_path)
-        # puts "Layer: #{label}"
         Dir.mktmpdir do |temp_dir|
           dataset = service.dataset(bounds, projection, scaling, label, options, temp_dir)
           if dataset
@@ -1433,7 +1419,7 @@ services.each do |service, layers|
             
             puts "  assembling..."
             %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 '#{canvas_path}']
-            %x[geotifcp -c lzw -e '#{tfw_path}' -4 '#{projection}' '#{canvas_path}' '#{working_path}']
+            %x[geotifcp -c lzw -e '#{world_file_path}' -4 '#{projection}' '#{canvas_path}' '#{working_path}']
             
             unless dataset.empty?
               dataset_paths = dataset.collect do |tile_bounds, resolution, path|
@@ -1465,8 +1451,8 @@ services.each do |service, layers|
 end
 
 formats_paths = config["formats"].map do |format|
-  { format => File.join(output_dir, "#{map_name}.#{format}") }
-end.inject(:merge).reject do |format, path|
+  [ format, File.join(output_dir, "#{map_name}.#{format}") ]
+end.reject do |format, path|
   File.exists? path
 end
 unless formats_paths.empty?
@@ -1521,7 +1507,7 @@ unless formats_paths.empty?
       "aerial-nokia",
       "aerial-lpi-sydney",
       "aerial-lpi-eastcoast",
-      "aerial-lpi-regional",
+      "aerial-lpi-towns",
       "aerial-lpi-ads40",
       "vegetation",
       "pine",
@@ -1547,6 +1533,7 @@ unless formats_paths.empty?
       "cliffs",
       "clifftops",
       "rocks-pinnacles",
+      "misc-perimeters",
       "excavation",
       "coastline",
       "dam-walls",
@@ -1616,15 +1603,53 @@ unless formats_paths.empty?
       sequence = case format.downcase
       when "psd" then "#{flattened} #{layered}"
       when /layer/ then layered
-      else flattened
+      else "#{flattened} -type TrueColor"
       end
       %x[convert -quiet #{sequence} '#{temp_path}']
       if format.downcase =~ /tif/
-        %x[geotifcp -e '#{tfw_path}' -4 '#{projection}' '#{temp_path}' '#{path}']
+        %x[geotifcp -e '#{world_file_path}' -4 '#{projection}' '#{temp_path}' '#{path}']
       else
         FileUtils.mv(temp_path, path)
       end
     end
+  end
+end
+
+oziexplorer_formats = [ "bmp", "png", "gif" ] & config["formats"]
+unless oziexplorer_formats.empty?
+  oziexplorer_path = File.join(output_dir, "#{map_name}.map")
+  image_path = File.join(output_dir, "#{map_name}.#{oziexplorer_formats.first}")
+  wgs84_corners = transform_coordinates(projection, "EPSG:4326", *bounds.inject(:product)).values_at(1,3,2,0)
+  pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
+  calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
+    dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
+      [ coord.abs.floor, 60 * (coord.abs - coord.abs.floor), coord > 0 ? hemispheres.first : hemispheres.last ]
+    end
+    "Point%02i,xy,%i,%i,in,deg,%i,%f,%c,%i,%f,%c,grid,,,," % [ index+1, pixel_corner, dmh ].flatten
+  end
+  File.open(oziexplorer_path, "w") do |file|
+    file << %Q[OziExplorer Map Data File Version 2.2
+#{map_name}
+#{image_path}
+1 ,Map Code,
+WGS 84,WGS84,0.0000,0.0000,WGS84
+Reserved 1
+Reserved 2
+Magnetic Variation,,,E
+Map Projection,Transverse Mercator,PolyCal,No,AutoCalOnly,Yes,BSBUseWPX,No
+#{calibration_strings.join("\n")}
+Projection Setup,0.000000000,#{centres.first},0.999600000,500000.00,10000000.00,,,,,
+Map Feature = MF ; Map Comment = MC     These follow if they exist
+Track File = TF      These follow if they exist
+Moving Map Parameters = MM?    These follow if they exist
+MM0,Yes
+MMPNUM,4
+#{pixel_corners.map.with_index { |pixel_corner, index| "MMPXY,#{index+1},#{pixel_corner.join(",")}" }.join("\n")}
+#{wgs84_corners.map.with_index { |wgs84_corner, index| "MMPLL,#{index+1},#{wgs84_corner.join(",")}" }.join("\n")}
+MM1B,#{scaling.metres_per_pixel}
+MOP,Map Open Position,0,0
+IWH,Map Image Width/Height,#{dimensions.join(",")}
+].gsub(/\r?\n/, "\r\n")
   end
 end
 
@@ -1635,14 +1660,6 @@ end
 # TODO: differentiate intermittent and perennial water areas?
 # TODO: use dot pattern for water-areas-dry instead?
 
-# TODO: better vegetation layer?
-# TODO: add misc-perimeters as a dashed sark-grey line?
-# TODO: transmission line voltage as label?
-
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
-# TODO: have imagemagick and gdal paths be configurable
-# TODO: have all other layers included as invisible in label layers to avoid feature overlap (see test-sydney)?
-# TODO: explore density option for reprojections (e.g. test-warrumbungles)
-# TODO: add worldfile for every output format that is saved
-# TODO: add marker layers as invisible layers in label layers
+# TODO: \r\n vs. \n for windows?
 

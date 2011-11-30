@@ -332,7 +332,7 @@ class TiledMapService < Service
           %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} -type TrueColor -depth 8 -format png -define png:color-type=2 '#{tile_path}']
         end
         non_blank_fraction = %x[convert '#{tile_path}' -fill white +opaque black -format "%[fx:mean]" info:].to_f
-        break if non_blank_fraction > 0.95
+        break if non_blank_fraction > 0.995
       end
       
       [ bounds, metres_per_pixel, tile_path ]
@@ -672,10 +672,10 @@ colours:
   watercourses: '#0033ff'
   ocean: '#7b96ff'
   dams: '#0033ff'
-  water-areas-perennial: '#7b96ff'
-  water-areas-intermittent: '#7b96ff'
+  water-areas: '#7b96ff'
   water-areas-dry: '#7b96ff'
   water-area-boundaries: '#0033ff'
+  water-areas-dry-boundaries: '#0033ff'
   reef: 'Cyan'
   sand: '#ff6600'
   intertidal: '#1b2e7b'
@@ -743,6 +743,13 @@ patterns:
     00000000000000000000000001111100000000
     00000000000000000000000011111110000000
     00000000000000000000000111111111000000
+  water-areas-dry:
+    01,10,01,00,00,00
+    10,50,10,00,00,00
+    01,10,01,00,00,00
+    00,00,00,01,10,01
+    00,00,00,10,50,10
+    00,00,00,01,10,01
   sand:
     01,10,01,00,00,00
     10,50,10,00,00,00
@@ -1036,24 +1043,25 @@ services = {
         3 => { "width" => 1, "type" => "dash" }
       }
     },
-    "water-areas-perennial" => {
+    "water-areas" => {
       "from" => "HydroArea_1",
       "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-      "polygon" => { 1 => { "boundary" => false } }
+      "polygon" => { "1;2" => { "boundary" => false } }
     },
-    "water-areas-intermittent" => {
+    "water-area-boundaries" => {
       "from" => "HydroArea_1",
       "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-      "polygon" => { 2 => { "boundary" => false } }
+      "line" => { "1;2" => { "width" => 2 } }
     },
     "water-areas-dry" => {
       "from" => "HydroArea_1",
       "lookup" => "delivsdm:geodb.HydroArea.perenniality",
       "polygon" => { 3 => { "boundary" => false } }
     },
-    "water-area-boundaries" => {
+    "water-areas-dry-boundaries" => {
       "from" => "HydroArea_1",
-      "line" => { "width" => 2 }
+      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+      "line" => { 3 => { "width" => 1 } }
     },
     "dams" => {
       "from" => "HydroPoint_1",
@@ -1517,19 +1525,19 @@ unless formats_paths.empty?
       "contours",
       "swamp-wet",
       "swamp-dry",
-      "sand",
       "inundation",
       "cadastre",
       "act-cadastre",
       "watercourses",
       "ocean",
       "dams",
-      "water-areas-perennial",
-      "water-areas-intermittent",
       "water-areas-dry",
+      "water-areas-dry-boundaries",
+      "water-areas",
       "water-area-boundaries",
-      "reef",
+      "sand",
       "intertidal",
+      "reef",
       "cliffs",
       "clifftops",
       "rocks-pinnacles",
@@ -1655,11 +1663,12 @@ end
 
 
 # TODO: solve water-area-boundaries problem (e.g. for test-eden)
-# TODO: have water boundaries only on perennial water bodies? (solves dam overlap problem)
-# TODO: merge water areas?
-# TODO: differentiate intermittent and perennial water areas?
-# TODO: use dot pattern for water-areas-dry instead?
+# TODO: solve water boundary problem using post-process method?
+
+# TODO: cliff color? rock area pattern? control color (dark red)?
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
 # TODO: \r\n vs. \n for windows?
+# TODO: split comma-separated values as array in config
+# TODO: use png as intermediate file format?
 

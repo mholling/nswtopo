@@ -77,9 +77,9 @@ def http_post(uri, body, options = {}, &block)
 end
 
 def transform_coordinates(source_projection, target_projection, *source_coords)
-  source_string = source_coords.map { |coords| coords.join " " }.join "\n"
+  source_string = source_coords.map { |coords| coords.join " " }.join "\r\n"
   target_string = %x[echo "#{source_string}" | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"]
-  target_coords = target_string.split("\n").map { |triplet| triplet.split(" ")[0..1].map { |number| number.to_f } }
+  target_coords = target_string.split(/\r?\n/).map { |triplet| triplet.split(" ")[0..1].map { |number| number.to_f } }
   source_coords.length > 1 ? target_coords : target_coords.flatten
 end
 
@@ -379,7 +379,6 @@ class LPIOrthoService < Service
     end.select do |image, attributes|
       bounds_intersect? bounds, attributes["bounds"]
     end
-    # return nil if images_attributes.empty?
     return [] if images_attributes.empty?
     
     tile_size = params["tile_size"]
@@ -537,7 +536,7 @@ class AnnotationService < Service
     []
   end
   
-  # TODO: this is wrong if the projection is not a UTM grid!
+  # TODO: this only works for a UTM grid!
   def post_process(path, bounds, projection, scaling, options, dir)
     draw_string = draw(bounds, projection, scaling, options)
     %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} #{draw_string} '#{path}']
@@ -680,7 +679,7 @@ colours:
   sand: '#ff6600'
   intertidal: '#1b2e7b'
   inundation: '#00d3ff'
-  cliffs: '#ddddde'
+  cliffs: '#cccccd'
   clifftops: '#ff00ba'
   rocks-pinnacles: '#ff00ba'
   buildings: '#222223'
@@ -709,8 +708,8 @@ colours:
   yards: '#000001'
   trig-points: '#000001'
   labels: '#000001'
-  control-circles: 'Red'
-  control-numbers: 'Red'
+  control-circles: 'Dark Red'
+  control-numbers: 'Dark Red'
   declination: '#000001'
   utm-grid: '#000001'
   utm-eastings: '#000001'
@@ -1043,16 +1042,30 @@ services = {
         3 => { "width" => 1, "type" => "dash" }
       }
     },
-    "water-areas" => {
-      "from" => "HydroArea_1",
-      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-      "polygon" => { "1;2" => { "boundary" => false } }
-    },
-    "water-area-boundaries" => {
-      "from" => "HydroArea_1",
-      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-      "line" => { "1;2" => { "width" => 2 } }
-    },
+    "water-areas" => [
+      {
+        "from" => "HydroArea_1",
+        "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+        "polygon" => { "1;2" => { "boundary" => false } }
+      },
+      {
+        "from" => "TankArea_1",
+        "lookup" => "delivsdm:geodb.TankArea.tanktype",
+        "polygon" => { 1 => { "boundary" => false } }
+      }
+    ],
+    "water-area-boundaries" => [
+      {
+        "from" => "HydroArea_1",
+        "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+        "line" => { "1;2" => { "width" => 2 } }
+      },
+      {
+        "from" => "TankArea_1",
+        "lookup" => "delivsdm:geodb.TankArea.tanktype",
+        "line" => { 1 => { "width" => 2 } }
+      }
+    ],
     "water-areas-dry" => {
       "from" => "HydroArea_1",
       "lookup" => "delivsdm:geodb.HydroArea.perenniality",
@@ -1490,7 +1503,7 @@ unless formats_paths.empty?
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==0' \\( +clone +noise Random -blur 0x2 -threshold 50% \\) -compose Multiply -composite '#{inundation_tile_path}']
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_wet_tile_path}']
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_dry_tile_path}']
-    %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x2 -modulate 100,1,100 -auto-level -ordered-dither threshold,3 +level 60%,80% '#{rock_area_tile_path}']
+    %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x1 -modulate 100,1,100 -auto-level -ordered-dither threshold,4 +level 55%,75% '#{rock_area_tile_path}']
     
     config["patterns"].each do |label, string|
       if File.exists?(string)
@@ -1661,14 +1674,11 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-
-# TODO: solve water-area-boundaries problem (e.g. for test-eden)
-# TODO: solve water boundary problem using post-process method?
-
-# TODO: cliff color? rock area pattern? control color (dark red)?
+# TODO: redo lighthouses/windmills/towers as various crosses?
+# TODO: add tank points? add silos?
+# TODO: add labels to pathways?
+# TODO: add cableways? ferry routes? pipelines?
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
-# TODO: \r\n vs. \n for windows?
-# TODO: split comma-separated values as array in config
 # TODO: use png as intermediate file format?
 

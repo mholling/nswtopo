@@ -668,6 +668,7 @@ colours:
   orchards-plantations: '#009f00'
   built-up-areas: '#F8FF73'
   contours: 'Dark Magenta'
+  ancillary-contours: 'Dark Magenta'
   swamp-wet: '#00d3ff'
   swamp-dry: '#e3bf9a'
   watercourses: '#0033ff'
@@ -1542,6 +1543,7 @@ unless formats_paths.empty?
       "built-up-areas",
       "rock-area",
       "contours",
+      "ancillary-contours",
       "swamp-wet",
       "swamp-dry",
       "inundation",

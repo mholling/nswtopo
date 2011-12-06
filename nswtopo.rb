@@ -652,6 +652,7 @@ relief:
     - 45
   exaggeration: 1
 controls:
+  file: controls.gpx
   fontsize: 14
   diameter: 7.0
   thickness: 0.2
@@ -661,6 +662,7 @@ formats:
 exclude:
   - utm
   - aerial-lpi-sydney
+  - aerial-lpi-towns
 colours:
   pine: '#009f00'
   orchards-plantations: '#009f00'
@@ -671,6 +673,7 @@ colours:
   watercourses: '#0033ff'
   ocean: '#7b96ff'
   dams: '#0033ff'
+  water-tanks: '#7b96ff'
   water-areas: '#7b96ff'
   water-areas-dry: '#7b96ff'
   water-area-boundaries: '#0033ff'
@@ -686,6 +689,7 @@ colours:
   building-areas: '#666667'
   cadastre: '#888889'
   act-cadastre: '#888889'
+  act-border: '#888889'
   misc-perimeters: '#333334'
   excavation: '#333334'
   coastline: '#000001'
@@ -903,7 +907,7 @@ act_dog = ArcIMS.new(
 grid_service = GridService.new({ "projection" => nearest_utm }.merge config["grid"])
 declination_service = DeclinationService.new(config["declination"])
 control_service = ControlService.new({
-  "path" => config["controls"]["path"] || File.join(output_dir, config["controls"]["file"] || "controls.gpx"),
+  "path" => config["controls"]["path"] || File.join(output_dir, config["controls"]["file"]),
 }.merge config["controls"])
 lpi_ortho = LPIOrthoService.new(
   "host" => "lite.maps.nsw.gov.au",
@@ -982,7 +986,7 @@ services = {
         "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
         "text" => {
           "1;2;3;4;5" => { "fontsize" => 4.5, "fontstyle" => "italic", "printmode" => "allupper" },
-          "6;7;8" => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper" },
+          "6;7;8;9" => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper" },
         }
       },
       { # fuzzy area labels
@@ -1080,6 +1084,11 @@ services = {
       "from" => "HydroPoint_1",
       "lookup" => "delivsdm:geodb.HydroPoint.ClassSubtype",
       "marker" => { 1 => { "type" => "square", "width" => 0.8 } }
+    },
+    "water-tanks" => {
+      "from" => "TankPoint_1",
+      "lookup" => "delivsdm:geodb.TankPoint.tanktype",
+      "marker" => { 1 => { "type" => "circle", "width" => 0.8 } }
     },
     "ocean" => {
       "from" => "FuzzyExtentWaterArea_1",
@@ -1283,8 +1292,8 @@ services = {
       "from" => "Runway_1",
       "lookup" => "delivsdm:geodb.Runway.runwaydefinition",
       "line" => {
-        1 => { "width" => 3 },
-        2 => { "width" => 6 },
+        1 => { "width" => 1 },
+        2 => { "width" => 5 },
         3 => { "width" => 0.5 }
       }
     },
@@ -1307,11 +1316,6 @@ services = {
     "cadastre" => {
       "from" => "Lot_1",
       "line" => { "width" => 1 }
-    },
-    "nsw-border" => {
-      "scale" => 0.5,
-      "from" => "Border_1",
-      "line" => { "width" => 2, "type" => "dash_dot_dot" }
     },
     "trig-points" => {
       "from" => "SurveyMarks_1",
@@ -1385,6 +1389,11 @@ services = {
         "VEHICULAR TRACK" => { "width" => 2, "type" => "dash" }
       },
     },
+    "act-border" => {
+      "scale" => 0.5,
+      "from" => 3,
+      "line" => { "width" => 2, "type" => "dash_dot_dot" }
+    }
   },
   act_dog => {
     "act-adhoc-fire-access" => {
@@ -1512,7 +1521,7 @@ unless formats_paths.empty?
         tile_path = File.join(output_dir, string)
       else
         tile_path = File.join(temp_dir, "tile-#{label}.tif")
-        tile = string.split(" ").map { |line| line.split(line =~ /,/ ? "," : "").map { |number| number.to_f } }
+        tile = string.split(" ").map { |line| line.split(line[/,/] ? "," : "").map { |number| number.to_f } }
         abort("Error: fill pattern for '#{label}' must be rectangular") unless tile.map { |line| line.length }.uniq.length == 1
         maximum = tile.flatten.max
         tile.map! { |row| row.map { |number| number / maximum } }
@@ -1544,6 +1553,7 @@ unless formats_paths.empty?
       "watercourses",
       "ocean",
       "dams",
+      "water-tanks",
       "water-areas-dry",
       "water-areas-dry-boundaries",
       "water-areas",
@@ -1559,6 +1569,7 @@ unless formats_paths.empty?
       "coastline",
       "dam-walls",
       "wharves",
+      "act-border",
       "pathways",
       "tracks-4wd",
       "tracks-vehicular",
@@ -1627,7 +1638,7 @@ unless formats_paths.empty?
       else "#{flattened} -type TrueColor"
       end
       %x[convert -quiet #{sequence} '#{temp_path}']
-      if format.downcase =~ /tif/
+      if format[/tif/i]
         %x[geotifcp -e '#{world_file_path}' -4 '#{projection}' '#{temp_path}' '#{path}']
       else
         FileUtils.mv(temp_path, path)
@@ -1675,10 +1686,7 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
 end
 
 # TODO: redo lighthouses/windmills/towers as various crosses?
-# TODO: add tank points? add silos?
-# TODO: add labels to pathways?
-# TODO: add cableways? ferry routes? pipelines?
+# TODO: add silos? add cableways? ferry routes? pipelines? car parks?
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
 # TODO: use png as intermediate file format?
-

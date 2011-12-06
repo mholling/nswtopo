@@ -1016,26 +1016,23 @@ services = {
         "from" => "Contour_1",
         "where" => "MOD(elevation, #{config["contours"]["interval"]}) = 0 AND sourceprogram = #{config["contours"]["source"]}",
         "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
-        "line" => {
-          1 => { "width" => 1 },
-          3 => { "width" => 1, "type" => "dash" }
-        },
-        "hashline" => {
-          2 => { "width" => 2, "linethickness" => 1, "thickness" => 1, "interval" => 8 }
-        }
+        "line" => { 1 => { "width" => 1 } },
+        "hashline" => { 2 => { "width" => 2, "linethickness" => 1, "thickness" => 1, "interval" => 8 } }
       },
       {
         "from" => "Contour_1",
         "where" => "MOD(elevation, #{config["contours"]["index"]}) = 0 AND elevation > 0 AND sourceprogram = #{config["contours"]["source"]}",
         "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
-        "line" => {
-          1 => { "width" => 2 },
-        },
-        "hashline" => {
-          2 => { "width" => 3, "linethickness" => 2, "thickness" => 1, "interval" => 8 }
-        }
+        "line" => { 1 => { "width" => 2 } },
+        "hashline" => { 2 => { "width" => 3, "linethickness" => 2, "thickness" => 1, "interval" => 8 } }
       },
     ],
+    "ancillary-contours" => {
+      "from" => "Contour_1",
+      "where" => "sourceprogram = #{config["contours"]["source"]}",
+      "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
+      "line" => { 3 => { "width" => 1, "type" => "dash" } },
+    },
     "watercourses" => {
       "from" => "HydroLine_1",
       "where" => "ClassSubtype = 1",
@@ -1687,6 +1684,7 @@ end
 
 # TODO: redo lighthouses/windmills/towers as various crosses?
 # TODO: add silos? add cableways? ferry routes? pipelines? car parks?
+# TODO: finalise colours for unsealed roads, contours, controls, swamp, inundation
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
 # TODO: use png as intermediate file format?

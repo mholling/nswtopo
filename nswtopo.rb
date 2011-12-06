@@ -478,7 +478,7 @@ class OneEarthDEMRelief < Service
       end
       %x[gdaldem color-relief '#{vrt_path}' '#{colour_path}' '#{relief_path}' -q]
     end
-    %x[convert '#{relief_path}' -quiet -type TrueColor -depth 8 -format png -define png:color-type=2 '#{output_path}']
+    %x[convert '#{relief_path}' -quiet -type TrueColor -depth 8 -define png:color-type=2 '#{output_path}']
     
     [ [ bounds, units_per_pixel, output_path ] ]
   end
@@ -1437,7 +1437,7 @@ services.each do |service, layers|
     config["exclude"].include? label
   end.each do |label, options|
     begin
-      output_path = File.join(output_dir, "#{label}.tif")
+      output_path = File.join(output_dir, "#{label}.png")
       unless File.exists?(output_path)
         Dir.mktmpdir do |temp_dir|
           dataset = service.dataset(bounds, projection, scaling, label, options, temp_dir)
@@ -1467,7 +1467,7 @@ services.each do |service, layers|
               service.post_process(working_path, bounds, projection, scaling, options, temp_dir)
             end
         
-            %x[convert -quiet '#{working_path}' -compress LZW '#{output_path}']
+            %x[convert -quiet '#{working_path}' '#{output_path}']
           end
         end
       end
@@ -1597,7 +1597,7 @@ unless formats_paths.empty?
     ].reject do |label|
       config["exclude"].include? label
     end.map do |label|
-      [ label, File.join(output_dir, "#{label}.tif") ]
+      [ label, File.join(output_dir, "#{label}.png") ]
     end.select do |label, path|
       File.exists? path
     end.reject do |label, path|

@@ -686,7 +686,7 @@ colours:
   cliffs: '#cccccd'
   clifftops: '#ff00ba'
   rocks-pinnacles: '#ff00ba'
-  buildings: '#222223'
+  buildings: '#111112'
   building-areas: '#666667'
   cadastre: '#888889'
   act-cadastre: '#888889'
@@ -695,6 +695,7 @@ colours:
   excavation: '#333334'
   coastline: '#000001'
   dam-walls: '#000001'
+  cableways: '#000001'
   wharves: '#000001'
   pathways: '#000001'
   tracks-4wd: 'Dark Orange'
@@ -703,6 +704,7 @@ colours:
   roads-sealed: 'Red'
   gates-grids: '#000001'
   railways: '#000001'
+  pipelines: '#00a6e5'
   landing-grounds: '#333334'
   transmission-lines: '#000001'
   caves: '#000001'
@@ -1011,6 +1013,12 @@ services = {
         "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName" },
         "text" => { 1 => { "fontsize" => 3, "printmode" => "titlecaps", "interval" => 2.0 } }
       },
+      { # cableway labels
+        "from" => "Cableway_Label_1",
+        "label" => { "field" => "delivsdm:geodb.Cableway.GeneralName" },
+        "lookup" => "delivsdm:geodb.Cableway.ClassSubtype",
+        "text" => { "1;2" => { "fontsize" => 3, "fontstyle" => "italic", "printmode" => "allupper", "font" => "Arial Narrow", "interval" => 0.5 } }
+      },
     ],
     "contours" => [
       {
@@ -1236,6 +1244,15 @@ services = {
       "scale" => 0.4,
       "line" => { 4 => { "width" => 3 } }
     },
+    "cableways" => {
+      "from" => "Cableway_1",
+      "scale" => 0.4,
+      "lookup" => "delivsdm:geodb.Cableway.ClassSubtype",
+      "line" => {
+        1 => { "width" => 2 },
+        2 => { "width" => 2, "type" => "dash_dot" }
+      }
+    },
     "misc-perimeters" => {
       "from" => "GeneralCulturalLine_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalLine.classsubtype",
@@ -1245,7 +1262,7 @@ services = {
     "towers" => {
       "from" => "GeneralCulturalPoint_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 7 => { "font" => "ESRI Cartography", "character" => 100, "fontsize" => 7 } }
+      "marker" => { 7 => { "type" => "square", "width" => 0.5 } }
     },
     "mines" => {
       "from" => "GeneralCulturalPoint_1",
@@ -1263,13 +1280,13 @@ services = {
       "from" => "GeneralCulturalPoint_1",
       "where" => "generalculturaltype = 8",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 228, "fontsize" => 5.5 } }
+      "truetypemarker" => { 4 => { "font" => "ESRI Default Marker", "character" => 69, "angle" => 45, "fontsize" => 3 } }
     },
     "lighthouses" => {
       "from" => "GeneralCulturalPoint_1",
       "where" => "generalculturaltype = 1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 227, "fontsize" => 7 } }
+      "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7 } }
     },
     "railways" => {
       "scale" => 0.35,
@@ -1278,6 +1295,15 @@ services = {
       "hashline" => {
         "1;4" => { "width" => 6, "linethickness" => 3, "tickthickness" => 2, "interval" => 12 },
         "2;3" => { "width" => 4, "linethickness" => 2, "tickthickness" => 2, "interval" => 12 }
+      }
+    },
+    "pipelines" => {
+      "from" => "PipeLine_1",
+      "line" => { "width" => 1 },
+      "lookup" => "delivsdm:geodb.Pipeline.PosRelToGround",
+      "line" => {
+        "0;1;3" => { "width" => 1 },
+        2 => { "width" => 1, "type" => "dash" }
       }
     },
     "transmission-lines" => {
@@ -1568,12 +1594,14 @@ unless formats_paths.empty?
       "coastline",
       "dam-walls",
       "wharves",
+      "pipelines",
       "act-border",
       "pathways",
       "tracks-4wd",
       "tracks-vehicular",
       "roads-unsealed",
       "roads-sealed",
+      "cableways",
       "gates-grids",
       "railways",
       "landing-grounds",
@@ -1684,9 +1712,10 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: redo lighthouses/windmills/towers as various crosses?
-# TODO: add silos? add cableways? ferry routes? pipelines? car parks?
 # TODO: finalise colours for unsealed roads, contours, controls, swamp, inundation
+# TODO: intervals for line labels
+# TODO: split rock-awash and rock-inland
+# TODO: sand below water?
+# TODO: combine buildings/towers/lighthouses/etc?
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
-# TODO: use png as intermediate file format?

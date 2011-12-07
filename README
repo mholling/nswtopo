@@ -263,7 +263,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 - mines: quarries and other mining areas, represented as small black icons
 - yards: small stock yards, represented as black square outlines
 - windmills: occasional farm windmills, represented as small black icons
-- lighthouses: coastal lighthouses and beacons, represented as small black icons
+- beacons: lighthouses and beacons, represented as small black icons
 - railways: heavy- and light-gauge railway lines, represented as black hashed lines
 - transmission-lines: high voltage electrical transmission lines, represented as black dot-dash lines
 - landing-grounds: landing strips as found on farms, etc, represented as dark gray lines

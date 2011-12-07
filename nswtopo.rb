@@ -667,9 +667,9 @@ colours:
   pine: '#009f00'
   orchards-plantations: '#009f00'
   built-up-areas: '#F8FF73'
-  contours: 'Dark Magenta'
-  ancillary-contours: 'Dark Magenta'
-  swamp-wet: '#00d3ff'
+  contours: '#9c3026'
+  ancillary-contours: '#9c3026'
+  swamp-wet: '#00bdff'
   swamp-dry: '#e3bf9a'
   watercourses: '#0033ff'
   ocean: '#7b96ff'
@@ -682,8 +682,8 @@ colours:
   reef: 'Cyan'
   sand: '#ff6600'
   intertidal: '#1b2e7b'
-  inundation: '#00d3ff'
-  cliffs: '#cccccd'
+  inundation: '#00bdff'
+  cliffs: '#c6c6c7'
   clifftops: '#ff00ba'
   rocks-pinnacles: '#ff00ba'
   buildings: '#111112'
@@ -710,13 +710,13 @@ colours:
   caves: '#000001'
   towers: '#000001'
   windmills: '#000001'
-  lighthouses: '#000001'
+  beacons: '#000001'
   mines: '#000001'
   yards: '#000001'
   trig-points: '#000001'
   labels: '#000001'
-  control-circles: 'Dark Red'
-  control-numbers: 'Dark Red'
+  control-circles: '#9e00c0'
+  control-numbers: '#9e00c0'
   declination: '#000001'
   utm-grid: '#000001'
   utm-eastings: '#000001'
@@ -792,7 +792,7 @@ patterns:
 {
   "utm" => %w{utm-grid utm-eastings utm-northings},
   "aerial" => %w{aerial-google aerial-nokia aerial-lpi-sydney aerial-lpi-eastcoast aerial-lpi-towns aerial-lpi-ads40},
-  "coastal" => %w{ocean reef intertidal coastline wharves lighthouses}
+  "coastal" => %w{ocean reef intertidal coastline wharves}
 }.each do |shortcut, layers|
   config["exclude"] += layers if config["exclude"].delete(shortcut)
 end
@@ -1274,7 +1274,7 @@ services = {
       "from" => "GeneralCulturalPoint_1",
       "where" => "ClassSubtype = 4",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.generalculturaltype",
-      "marker" => { "6;9" => { "type" => "square", "width" => 0.8, "color" => "0,0,0", "outline" => "255,255,255" } }
+      "marker" => { "6;9" => { "type" => "square", "width" => 0.7, "color" => "0,0,0", "outline" => "255,255,255" } }
     },
     "windmills" => {
       "from" => "GeneralCulturalPoint_1",
@@ -1282,9 +1282,8 @@ services = {
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
       "truetypemarker" => { 4 => { "font" => "ESRI Default Marker", "character" => 69, "angle" => 45, "fontsize" => 3 } }
     },
-    "lighthouses" => {
+    "beacons" => {
       "from" => "GeneralCulturalPoint_1",
-      "where" => "generalculturaltype = 1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
       "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7 } }
     },
@@ -1536,7 +1535,7 @@ unless formats_paths.empty?
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==0' \\( +clone +noise Random -blur 0x2 -threshold 50% \\) -compose Multiply -composite '#{inundation_tile_path}']
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_wet_tile_path}']
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_dry_tile_path}']
-    %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x1 -modulate 100,1,100 -auto-level -ordered-dither threshold,4 +level 55%,75% '#{rock_area_tile_path}']
+    %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x1 -modulate 100,1,100 -auto-level -ordered-dither threshold,4 +level 70%,95% '#{rock_area_tile_path}']
     
     config["patterns"].each do |label, string|
       if File.exists?(string)
@@ -1564,15 +1563,17 @@ unless formats_paths.empty?
       "aerial-lpi-towns",
       "aerial-lpi-ads40",
       "vegetation",
+      "rock-area",
       "pine",
       "orchards-plantations",
       "built-up-areas",
-      "rock-area",
       "contours",
       "ancillary-contours",
       "swamp-wet",
       "swamp-dry",
+      "sand",
       "inundation",
+      "cliffs",
       "cadastre",
       "act-cadastre",
       "watercourses",
@@ -1583,10 +1584,8 @@ unless formats_paths.empty?
       "water-areas-dry-boundaries",
       "water-areas",
       "water-area-boundaries",
-      "sand",
       "intertidal",
       "reef",
-      "cliffs",
       "clifftops",
       "rocks-pinnacles",
       "misc-perimeters",
@@ -1611,7 +1610,7 @@ unless formats_paths.empty?
       "caves",
       "towers",
       "windmills",
-      "lighthouses",
+      "beacons",
       "mines",
       "yards",
       "trig-points",
@@ -1711,11 +1710,5 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
 ].gsub(/\r?\n/, "\r\n")
   end
 end
-
-# TODO: finalise colours for unsealed roads, contours, controls, swamp, inundation
-# TODO: intervals for line labels
-# TODO: split rock-awash and rock-inland
-# TODO: sand below water?
-# TODO: combine buildings/towers/lighthouses/etc?
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

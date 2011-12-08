@@ -76,11 +76,14 @@ def http_post(uri, body, options = {}, &block)
   http_request uri, req, options, &block
 end
 
-def transform_coordinates(source_projection, target_projection, *source_coords)
-  source_string = source_coords.map { |coords| coords.join " " }.join "\r\n"
+def transform_coordinates_array(source_projection, target_projection, source_coords_array)
+  source_string = source_coords_array.map { |coords| coords.join " " }.join "\r\n"
   target_string = %x[echo "#{source_string}" | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"]
-  target_coords = target_string.split(/\r?\n/).map { |triplet| triplet.split(" ")[0..1].map { |number| number.to_f } }
-  source_coords.length > 1 ? target_coords : target_coords.flatten
+  target_string.split(/\r?\n/).map { |triplet| triplet.split(" ")[0..1].map { |number| number.to_f } }
+end
+
+def transform_coordinates(source_projection, target_projection, source_coords)
+  transform_coordinates_array(source_projection, target_projection, [ source_coords ]).flatten
 end
 
 def bounds_to_corners(bounds)
@@ -92,7 +95,7 @@ def corners_to_bounds(corners)
 end
 
 def transform_bounds(source_projection, target_projection, bounds)
-  corners_to_bounds(transform_coordinates(source_projection, target_projection, *bounds_to_corners(bounds)))
+  corners_to_bounds(transform_coordinates_array(source_projection, target_projection, bounds_to_corners(bounds)))
 end
 
 def bounds_intersect?(bounds1, bounds2)
@@ -584,41 +587,56 @@ class ControlService < AnnotationService
   def draw(bounds, projection, scaling, options)
     xml = REXML::Document.new(File.open params["path"])
     
-    waypoints, numbers = case
+    waypoints, names = case
     when xml.elements["/gpx"]
       xml.elements.collect("/gpx//wpt") do |element|
         [ [ element.attributes["lon"].to_f, element.attributes["lat"].to_f ], element.elements["name"].text ]
-      end.transpose
+      end
     when xml.elements["/kml"]
       xml.elements.collect("/kml//Placemark") do |element|
         [ element.elements["Point/coordinates"].text.split(',')[0..1].map { |coord| coord.to_f }, element.elements["name"].text ]
-      end.transpose
+      end
     else
       raise BadLayer.new("#{params["path"]} not a valid GPX or KML file")
-    end
+    end.select do |waypoint, name|
+      case options["name"]
+      when /control/ then name[/\d{2,3}|HH/]
+      when /waterdrop/ then name[/W/]
+      end
+    end.transpose
+    
+    return "" unless waypoints
     
     radius = params["diameter"] * scaling.ppi / 25.4 / 2
     strokewidth = params["thickness"] * scaling.ppi / 25.4
-    string = [ transform_coordinates("EPSG:4326", projection, *waypoints), numbers ].transpose.map do |coordinates, number|
+    family = params["family"]
+    fontsize = options["name"] == "waterdrops" ? params["waterdrop-size"] * 3.7 : params["fontsize"]
+    
+    string = [ transform_coordinates_array("EPSG:4326", projection, waypoints), names ].transpose.map do |coordinates, name|
       x = (coordinates.first - bounds.first.min) / scaling.metres_per_pixel
       y = (bounds.last.max - coordinates.last) / scaling.metres_per_pixel
+      cx, cy = bounds.map { |bound| bound.reverse.inject(:-) / scaling.metres_per_pixel }
+      
       case options["name"]
-      when "circles"
-        if number == "HH"
-          "-draw 'polygon #{x},#{y - radius} #{x + radius * Math::sqrt(0.75)},#{y + radius * 0.5}, #{x - radius * Math::sqrt(0.75)},#{y + radius * 0.5}'"
-        else
-          "-draw 'circle #{x},#{y} #{x + radius},#{y}'"
+      when "control-circles"
+        case name
+        when /HH/ then "-draw 'polygon #{x},#{y - radius} #{x + radius * Math::sqrt(0.75)},#{y + radius * 0.5}, #{x - radius * Math::sqrt(0.75)},#{y + radius * 0.5}'"
+        else "-draw 'circle #{x},#{y} #{x + radius},#{y}'"
         end
-      when "numbers"
-        "-draw \"text #{x + radius},#{y - radius} '#{number}'\""
+      when "control-labels"
+        "-draw \"text #{x + radius},#{y - radius} '#{name[/\d{2,3}|HH/]}'\""
+      when "waterdrops"
+        "-draw \"gravity Center text #{x - 0.5 * cx},#{y - 0.5 * cy} 'S'\""
       end
     end.join " "
     
     case options["name"]
-    when "circles"
+    when "control-circles"
       "-fill black -draw 'color 0,0 reset' -stroke white -strokewidth #{strokewidth} #{string}"
-    when "numbers"
-      "-fill black -draw 'color 0,0 reset' -fill white -pointsize #{params['fontsize']} -family 'Arial' -weight Normal #{string}"
+    when "control-labels"
+      "-fill black -draw 'color 0,0 reset' -fill white -pointsize #{fontsize} -family '#{family}' #{string}"
+    when "waterdrops"
+      "-fill black -draw 'color 0,0 reset' -stroke white -strokewidth #{strokewidth} -pointsize #{fontsize} -family 'Wingdings' #{string}"
     end
   rescue REXML::ParseException
     raise BadLayer.new("#{params["path"]} not a valid GPX or KML file")
@@ -653,9 +671,11 @@ relief:
   exaggeration: 1
 controls:
   file: controls.gpx
+  family: Arial
   fontsize: 14
   diameter: 7.0
   thickness: 0.2
+  waterdrop-size: 4.5
 formats:
   - png
   - layered.tif
@@ -715,8 +735,9 @@ colours:
   yards: '#000001'
   trig-points: '#000001'
   labels: '#000001'
+  waterdrops: '#0033ff'
   control-circles: '#9e00c0'
-  control-numbers: '#9e00c0'
+  control-labels: '#9e00c0'
   declination: '#000001'
   utm-grid: '#000001'
   utm-eastings: '#000001'
@@ -803,7 +824,7 @@ proj_path = File.join(output_dir, "#{map_name}.prj")
 
 scaling = Scaling.new(config["scale"], config["ppi"])
 
-centres = case
+centre = case
 when config["zone"] && config["eastings"] && config["northings"] then transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", "EPSG:4326", config.values_at("eastings", "northings").map { |bound| 0.5 * bound.inject(:+) })
 when config["zone"] && config["easting"]  && config["northing"]  && config["size"] then transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", "EPSG:4326", config.values_at("easting", "northing"))
 when config["longitudes"] && config["latitudes"] then config.values_at("longitudes", "latitudes").map { |bound| 0.5 * bound.inject(:+) }
@@ -811,9 +832,9 @@ when config["longitude"]  && config["latitude"]  && config["size"] then config.v
 else abort "Error: map extent must be provided as zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
 end
 
-projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{centres.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
-wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{centres.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
-nearest_utm = "+proj=utm +zone=#{centres.first > 150.0 ? 56 : centres.first > 144.0 ? 55 : 54 } +south +datum=WGS84"
+projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
+wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{centre.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
+nearest_utm = "+proj=utm +zone=#{centre.first > 150.0 ? 56 : centre.first > 144.0 ? 55 : 54 } +south +datum=WGS84"
 
 bounds = case
 when config["eastings"]   && config["northings"] then transform_bounds("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", projection, config.values_at("eastings", "northings"))
@@ -824,7 +845,7 @@ when config["size"]
   sizes_units = config["size"].match(size_regexp) { |captures| captures.values_at(1,3,4,6).each_slice(2).to_a }
   abort("Error: invalid map size: #{config["size"]}") unless sizes_units
   extents = sizes_units.map { |size, unit| size.to_f * multiplier[unit] * scaling.ppi * scaling.metres_per_pixel }
-  [ transform_coordinates("EPSG:4326", projection, centres), extents ].transpose.map do |coord, extent|
+  [ transform_coordinates("EPSG:4326", projection, centre), extents ].transpose.map do |coord, extent|
     [ coord - 0.5 * extent, coord + 0.5 * extent ]
   end
 end
@@ -909,9 +930,8 @@ act_dog = ArcIMS.new(
   })
 grid_service = GridService.new({ "projection" => nearest_utm }.merge config["grid"])
 declination_service = DeclinationService.new(config["declination"])
-control_service = ControlService.new({
-  "path" => config["controls"]["path"] || File.join(output_dir, config["controls"]["file"]),
-}.merge config["controls"])
+config["controls"]["path"] ||= File.join(output_dir, config["controls"].delete("file"))
+control_service = ControlService.new(config["controls"])
 lpi_ortho = LPIOrthoService.new(
   "host" => "lite.maps.nsw.gov.au",
   "tile_size" => 1024,
@@ -1435,8 +1455,9 @@ services = {
     "declination" => { }
   },
   control_service => {
-    "control-numbers" => { "name" => "numbers" },
-    "control-circles" => { "name" => "circles" }
+    "control-labels" => { "name" => "control-labels" },
+    "control-circles" => { "name" => "control-circles" },
+    "waterdrops" => { "name" => "waterdrops" },
   },
   lpi_ortho => {
     "aerial-lpi-ads40" => { "config" => "/ADS40ImagesConfig.js" },
@@ -1615,8 +1636,9 @@ unless formats_paths.empty?
       "yards",
       "trig-points",
       "labels",
+      "waterdrops",
       "control-circles",
-      "control-numbers",
+      "control-labels",
       "declination",
       "utm-grid",
       "utm-eastings",
@@ -1677,7 +1699,7 @@ oziexplorer_formats = [ "bmp", "png", "gif" ] & config["formats"]
 unless oziexplorer_formats.empty?
   oziexplorer_path = File.join(output_dir, "#{map_name}.map")
   image_path = File.join(output_dir, "#{map_name}.#{oziexplorer_formats.first}")
-  wgs84_corners = transform_coordinates(projection, "EPSG:4326", *bounds.inject(:product)).values_at(1,3,2,0)
+  wgs84_corners = transform_coordinates_array(projection, "EPSG:4326", bounds.inject(:product)).values_at(1,3,2,0)
   pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
   calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
     dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
@@ -1696,7 +1718,7 @@ Reserved 2
 Magnetic Variation,,,E
 Map Projection,Transverse Mercator,PolyCal,No,AutoCalOnly,Yes,BSBUseWPX,No
 #{calibration_strings.join("\n")}
-Projection Setup,0.000000000,#{centres.first},0.999600000,500000.00,10000000.00,,,,,
+Projection Setup,0.000000000,#{centre.first},0.999600000,500000.00,10000000.00,,,,,
 Map Feature = MF ; Map Comment = MC     These follow if they exist
 Track File = TF      These follow if they exist
 Moving Map Parameters = MM?    These follow if they exist

@@ -8,7 +8,7 @@ This software was originally designed for the production of rogaining maps and a
 Pre-Requisites
 ==============
 
-The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac, should work fine under linux/BSD, and is worth trying with Windows.
+The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac, should work fine under linux/BSD, and hopefully also with Windows.
 
 You will need to install several open-source tools before running the script:
 * The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.x, not 1.8.x. On Mac OS, Ruby should come with XCode when you install it, or you could use MacPorts. On Linux, just install Ruby using your system's package manager. On Windows, a complete Ruby installation can be [downloaded here](http://rubyinstaller.org/).
@@ -17,9 +17,11 @@ You will need to install several open-source tools before running the script:
 * If you plan to make further enhancements, manual corrections or additions to the map, you'll need a layer-based image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop.
 
 You can check that the tools are correctly installed by using the following commands:
-* ruby -v
-* identify -version
-* gdalwarp --version
+
+* `ruby -v`
+* `identify -version`
+* `gdalwarp --version`
+
 You should receive version information for each tool if it is installed correctly and in your path.
 
 2Gb should be considered the minimum memory requirement, and more is always better. (With only 2Gb, larger maps will start paging your memory to disk during the compositing steps. I can attest to this, as I used a 2Gb Mac for development.) You will also need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. (And don't bother with dialup!)
@@ -27,9 +29,11 @@ You should receive version information for each tool if it is installed correctl
 Usage
 =====
 
+The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. You only need to download the script itself, `nswtopo.rb`.
+
 You will first need to create a directory for the map you are building. Running the script will result in a large number of image files representing the map layers, so a directory is needed to contain them.
 
-In this directory, create and edit a configuration text file called `config.yml` which contains the bounds of the area you want mapped. (This format of this file is [YAML](http://en.wikipedia.org/wiki/YAML), though you don't really need to know this.) Specify the map bounds by providing minimum and maximum coordinates in each direction, as follows:
+In this directory, create and edit a configuration text file called `config.yml` which will contain the bounds of the area you want mapped. (This format of this file is [YAML](http://en.wikipedia.org/wiki/YAML), though you don't really need to know this.) Specify the map bounds in UTM by providing the UTM zone (54, 55 or 56 for NSW) and minimum and maximum eastings and northings, as follows:
 
     zone: 55
     eastings:
@@ -39,7 +43,7 @@ In this directory, create and edit a configuration text file called `config.yml`
       - 6014500
       - 6022500
 
-or,
+or, as latitude/longitude bounds:
 
     latitudes: 
       - -35.951221
@@ -48,9 +52,7 @@ or,
       - 149.383789
       - 149.489746
 
-(When specifying coordinates in UTM you must specify the UTM zone, which in NSW will be 54, 55 or 56.)
-
-Alternatively, you can specify a single coordinate for the map's centre, and a physical size for the map. The map size should be in units of `mm`, `cm` or `in`. For example:
+Alternatively, you can specify a single coordinate for the map's centre, and a physical size for the map at the scale you specify (1:25000 by default). The map size should be in units of `mm`, `cm` or `in`. For example:
 
     zone: 55
     easting: 691750
@@ -59,13 +61,13 @@ Alternatively, you can specify a single coordinate for the map's centre, and a p
 
 or,
 
-    latitude: -33.474050497749076
-    longitude: 150.13797998428345
+    latitude: -33.474050
+    longitude: 150.137979
     size: 6cm x 6cm
 
 (Make sure you get your map bounds correct the first time to avoid starting over with the downloads.)
 
-Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec priveleges (`chmod +x nswtopo.rb` or equivalent), you can run it directly (`./nswtopo.rb`; you may need to modify the hash-bang on line 1 to reflect the location of your ruby binary).
+Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your ruby binary).
 
 When the script starts it will list the scale of your map (e.g. 1:25000), its physical size and resolution (e.g. 38cm x 24cm @ 300 ppi) and its size in megapixels. For a 300 pixel-per-inch image (the default), an A3 map should be about 15 megapixels. An unexpectedly large or small number may indicate an error in your configuration file; similarly, if no topographic layers are downloaded, this probably indicates you've incorrectly specified bounds outside NSW.
 
@@ -91,24 +93,18 @@ It is also possible to construct your own Photoshop or GIMP document by hand, us
 Map Configuration
 =================
 
-By editing the `config.yml` file you can customise a number of aspects of your map, including the colour and patterns used for various features and which layers to exclude. If no other configuration is provided, reasonable defaults are used. The customisation options are shown below with their default values:
+By editing `config.yml` you can customise a number of aspects of your map, including the colour and patterns used for various features and which layers to exclude. If no other configuration is provided, reasonable defaults are used. The customisation options are shown below with their default values.
 
-    # Set the scale and print resolution of the map. 300-400 ppi is probably optimal for most maps, and
-    # gives a resolution of about 2.1 metres per pixel at 1:25000. Going beyond 400 ppi will not yield any
-    # more detail, will make the downloads slower and will blow out the megapixel count considerably. (The
-    # size of map features mostly scales with ppi but not with the map scale.)
+Set the scale and print resolution of the map as follows. 300-400 ppi is probably optimal for most maps, and gives a resolution of about 2.1 metres per pixel at 1:25000. Going beyond 400 ppi will not yield any more detail, will make the downloads slower and will blow out the megapixel count considerably. (The size of map features mostly scales with ppi but not with the map scale.)
 
     scale: 25000              # desired map scale (1:25000 in this case)
     ppi: 300                  # print resolution in pixels per inch
 
-    # Set the filename for the output map and related files.
+Set the filename for the output map and related files.
 
     name: map                 # filename to use for the final map image(s) and related georeferencing files
 
-    # Specify the contour spacing. The standard contour coverage is 10m for eastern NSW and 20m for central
-    # and western NSW (and most of the Snowy Mountains, disappointingly). Large scale contour data
-    # (source: 2) at 1m or 2m intervals seems limited to towns and coastal areas, and while attractive is
-    # probably not of much use as the contours do not match up with watercourse features very well.
+Specify the contour spacing. The standard contour coverage is 10m for eastern NSW and 20m for central and western NSW (and most of the Snowy Mountains, disappointingly). Large scale contour data (source: 2) at 1m or 2m intervals seems limited to towns and coastal areas, and while attractive is probably not of much use as the contours do not match up with watercourse features very well.
 
     contours:
       interval: 10            # contour interval in metres
@@ -117,16 +113,12 @@ By editing the `config.yml` file you can customise a number of aspects of your m
       source: 1               # elevation capture program: 1 for medium scale (1:25000 - 1:100000);
                               # 2 for large scale (1:1000 - 1:10000); 4 for contours derived from DEM.
 
-    # A layer containing lines of magnetic declination is automatically produced. The magnetic declination
-    # angle for the map centre is automatically retrieved from the Geoscience Australia website. (Override
-    # by specifying an `angle: ` value.)
+Specify spacing for the magnetic declination lines. This layer is automatically produced, using a magnetic declination angle for the map centre which is automatically retrieved from the Geoscience Australia website. (Override by specifying an `angle: ` value.) Magnetic declination is only really useful on a rogaining map.
 
     declination:
       spacing: 1000           # perpendicular spacing of magnetic declination lines in metres
 
-    # If the map is for general-purpose use, a UTM grid is generated for use with a GPS. Make sure
-    # to exclude either the UTM or declination layers, you don't want both. (For a rogaining map,
-    # the UTM is not needed and clutters up the map, so leave it out.)
+Specify UTM grid intervals and appearance. You should include the UTM grid if the map is for normal use. For a rogaining map, the UTM is not needed and clutters up the map, so leave it out.
 
     grid:
       intervals:              # horizontal and vertical spacing of UTM grid lines in metres
@@ -136,8 +128,7 @@ By editing the `config.yml` file you can customise a number of aspects of your m
       family: Arial Narrow    # font family of UTM grid labels
       weight: 200             # font weight of UTM grid labels
 
-    # Shaded relief and elevation layers are automatically produced from the ASTER digital elevation
-    # model. Shaded relief layers are generated using any azimuthal angles you specify.
+Shaded relief and elevation layers are automatically produced from the ASTER digital elevation model. Shaded relief layers are generated using any azimuthal angles you specify.
   
     relief:
       azimuth:                # azimuth angle for shaded relief layers (degrees clockwise from North)
@@ -146,11 +137,7 @@ By editing the `config.yml` file you can customise a number of aspects of your m
       altitude: 45            # angle of illumination from horizon (45 is standard)
       exaggeration: 1         # vertical exaggeration factor
 
-    # Drop a control waypoints file (in .gpx or .kml format) into the directory and layers containing
-    # control circles and numbers will be automatically generated. If a waypoint is name 'HH' it will
-    # be drawn as a triangle, otherwise a circle will be drawn. If a control has 'W' after its number
-    # (e.g. '74W'), or separate waypoints marked 'W1', 'W2' etc are found, those waypoints will be
-    # represented as water drops.
+Drop a control waypoints file (in .gpx or .kml format) into the directory and layers containing control circles and numbers will be automatically generated. If a waypoint is name 'HH' it will be drawn as a triangle, otherwise a circle will be drawn. If a control has 'W' after its number (e.g. '74W'), or separate waypoints marked 'W1', 'W2' etc are found, those waypoints will be represented as water drops.
 
     controls:
       file: controls.gpx      # filename (.gpx or .kml format) of control waypoint file
@@ -159,34 +146,20 @@ By editing the `config.yml` file you can customise a number of aspects of your m
       thickness: 0.2          # thickness of control circles in millimetres
       waterdrop-size: 4.5     # size of waterdrop icon in millimetres
 
-    # Specify the format(s) of the output map files you would like to create. Choose as many of
-    # `png`, `tif`, `gif`, `bmp`, `pdf`, `psd` and `layered.tif` as you need. TIFF files will be
-    # automatically georeferenced with geotiff tags for use with GIS software. If you specify
-    # PNG/GIF/BMP format, a `.map` file will be automatically generated for use with OziExplorer.
+Specify the format(s) of the output map files you would like to create. Choose as many of `png`, `tif`, `gif`, `bmp`, `pdf`, `psd` and `layered.tif` as you need. TIFFs will be automatically georeferenced with geotiff tags for use with GIS software. If you specify PNG/GIF/BMP format, a `.map` file will be automatically generated for use with OziExplorer.
 
     formats:
       - png                   # (default map output is in PNG and multi-layered TIFF format)
       - layered.tif
 
-    # Specify which layers to exclude from your map. This will prevent downloading of the layers and
-    # their inclusion in the final map. List each layer individually. Use the shortcuts `coastal`,
-    # `UTM` and `aerial` to exclude all coastal feature layers, UTM grid layers and aerial imagery
-    # layers, respectively.
+Specify which layers to exclude from your map. This will prevent downloading of the layers and their inclusion in the final map. List each layer individually. Use the shortcuts `coastal`, `UTM` and `aerial` to exclude all coastal feature layers, UTM grid layers and aerial imagery layers, respectively.
 
     exclude:
       - utm                   # (exclude UTM grid in favour of declination lines)
       - aerial-lpi-sydney     # (exclude hi-resolution sydney aerial imagery)
       - aerial-lpi-towns      # (exclude aerial imagery of towns and regional centres)
 
-    # Specify colours for individual topographic layers. Each colour should be specified as one of a
-    # recognised colour name (e.g. Red, Dark Magenta, Royal Blue), a quoted hex triplet (e.g. '#00FF00',
-    # '#2020e0', '#0033ff') or a decimal triplet (e.g. rgb(0,0,255), rgb(127,127,0)). The default color
-    # scheme closely matches the current 2nd-edition 25k NSW map sheets (except with brown contours,
-    # which I prefer).
-    #
-    # N.B. If a photoshop (psd) file is being produced, do not use pure grayscale colours, as an
-    # ImageMagick bug will produce will produce a faulty layer in this case. Instead substitute a
-    # slight colour hue, e.g. #000001 instead of black, #808081 instead of middle-grey.
+Specify colours for individual topographic layers. Each colour should be specified as one of a recognised colour name (e.g. Red, Dark Magenta, Royal Blue), a quoted hex triplet (e.g. '#00FF00', '#2020e0', '#0033ff') or a decimal triplet (e.g. rgb(0,0,255), rgb(127,127,0)). The default color scheme closely matches the current 2nd-edition 25k NSW map sheets (except with brown contours, which I prefer).
 
     colours:
       contours: '#9c3026'             # brown for contours
@@ -198,8 +171,9 @@ By editing the `config.yml` file you can customise a number of aspects of your m
       roads-sealed: 'Red'             # red for sealed roads
                                       # etc. etc.
 
-    # You can specify your own tiled pattern fills for various area layers if you really want to. Some
-    # of the default patterns are shown below. (You might be better doing this in Photoshop, however.)
+(N.B. If a photoshop (psd) file is being produced, do not use pure greyscale colours, as an ImageMagick bug will produce will produce a faulty layer in this case. Instead substitute a slight colour hue, e.g. #000001 instead of black, #808081 instead of middle-grey.)
+
+You can specify your own tiled pattern fills for various area layers if you really want to. Some of the default patterns are shown below. (You might be better off doing this in Photoshop, however.)
 
     patterns:
       sand:                   # a diagonal dot pattern for sand
@@ -229,7 +203,7 @@ An associated world file (.wld) and proj4 projection file (.prj) are produced fo
 
     geotifcp -e map.wld -4 map.prj your-edited-map.tif your-georeferenced-map.tif
 
-If you choose png, gif or bmp as an output format, a .map file will also be produced for use with OziExplorer. (Note that if you move the map image to a different location, you may need to edit the .map file to reflect that new location.)
+If you choose `png`, `gif` or `bmp` as an output format, a .map file will also be produced for use with OziExplorer. (Note that if you move the map image to a different location, you may need to edit the .map file to reflect that new location.)
 
 Layer Description
 =================
@@ -266,7 +240,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * swamp-dry: dry swampy land, in brown swamp pattern
 * cliffs: cliff sections, in grey bands
 * clifftops: tops of said cliffs, as dotted pink line
-* excavation: quarry faces, etc, as dotted gray line
+* excavation: quarry faces, etc, as dotted grey line
 * caves: caves and sinkholes, represented with small black icons
 * rocks-pinnacles: large boulders, tors and rock pinnacles, respresented as pink stars
 * built-up-areas: urban/residential areas, represented in light yellow
@@ -275,7 +249,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * building-areas: larger building complexes (e.g. shopping centres), represented in dark grey
 * dam-walls: constructed dam walls, represented in black
 * cable-ways: chairlifts and cable cars, respresented as solid or dash-dotted black lines respectively
-* misc-perimeters: miscellaneous perimeters dividing different land use, represented as thin dashed gray lines
+* misc-perimeters: miscellaneous perimeters dividing different land use, represented as thin dashed grey lines
 * towers: telecommuncation towers, etc, represented as small black squares
 * mines: quarries and other mining areas, represented as small black icons
 * yards: small stock yards, represented as black square outlines
@@ -284,7 +258,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * railways: heavy- and light-gauge railway lines, represented as black hashed lines
 * pipelines: water or other pipelines, represented as thin cyan lines
 * transmission-lines: high voltage electrical transmission lines, represented as black dot-dash lines
-* landing-grounds: landing strips as found on farms, etc, represented as dark gray lines
+* landing-grounds: landing strips as found on farms, etc, represented as dark grey lines
 * gates-grids: gates and grids on roads, represented as small black circular icons with two or one crossing lines, respectively
 * wharves: wharves and jetties, represented as black lines
 * cadastre: NSW cadastral lines (property boundaries), represented as thin, light grey lines
@@ -334,17 +308,37 @@ Keep in mind that these aerial images have been warped into an orthographic proj
 
 ## Elevation layers
 
-These are grayscale images giving elevation and shaded-relief depictions for the map terrain. They are derived from the global ASTER digital elevation model (DEM), which has a resolution of about 45 metres per pixel.
+These are greyscale images giving elevation and shaded-relief depictions for the map terrain. They are derived from the global ASTER digital elevation model (DEM), which has a resolution of about 45 metres per pixel.
 
-TODO!!
-* shaded-relief-315
-* shaded-relief-45
-* elevation
+* elevation: a linear greyscale image, with the lowest parts of the map in black and the highest parts in white
+* shaded-relief-315, shaded-relief-45, etc: shaded relief renderings for the map's terrain, using the azimuthal angles and terrain exaggeration specified in the configuration file; the number in the file corresponds to the azimuthal angle
+
+These layers can be used as a starting point for various relief shading techniques. These can be used to render a subtle three-dimensional feel to the map and can help the map reader intuitively assess the terrain being represented. (I would love to see rogaine maps with relief shading effects employed!) For further reading, see [shadedrelief.com](http://www.shadedrelief.com/) and [reliefshading.com](http://www.reliefshading.com/).
 
 Shortcomings
 ============
 
-TODO
-* labels
-* bad data (trig points, tracks)
-* missing data (spot heights, summit labels, watercourse cadastres, parks & reserves)
+A few shortcomings are sometimes evident in the generated map images. These can often be fixed by manually adjusting the relevant layer in Photoshop.
+
+* Feature labels sometimes conflict with other features on the map, or are more numerous than needed. This is easily fixed in the multilayered TIFF or PSD file by manually moving or deleting the offending label.
+* Data is not always complete or accurate. Since the map data represents the current contents of the NSW geospatial database, it reflects any errors the database contains. Aerial imagery may be helpful in identifying any such inaccuracies, which can subsequently corrected manually in the appropriate layer. Examples of inaccuracies I've observed include:
+  * the trig points layer does not always show every trig station in the map area;
+  * new dams on farms may not always be shown;
+  * the difference between vehicular and 4WD tracks is sometimes debatable; and
+  * firetrails and walking paths are sometimes absent.
+* Some classes of map data are not currently accessible through the NSW map servers, and are therefore missing from the map. These include:
+  * spot heights
+  * labels for some geographic features including summits, saddles and islands
+  * boundaries of NSW parks and reserves
+  * ancillary hydrographic features including waterfalls
+  * relative heights of cliffs
+  * points of interest
+* I have also neglected to include a number of obscure features that are unlikely to be found in bush and rural areas of interest.
+* The NSW map servers sometimes go offline. There is a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time). This is frustrating.
+
+Release History
+===============
+
+* 10/12/2011: version 0.1 (initial release)
+
+

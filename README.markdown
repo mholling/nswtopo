@@ -11,6 +11,7 @@ Pre-Requisites
 The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac, should work fine under linux/BSD, and hopefully also with Windows.
 
 You will need to install several open-source tools before running the script:
+
 * The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.x, not 1.8.x. On Mac OS, Ruby should come with XCode when you install it, or you could use MacPorts. On Linux, just install Ruby using your system's package manager. On Windows, a complete Ruby installation can be [downloaded here](http://rubyinstaller.org/).
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Again, install using MacPorts on Mac OS, your Linux package manager, or download a [pre-built binary](http://www.imagemagick.org/script/binary-releases.php) for Windows.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. The tools are available as a standalone package; install a binary from the GDAL downloads page, or use MacPorts or a package manager. You can also get the GDAL tools as part of [QGIS](http://www.qgis.org/), which you may wish to install if you need GIS software for viewing the output maps along with your own GPS data.
@@ -205,10 +206,10 @@ An associated world file (.wld) and proj4 projection file (.prj) are produced fo
 
 If you choose `png`, `gif` or `bmp` as an output format, a .map file will also be produced for use with OziExplorer. (Note that if you move the map image to a different location, you may need to edit the .map file to reflect that new location.)
 
-Layer Description
-=================
+Layer Descriptions
+==================
 
-## Topographic layers
+## Topographic Layers
 
 These are the primary topographic features and cover all of NSW and the ACT. The data is the same as is used in the printed NSW topo series; however a key advantage is that they will likely include newer features (firetrails in particular) not present on the printed maps.
 
@@ -266,7 +267,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * act-border: ACT border, represented as grey dash-dot-dot line
 * trig-points: trigonometric survey stations, represented as small black icons; not all trig points are present
 
-## Other topographic layers
+## Other Topographic Layers
 
 These are various layers which are not included in the composite map, but may be useful in other ways or to fill in missing information in the NSW data.
 
@@ -279,7 +280,7 @@ These are various layers which are not included in the composite map, but may be
 * act-vehicular-tracks: vehicular tracks, as derived from ACT map servers
 * act-adhoc-fire-access: various ad-hoc fire access, as derived from ACT map servers; may include walking tracks that are not represented in the NSW database
 
-## Aerial imagery
+## Aerial Imagery
 
 These are orthographic aerial images for the specified map area, derived from Google Maps, Nokia Maps, and the NSW LPI department. Depending on your map location there may be up to four different aerial images available.
 
@@ -296,7 +297,7 @@ Keep in mind that these aerial images have been warped into an orthographic proj
 * aerial-google: generally good quality, recent aerial imagery from Google Maps; limited to 250 tiles per six hour period
 * aerial-nokia: reasonable quality aerial imagery from Nokia Maps; limited to 250 tiles per six hours; georeferencing is not always the best and usually requires some manual nudging for best alignment
 
-## Annotation layers
+## Annotation Layers
 
 * utm-grid: represents a UTM grid
 * utm-eastings: annotates UTM eastings across the middle of the map
@@ -306,7 +307,7 @@ Keep in mind that these aerial images have been warped into an orthographic proj
 * control-circles: represents control numbers for rogaine courses
 * waterdrops: icons representing water drops for rogaine courses
 
-## Elevation layers
+## Elevation Layers
 
 These are greyscale images giving elevation and shaded-relief depictions for the map terrain. They are derived from the global ASTER digital elevation model (DEM), which has a resolution of about 45 metres per pixel.
 

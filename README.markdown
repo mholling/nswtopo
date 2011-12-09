@@ -8,13 +8,27 @@ This software was originally designed for the production of rogaining maps and a
 Pre-Requisites
 ==============
 
-The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac, should work fine under linux/BSD, and hopefully also with Windows.
+The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac, and should also work fine under linux/BSD, and hopefully also with Windows.
+
+The following open-source packages are required in order to run the script:
+
+* The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.x, not 1.8.x.
+* [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. (For full functionality, install the 16-bit version; the 8-bit version will run faster however you will not be able to generate elevation or shaded relief layers.)
+* The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data.
+
+
+ The tools are available as a standalone package; install the binaries from the GDAL downloads page or use MacPorts or a package manager. XXX TODO XXX
+* [libgeotiff](http://geotiff.osgeo.org), a TODO
+* If you plan to make further enhancements, manual corrections or additions to the map, you'll need a layer-based image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop.
+
+http://fwtools.maptools.org
 
 You will need to install several open-source tools before running the script:
-
-* The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.x, not 1.8.x. On Mac OS, Ruby should come with XCode when you install it, or you could use MacPorts. On Linux, just install Ruby using your system's package manager. On Windows, a complete Ruby installation can be [downloaded here](http://rubyinstaller.org/).
-* [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Again, install using MacPorts on Mac OS, your Linux package manager, or download a [pre-built binary](http://www.imagemagick.org/script/binary-releases.php) for Windows.
-* The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. The tools are available as a standalone package; install a binary from the GDAL downloads page, or use MacPorts or a package manager. You can also get the GDAL tools as part of [QGIS](http://www.qgis.org/), which you may wish to install if you need GIS software for viewing the output maps along with your own GPS data.
+TODO use package manager etc
+* The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.x, not 1.8.x. On Mac OS, Ruby should come with XCode when you install it, or you could use MacPorts. On Linux, just install Ruby using your system's package manager. On Windows, a complete Ruby installation can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH').
+* [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Again, install using MacPorts on Mac OS, your Linux package manager, or download a [pre-built binary](http://www.imagemagick.org/script/binary-releases.php) for Windows (be sure to select 'Add application directory to your system path'). For full functionality, install the 16-bit version; the 8-bit version will run faster however you will not be able to generate elevation or shaded relief layers.
+* The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. The tools are available as a standalone package; install the binaries from the GDAL downloads page or use MacPorts or a package manager. XXX TODO XXX
+* [libgeotiff](http://geotiff.osgeo.org), a TODO
 * If you plan to make further enhancements, manual corrections or additions to the map, you'll need a layer-based image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop.
 
 You can check that the tools are correctly installed by using the following commands:

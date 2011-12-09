@@ -243,6 +243,8 @@ class ArcIMS < Service
                             tag, tag_attributes = case value
                             when Range
                               [ "RANGE", { "lower" => value.min, "upper" => value.max } ]
+                            when nil
+                              [ "OTHER", { } ]
                             else
                               [ "EXACT", { "value" => value } ]
                             end
@@ -491,6 +493,7 @@ class GridService < Service
   def dataset(input_bounds, input_projection, scaling, label, options, dir)
     puts "Layer: #{label}"
     intervals, fontsize, family, weight = params.values_at("intervals", "fontsize", "family", "weight")
+    divisors = intervals.map { |interval| interval % 1000 == 0 ? 1000 : 1 }
     
     bounds = transform_bounds(input_projection, projection, input_bounds)
     extents = bounds.map { |bound| bound.max - bound.min }
@@ -516,12 +519,12 @@ class GridService < Service
     when "eastings"
       centre_pixel = tick_pixels.last[centre_indices.last]
       dx, dy = [ 0.04 * scaling.ppi ] * 2
-      string = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| "-draw \"translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick}'\"" }.join " "
+      string = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| "-draw \"translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick / divisors.first}'\"" }.join " "
       "-fill white -style Normal -pointsize #{fontsize} -family '#{family}' -weight #{weight} #{string}"
     when "northings"
       centre_pixel = tick_pixels.first[centre_indices.first]
       dx, dy = [ 0.04 * scaling.ppi ] * 2
-      string = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| "-draw \"text #{centre_pixel+dx},#{pixel-dy} '#{tick}'\"" }.join " "
+      string = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| "-draw \"text #{centre_pixel+dx},#{pixel-dy} '#{tick / divisors.last}'\"" }.join " "
       "-fill white -style Normal -pointsize #{fontsize} -family '#{family}' -weight #{weight} #{string}"
     end
     
@@ -888,20 +891,6 @@ cad_portlet = ArcIMS.new(
     "bounds" => [ [ 140.05983881892, 154.575951211079 ], [ -37.740334035, -27.924909045 ] ],
     "projection" => "EPSG:4283"
   })
-crown_portlet = ArcIMS.new(
-  "host" => "gsp.maps.nsw.gov.au",
-  "path" => "/servlet/com.esri.esrimap.Esrimap",
-  "name" => "crown_portlet",
-  "keep_host" => true,
-  "projection" => projection,
-  "wkt" => wkt,
-  "tile_sizes" => [ 1024, 1024 ],
-  "interval" => 0.1,
-  "dpi" => 74,
-  "envelope" => {
-    "bounds" => [ [ 140.05983881892, 154.575951211079 ], [ -37.740334035, -27.924909045 ] ],
-    "projection" => "EPSG:4283"
-  })
 act_heritage = ArcIMS.new(
   "host" => "www.gim.act.gov.au",
   "path" => "/arcims/ims",
@@ -979,16 +968,16 @@ services = {
         "label" => { "field" => "delivsdm:geodb.HydroLine.HydroName delivsdm:geodb.HydroLine.HydroNameType", "linelabelposition" => "placeabove" },
         "lookup" => "delivsdm:geodb.HydroLine.relevance",
         "text" => {
-          1 => { "fontsize" => 10.9, "printmode" => "allupper", "fontstyle" => "italic" },
-          2 => { "fontsize" => 10.1, "printmode" => "allupper", "fontstyle" => "italic" },
-          3 => { "fontsize" => 9.3, "printmode" => "allupper", "fontstyle" => "italic" },
-          4 => { "fontsize" => 8.5, "printmode" => "allupper", "fontstyle" => "italic" },
-          5 => { "fontsize" => 7.7, "printmode" => "titlecaps", "fontstyle" => "italic" },
-          6 => { "fontsize" => 6.9, "printmode" => "titlecaps", "fontstyle" => "italic" },
-          7 => { "fontsize" => 6.1, "printmode" => "titlecaps", "fontstyle" => "italic" },
-          8 => { "fontsize" => 5.3, "printmode" => "titlecaps", "fontstyle" => "italic" },
-          9 => { "fontsize" => 4.5, "printmode" => "titlecaps", "fontstyle" => "italic" },
-          10 => { "fontsize" => 3.7, "printmode" => "titlecaps", "fontstyle" => "italic" }
+          1 => { "fontsize" => 10.9, "printmode" => "allupper", "fontstyle" => "italic", "interval" => 2.0 },
+          2 => { "fontsize" => 10.1, "printmode" => "allupper", "fontstyle" => "italic", "interval" => 2.0 },
+          3 => { "fontsize" => 9.3, "printmode" => "allupper", "fontstyle" => "italic", "interval" => 2.0 },
+          4 => { "fontsize" => 8.5, "printmode" => "allupper", "fontstyle" => "italic", "interval" => 2.0 },
+          5 => { "fontsize" => 7.7, "printmode" => "titlecaps", "fontstyle" => "italic", "interval" => 2.0 },
+          6 => { "fontsize" => 6.9, "printmode" => "titlecaps", "fontstyle" => "italic", "interval" => 2.0 },
+          7 => { "fontsize" => 6.1, "printmode" => "titlecaps", "fontstyle" => "italic", "interval" => 1.5 },
+          8 => { "fontsize" => 5.3, "printmode" => "titlecaps", "fontstyle" => "italic", "interval" => 1.5 },
+          9 => { "fontsize" => 4.5, "printmode" => "titlecaps", "fontstyle" => "italic", "interval" => 1.5 },
+          10 => { "fontsize" => 3.7, "printmode" => "titlecaps", "fontstyle" => "italic", "interval" => 1.5 }
         }
       },
       { # waterbody labels
@@ -1008,8 +997,8 @@ services = {
         "lookup" => "delivsdm:geodb.RoadSegment.FunctionHierarchy",
         "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
         "text" => {
-          "1;2;3;4;5" => { "fontsize" => 4.5, "fontstyle" => "italic", "printmode" => "allupper" },
-          "6;7;8;9" => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper" },
+          "1;2;3;4;5" => { "fontsize" => 4.5, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 1.0 },
+          "6;7;8;9" => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 0.6 },
         }
       },
       { # fuzzy area labels
@@ -1017,10 +1006,22 @@ services = {
         "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
         "text" => { "fontsize" => 5.5, "printmode" => "allupper" }
       },
-      { # fuzzy line labels
+      { # fuzzy line labels (valleys, beaches)
         "from" => "FuzzyExtentLine_Label_1",
-        "label" => { "field" => "delivsdm:geodb.FuzzyExtentLine.GeneralName" },
-        "text" => { "fontsize" => 5.5, "printmode" => "allupper" }
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentLine.GeneralName", "linelabelposition" => "placeabove" },
+        "lookup" => "delivsdm:geodb.FuzzyExtentLine.fuzzylinefeaturetype",
+        "text" => {
+          18 => { "fontsize" => 5.5, "printmode" => "allupper", "interval" => 2.0 },
+          2 => { "fontsize" => 5.5, "printmode" => "allupper", "interval" => 0.2 },
+        }
+      },
+      { # fuzzy line labels (dunes, general, ranges)
+        "from" => "FuzzyExtentLine_Label_1",
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentLine.GeneralName", "linelabelposition" => "placeontop" },
+        "lookup" => "delivsdm:geodb.FuzzyExtentLine.fuzzylinefeaturetype",
+        "text" => {
+          "3;5;13" => { "fontsize" => 5.5, "printmode" => "allupper" }
+        }
       },
       { # building labels
         "from" => "BuildingComplexPoint_Label_1",
@@ -1365,13 +1366,6 @@ services = {
       "lookup" => "delivsdm:geodb.SurveyMark.ClassSubtype",
       "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 6, "character" => 180 } }
     },
-  },
-  crown_portlet => {
-    "crown-reserves" => {
-      "from" => "CrownReserve_Lot_1",
-      "lookup" => "delivsdm:geodb.crownaccountpolygon.crownlandsubtype",
-      "polygon" => { 1 => { } }
-    }
   },
   act_heritage => {
     "act-rivers-and-creeks" => {

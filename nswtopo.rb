@@ -6,8 +6,19 @@ require 'rexml/document'
 require 'tmpdir'
 require 'yaml'
 require 'fileutils'
+require 'rbconfig'
+
+Signal.trap("INT") do
+  puts
+  puts "Halting execution. Run the script again to resume map creation."
+  exit
+end
 
 EARTH_RADIUS = 6378137.0
+
+WINDOWS = !RbConfig::CONFIG["host_os"][/mswin|mingw/].nil?
+OP = WINDOWS ? '(' : '\('
+CP = WINDOWS ? ')' : '\)'
 
 class REXML::Element
   alias_method :unadorned_add_element, :add_element
@@ -76,14 +87,12 @@ def http_post(uri, body, options = {}, &block)
   http_request uri, req, options, &block
 end
 
-def transform_coordinates_array(source_projection, target_projection, source_coords_array)
-  source_string = source_coords_array.map { |coords| coords.join " " }.join "\r\n"
-  target_string = %x[echo "#{source_string}" | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"]
-  target_string.split(/\r?\n/).map { |triplet| triplet.split(" ")[0..1].map { |number| number.to_f } }
+def transform_coordinates(source_projection, target_projection, source_coords)
+  %x[echo #{source_coords.join(' ')} | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"].split(" ")[0..1].map { |number| number.to_f }
 end
 
-def transform_coordinates(source_projection, target_projection, source_coords)
-  transform_coordinates_array(source_projection, target_projection, [ source_coords ]).flatten
+def transform_coordinates_array(source_projection, target_projection, source_coords_array)
+  source_coords_array.map { |source_coords| transform_coordinates(source_projection, target_projection, source_coords) }
 end
 
 def bounds_to_corners(bounds)
@@ -274,11 +283,11 @@ class ArcIMS < Service
         get_uri = URI.parse xml.elements["/ARCXML/RESPONSE/IMAGE/OUTPUT"].attributes["url"]
         get_uri.host = params["host"] if params["keep_host"]
         http_get(get_uri, "retries" => 5) do |get_response|
-          File.open(tile_path, "w") { |file| file << get_response.body }
+          File.open(tile_path, "wb") { |file| file << get_response.body }
         end
       end
       
-      %x[mogrify -crop #{cropped_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 '#{tile_path}']
+      %x[mogrify -crop #{cropped_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{tile_path}"]
       [ cropped_bounds, scaling.metres_per_pixel, tile_path ]
     end
   end
@@ -333,10 +342,10 @@ class TiledMapService < Service
       retries_on_blank = params["retries_on_blank"] || 0
       (1 + retries_on_blank).times do
         http_get(uri, "retries" => 5) do |response|
-          File.open(tile_path, "w") { |file| file << response.body }
-          %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} -type TrueColor -depth 8 -format png -define png:color-type=2 '#{tile_path}']
+          File.open(tile_path, "wb") { |file| file << response.body }
+          %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} -type TrueColor -depth 8 -format png -define png:color-type=2 "#{tile_path}"]
         end
-        non_blank_fraction = %x[convert '#{tile_path}' -fill white +opaque black -format "%[fx:mean]" info:].to_f
+        non_blank_fraction = %x[convert "#{tile_path}" -fill white +opaque black -format "%[fx:mean]" info:].to_f
         break if non_blank_fraction > 0.995
       end
       
@@ -416,7 +425,7 @@ class LPIOrthoService < Service
       uri = URI::HTTP.build :host => params["host"], :path => "/ImageX/ImageX.dll", :query => URI.escape(query)
       tile_path = File.join(dir, "tile.#{index}.#{format["type"]}")
       http_get(uri, "retries" => 5) do |response|
-        File.open(tile_path, "w") { |file| file << response.body }
+        File.open(tile_path, "wb") { |file| file << response.body }
       end
       sleep params["interval"]
       [ tile_bounds, resolutions.first, tile_path ]
@@ -457,33 +466,33 @@ class OneEarthDEMRelief < Service
       uri = URI::HTTP.build :host => "onearth.jpl.nasa.gov", :path => "/wms.cgi", :query => URI.escape(query)
 
       http_get(uri, "retries" => 5) do |response|
-        File.open(tile_path, "w") { |file| file << response.body }
+        File.open(tile_path, "wb") { |file| file << response.body }
         write_world_file([ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, "#{tile_path}w")
         sleep params["interval"]
       end
-      "'#{tile_path}'"
+      %Q["#{tile_path}"]
     end
     
     vrt_path = File.join(dir, "dem.vrt")
     relief_path = File.join(dir, "output.tif")
     output_path = File.join(dir, "output.png")
-    %x[gdalbuildvrt '#{vrt_path}' #{tile_paths.join " "}]
+    %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
     
     case options["name"]
     when "shaded-relief"
       altitude = params["altitude"]
       azimuth = options["azimuth"]
       exaggeration = params["exaggeration"]
-      %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} '#{vrt_path}' '#{relief_path}' -q]
+      %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
     when "color-relief"
       colours = { "0%" => "black", "100%" => "white" }
       colour_path = File.join(dir, "colours.txt")
       File.open(colour_path, "w") do |file|
         colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
       end
-      %x[gdaldem color-relief '#{vrt_path}' '#{colour_path}' '#{relief_path}' -q]
+      %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
     end
-    %x[convert '#{relief_path}' -quiet -type TrueColor -depth 8 -define png:color-type=2 '#{output_path}']
+    %x[convert "#{relief_path}" -quiet -type TrueColor -depth 8 -define png:color-type=2 "#{output_path}"]
     
     [ [ bounds, units_per_pixel, output_path ] ]
   end
@@ -513,24 +522,24 @@ class GridService < Service
     
     draw_string = case options["name"]
     when "grid"
-      commands = [ "-draw 'line %d,0 %d,#{extents.last}'", "-draw 'line 0,%d #{extents.first},%d'" ]
+      commands = [ %Q[-draw "line %d,0 %d,#{extents.last}"], %Q[-draw "line 0,%d #{extents.first},%d"] ]
       string = [ tick_pixels, commands ].transpose.map { |pixelz, command| pixelz.map { |pixel| command % [ pixel, pixel ] }.join " "}.join " "
       "-stroke white -strokewidth 1 #{string}"
     when "eastings"
       centre_pixel = tick_pixels.last[centre_indices.last]
       dx, dy = [ 0.04 * scaling.ppi ] * 2
-      string = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| "-draw \"translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick / divisors.first}'\"" }.join " "
-      "-fill white -style Normal -pointsize #{fontsize} -family '#{family}' -weight #{weight} #{string}"
+      string = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| %Q[-draw "translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick / divisors.first}'"] }.join " "
+      %Q[-fill white -style Normal -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]
     when "northings"
       centre_pixel = tick_pixels.first[centre_indices.first]
       dx, dy = [ 0.04 * scaling.ppi ] * 2
-      string = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| "-draw \"text #{centre_pixel+dx},#{pixel-dy} '#{tick / divisors.last}'\"" }.join " "
-      "-fill white -style Normal -pointsize #{fontsize} -family '#{family}' -weight #{weight} #{string}"
+      string = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| %Q[-draw "text #{centre_pixel+dx},#{pixel-dy} '#{tick / divisors.last}'"] }.join " "
+      %Q[-fill white -style Normal -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]
     end
     
     dimensions = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
     path = File.join(dir, "#{options["name"]}.tif")
-    %x[convert -size #{dimensions.join 'x'} canvas:black -units PixelsPerInch -density #{scaling.ppi} -type TrueColor -depth 8 #{draw_string} '#{path}']
+    %x[convert -size #{dimensions.join 'x'} canvas:black -units PixelsPerInch -density #{scaling.ppi} -type TrueColor -depth 8 #{draw_string} "#{path}"]
 
     [ [ bounds, scaling.metres_per_pixel, path ] ]
   end
@@ -545,7 +554,7 @@ class AnnotationService < Service
   # TODO: this only works for a UTM grid!
   def post_process(path, bounds, projection, scaling, options, dir)
     draw_string = draw(bounds, projection, scaling, options)
-    %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} #{draw_string} '#{path}']
+    %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} #{draw_string} "#{path}"]
   end
 end
 
@@ -576,8 +585,8 @@ class DeclinationService < AnnotationService
       x_max = [ extents.first, extents.first + dx ].max
       line_count = (x_max - x_min) / x_spacing
       x_starts = (1..line_count).map { |n| x_min + n * x_spacing }
-      string = x_starts.map { |x| "-draw 'line #{x.to_i},0 #{(x - dx).to_i},#{extents.last}'" }.join " "
-      "-fill black -draw 'color 0,0 reset' -stroke white -strokewidth 1 #{string}"
+      string = x_starts.map { |x| %Q[-draw "line #{x.to_i},0 #{(x - dx).to_i},#{extents.last}"] }.join " "
+      %Q[-fill black -draw "color 0,0 reset" -stroke white -strokewidth 1 #{string}]
     end
   end
 end
@@ -614,6 +623,7 @@ class ControlService < AnnotationService
     strokewidth = params["thickness"] * scaling.ppi / 25.4
     family = params["family"]
     fontsize = options["name"] == "waterdrops" ? params["waterdrop-size"] * 3.7 : params["fontsize"]
+    weight = params["weight"]
     
     string = [ transform_coordinates_array("EPSG:4326", projection, waypoints), names ].transpose.map do |coordinates, name|
       x = (coordinates.first - bounds.first.min) / scaling.metres_per_pixel
@@ -623,23 +633,23 @@ class ControlService < AnnotationService
       case options["name"]
       when "control-circles"
         case name
-        when /HH/ then "-draw 'polygon #{x},#{y - radius} #{x + radius * Math::sqrt(0.75)},#{y + radius * 0.5}, #{x - radius * Math::sqrt(0.75)},#{y + radius * 0.5}'"
-        else "-draw 'circle #{x},#{y} #{x + radius},#{y}'"
+        when /HH/ then %Q[-draw "polygon #{x},#{y - radius} #{x + radius * Math::sqrt(0.75)},#{y + radius * 0.5}, #{x - radius * Math::sqrt(0.75)},#{y + radius * 0.5}"]
+        else %Q[-draw "circle #{x},#{y} #{x + radius},#{y}"]
         end
       when "control-labels"
-        "-draw \"text #{x + radius},#{y - radius} '#{name[/\d{2,3}|HH/]}'\""
+        %Q[-draw "text #{x + radius},#{y - radius} '#{name[/\d{2,3}|HH/]}'"]
       when "waterdrops"
-        "-draw \"gravity Center text #{x - 0.5 * cx},#{y - 0.5 * cy} 'S'\""
+        %Q[-draw "gravity Center text #{x - 0.5 * cx},#{y - 0.5 * cy} 'S'"]
       end
     end.join " "
     
     case options["name"]
     when "control-circles"
-      "-fill black -draw 'color 0,0 reset' -stroke white -strokewidth #{strokewidth} #{string}"
+      %Q[-fill black -draw "color 0,0 reset" -stroke white -strokewidth #{strokewidth} #{string}]
     when "control-labels"
-      "-fill black -draw 'color 0,0 reset' -fill white -pointsize #{fontsize} -family '#{family}' #{string}"
+      %Q[-fill black -draw "color 0,0 reset" -fill white -pointsize #{fontsize} -weight #{weight} -family "#{family}" #{string}]
     when "waterdrops"
-      "-fill black -draw 'color 0,0 reset' -stroke white -strokewidth #{strokewidth} -pointsize #{fontsize} -family 'Wingdings' #{string}"
+      %Q[-fill black -draw "color 0,0 reset" -stroke white -strokewidth #{strokewidth} -pointsize #{fontsize} -family Wingdings #{string}]
     end
   rescue REXML::ParseException
     raise BadLayer.new("#{params["path"]} not a valid GPX or KML file")
@@ -676,6 +686,7 @@ controls:
   file: controls.gpx
   family: Arial
   fontsize: 14
+  weight: 200
   diameter: 7.0
   thickness: 0.2
   waterdrop-size: 4.5
@@ -1486,20 +1497,20 @@ services.each do |service, layers|
             canvas_path = File.join(temp_dir, "canvas.tif")
             
             puts "  assembling..."
-            %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 '#{canvas_path}']
-            %x[geotifcp -c lzw -e '#{world_file_path}' -4 '#{projection}' '#{canvas_path}' '#{working_path}']
+            %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{canvas_path}"]
+            %x[geotifcp -c lzw -e "#{world_file_path}" -4 "#{projection}" "#{canvas_path}" "#{working_path}"]
             
             unless dataset.empty?
               dataset_paths = dataset.collect do |tile_bounds, resolution, path|
                 topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
                 write_world_file(topleft, resolution, "#{path}w")
-                "'#{path}'"
+                %Q["#{path}"]
               end
               
               resample = service.params["resample"] || "bilinear"
               vrt_path = File.join(temp_dir, "#{label}.vrt")
-              %x[gdalbuildvrt '#{vrt_path}' #{dataset_paths.join " "}]
-              %x[gdalwarp -s_srs "#{service.projection}" -dstalpha -r #{resample} '#{vrt_path}' '#{working_path}']
+              %x[gdalbuildvrt "#{vrt_path}" #{dataset_paths.join " "}]
+              %x[gdalwarp -s_srs "#{service.projection}" -dstalpha -r #{resample} "#{vrt_path}" "#{working_path}"]
             end
           
             if service.respond_to? :post_process
@@ -1507,7 +1518,7 @@ services.each do |service, layers|
               service.post_process(working_path, bounds, projection, scaling, options, temp_dir)
             end
         
-            %x[convert -quiet '#{working_path}' '#{output_path}']
+            %x[convert -quiet "#{working_path}" "#{output_path}"]
           end
         end
       end
@@ -1547,10 +1558,10 @@ unless formats_paths.empty?
     swamp_dry_tile_path = File.join(temp_dir, "tile-swamp-dry.tif");
     rock_area_tile_path = File.join(temp_dir, "tile-rock-area.tif");
     
-    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==0' \\( +clone +noise Random -blur 0x2 -threshold 50% \\) -compose Multiply -composite '#{inundation_tile_path}']
-    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_wet_tile_path}']
-    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx 'j%12==7' \\( +clone +noise Random -threshold 88% \\) -compose Multiply -composite -morphology Dilate '11: #{swamp}' '#{inundation_tile_path}' -compose Plus -composite '#{swamp_dry_tile_path}']
-    %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x1 -modulate 100,1,100 -auto-level -ordered-dither threshold,4 +level 70%,95% '#{rock_area_tile_path}']
+    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx "j%12==0" #{OP} +clone +noise Random -blur 0x2 -threshold 50% #{CP} -compose Multiply -composite "#{inundation_tile_path}"]
+    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx "j%12==7" #{OP} +clone +noise Random -threshold 88% #{CP} -compose Multiply -composite -morphology Dilate "11: #{swamp}" "#{inundation_tile_path}" -compose Plus -composite "#{swamp_wet_tile_path}"]
+    %x[convert -size 480x480 -virtual-pixel tile canvas: -fx "j%12==7" #{OP} +clone +noise Random -threshold 88% #{CP} -compose Multiply -composite -morphology Dilate "11: #{swamp}" "#{inundation_tile_path}" -compose Plus -composite "#{swamp_dry_tile_path}"]
+    %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x1 -modulate 100,1,100 -auto-level -ordered-dither threshold,4 +level 70%,95% "#{rock_area_tile_path}"]
     
     config["patterns"].each do |label, string|
       if File.exists?(string)
@@ -1565,7 +1576,7 @@ unless formats_paths.empty?
         tile.map! { |row| row.map { |number| number / maximum } }
         size = "#{tile.first.length}x#{tile.length}"
         kernel = "#{size}: #{tile.map { |row| row.join "," }.join " "}"
-        %x[convert -size #{size} -virtual-pixel tile canvas: -fx '(i==0)&&(j==0)' -morphology Convolve '#{kernel}' '#{tile_path}']
+        %x[convert -size #{size} -virtual-pixel tile canvas: -fx "(i==0)&&(j==0)" -morphology Convolve "#{kernel}" "#{tile_path}"]
       end
     end
     
@@ -1644,7 +1655,7 @@ unless formats_paths.empty?
     end.select do |label, path|
       File.exists? path
     end.reject do |label, path|
-      %x[convert -quiet '#{path}' -format '%[max]' info:].to_i == 0
+      %x[convert -quiet "#{path}" -format "%[max]" info:].to_i == 0
     end.with_progress.map do |label, path|
       layer_path = File.join(temp_dir, "#{label}.tif")
       tile_path = File.join(temp_dir, "tile-#{label}.tif")
@@ -1652,22 +1663,22 @@ unless formats_paths.empty?
       sequence = case
       when File.exist?(tile_path)
         if colour
-          "-alpha Copy \\( +clone -tile '#{tile_path}' -draw 'color 0,0 reset' -background '#{colour}' -alpha Shape \\) -compose In -composite"
+          %Q[-alpha Copy #{OP} +clone -tile "#{tile_path}" -draw "color 0,0 reset" -background "#{colour}" -alpha Shape #{CP} -compose In -composite]
         else
-          "-alpha Copy \\( +clone -tile '#{tile_path}' -draw 'color 0,0 reset' \\) -compose In -composite"
+          %Q[-alpha Copy #{OP} +clone -tile "#{tile_path}" -draw "color 0,0 reset" #{CP} -compose In -composite]
         end
       when colour
-        "-background '#{colour}' -alpha Shape"
+        %Q[-background "#{colour}" -alpha Shape]
       else
         ""
       end
-      %x[convert '#{path}' #{sequence} -type TrueColorMatte -depth 8 '#{layer_path}']
+      %x[convert "#{path}" #{sequence} -type TrueColorMatte -depth 8 "#{layer_path}"]
       [ label, layer_path ]
     end
     
     flattened, layered = [ " -flatten", "" ].map do |compose|
       layers.map do |label, layer_path|
-        "\\( '#{layer_path}' -set label #{label} \\)#{compose}"
+        %Q[#{OP} "#{layer_path}" -set label #{label} #{CP}#{compose}]
       end.join " "
     end
     
@@ -1679,9 +1690,9 @@ unless formats_paths.empty?
       when /layer/ then layered
       else "#{flattened} -type TrueColor"
       end
-      %x[convert -quiet #{sequence} '#{temp_path}']
+      %x[convert -quiet #{sequence} "#{temp_path}"]
       if format[/tif/i]
-        %x[geotifcp -e '#{world_file_path}' -4 '#{projection}' '#{temp_path}' '#{path}']
+        %x[geotifcp -e "#{world_file_path}" -4 "#{projection}" "#{temp_path}" "#{path}"]
       else
         FileUtils.mv(temp_path, path)
       end
@@ -1692,7 +1703,8 @@ end
 oziexplorer_formats = [ "bmp", "png", "gif" ] & config["formats"]
 unless oziexplorer_formats.empty?
   oziexplorer_path = File.join(output_dir, "#{map_name}.map")
-  image_path = File.join(output_dir, "#{map_name}.#{oziexplorer_formats.first}")
+  image_file = "#{map_name}.#{oziexplorer_formats.first}"
+  image_path = File.join(output_dir, image_file)
   wgs84_corners = transform_coordinates_array(projection, "EPSG:4326", bounds.inject(:product)).values_at(1,3,2,0)
   pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
   calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
@@ -1703,7 +1715,7 @@ unless oziexplorer_formats.empty?
   end
   File.open(oziexplorer_path, "w") do |file|
     file << %Q[OziExplorer Map Data File Version 2.2
-#{map_name}
+#{image_file}
 #{image_path}
 1 ,Map Code,
 WGS 84,WGS84,0.0000,0.0000,WGS84
@@ -1723,8 +1735,9 @@ MMPNUM,4
 MM1B,#{scaling.metres_per_pixel}
 MOP,Map Open Position,0,0
 IWH,Map Image Width/Height,#{dimensions.join(",")}
-].gsub(/\r?\n/, "\r\n")
+]
   end
 end
 
+# TODO: rework waterdrops?
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

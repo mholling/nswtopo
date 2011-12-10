@@ -1,43 +1,43 @@
 Summary
 =======
 
-This software allows you to download and compile high-resolution topographic maps from the NSW geospatial data servers, covering all of NSW and the ACT. The resulting maps include most of the features found in the printed NSW topographic map series. You can specify the exact extent of the area which you wish to map, as well as your desired print resolution (in pixels per inch) and scale (typically 1:25000 or 1:50000). You can obtain the map output as a single composite file, or a multi-layer file containing layers for each topographic feature (e.g. contours, watercourses, roads, etc). The output map is also georeferenced for use with map-viewing or GIS software.
+This software allows you to download and compile high-resolution topographic maps from the NSW geospatial data servers, covering all of NSW and the ACT. The resulting maps include most of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired print resolution (in pixels per inch) and scale (typically 1:25000 or 1:50000). You can obtain the map output as a single composite file, or a multi-layer file containing layers for each topographic feature (e.g. contours, watercourses, roads, etc). The output map is also georeferenced for use with map-viewing or GIS software.
 
-This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, and magnetic declination lines). However the software is useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
+This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, and magnetic declination lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
 
 Pre-Requisites
 ==============
 
-The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac, and should also work fine under linux/BSD, and hopefully also with Windows.
+The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac, has also been tested on Windows and should work fine under linux/BSD.
 
 The following open-source packages are required in order to run the script:
 
 * The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.x, not 1.8.x.
-* [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. (For full functionality, install the 16-bit version; the 8-bit version will run faster however you will not be able to generate elevation or shaded relief layers.)
+* [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data.
+* The [libgeotiff](http://geotiff.osgeo.org) library, for its `geotifcp` command for georeferencing images.
 
+If you plan to make further enhancements, manual corrections or additions to your maps, you'll also need a layer-based image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop.
 
- The tools are available as a standalone package; install the binaries from the GDAL downloads page or use MacPorts or a package manager. XXX TODO XXX
-* [libgeotiff](http://geotiff.osgeo.org), a TODO
-* If you plan to make further enhancements, manual corrections or additions to the map, you'll need a layer-based image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop.
-
-http://fwtools.maptools.org
-
-You will need to install several open-source tools before running the script:
-TODO use package manager etc
-* The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.x, not 1.8.x. On Mac OS, Ruby should come with XCode when you install it, or you could use MacPorts. On Linux, just install Ruby using your system's package manager. On Windows, a complete Ruby installation can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH').
-* [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Again, install using MacPorts on Mac OS, your Linux package manager, or download a [pre-built binary](http://www.imagemagick.org/script/binary-releases.php) for Windows (be sure to select 'Add application directory to your system path'). For full functionality, install the 16-bit version; the 8-bit version will run faster however you will not be able to generate elevation or shaded relief layers.
-* The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. The tools are available as a standalone package; install the binaries from the GDAL downloads page or use MacPorts or a package manager. XXX TODO XXX
-* [libgeotiff](http://geotiff.osgeo.org), a TODO
-* If you plan to make further enhancements, manual corrections or additions to the map, you'll need a layer-based image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop.
+* _Windows_:
+  * A complete Ruby 1.9 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
+  * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
+  * GDAL and libgeotiff are best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the FWTools Shell to run the `nswtopo.rb` script.
+* _Mac OS X_:
+  * ImageMagick, GDAL and libgeotif are best obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS. You will first need to install Xcode from your OS X disc or via download; follow the instructions on the MacPorts site. After MacPorts is installed, use it to install the packages as follows:
+    sudo port install libgeotiff gdal
+    sudo port install imagemagick +q8
+  * Depending on which Xcode version you have, Ruby 1.9.x may already be available; type `ruby -v` to find this out. Otherwise, you can install Ruby 1.9 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/).
+* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL and libgeotiff packages using your distro's package manager (RPM, Aptitude, etc).
 
 You can check that the tools are correctly installed by using the following commands:
 
 * `ruby -v`
 * `identify -version`
 * `gdalwarp --version`
+* `geotifcp`
 
-You should receive version information for each tool if it is installed correctly and in your path.
+You should receive version or help information for each tool if it is installed correctly and in your path.
 
 2Gb should be considered the minimum memory requirement, and more is always better. (With only 2Gb, larger maps will start paging your memory to disk during the compositing steps. I can attest to this, as I used a 2Gb Mac for development.) You will also need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. (And don't bother with dialup!)
 
@@ -82,7 +82,7 @@ or,
 
 (Make sure you get your map bounds correct the first time to avoid starting over with the downloads.)
 
-Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your ruby binary).
+Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your Ruby binary).
 
 When the script starts it will list the scale of your map (e.g. 1:25000), its physical size and resolution (e.g. 38cm x 24cm @ 300 ppi) and its size in megapixels. For a 300 pixel-per-inch image (the default), an A3 map should be about 15 megapixels. An unexpectedly large or small number may indicate an error in your configuration file; similarly, if no topographic layers are downloaded, this probably indicates you've incorrectly specified bounds outside NSW.
 
@@ -339,14 +339,16 @@ A few shortcomings are sometimes evident in the generated map images. These can 
 * Data is not always complete or accurate. Since the map data represents the current contents of the NSW geospatial database, it reflects any errors the database contains. Aerial imagery may be helpful in identifying any such inaccuracies, which can subsequently corrected manually in the appropriate layer. Examples of inaccuracies I've observed include:
   * the trig points layer does not always show every trig station in the map area;
   * new dams on farms may not always be shown;
+  * cliff areas are not always accurately located;
   * the difference between vehicular and 4WD tracks is sometimes debatable; and
-  * firetrails and walking paths are sometimes absent.
+  * firetrails and walking paths are sometimes absent or out-of-date.
 * Some classes of map data are not currently accessible through the NSW map servers, and are therefore missing from the map. These include:
   * spot heights
   * labels for some geographic features including summits, saddles and islands
   * boundaries of NSW parks and reserves
   * ancillary hydrographic features including waterfalls
   * relative heights of cliffs
+  * waterfalls and rapids
   * points of interest
 * I have also neglected to include a number of obscure features that are unlikely to be found in bush and rural areas of interest.
 * The NSW map servers sometimes go offline. There is a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time). This is frustrating.

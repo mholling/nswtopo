@@ -22,24 +22,26 @@ If you plan to make further enhancements, manual corrections or additions to you
 * _Windows_:
   * A complete Ruby 1.9 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
   * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
-  * GDAL and libgeotiff are best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the FWTools Shell to run the `nswtopo.rb` script.
+  * GDAL and libgeotiff are best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the _FWTools Shell_ to run the `nswtopo.rb` script.
 * _Mac OS X_:
-  * ImageMagick, GDAL and libgeotif are best obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS. You will first need to install Xcode from your OS X disc or via download; follow the instructions on the MacPorts site. After MacPorts is installed, use it to install the packages as follows:
+  * ImageMagick, GDAL and libgeotiff are best obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS. You will first need to install Xcode from your OS X disc or via download; follow the instructions on the MacPorts site. After MacPorts is installed, use it to install the packages as follows:
+  
     sudo port install libgeotiff gdal
     sudo port install imagemagick +q8
+  
   * Depending on which Xcode version you have, Ruby 1.9.x may already be available; type `ruby -v` to find this out. Otherwise, you can install Ruby 1.9 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/).
 * _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL and libgeotiff packages using your distro's package manager (RPM, Aptitude, etc).
 
 You can check that the tools are correctly installed by using the following commands:
 
-* `ruby -v`
-* `identify -version`
-* `gdalwarp --version`
-* `geotifcp`
+    ruby -v
+    identify -version
+    gdalwarp --version
+    geotifcp
 
-You should receive version or help information for each tool if it is installed correctly and in your path.
+You should receive version or usage information for each tool if it is installed correctly and in your path.
 
-2Gb should be considered the minimum memory requirement, and more is always better. (With only 2Gb, larger maps will start paging your memory to disk during the compositing steps. I can attest to this, as I used a 2Gb Mac for development.) You will also need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. (And don't bother with dialup!)
+2Gb should be considered the minimum memory requirement, and more is always better. (With only 2Gb, larger maps will start paging your memory to disk during the compositing steps. I can attest to this, as I used a 2Gb Mac for development.) You will also need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
 
 Usage
 =====
@@ -356,6 +358,6 @@ A few shortcomings are sometimes evident in the generated map images. These can 
 Release History
 ===============
 
-* 10/12/2011: version 0.1 (initial release)
+* 11/12/2011: version 0.1 (initial release)
 
 

@@ -971,7 +971,7 @@ services = {
         "where" => "MOD(elevation, #{config["contours"]["labels"]}) = 0 AND elevation > 0",
         "label" => { "field" => "delivsdm:geodb.Contour.Elevation", "linelabelposition" => "placeontop" },
         "lookup" => "delivsdm:geodb.Contour.sourceprogram",
-        "text" => { config["contours"]["source"] => { "fontsize" => 3.4 } }
+        "text" => { config["contours"]["source"] => { "fontsize" => 3.9, "fontstyle" => "italic" } }
       },
       { # watercourse labels
         "from" => "HydroLine_Label_1",

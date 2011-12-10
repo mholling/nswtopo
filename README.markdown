@@ -8,7 +8,7 @@ This software was originally designed for the production of rogaining maps and a
 Pre-Requisites
 ==============
 
-The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac, has also been tested on Windows and should work fine under linux/BSD.
+The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac, has also been tested on Windows and Ubuntu Linux.
 
 The following open-source packages are required in order to run the script:
 

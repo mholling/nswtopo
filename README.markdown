@@ -25,10 +25,10 @@ If you plan to make further enhancements, manual corrections or additions to you
   * GDAL and libgeotiff are best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the _FWTools Shell_ to run the `nswtopo.rb` script.
 * _Mac OS X_:
   * ImageMagick, GDAL and libgeotiff are best obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS. You will first need to install Xcode from your OS X disc or via download; follow the instructions on the MacPorts site. After MacPorts is installed, use it to install the packages as follows:
-  
+
     sudo port install libgeotiff gdal
     sudo port install imagemagick +q8
-  
+
   * Depending on which Xcode version you have, Ruby 1.9.x may already be available; type `ruby -v` to find this out. Otherwise, you can install Ruby 1.9 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/).
 * _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL and libgeotiff packages using your distro's package manager (RPM, Aptitude, etc).
 

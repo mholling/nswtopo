@@ -986,12 +986,12 @@ services = {
         "where" => "MOD(elevation, #{config["contours"]["labels"]}) = 0 AND elevation > 0",
         "label" => { "field" => "delivsdm:geodb.Contour.Elevation", "linelabelposition" => "placeontop" },
         "lookup" => "delivsdm:geodb.Contour.sourceprogram",
-        "text" => { config["contours"]["source"] => { "fontsize" => 3.9, "fontstyle" => "italic" } }
+        "text" => { config["contours"]["source"] => { "fontsize" => 4.2, "fontstyle" => "italic" } }
       },
       { # watercourse labels
         "from" => "HydroLine_Label_1",
         "where" => "ClassSubtype = 1",
-        "label" => { "field" => "delivsdm:geodb.HydroLine.HydroName delivsdm:geodb.HydroLine.HydroNameType", "linelabelposition" => "placeabove" },
+        "label" => { "field" => "delivsdm:geodb.HydroLine.HydroName delivsdm:geodb.HydroLine.HydroNameType", "linelabelposition" => "placeabovebelow" },
         "lookup" => "delivsdm:geodb.HydroLine.relevance",
         "text" => {
           1 => { "fontsize" => 10.9, "printmode" => "allupper", "fontstyle" => "italic", "interval" => 2.0 },
@@ -1018,13 +1018,15 @@ services = {
         "lookup" => "delivsdm:geodb.FuzzyExtentWaterArea.classsubtype",
         "text" => { 2 => { "fontsize" => 4.2, "fontstyle" => "italic", "printmode" => "titlecaps" } }
       },
-      { # road labels
+      { # road/track/pathway labels
         "from" => "RoadSegment_Label_1",
         "lookup" => "delivsdm:geodb.RoadSegment.FunctionHierarchy",
         "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
         "text" => {
-          "1;2;3;4;5" => { "fontsize" => 4.5, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 1.0 },
-          "6;7;8;9" => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 0.6 },
+          "1;2" => { "fontsize" => 6.4, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 1.0 },
+          "3;4;5" => { "fontsize" => 5.4, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 1.0 },
+          "6;8;9" => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 0.6 },
+          7 => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 0.6 },
         }
       },
       { # fuzzy area labels
@@ -1034,7 +1036,7 @@ services = {
       },
       { # fuzzy line labels (valleys, beaches)
         "from" => "FuzzyExtentLine_Label_1",
-        "label" => { "field" => "delivsdm:geodb.FuzzyExtentLine.GeneralName", "linelabelposition" => "placeabove" },
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentLine.GeneralName", "linelabelposition" => "placeabovebelow" },
         "lookup" => "delivsdm:geodb.FuzzyExtentLine.fuzzylinefeaturetype",
         "text" => {
           18 => { "fontsize" => 5.5, "printmode" => "allupper", "interval" => 2.0 },
@@ -1046,23 +1048,23 @@ services = {
         "label" => { "field" => "delivsdm:geodb.FuzzyExtentLine.GeneralName", "linelabelposition" => "placeontop" },
         "lookup" => "delivsdm:geodb.FuzzyExtentLine.fuzzylinefeaturetype",
         "text" => {
-          "3;5;13" => { "fontsize" => 5.5, "printmode" => "allupper" }
+          "3;5;13" => { "fontsize" => 6.5, "printmode" => "allupper" }
         }
       },
       { # building labels
         "from" => "BuildingComplexPoint_Label_1",
         "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName" },
-        "text" => { "fontsize" => 3, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 }
+        "text" => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 }
       },
       { # cave labels
         "from" => "DLSPoint_Label_1",
         "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
         "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName" },
-        "text" => { 1 => { "fontsize" => 3, "printmode" => "titlecaps", "interval" => 2.0 } }
+        "text" => { 1 => { "fontsize" => 4.8, "printmode" => "titlecaps", "interval" => 2.0 } }
       },
       { # cableway labels
         "from" => "Cableway_Label_1",
-        "label" => { "field" => "delivsdm:geodb.Cableway.GeneralName" },
+        "label" => { "field" => "delivsdm:geodb.Cableway.GeneralName", "linelabelposition" => "placeabovebelow" },
         "lookup" => "delivsdm:geodb.Cableway.ClassSubtype",
         "text" => { "1;2" => { "fontsize" => 3, "fontstyle" => "italic", "printmode" => "allupper", "font" => "Arial Narrow", "interval" => 0.5 } }
       },
@@ -1755,4 +1757,5 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
 end
 
 # TODO: rework waterdrops?
+# TODO: add glow to labels?
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

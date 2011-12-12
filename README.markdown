@@ -37,12 +37,12 @@ You can check that the tools are correctly installed by using the following comm
 
 You should receive version or usage information for each tool if it is installed correctly and in your path.
 
-2Gb should be considered the minimum memory requirement, and more is always better. (With only 2Gb, larger maps will start paging your memory to disk during the compositing steps. I can attest to this, as I used a 2Gb Mac for development.) You will also need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
+A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. (On small amounts of memory, the software will still run, but the compositing step will cause memory paging to disk and become extremely slow.) Make sure you also have plenty of disk space to accommodate the intermediate image files that are generated. Finally, you will need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
 
 Usage
 =====
 
-The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. You only need to download the script itself, `nswtopo.rb`.
+The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. You only need to download the script itself, `nswtopo.rb`. Download by clicking the 'ZIP' button, or simply copying and pasting the script out of your browser.
 
 You will first need to create a directory for the map you are building. Running the script will result in a large number of image files representing the map layers, so a directory is needed to contain them.
 
@@ -207,6 +207,19 @@ You can specify your own tiled pattern fills for various area layers if you real
         000000000
         000000000
 
+Finally, specify any layers which you would like to be lifted slightly with a 'glow' effect. This is simply a slight glow behind the label text to enhance its contrast against the map beneath. (By default, glow is applied to labels, UTM eastings and UTM northings.) The default glow effect should be sufficient in most cases.
+
+    glow:
+      labels: true      # specify 'true' to apply the default glow (white, 80% strength, 0.2mm thick) ...
+      utm-eastings:     # ... or you can override the colour, strength and/or size individually
+        colour: white   # white-coloured glow
+        amount: 50      # 50% strength
+        radius: 0.1     # 0.1mm thickness
+      utm-northings:
+        colour: white
+        amount: 50
+        radius: 0.1
+
 Georeferencing
 ==============
 
@@ -348,12 +361,14 @@ A few shortcomings are sometimes evident in the generated map images. These can 
   * relative heights of cliffs
   * waterfalls and rapids
   * points of interest
-* I have also neglected to include a number of obscure features that are unlikely to be found in bush and rural areas of interest.
+* I have left out a number of obscure mand-made features that are unlikely to be found in bush and rural areas of interest.
+* For the time being, if you need a legend you'll need to create it manually.
+* Map orientation is fixed at true-north upwards; it is not currently possible to align the map to another direction (e.g. magnetic north).
 * The NSW map servers sometimes go offline. There is a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time). This is frustrating.
 
 Release History
 ===============
 
-* 11/12/2011: version 0.1 (initial release)
+* 12/12/2011: version 0.1 (initial release)
 
 

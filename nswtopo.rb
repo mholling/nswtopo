@@ -47,7 +47,7 @@ end
 class Hash
   def deep_merge(hash)
     hash.inject(self.dup) do |result, (key, value)|
-      result.merge(key => result[key].is_a?(Hash) ? result[key].deep_merge(value) : value)
+      result.merge(key => result[key].is_a?(Hash) && value.is_a?(Hash) ? result[key].deep_merge(value) : value)
     end
   end
   
@@ -836,6 +836,14 @@ patterns:
     000000000
     000000000
     000000000
+glow:
+  labels: true
+  utm-eastings:
+    amount: 50
+    radius: 0.1
+  utm-northings:
+    amount: 50
+    radius: 0.1
 ]
 ).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
 
@@ -1689,6 +1697,13 @@ unless formats_paths.empty?
       else
         ""
       end
+      if config["glow"][label]
+        glow = { "colour" => "white", "radius" => 0.15, "amount" => 80, "gamma" => 1 }
+        glow.merge! config["glow"][label] if config["glow"][label].is_a? Hash
+        colour, radius, amount, gamma = glow.values_at("colour", "radius", "amount", "gamma")
+        sigma = radius * scaling.ppi / 25.4
+        sequence += %Q[ #{OP} +clone -alpha Extract -blur 0x#{sigma} -normalize +level 0%,#{amount}% -background "#{colour}" -alpha Shape #{CP} -compose dst-over -composite]
+      end
       %x[convert "#{path}" #{sequence} -type TrueColorMatte -depth 8 "#{layer_path}"]
       [ label, layer_path ]
     end
@@ -1757,5 +1772,4 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
 end
 
 # TODO: rework waterdrops?
-# TODO: add glow to labels?
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

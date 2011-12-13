@@ -746,6 +746,8 @@ colours:
   dam-walls: '#000001'
   cableways: '#000001'
   wharves: '#000001'
+  bridges-culverts: '#000001'
+  floodways: '#0033ff'
   pathways: '#000001'
   tracks-4wd: 'Dark Orange'
   tracks-vehicular: 'Dark Orange'
@@ -839,10 +841,8 @@ patterns:
 glow:
   labels: true
   utm-eastings:
-    amount: 50
     radius: 0.1
   utm-northings:
-    amount: 50
     radius: 0.1
 ]
 ).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
@@ -1168,10 +1168,10 @@ services = {
       "where" => "(Surface = 0 OR Surface = 1) AND ClassSubtype != 8",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => {
-        "1;2;3" => { "width" => 7 },
-        "4;5"   => { "width" => 5 },
-        "6"     => { "width" => 3 },
-        "7"     => { "width" => 2 }
+        "1;2;3" => { "width" => 7, "captype" => "round" },
+        "4;5"   => { "width" => 5, "captype" => "round" },
+        "6"     => { "width" => 3, "captype" => "round" },
+        "7"     => { "width" => 2, "captype" => "round" }
       }
     },
     "roads-unsealed" => {
@@ -1180,10 +1180,10 @@ services = {
       "where" => "Surface = 2",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => {
-        "1;2;3" => { "width" => 7 },
-        "4;5"   => { "width" => 5 },
-        "6"     => { "width" => 3 },
-        "7"     => { "width" => 2 }
+        "1;2;3" => { "width" => 7, "captype" => "round" },
+        "4;5"   => { "width" => 5, "captype" => "round" },
+        "6"     => { "width" => 3, "captype" => "round" },
+        "7"     => { "width" => 2, "captype" => "round" }
       }
     },
     "tracks-vehicular" => {
@@ -1191,20 +1191,44 @@ services = {
       "from" => "RoadSegment_1",
       "where" => "Surface = 2",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => { 8 => { "width" => 2, "type" => "dash" } },
+      "line" => { 8 => { "width" => 2, "type" => "dash", "captype" => "round" } },
     },
     "tracks-4wd" => {
       "scale" => 0.4,
       "from" => "RoadSegment_1",
       "where" => "Surface = 3 OR Surface = 4",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => { 8 => { "width" => 2, "type" => "dash" } },
+      "line" => { 8 => { "width" => 2, "type" => "dash", "captype" => "round" } },
     },
     "pathways" => {
       "scale" => 0.4,
       "from" => "RoadSegment_1",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => { 9 => { "width" => 2, "type" => "dash" } },
+      "line" => { 9 => { "width" => 2, "type" => "dash", "captype" => "round" } },
+    },
+    "bridges-culverts" => {
+      "scale" => 0.4,
+      "from" => "RoadSegment_1",
+      "where" => "RoadOnType = 2 OR RoadOnType = 5",
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => {
+        "1;2;3" => { "width" => 10, "captype" => "square" },
+        "4;5"   => { "width" => 8, "captype" => "square" },
+        "6;8"   => { "width" => 6, "captype" => "square" },
+        "7"     => { "width" => 5, "captype" => "square" },
+      }
+    },
+    "floodways" => {
+      "scale" => 0.4,
+      "from" => "RoadSegment_1",
+      "where" => "RoadOnType = 4",
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => {
+        "1;2;3" => { "width" => 10, "captype" => "square" },
+        "4;5"   => { "width" => 8, "captype" => "square" },
+        "6;8"   => { "width" => 6, "captype" => "square" },
+        "7"     => { "width" => 5, "captype" => "square" },
+      }
     },
     "buildings" => {
       "from" => "GeneralCulturalPoint_1",
@@ -1434,16 +1458,16 @@ services = {
         "from" => 42,
         "lookup" => "RTYPE_TEXT",
         "line" => {
-          "MAIN ROAD" => { "width" => 7 },
-          "LOCAL CONNECTOR ROAD" => { "width" => 5 },
-          "SEALED ROAD" => { "width" => 3 }
+          "MAIN ROAD" => { "width" => 7, "captype" => "round" },
+          "LOCAL CONNECTOR ROAD" => { "width" => 5, "captype" => "round" },
+          "SEALED ROAD" => { "width" => 3, "captype" => "round" }
         }
       },
       {
         "scale" => 0.4,
         "from" => 67,
         "lookup" => "RTYPE_TEXT",
-        "line" => { "HIGHWAY" => { "width" => 7 } }
+        "line" => { "HIGHWAY" => { "width" => 7, "captype" => "round" } }
       }
     ],
     "act-roads-unsealed" => {
@@ -1451,7 +1475,7 @@ services = {
       "from" => 42,
       "lookup" => "RTYPE_TEXT",
       "line" => {
-        "UNSEALED ROAD" => { "width" => 3 }
+        "UNSEALED ROAD" => { "width" => 3, "captype" => "round" }
       }
     },
     "act-vehicular-tracks" => {
@@ -1459,7 +1483,7 @@ services = {
       "from" => 42,
       "lookup" => "RTYPE_TEXT",
       "line" => {
-        "VEHICULAR TRACK" => { "width" => 2, "type" => "dash" }
+        "VEHICULAR TRACK" => { "width" => 2, "type" => "dash", "captype" => "round" }
       },
     },
     "act-border" => {
@@ -1473,7 +1497,7 @@ services = {
       "from" => 39,
       "scale" => 0.4,
       "lookup" => "STANDARD",
-      "line" => { "Adhoc" => { "width" => 2, "type" => "dash" } }
+      "line" => { "Adhoc" => { "width" => 2, "type" => "dash", "captype" => "round" } }
     }
   },
   grid_service => {
@@ -1647,6 +1671,8 @@ unless formats_paths.empty?
       "pipelines",
       "act-border",
       "pathways",
+      "bridges-culverts",
+      "floodways",
       "tracks-4wd",
       "tracks-vehicular",
       "roads-unsealed",

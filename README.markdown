@@ -213,11 +213,11 @@ Finally, specify any layers which you would like to be lifted slightly with a 'g
       labels: true      # specify 'true' to apply the default glow (white, 80% strength, 0.2mm thick) ...
       utm-eastings:     # ... or you can override the colour, strength and/or size individually
         colour: white   # white-coloured glow
-        amount: 50      # 50% strength
+        amount: 80      # 80% strength
         radius: 0.1     # 0.1mm thickness
       utm-northings:
         colour: white
-        amount: 50
+        amount: 80
         radius: 0.1
 
 Georeferencing
@@ -256,6 +256,8 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * tracks-vehicular: unsealed vehicular tracks, represented as orange dashed lines
 * tracks-4wd: 4wd tracks, represented as smaller  orange dashed lines
 * pathways: various walking tracks, represented as thinner black dashed lines
+* bridges-culverts: road sections across bridges and culverts, in black
+* floodways: road sections across floodways, in blue
 * buildings: single buildings (e.g. homesteads), respresented as black squares
 * intertidal: intertidal areas, in dotted blue
 * inundation: land subject to inundation, in broken horizontal cyan lines

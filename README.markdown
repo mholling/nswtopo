@@ -372,5 +372,7 @@ Release History
 ===============
 
 * 12/12/2011: version 0.1 (initial release)
+  * 13/12/2011: version 0.1.1: added bridges, floodways, fixed narrow gaps in roads
+
 
 

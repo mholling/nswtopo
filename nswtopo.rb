@@ -30,6 +30,7 @@ Signal.trap("INT") do
 end
 
 EARTH_RADIUS = 6378137.0
+WGS84 = "EPSG:4326"
 
 WINDOWS = !RbConfig::CONFIG["host_os"][/mswin|mingw/].nil?
 OP = WINDOWS ? '(' : '\('
@@ -344,7 +345,7 @@ class TiledMapService < Service
         [ origin + index * tile_size * metres_per_pixel, origin + (index + 1) * tile_size * metres_per_pixel ]
       end
       
-      longitude, latitude = transform_coordinates(projection, "EPSG:4326", centre)
+      longitude, latitude = transform_coordinates(projection, WGS84, centre)
       
       attributes = [ "longitude", "latitude", "zoom", "format", "hsize", "vsize", "name" ]
       values     = [  longitude,   latitude,   zoom,   format,      *tile_sizes,   name  ]
@@ -451,7 +452,7 @@ end
 class OneEarthDEMRelief < Service
   def initialize(params)
     super(params)
-    @projection = "EPSG:4326"
+    @projection = WGS84
   end
   
   def dataset(input_bounds, input_projection, scaling, label, options, dir)
@@ -513,23 +514,39 @@ class OneEarthDEMRelief < Service
   end
 end
 
-class GridService < Service
+class UTMGridService < Service
+  def self.zone(projection, coords)
+    (transform_coordinates(projection, WGS84, coords).first / 6).floor + 31
+  end
+  
+  attr_reader :zone
+  
+  def initialize(params)
+    super(params)
+    @zone = params["zone"]
+    @projection = "+proj=utm +zone=#{zone} +south +datum=WGS84"
+  end
+  
+  def zone_contains?(coords)
+    UTMGridService.zone(projection, coords) == zone
+  end
+  
+  def pixel_for(coords, bounds, scaling)
+    [ coords, bounds, [ 1, -1 ] ].transpose.map.with_index do |(coord, bound, sign), index|
+      ((coord - bound[index]) * sign / scaling.metres_per_pixel).round
+    end
+  end
+    
   def dataset(input_bounds, input_projection, scaling, label, options, dir)
     puts "Layer: #{label}"
+    puts "  calculating..."
     intervals, fontsize, family, weight = params.values_at("intervals", "fontsize", "family", "weight")
-    divisors = intervals.map { |interval| interval % 1000 == 0 ? 1000 : 1 }
-    
     bounds = transform_bounds(input_projection, projection, input_bounds)
-    extents = bounds.map { |bound| bound.max - bound.min }
     
     tick_indices = [ bounds, intervals ].transpose.map do |bound, interval|
       ((bound.first / interval).floor .. (bound.last / interval).ceil).to_a
     end
     tick_coords = [ tick_indices, intervals ].transpose.map { |indices, interval| indices.map { |index| index * interval } }
-    tick_pixels = [ tick_coords, bounds, [ 1, -1 ] ].transpose.map.with_index do |(coords, bound, sign), index|
-      coords.map { |coord| ((coord - bound[index]) * sign / scaling.metres_per_pixel).round }
-    end
-    
     centre_coords = bounds.map { |bound| 0.5 * bound.inject(:+) }
     centre_indices = [ centre_coords, tick_indices, intervals ].transpose.map do |coord, indices, interval|
       indices.index((coord / interval).round)
@@ -537,22 +554,38 @@ class GridService < Service
     
     draw_string = case options["name"]
     when "grid"
-      commands = [ %Q[-draw "line %d,0 %d,#{extents.last}"], %Q[-draw "line 0,%d #{extents.first},%d"] ]
-      string = [ tick_pixels, commands ].transpose.map { |pixelz, command| pixelz.map { |pixel| command % [ pixel, pixel ] }.join " "}.join " "
+      string = [ :to_a, :reverse ].map do |order|
+        tick_coords.send(order).first.map do |perpendicular_coord|
+          line_coords = tick_coords.send(order).last.map do |parallel_coord|
+            [ perpendicular_coord, parallel_coord ].send(order)
+          end.select { |coords| zone_contains? coords }
+          line_coords.length > 1 ? [ line_coords.first, line_coords.last ] : nil
+        end.compact
+      end.inject(:+).map do |end_coords|
+        end_coords.map { |coords| pixel_for coords, bounds, scaling }
+      end.map do |end_pixels|
+        %Q[-draw "line #{end_pixels.first.first},#{end_pixels.first.last} #{end_pixels.last.first},#{end_pixels.last.last}"]
+      end.join " "
       "-stroke white -strokewidth 1 #{string}"
-    when "eastings"
-      centre_pixel = tick_pixels.last[centre_indices.last]
-      dx, dy = [ 0.04 * scaling.ppi ] * 2
-      string = [ tick_pixels, tick_coords ].transpose.first.transpose.map { |pixel, tick| %Q[-draw "translate #{pixel-dx},#{centre_pixel-dy} rotate -90 text 0,0 '#{tick / divisors.first}'"] }.join " "
-      %Q[-fill white -style Normal -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]
-    when "northings"
-      centre_pixel = tick_pixels.first[centre_indices.first]
-      dx, dy = [ 0.04 * scaling.ppi ] * 2
-      string = [ tick_pixels, tick_coords ].transpose.last.transpose.map { |pixel, tick| %Q[-draw "text #{centre_pixel+dx},#{pixel-dy} '#{tick / divisors.last}'"] }.join " "
+    when "eastings", "northings"
+      margin = 0.04 * scaling.ppi
+      eastings = options["name"] == "eastings"
+      index = eastings ? 0 : 1
+      angle = eastings ? -90 : 0
+      divisor = intervals[index] % 1000 == 0 ? 1000 : 1
+      string = tick_coords[index].map do |coord|
+        [ coord, tick_coords[1-index][centre_indices[1-index]] ].send(index == 0 ? :to_a : :reverse)
+      end.select do |coords|
+        zone_contains? coords
+      end.map do |coords|
+        [ pixel_for(coords, bounds, scaling), coords[index] ]
+      end.map do |pixel, coord|
+        %Q[-draw "translate #{pixel.first},#{pixel.last} rotate #{angle} text #{margin},#{-margin} '#{coord / divisor}'"]
+      end.join " "
       %Q[-fill white -style Normal -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]
     end
     
-    dimensions = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
+    dimensions = bounds.map { |bound| ((bound.max - bound.min) / scaling.metres_per_pixel).ceil }
     path = File.join(dir, "#{options["name"]}.tif")
     %x[convert -size #{dimensions.join 'x'} canvas:black -units PixelsPerInch -density #{scaling.ppi} -type TrueColor -depth 8 #{draw_string} "#{path}"]
 
@@ -566,7 +599,6 @@ class AnnotationService < Service
     []
   end
   
-  # TODO: this only works for a UTM grid!
   def post_process(path, bounds, projection, scaling, options, dir)
     draw_string = draw(bounds, projection, scaling, options)
     %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} #{draw_string} "#{path}"]
@@ -575,7 +607,7 @@ end
 
 class DeclinationService < AnnotationService
   def get_declination(coords, projection)
-    wgs84_coords = transform_coordinates(projection, "EPSG:4326", coords)
+    wgs84_coords = transform_coordinates(projection, WGS84, coords)
     degrees_minutes_seconds = wgs84_coords.map do |coord|
       [ (coord > 0 ? 1 : -1) * coord.abs.floor, (coord.abs * 60).floor % 60, (coord.abs * 3600).round % 60 ]
     end
@@ -640,7 +672,7 @@ class ControlService < AnnotationService
     fontsize = options["name"] == "waterdrops" ? params["waterdrop-size"] * 3.7 : params["fontsize"]
     weight = params["weight"]
     
-    string = [ transform_coordinates_array("EPSG:4326", projection, waypoints), names ].transpose.map do |coordinates, name|
+    string = [ transform_coordinates_array(WGS84, projection, waypoints), names ].transpose.map do |coordinates, name|
       x = (coordinates.first - bounds.first.min) / scaling.metres_per_pixel
       y = (bounds.last.max - coordinates.last) / scaling.metres_per_pixel
       cx, cy = bounds.map { |bound| bound.reverse.inject(:-) / scaling.metres_per_pixel }
@@ -770,9 +802,15 @@ colours:
   control-circles: '#9e00c0'
   control-labels: '#9e00c0'
   declination: '#000001'
-  utm-grid: '#000001'
-  utm-eastings: '#000001'
-  utm-northings: '#000001'
+  utm-54-grid: '#000001'
+  utm-54-eastings: '#000001'
+  utm-54-northings: '#000001'
+  utm-55-grid: '#000001'
+  utm-55-eastings: '#000001'
+  utm-55-northings: '#000001'
+  utm-56-grid: '#000001'
+  utm-56-eastings: '#000001'
+  utm-56-northings: '#000001'
 patterns:
   pine:
     00000000100000000000001111111111100000
@@ -840,15 +878,17 @@ patterns:
     000000000
 glow:
   labels: true
-  utm-eastings:
-    radius: 0.1
-  utm-northings:
-    radius: 0.1
+  utm-54-eastings: true
+  utm-54-northings: true
+  utm-55-eastings: true
+  utm-55-northings: true
+  utm-56-eastings: true
+  utm-56-northings: true
 ]
 ).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
 
 {
-  "utm" => %w{utm-grid utm-eastings utm-northings},
+  "utm" => %w{utm-54-grid utm-54-eastings utm-54-northings utm-55-grid utm-55-eastings utm-55-northings utm-56-grid utm-56-eastings utm-56-northings},
   "aerial" => %w{aerial-google aerial-nokia aerial-lpi-sydney aerial-lpi-eastcoast aerial-lpi-towns aerial-lpi-ads40},
   "coastal" => %w{ocean reef intertidal coastline wharves}
 }.each do |shortcut, layers|
@@ -862,8 +902,8 @@ proj_path = File.join(output_dir, "#{map_name}.prj")
 scaling = Scaling.new(config["scale"], config["ppi"])
 
 centre = case
-when config["zone"] && config["eastings"] && config["northings"] then transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", "EPSG:4326", config.values_at("eastings", "northings").map { |bound| 0.5 * bound.inject(:+) })
-when config["zone"] && config["easting"]  && config["northing"]  && config["size"] then transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", "EPSG:4326", config.values_at("easting", "northing"))
+when config["zone"] && config["eastings"] && config["northings"] then transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("eastings", "northings").map { |bound| 0.5 * bound.inject(:+) })
+when config["zone"] && config["easting"]  && config["northing"]  && config["size"] then transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("easting", "northing"))
 when config["longitudes"] && config["latitudes"] then config.values_at("longitudes", "latitudes").map { |bound| 0.5 * bound.inject(:+) }
 when config["longitude"]  && config["latitude"]  && config["size"] then config.values_at("longitude", "latitude")
 else abort "Error: map extent must be provided as zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
@@ -871,18 +911,17 @@ end
 
 projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
 wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{centre.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
-nearest_utm = "+proj=utm +zone=#{centre.first > 150.0 ? 56 : centre.first > 144.0 ? 55 : 54 } +south +datum=WGS84"
 
 bounds = case
 when config["eastings"]   && config["northings"] then transform_bounds("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", projection, config.values_at("eastings", "northings"))
-when config["longitudes"] && config["latitudes"] then transform_bounds("EPSG:4326", projection, config.values_at("longitudes", "latitudes"))
+when config["longitudes"] && config["latitudes"] then transform_bounds(WGS84, projection, config.values_at("longitudes", "latitudes"))
 when config["size"]
   size_regexp = /(\d+(\.\d+)?)\s*(mm|cm|in|")\s*[x,]\s*(\d+(\.\d+)?)\s*(mm|cm|in|")/
   multiplier = { "mm" => 1 / 25.4, "cm" => 10 / 25.4, "in" => 1.0, '"' => 1.0 }
   sizes_units = config["size"].match(size_regexp) { |captures| captures.values_at(1,3,4,6).each_slice(2).to_a }
   abort("Error: invalid map size: #{config["size"]}") unless sizes_units
   extents = sizes_units.map { |size, unit| size.to_f * multiplier[unit] * scaling.ppi * scaling.metres_per_pixel }
-  [ transform_coordinates("EPSG:4326", projection, centre), extents ].transpose.map do |coord, extent|
+  [ transform_coordinates(WGS84, projection, centre), extents ].transpose.map do |coord, extent|
     [ coord - 0.5 * extent, coord + 0.5 * extent ]
   end
 end
@@ -951,7 +990,6 @@ act_dog = ArcIMS.new(
     "bounds" => [ [ 659890.105040274, 720782.12808229 ], [ 6022931.0546655, 6111100.93973127 ] ],
     "projection" => "EPSG:32755"
   })
-grid_service = GridService.new({ "projection" => nearest_utm }.merge config["grid"])
 declination_service = DeclinationService.new(config["declination"])
 config["controls"]["path"] ||= File.join(output_dir, config["controls"].delete("file"))
 control_service = ControlService.new(config["controls"])
@@ -982,6 +1020,17 @@ google_maps = TiledMapService.new(
   "resample" => "cubic"
 )
 oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
+
+zones = bounds.inject(:product).map { |corner| UTMGridService.zone(projection, corner) }.uniq
+utm_layers = zones.map do |zone|
+  {
+    UTMGridService.new({ "zone" => zone, "resample" => "cubic" }.merge config["grid"]) => {
+      "utm-#{zone}-grid" => { "name" => "grid" },
+      "utm-#{zone}-eastings" => { "name" => "eastings" },
+      "utm-#{zone}-northings" => { "name" => "northings" }
+    }
+  }
+end.inject(:merge)
 
 services = {
   topo_portlet => {
@@ -1500,11 +1549,6 @@ services = {
       "line" => { "Adhoc" => { "width" => 2, "type" => "dash", "captype" => "round" } }
     }
   },
-  grid_service => {
-    "utm-grid" => { "name" => "grid" },
-    "utm-eastings" => { "name" => "eastings" },
-    "utm-northings" => { "name" => "northings" }
-  },
   declination_service => {
     "declination" => { }
   },
@@ -1530,7 +1574,7 @@ services = {
   end.inject(:merge).merge(
     "elevation" => { "name" => "color-relief" }
   ),
-}
+}.merge utm_layers
 
 services.each do |service, layers|
   layers.reject do |label, options|
@@ -1696,9 +1740,15 @@ unless formats_paths.empty?
       "control-circles",
       "control-labels",
       "declination",
-      "utm-grid",
-      "utm-eastings",
-      "utm-northings"
+      "utm-54-grid",
+      "utm-54-eastings",
+      "utm-54-northings",
+      "utm-55-grid",
+      "utm-55-eastings",
+      "utm-55-northings",
+      "utm-56-grid",
+      "utm-56-eastings",
+      "utm-56-northings"
     ].reject do |label|
       config["exclude"].include? label
     end.map do |label|
@@ -1763,7 +1813,7 @@ unless oziexplorer_formats.empty?
   oziexplorer_path = File.join(output_dir, "#{map_name}.map")
   image_file = "#{map_name}.#{oziexplorer_formats.first}"
   image_path = File.join(output_dir, image_file)
-  wgs84_corners = transform_coordinates_array(projection, "EPSG:4326", bounds.inject(:product)).values_at(1,3,2,0)
+  wgs84_corners = transform_coordinates_array(projection, WGS84, bounds.inject(:product)).values_at(1,3,2,0)
   pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
   calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
     dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|

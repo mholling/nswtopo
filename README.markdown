@@ -211,19 +211,15 @@ Finally, specify any layers which you would like to be lifted slightly with a 'g
 
     glow:
       labels: true      # specify 'true' to apply the default glow (white, 80% strength, 0.2mm thick) ...
-      utm-eastings:     # ... or you can override the colour, strength and/or size individually
+      utm-55-eastings:     # ... or you can override the colour, strength and/or size individually
         colour: white   # white-coloured glow
         amount: 80      # 80% strength
-        radius: 0.1     # 0.1mm thickness
-      utm-northings:
-        colour: white
-        amount: 80
-        radius: 0.1
+        radius: 0.2     # 0.2mm thickness
 
 Georeferencing
 ==============
 
-The map projection used is transverse mercator, with a central meridian corresponding to the map's centre. This conformal projection is ideal for topographic maps. A grid for the nearest UTM zone (usually zone 55 or 56) can be added to the map (for use with a GPS) by including the UTM grid layers. All output layers (including the aerial imagery and shaded relief layers) are precisely aligned and in the same projection.
+The map projection used is transverse mercator, with a central meridian corresponding to the map's centre. This conformal projection is ideal for topographic maps. A grid for the relevant UTM zone(s) (usually zone 55 or 56) can be added to the map (for use with a GPS) by including the UTM grid layers. All output layers (including the aerial imagery and shaded relief layers) are precisely aligned and in the same projection.
 
 An associated world file (.wld) and proj4 projection file (.prj) are produced for the map. If you use Photoshop or GIMP to manually edit your map, the georeferencing tags will be lost. You can use these files and the `geotifcp` command to georeference your final map as a GeoTIFF (do not crop your image at all):
 
@@ -326,9 +322,9 @@ Keep in mind that these aerial images have been warped into an orthographic proj
 
 ## Annotation Layers
 
-* utm-grid: represents a UTM grid
-* utm-eastings: annotates UTM eastings across the middle of the map
-* utm-northings: annotates UTM northings across the middle of the map
+* utm-XX-grid: represents a UTM grid for zone XX (zone determined by map bounds)
+* utm-XX-eastings: annotates UTM eastings for zone XX across the middle of the map
+* utm-XX-northings: annotates UTM northings for zone XX down the middle of the map
 * declination: represents lines of magnetic declination for map area
 * control-numbers: represents control circles for rogaine courses
 * control-circles: represents control numbers for rogaine courses
@@ -373,6 +369,6 @@ Release History
 
 * 12/12/2011: version 0.1 (initial release)
   * 13/12/2011: version 0.1.1: added bridges, floodways, fixed narrow gaps in roads
-  * version 0.1.2: reworked UTM grid to display correctly across zone boundaries
+  * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
 
 

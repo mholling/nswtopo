@@ -3,7 +3,7 @@ Summary
 
 This software allows you to download and compile high-resolution topographic maps from the NSW geospatial data servers, covering all of NSW and the ACT. The resulting maps include most of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired print resolution (in pixels per inch) and scale (typically 1:25000 or 1:50000). You can obtain the map output as a single composite file, or a multi-layer file containing layers for each topographic feature (e.g. contours, watercourses, roads, etc). The output map is also georeferenced for use with map-viewing or GIS software.
 
-This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, and magnetic declination lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
+This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
 
 Pre-Requisites
 ==============
@@ -112,6 +112,10 @@ Set the scale and print resolution of the map as follows. 300-400 ppi is probabl
 
     scale: 25000              # desired map scale (1:25000 in this case)
     ppi: 300                  # print resolution in pixels per inch
+
+Set the map rotation angle. This is the angle of the map in a clockwise direction relative to true north. (So for a rotation angle of 20, true north on the map will be 20 degrees to the left of vertical.) If a non-zero map rotation is used, there will be a slight degradation in quality, however the output at 300+ ppi will still be good. The special value "magnetic" will cause the map to be aligned with magnetic north.
+
+    rotation: 0               # angle of rotation of map (or "magnetic" to align with magnetic north)
 
 Set the filename for the output map and related files.
 

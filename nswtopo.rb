@@ -71,6 +71,12 @@ class Array
       puts
     end
   end
+  
+  def rotate(angle)
+    cos = Math::cos(angle * Math::PI / 180.0)
+    sin = Math::sin(angle * Math::PI / 180.0)
+    [ self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos ]
+  end
 end
 
 InternetError = Class.new(Exception)
@@ -129,12 +135,12 @@ def bounds_intersect?(bounds1, bounds2)
   end.inject(:&)
 end
 
-def write_world_file(topleft, resolution, radians, path)
+def write_world_file(topleft, resolution, angle, path)
   File.open(path, "w") do |file|
-    file.puts  resolution * Math::cos(radians)
-    file.puts -resolution * Math::sin(radians)
-    file.puts -resolution * Math::sin(radians)
-    file.puts -resolution * Math::cos(radians)
+    file.puts  resolution * Math::cos(angle * Math::PI / 180.0)
+    file.puts -resolution * Math::sin(angle * Math::PI / 180.0)
+    file.puts -resolution * Math::sin(angle * Math::PI / 180.0)
+    file.puts -resolution * Math::cos(angle * Math::PI / 180.0)
     file.puts topleft.first + 0.5 * resolution
     file.puts topleft.last - 0.5 * resolution
   end
@@ -623,9 +629,9 @@ class DeclinationService < AnnotationService
   def draw(centre, projection, dimensions, scaling, rotation, options)
     spacing = params["spacing"]
     declination = get_declination(centre, projection)
-    radians = (declination - rotation) * Math::PI / 180.0
-    x_spacing = spacing / Math::cos(radians) / scaling.metres_per_pixel
-    dx = dimensions.last * Math::tan(radians)
+    angle = declination - rotation
+    x_spacing = spacing / Math::cos(angle * Math::PI / 180.0) / scaling.metres_per_pixel
+    dx = dimensions.last * Math::tan(angle * Math::PI / 180.0)
     x_min = [ 0, dx ].min
     x_max = [ dimensions.first, dimensions.first + dx ].max
     line_count = ((x_max - x_min) / x_spacing).ceil
@@ -677,10 +683,7 @@ class ControlService < AnnotationService
     
     string = [ transform_coordinates_array(WGS84, projection, waypoints), names ].transpose.map do |coords, name|
       offsets = [ coords, centre, [ 1, -1 ] ].transpose.map { |coord, cent, sign| (coord - cent) * sign / scaling.metres_per_pixel }
-      cos = Math::cos(rotation * Math::PI / 180.0)
-      sin = Math::sin(rotation * Math::PI / 180.0)
-      x, y = [ offsets[0] * cos + offsets[1] * sin, offsets[1] * cos - offsets[0] * sin ]
-      
+      x, y = offsets.rotate(-rotation)
       case options["name"]
       when "control-circles"
         case name
@@ -1002,9 +1005,6 @@ oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3, "resample" => "bili
 rotation = config["rotation"]
 rotation = declination_service.get_declination(wgs84_centre, WGS84) if rotation == "magnetic"
 abort "Error: map rotation must be between -45 and +45 degrees" unless rotation.abs <= 45
-radians = rotation * Math::PI / 180.0
-cos = Math::cos(radians)
-sin = Math::sin(radians)
 
 services = {
   topo_portlet => {
@@ -1566,19 +1566,19 @@ else
     transform_coordinates_array(WGS84, projection, config.values_at("longitudes", "latitudes").inject(:product))
   end.map do |corner|
     [ corner, centre ].transpose.map { |corner_coord, center_coord| corner_coord - center_coord }
-  end.map do |x, y|
-    [ 2 * (x * cos - y * sin).abs, 2 * (x * sin + y * cos).abs ]
+  end.map do |difference|
+    difference.rotate(rotation).map { |value| 2 * value.abs }
   end.transpose.map do |candidate_extents|
     candidate_extents.max
   end
 end
 dimensions = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
 
-topleft = [ centre.first + 0.5 * extents.last * sin - 0.5 * extents.first * cos, centre.last + 0.5 * extents.last * cos + 0.5 * extents.first * sin ]
+topleft = [ centre, extents.rotate(rotation), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
 world_file_path = File.join(output_dir, "#{map_name}.wld")
-write_world_file(topleft, scaling.metres_per_pixel, radians, world_file_path)
+write_world_file(topleft, scaling.metres_per_pixel, rotation, world_file_path)
 
-enlarged_extents = [ extents.first * cos + extents.last * sin.abs, extents.first * sin.abs + extents.last * cos ]
+enlarged_extents = [ extents.first * Math::cos(rotation * Math::PI / 180.0) + extents.last * Math::sin(rotation * Math::PI / 180.0).abs, extents.first * Math::sin(rotation * Math::PI / 180.0).abs + extents.last * Math::cos(rotation * Math::PI / 180.0) ]
 bounds = [ centre, enlarged_extents ].transpose.map { |coord, extent| [ coord - 0.5 * extent, coord + 0.5 * extent ] }
 
 bounds.inject(:product).map { |corner| UTMGridService.zone(projection, corner) }.uniq.each do |zone|
@@ -1828,11 +1828,16 @@ unless formats_paths.empty?
 end
 
 oziexplorer_formats = [ "bmp", "png", "gif" ] & config["formats"]
-unless oziexplorer_formats.empty? || true # TODO: reimplement OziExplorer georeferencing for rotated maps!
+unless oziexplorer_formats.empty?
   oziexplorer_path = File.join(output_dir, "#{map_name}.map")
   image_file = "#{map_name}.#{oziexplorer_formats.first}"
   image_path = File.join(output_dir, image_file)
-  wgs84_corners = transform_coordinates_array(projection, WGS84, bounds.inject(:product)).values_at(1,3,2,0)
+  corners = dimensions.map do |dimension|
+    [ -0.5 * dimension * scaling.metres_per_pixel, 0.5 * dimension * scaling.metres_per_pixel ]
+  end.inject(:product).map do |offsets|
+    [ centre, offsets.rotate(-rotation) ].transpose.map { |coord, offset| coord + offset }
+  end
+  wgs84_corners = transform_coordinates_array(projection, WGS84, corners).values_at(1,3,2,0)
   pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
   calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
     dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
@@ -1866,8 +1871,8 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: reimplement OziExplorer georeferencing for rotated maps
 # TODO: allow map bounds to be specified by a set of points which must be on the map (with margin)
+# TODO: implement rotating calipers algorithm to find best rectangle/rotation for arbitrary points
 # TODO: replace all simple markers with truetype markers to allow rotation?
 # TODO: rework waterdrops?
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

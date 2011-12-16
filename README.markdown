@@ -365,7 +365,8 @@ A few shortcomings are sometimes evident in the generated map images. These can 
   * points of interest
 * I have left out a number of obscure mand-made features that are unlikely to be found in bush and rural areas of interest.
 * For the time being, if you need a legend you'll need to create it manually.
-* Map orientation is fixed at true-north upwards; it is not currently possible to align the map to another direction (e.g. magnetic north).
+* When rotating the map using the `rotation` parameter, the image quality is reduced slightly. (Since the map servers are only able to render maps in north-up orientation, the images must are subsequently rotated, causing some resampling degradation.)
+* Not all horizontal labels remain horizontal when a map rotation is specified.
 * The NSW map servers sometimes go offline. There is a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time). This is frustrating.
 
 Release History

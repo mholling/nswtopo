@@ -374,5 +374,5 @@ Release History
 * 12/12/2011: version 0.1 (initial release)
   * 13/12/2011: version 0.1.1: added bridges, floodways, fixed narrow gaps in roads
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
-
+* HEAD: added ability to rotate map
 

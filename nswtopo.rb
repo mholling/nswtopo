@@ -1031,25 +1031,25 @@ end
 map_name = config["name"]
 scaling = Scaling.new(config["scale"], config["ppi"])
 
-projection_centre = case
+wgs84_points = case
 when config["zone"] && config["eastings"] && config["northings"]
-  transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("eastings", "northings").map { |bound| 0.5 * bound.inject(:+) })
+  transform_coordinates_array("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("eastings", "northings").inject(:product))
 when config["longitudes"] && config["latitudes"]
-  config.values_at("longitudes", "latitudes").map { |bound| 0.5 * bound.inject(:+) }
+  config.values_at("longitudes", "latitudes").inject(:product)
 when config["size"] && config["zone"] && config["easting"] && config["northing"]
-  transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("easting", "northing"))
+  [ transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("easting", "northing")) ]
 when config["size"] && config["longitude"] && config["latitude"]
-  config.values_at("longitude", "latitude")
+  [ config.values_at("longitude", "latitude") ]
 when config["bounds"] || File.exists?("bounds.kml")
   config["bounds"] ||= "bounds.kml"
-  read_track_or_waypoints(config["bounds"]).transpose.map { |coords| 0.5 * (coords.max + coords.min) }
+  read_track_or_waypoints(config["bounds"])
 else
   abort "Error: map extent must be provided as zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
 end
 
+projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
 projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{projection_centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
 wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{projection_centre.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
-
 proj_path = File.join(output_dir, "#{map_name}.prj")
 File.open(proj_path, "w") { |file| file.puts projection }
 
@@ -1064,15 +1064,7 @@ if config["size"]
   abort "Error: map rotation must be between +/-45 degrees" unless rotation.abs <= 45
   centre = projection_centre
 else
-  bounding_points = case
-  when config["zone"] && config["eastings"] && config["northings"]
-    transform_coordinates_array("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", projection, config.values_at("eastings", "northings").inject(:product))
-  when config["longitudes"] && config["latitudes"]
-    transform_coordinates_array(WGS84, projection, config.values_at("longitudes", "latitudes").inject(:product))
-  when config["bounds"]
-    transform_coordinates_array(WGS84, projection, read_track_or_waypoints(config["bounds"]))
-  end
-  
+  bounding_points = transform_coordinates_array(WGS84, projection, wgs84_points)
   if config["rotation"] == "auto"
     centre, extents, rotation = minimum_bounding_box(bounding_points)
     rotation *= 180.0 / Math::PI
@@ -1088,10 +1080,8 @@ else
     end.transpose
     centre.rotate!(rotation * Math::PI / 180.0)
   end
-  
   extents.map! { |extent| extent + 2 * config["margin"] * 0.001 * scaling.scale } if config["bounds"]
 end
-
 dimensions = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
 
 topleft = [ centre, extents.rotate(-rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
@@ -2017,7 +2007,6 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: reduce redundancy in calculation of projection_centre and centre/bounds?
 # TODO: change transform_coordinates to method on Array#?
 # TODO: rework intermittent water layer (e.g. tantangara dam, eucumbene dam)
 # TODO: replace all simple markers with truetype markers to allow rotation?

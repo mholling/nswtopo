@@ -65,26 +65,35 @@ or, as latitude/longitude bounds:
       - 149.383789
       - 149.489746
 
-Alternatively, you can specify a single coordinate for the map's centre, and a physical size for the map at the scale you specify (1:25000 by default). The map size should be in units of `mm`, `cm` or `in`. For example:
+Alternatively, you can specify a single coordinate for the map's centre, and a physical size for the map at the scale you specify (1:25000 by default). The map size should be specified in millimetres. For example:
 
     zone: 55
     easting: 691750
     northing: 6070500
-    size: 22cm x 36cm
+    size: 220 x 360
 
 or,
 
     latitude: -33.474050
     longitude: 150.137979
-    size: 6cm x 6cm
+    size: 60 x 60
 
 (Make sure you get your map bounds correct the first time to avoid starting over with the downloads.)
 
+A third way of setting the map bounds is via a .kml or .gpx file. Use a tool such as Google Earth or OziExplorer to lay out a polygon, track or waypoints marking the area you want mapped, and save it as a .gpx or .kml file. A file named `bounds.kml` will be detected automatically, or specify the file name explicitly as follows:
+
+    bounds: bounds.gpx
+
+If you are using a waypoints file to mark rogaine control locations, you can use the same file to automatically fit your map around the control locations. In this case you should also specify a margin in millimetres (defaults to 15mm) between the outermost controls and edge of the map:
+
+    bounds: controls.gpx
+    margin: 15
+    
 Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your Ruby binary).
 
-When the script starts it will list the scale of your map (e.g. 1:25000), its physical size and resolution (e.g. 38cm x 24cm @ 300 ppi) and its size in megapixels. For a 300 pixel-per-inch image (the default), an A3 map should be about 15 megapixels. An unexpectedly large or small number may indicate an error in your configuration file; similarly, if no topographic layers are downloaded, this probably indicates you've incorrectly specified bounds outside NSW.
+When the script starts it will list the scale of your map (e.g. 1:25000), its rotation, its physical size and resolution (e.g. 380mm x 240mm @ 300 ppi) and its size in megapixels. For a 300 pixel-per-inch image (the default), an A3 map should be about 15 megapixels. An unexpectedly large or small number may indicate an error in your configuration file; similarly, if no topographic layers are downloaded, this probably indicates you've incorrectly specified bounds outside NSW.
 
-The script will then proceed to download a large number of layers. A progress bar will show for each layer. Depending on your connection and the size of your map, an hour or more may be required. (I suggest starting with a small map, say 8cm x 8cm, just to familiarize yourself with the software; this should only take a few minutes.) Any errors received will be displayed and the layer skipped; you can run the script again to retry the skipped layers as they are usually just temporary server errors.
+The script will then proceed to download a large number of layers. A progress bar will show for each layer. Depending on your connection and the size of your map, an hour or more may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) Any errors received will be displayed and the layer skipped; you can run the script again to retry the skipped layers as they are usually just temporary server errors.
 
 You can ctrl-c at any point to stop the script; it will pick up where it left off the next time you run it, not downloading any layers that have already been downloaded. (Conversely, deleting an already-created layer file will cause that file to be recreated when you run the script again.)
 
@@ -113,15 +122,19 @@ Set the scale and print resolution of the map as follows. 300-400 ppi is probabl
     scale: 25000              # desired map scale (1:25000 in this case)
     ppi: 300                  # print resolution in pixels per inch
 
-Set the map rotation angle. This is the angle of the map in a clockwise direction relative to true north. (So for a rotation angle of 20, true north on the map will be 20 degrees to the left of vertical.) If a non-zero map rotation is used, there will be a slight degradation in quality, however the output at 300+ ppi will still be good. The special value "magnetic" will cause the map to be aligned with magnetic north.
+Set the map rotation angle as an angle between +/- 45 degrees anticlockwise from true north (e.g. for a rotation angle of 20, true north on the map will be 20 degrees to the right of vertical). If a non-zero map rotation is used, there will be a slight degradation in quality, however the output at 300+ ppi will still be good. The special value `magnetic` will cause the map to be aligned with magnetic north.
 
-    rotation: 0               # angle of rotation of map (or "magnetic" to align with magnetic north)
+    rotation: 0               # angle of rotation of map (or `magnetic` to align with magnetic north)
+
+Another special value for rotation is `auto`, available when the bounds is specified as a .gpx or .km file. In this case, a rotation angle will be automatically calculated to minimise the map area. This is useful when mapping an elongated region which lies oblique to the cardinal directions.
+
+    rotation: auto            # rotate the map so as to minimise map area
 
 Set the filename for the output map and related files.
 
     name: map                 # filename to use for the final map image(s) and related georeferencing files
 
-Specify the contour spacing. The standard contour coverage is 10m for eastern NSW and 20m for central and western NSW (and most of the Snowy Mountains, disappointingly). Large scale contour data (source: 2) at 1m or 2m intervals seems limited to towns and coastal areas, and while attractive is probably not of much use as the contours do not match up with watercourse features very well.
+Specify the contour spacing. The standard contour coverage is 10m for eastern NSW and 20m for central and western NSW (and most of the Snowy Mountains, disappointingly). Large scale contour data (source: 2) at 1m or 2m intervals seems limited to towns and coastal areas; Whilst appearing attractive, it is probably not of much use since the contours are not well-matched with the watercourses.
 
     contours:
       interval: 10            # contour interval in metres
@@ -130,7 +143,7 @@ Specify the contour spacing. The standard contour coverage is 10m for eastern NS
       source: 1               # elevation capture program: 1 for medium scale (1:25000 - 1:100000);
                               # 2 for large scale (1:1000 - 1:10000); 4 for contours derived from DEM.
 
-Specify spacing for the magnetic declination lines. This layer is automatically produced, using a magnetic declination angle for the map centre which is automatically retrieved from the Geoscience Australia website. (Override by specifying an `angle: ` value.) Magnetic declination is only really useful on a rogaining map.
+Specify spacing for the magnetic declination lines. This layer is automatically produced, using a magnetic declination angle for the map centre which is automatically retrieved from the Geoscience Australia website. (Override by specifying an `angle: ` value.) Marking magnetic declination is only really useful on a rogaining map.
 
     declination:
       spacing: 1000           # perpendicular spacing of magnetic declination lines in metres
@@ -367,7 +380,7 @@ A few shortcomings are sometimes evident in the generated map images. These can 
 * For the time being, if you need a legend you'll need to create it manually.
 * When rotating the map using the `rotation` parameter, the image quality is reduced slightly. (Since the map servers are only able to render maps in north-up orientation, the images must are subsequently rotated, causing some resampling degradation.)
 * Not all horizontal labels remain horizontal when a map rotation is specified.
-* The NSW map servers sometimes go offline. There is a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time). This is frustrating.
+* The NSW map servers sometimes go offline. There is a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time). This is frustrating. Interrupt the script using ctrl-c, wait a few minutes, then try again
 
 Release History
 ===============
@@ -375,5 +388,5 @@ Release History
 * 12/12/2011: version 0.1 (initial release)
   * 13/12/2011: version 0.1.1: added bridges, floodways, fixed narrow gaps in roads
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
-* HEAD: added ability to rotate map
+* HEAD: added ability to rotate map; added ability to specify map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
 

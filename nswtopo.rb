@@ -73,14 +73,109 @@ class Array
   end
   
   def rotate(angle)
-    cos = Math::cos(angle * Math::PI / 180.0)
-    sin = Math::sin(angle * Math::PI / 180.0)
+    cos = Math::cos(angle)
+    sin = Math::sin(angle)
     [ self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos ]
   end
+  
+  def rotate!(angle)
+    self[0], self[1] = rotate(angle)
+  end
+  
+  def minus(other)
+    [ self, other ].transpose.map { |values| values.inject(:-) }
+  end
+  
+  def dot(other)
+    [ self, other ].transpose.map { |values| values.inject(:*) }.inject(:+)
+  end
+  
+  def norm
+    Math::sqrt(dot self)
+  end
+  
+  def proj(other)
+    dot(other) / other.norm
+  end
+end
+
+def convex_hull(points)
+  seed = points.inject do |point, candidate|
+    point[1] > candidate[1] ? candidate : point[1] < candidate[1] ? point : point[0] < candidate[0] ? point : candidate
+  end
+  
+  sorted = points.reject do |point|
+    point == seed
+  end.sort_by do |point|
+    vector = point.minus seed
+    vector[0] / vector.norm
+  end
+  sorted.unshift seed
+  
+  result = [ seed, sorted.pop ]
+  while sorted.length > 1
+    u = sorted[-2].minus result.last
+    v = sorted[-1].minus result.last
+    if u[0] * v[1] > u[1] * v[0]
+      sorted.pop
+      sorted << result.pop
+    else
+      result << sorted.pop 
+    end
+  end
+  result
+end
+
+def minimum_bounding_box(points)
+  polygon = convex_hull(points)
+  indices = [ [ :min_by, :max_by ], [ 0, 1 ] ].inject(:product).map do |min, axis|
+    polygon.map.with_index.send(min) { |point, index| point[axis] }.last
+  end
+  calipers = [ [ 0, -1 ], [ 1, 0 ], [ 0, 1 ], [ -1, 0 ] ]
+  rotation = 0.0
+  candidates = []
+  
+  while rotation < Math::PI / 2
+    edges = indices.map do |index|
+      polygon[(index + 1) % polygon.length].minus polygon[index]
+    end
+    angle, which = [ edges, calipers ].transpose.map do |edge, caliper|
+      Math::acos(edge.dot(caliper) / edge.norm)
+    end.map.with_index.min_by { |angle, index| angle }
+    
+    calipers.each { |caliper| caliper.rotate!(angle) }
+    rotation += angle
+    
+    break if rotation >= Math::PI / 2
+    
+    dimensions = [ 0, 1 ].map do |offset|
+      polygon[indices[offset + 2]].minus(polygon[indices[offset]]).proj(calipers[offset + 1])
+    end
+    
+    centre = polygon.values_at(*indices).map do |point|
+      point.rotate(-rotation)
+    end.partition.with_index do |point, index|
+      index.even?
+    end.map.with_index do |pair, index|
+      0.5 * pair.map { |point| point[index] }.inject(:+)
+    end.rotate(rotation)
+    
+    if rotation < Math::PI / 4
+      candidates << [ centre, dimensions, rotation ]
+    else
+      candidates << [ centre, dimensions.reverse, rotation - Math::PI / 2 ]
+    end
+    
+    indices[which] += 1
+    indices[which] %= polygon.length
+  end
+  
+  candidates.min_by { |centre, dimensions, rotation| dimensions.inject(:*) }
 end
 
 InternetError = Class.new(Exception)
 BadLayer = Class.new(Exception)
+BadGpxKmlFile = Class.new(Exception)
 
 def http_request(uri, req, options)
   retries = options["retries"] || 0
@@ -138,12 +233,55 @@ end
 def write_world_file(topleft, resolution, angle, path)
   File.open(path, "w") do |file|
     file.puts  resolution * Math::cos(angle * Math::PI / 180.0)
-    file.puts -resolution * Math::sin(angle * Math::PI / 180.0)
-    file.puts -resolution * Math::sin(angle * Math::PI / 180.0)
+    file.puts  resolution * Math::sin(angle * Math::PI / 180.0)
+    file.puts  resolution * Math::sin(angle * Math::PI / 180.0)
     file.puts -resolution * Math::cos(angle * Math::PI / 180.0)
     file.puts topleft.first + 0.5 * resolution
     file.puts topleft.last - 0.5 * resolution
   end
+end
+
+def read_waypoints(path)
+  xml = REXML::Document.new(File.open path)
+  case
+  when xml.elements["/gpx"]
+    xml.elements.collect("/gpx//wpt") do |element|
+      [ [ element.attributes["lon"].to_f, element.attributes["lat"].to_f ], element.elements["name"].text ]
+    end
+  when xml.elements["/kml"]
+    xml.elements.collect("/kml//Placemark") do |element|
+      coords = element.elements["Point/coordinates"]
+      name = element.elements["name"]
+      coords && [ coords.text.split(',')[0..1].map { |coord| coord.to_f }, name ? name.text : "" ]
+    end.compact
+  else
+    raise BadGpxKmlFile.new(path)
+  end
+rescue REXML::ParseException
+  raise BadGpxKmlFile.new(path)
+end
+
+def read_track(path)
+  xml = REXML::Document.new(File.open path)
+  case
+  when xml.elements["/gpx"]
+    xml.elements.collect("/gpx//trkpt") do |element|
+      [ element.attributes["lon"].to_f, element.attributes["lat"].to_f ]
+    end
+  when xml.elements["/kml"]
+    element = xml.elements["/kml//LineString/coordinates | /kml//Polygon//coordinates"]
+    element ? element.text.split(' ').map { |triplet| triplet.split(',')[0..1].map { |coord| coord.to_f } } : []
+  else
+    raise BadGpxKmlFile.new(path)
+  end
+rescue REXML::ParseException
+  raise BadGpxKmlFile.new(path)
+end
+
+def read_track_or_waypoints(path)
+  trackpoints = read_track(path)
+  waypoints = read_waypoints(path)
+  trackpoints.any? ? trackpoints : waypoints.any? ? waypoints.transpose.first : []
 end
 
 class Scaling
@@ -238,7 +376,7 @@ class ArcIMS < Service
                   renderer_type = "#{options["lookup"] ? 'VALUEMAP' : 'SIMPLE'}#{'LABEL' if options["label"]}RENDERER"
                   renderer_attributes = {}
                   renderer_attributes.merge! (options["lookup"] ? "labelfield" : "field") => options["label"]["field"] if options["label"]
-                  renderer_attributes.merge! options["label"].reject { |k, v| k == "field" } if options["label"]
+                  renderer_attributes.merge! options["label"].reject { |k, v| k == "field" || (k == "rotationalangles" && v.zero?) } if options["label"]
                   renderer_attributes.merge! "lookupfield" => options["lookup"] if options["lookup"]
                   layer.add_element(renderer_type, renderer_attributes) do |renderer|
                     content = lambda do |parent, type, attributes|
@@ -612,8 +750,7 @@ class AnnotationService < Service
 end
 
 class DeclinationService < AnnotationService
-  def get_declination(coords, projection)
-    return params["angle"] if params["angle"]
+  def self.get_declination(coords, projection)
     wgs84_coords = transform_coordinates(projection, WGS84, coords)
     degrees_minutes_seconds = wgs84_coords.map do |coord|
       [ (coord > 0 ? 1 : -1) * coord.abs.floor, (coord.abs * 60).floor % 60, (coord.abs * 3600).round % 60 ]
@@ -628,8 +765,8 @@ class DeclinationService < AnnotationService
   
   def draw(centre, projection, dimensions, scaling, rotation, options)
     spacing = params["spacing"]
-    declination = get_declination(centre, projection)
-    angle = declination - rotation
+    declination = params["angle"] || DeclinationService.get_declination(centre, projection)
+    angle = declination + rotation
     x_spacing = spacing / Math::cos(angle * Math::PI / 180.0) / scaling.metres_per_pixel
     dx = dimensions.last * Math::tan(angle * Math::PI / 180.0)
     x_min = [ 0, dx ].min
@@ -648,30 +785,16 @@ end
 
 class ControlService < AnnotationService
   def dataset(*args)
-    File.exists?(params["path"]) ? super(*args) : nil
+    params["file"] ? super(*args) : nil
   end
   
   def draw(centre, projection, dimensions, scaling, rotation, options)
-    xml = REXML::Document.new(File.open params["path"])
-    
-    waypoints, names = case
-    when xml.elements["/gpx"]
-      xml.elements.collect("/gpx//wpt") do |element|
-        [ [ element.attributes["lon"].to_f, element.attributes["lat"].to_f ], element.elements["name"].text ]
-      end
-    when xml.elements["/kml"]
-      xml.elements.collect("/kml//Placemark") do |element|
-        [ element.elements["Point/coordinates"].text.split(',')[0..1].map { |coord| coord.to_f }, element.elements["name"].text ]
-      end
-    else
-      raise BadLayer.new("#{params["path"]} not a valid GPX or KML file")
-    end.select do |waypoint, name|
+    waypoints, names = read_waypoints(params["file"]).select do |waypoint, name|
       case options["name"]
       when /control/ then name[/\d{2,3}|HH/]
       when /waterdrop/ then name[/W/]
       end
     end.transpose
-    
     return "" unless waypoints
     
     radius = params["diameter"] * scaling.ppi / 25.4 / 2
@@ -683,7 +806,7 @@ class ControlService < AnnotationService
     
     string = [ transform_coordinates_array(WGS84, projection, waypoints), names ].transpose.map do |coords, name|
       offsets = [ coords, centre, [ 1, -1 ] ].transpose.map { |coord, cent, sign| (coord - cent) * sign / scaling.metres_per_pixel }
-      x, y = offsets.rotate(-rotation)
+      x, y = offsets.rotate(rotation * Math::PI / 180.0)
       case options["name"]
       when "control-circles"
         case name
@@ -705,8 +828,8 @@ class ControlService < AnnotationService
     when "waterdrops"
       %Q[-fill black -draw "color 0,0 reset" -stroke white -strokewidth #{strokewidth} -pointsize #{fontsize} -family Wingdings #{string}]
     end
-  rescue REXML::ParseException
-    raise BadLayer.new("#{params["path"]} not a valid GPX or KML file")
+  rescue BadGpxKmlFile => e
+    raise BadLayer.new("Error: #{e.message} not a valid GPX or KML file")
   end
 end
 
@@ -717,6 +840,7 @@ name: map
 scale: 25000
 ppi: 300
 rotation: 0
+margin: 15
 contours:
   interval: 10
   index: 100
@@ -738,7 +862,6 @@ relief:
     - 45
   exaggeration: 1
 controls:
-  file: controls.gpx
   family: Arial
   fontsize: 14
   weight: 200
@@ -893,12 +1016,14 @@ glow:
   utm-56-eastings: true
   utm-56-northings: true
 ]
-).deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
-
+)
+config["controls"]["file"] = "controls.gpx" if File.exists? "controls.gpx"
+config = config.deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
 {
   "utm" => %w{utm-54-grid utm-54-eastings utm-54-northings utm-55-grid utm-55-eastings utm-55-northings utm-56-grid utm-56-eastings utm-56-northings},
   "aerial" => %w{aerial-google aerial-nokia aerial-lpi-sydney aerial-lpi-eastcoast aerial-lpi-towns aerial-lpi-ads40},
-  "coastal" => %w{ocean reef intertidal coastline wharves}
+  "coastal" => %w{ocean reef intertidal coastline wharves},
+  "act" => %w{act-rivers-and-creeks act-urban-land act-lakes-and-major-rivers act-plantations act-roads-sealed act-roads-unsealed act-vehicular-tracks act-adhoc-fire-access}
 }.each do |shortcut, layers|
   config["exclude"] += layers if config["exclude"].delete(shortcut)
 end
@@ -906,19 +1031,75 @@ end
 map_name = config["name"]
 scaling = Scaling.new(config["scale"], config["ppi"])
 
-wgs84_centre = case
-when config["zone"] && config["eastings"] && config["northings"] then transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("eastings", "northings").map { |bound| 0.5 * bound.inject(:+) })
-when config["zone"] && config["easting"]  && config["northing"]  && config["size"] then transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("easting", "northing"))
-when config["longitudes"] && config["latitudes"] then config.values_at("longitudes", "latitudes").map { |bound| 0.5 * bound.inject(:+) }
-when config["longitude"]  && config["latitude"]  && config["size"] then config.values_at("longitude", "latitude")
-else abort "Error: map extent must be provided as zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
+projection_centre = case
+when config["zone"] && config["eastings"] && config["northings"]
+  transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("eastings", "northings").map { |bound| 0.5 * bound.inject(:+) })
+when config["longitudes"] && config["latitudes"]
+  config.values_at("longitudes", "latitudes").map { |bound| 0.5 * bound.inject(:+) }
+when config["size"] && config["zone"] && config["easting"] && config["northing"]
+  transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("easting", "northing"))
+when config["size"] && config["longitude"] && config["latitude"]
+  config.values_at("longitude", "latitude")
+when config["bounds"] || File.exists?("bounds.kml")
+  config["bounds"] ||= "bounds.kml"
+  read_track_or_waypoints(config["bounds"]).transpose.map { |coords| 0.5 * (coords.max + coords.min) }
+else
+  abort "Error: map extent must be provided as zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
 end
 
-projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{wgs84_centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
-wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{wgs84_centre.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
+projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{projection_centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
+wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{projection_centre.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
 
 proj_path = File.join(output_dir, "#{map_name}.prj")
 File.open(proj_path, "w") { |file| file.puts projection }
+
+config["rotation"] = -(config["declination"]["angle"] || DeclinationService.get_declination(projection_centre, WGS84)) if config["rotation"] == "magnetic"
+
+if config["size"]
+  sizes = config["size"].split(/[x,]/).map { |number| number.to_f }
+  abort("Error: invalid map size: #{config["size"]}") unless sizes.length == 2 && sizes.all? { |size| size > 0.0 }
+  extents = sizes.map { |size| size * 0.001 * scaling.scale }
+  rotation = config["rotation"]
+  abort("Error: cannot specify map size and auto-rotation together") if rotation == "auto"
+  abort "Error: map rotation must be between +/-45 degrees" unless rotation.abs <= 45
+  centre = projection_centre
+else
+  bounding_points = case
+  when config["zone"] && config["eastings"] && config["northings"]
+    transform_coordinates_array("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", projection, config.values_at("eastings", "northings").inject(:product))
+  when config["longitudes"] && config["latitudes"]
+    transform_coordinates_array(WGS84, projection, config.values_at("longitudes", "latitudes").inject(:product))
+  when config["bounds"]
+    transform_coordinates_array(WGS84, projection, read_track_or_waypoints(config["bounds"]))
+  end
+  
+  if config["rotation"] == "auto"
+    centre, extents, rotation = minimum_bounding_box(bounding_points)
+    rotation *= 180.0 / Math::PI
+  else
+    rotation = config["rotation"]
+    abort "Error: map rotation must be between -45 and +45 degrees" unless rotation.abs <= 45
+    centre, extents = bounding_points.map do |point|
+      point.rotate(-rotation * Math::PI / 180.0)
+    end.transpose.map do |coords|
+      [ coords.max, coords.min ]
+    end.map do |max, min|
+      [ 0.5 * (max + min), max - min ]
+    end.transpose
+    centre.rotate!(rotation * Math::PI / 180.0)
+  end
+  
+  extents.map! { |extent| extent + 2 * config["margin"] * 0.001 * scaling.scale } if config["bounds"]
+end
+
+dimensions = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
+
+topleft = [ centre, extents.rotate(-rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
+world_file_path = File.join(output_dir, "#{map_name}.wld")
+write_world_file(topleft, scaling.metres_per_pixel, rotation, world_file_path)
+
+enlarged_extents = [ extents.first * Math::cos(rotation * Math::PI / 180.0) + extents.last * Math::sin(rotation * Math::PI / 180.0).abs, extents.first * Math::sin(rotation * Math::PI / 180.0).abs + extents.last * Math::cos(rotation * Math::PI / 180.0) ]
+bounds = [ centre, enlarged_extents ].transpose.map { |coord, extent| [ coord - 0.5 * extent, coord + 0.5 * extent ] }
 
 topo_portlet = ArcIMS.new(
   "host" => "gsp.maps.nsw.gov.au",
@@ -975,7 +1156,6 @@ act_dog = ArcIMS.new(
     "projection" => "EPSG:32755"
   })
 declination_service = DeclinationService.new(config["declination"])
-config["controls"]["path"] ||= File.join(output_dir, config["controls"].delete("file"))
 control_service = ControlService.new(config["controls"])
 lpi_ortho = LPIOrthoService.new(
   "host" => "lite.maps.nsw.gov.au",
@@ -1001,10 +1181,6 @@ google_maps = TiledMapService.new(
   "tile_limit" => 250,
 )
 oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3, "resample" => "bilinear" }.merge config["relief"])
-
-rotation = config["rotation"]
-rotation = declination_service.get_declination(wgs84_centre, WGS84) if rotation == "magnetic"
-abort "Error: map rotation must be between -45 and +45 degrees" unless rotation.abs <= 45
 
 services = {
   topo_portlet => {
@@ -1039,13 +1215,13 @@ services = {
       },
       { # waterbody labels
         "from" => "HydroArea_Label_1",
-        "label" => { "field" => "delivsdm:geodb.HydroArea.HydroName delivsdm:geodb.HydroArea.HydroNameType", "rotationalangles" => -rotation },
+        "label" => { "field" => "delivsdm:geodb.HydroArea.HydroName delivsdm:geodb.HydroArea.HydroNameType", "rotationalangles" => rotation },
         "lookup" => "delivsdm:geodb.HydroArea.classsubtype",
         "text" => { 1 => { "fontsize" => 5.5, "printmode" => "titlecaps" } }
       },
       { # fuzzy water labels
         "from" => "FuzzyExtentWaterArea_1",
-        "label" => { "field" => "delivsdm:geodb.FuzzyExtentWaterArea.HydroName delivsdm:geodb.FuzzyExtentWaterArea.HydroNameType", "rotationalangles" => -rotation },
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentWaterArea.HydroName delivsdm:geodb.FuzzyExtentWaterArea.HydroNameType", "rotationalangles" => rotation },
         "lookup" => "delivsdm:geodb.FuzzyExtentWaterArea.classsubtype",
         "text" => { 2 => { "fontsize" => 4.2, "fontstyle" => "italic", "printmode" => "titlecaps" } }
       },
@@ -1062,7 +1238,7 @@ services = {
       },
       { # fuzzy area labels
         "from" => "FuzzyExtentArea_Label_1",
-        "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName", "rotationalangles" => -rotation },
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName", "rotationalangles" => rotation },
         "text" => { "fontsize" => 5.5, "printmode" => "allupper" }
       },
       { # fuzzy line labels (valleys, beaches)
@@ -1084,13 +1260,13 @@ services = {
       },
       { # building labels
         "from" => "BuildingComplexPoint_Label_1",
-        "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName", "rotationalangles" => -rotation },
+        "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName", "rotationalangles" => rotation },
         "text" => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 }
       },
       { # cave labels
         "from" => "DLSPoint_Label_1",
         "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-        "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => -rotation },
+        "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => rotation },
         "text" => { 1 => { "fontsize" => 4.8, "printmode" => "titlecaps", "interval" => 2.0 } }
       },
       { # cableway labels
@@ -1313,7 +1489,7 @@ services = {
     "caves" => {
       "from" => "DLSPoint_1",
       "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Default Marker", "fontsize" => 7, "character" => 216, "angle" => -rotation } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Default Marker", "fontsize" => 7, "character" => 216, "angle" => rotation } }
     },
     "rocks-pinnacles" => {
       "from" => "DLSPoint_1",
@@ -1372,7 +1548,7 @@ services = {
       "from" => "GeneralCulturalPoint_1",
       "where" => "generalculturaltype = 11 OR generalculturaltype = 12",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 204, "fontsize" => 7, "angle" => -rotation } }
+      "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 204, "fontsize" => 7, "angle" => rotation } }
     },
     "yards" => {
       "from" => "GeneralCulturalPoint_1",
@@ -1384,12 +1560,12 @@ services = {
       "from" => "GeneralCulturalPoint_1",
       "where" => "generalculturaltype = 8",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 4 => { "font" => "ESRI Default Marker", "character" => 69, "angle" => 45 - rotation, "fontsize" => 3 } }
+      "truetypemarker" => { 4 => { "font" => "ESRI Default Marker", "character" => 69, "angle" => 45 + rotation, "fontsize" => 3 } }
     },
     "beacons" => {
       "from" => "GeneralCulturalPoint_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7, "angle" => -rotation } }
+      "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7, "angle" => rotation } }
     },
     "railways" => {
       "scale" => 0.35,
@@ -1428,8 +1604,8 @@ services = {
       "from" => "TrafficControlDevice_1",
       "lookup" => "delivsdm:geodb.TrafficControlDevice.ClassSubtype",
       "truetypemarker" => {
-        1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178, "angle" => -rotation }, # gate
-        2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177, "angle" => -rotation }  # grid
+        1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178, "angle" => rotation }, # gate
+        2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177, "angle" => rotation }  # grid
       }
     },
     "wharves" => {
@@ -1447,7 +1623,7 @@ services = {
     "trig-points" => {
       "from" => "SurveyMarks_1",
       "lookup" => "delivsdm:geodb.SurveyMark.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 6, "character" => 180, "angle" => -rotation } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 6, "character" => 180, "angle" => rotation } }
     },
   },
   act_heritage => {
@@ -1550,37 +1726,6 @@ services = {
   ),
 }
 
-centre = transform_coordinates(WGS84, projection, wgs84_centre)
-
-extents = if config["size"]
-  size_regexp = /(\d+(\.\d+)?)\s*(mm|cm|in|")\s*[x,]\s*(\d+(\.\d+)?)\s*(mm|cm|in|")/
-  multiplier = { "mm" => 1 / 25.4, "cm" => 10 / 25.4, "in" => 1.0, '"' => 1.0 }
-  sizes_units = config["size"].match(size_regexp) { |captures| captures.values_at(1,3,4,6).each_slice(2).to_a }
-  abort("Error: invalid map size: #{config["size"]}") unless sizes_units
-  sizes_units.map { |size, unit| size.to_f * multiplier[unit] * scaling.ppi * scaling.metres_per_pixel }
-else
-  case
-  when config["eastings"]   && config["northings"]
-    transform_coordinates_array("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", projection, config.values_at("eastings", "northings").inject(:product))
-  when config["longitudes"] && config["latitudes"]
-    transform_coordinates_array(WGS84, projection, config.values_at("longitudes", "latitudes").inject(:product))
-  end.map do |corner|
-    [ corner, centre ].transpose.map { |corner_coord, center_coord| corner_coord - center_coord }
-  end.map do |difference|
-    difference.rotate(rotation).map { |value| 2 * value.abs }
-  end.transpose.map do |candidate_extents|
-    candidate_extents.max
-  end
-end
-dimensions = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
-
-topleft = [ centre, extents.rotate(rotation), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
-world_file_path = File.join(output_dir, "#{map_name}.wld")
-write_world_file(topleft, scaling.metres_per_pixel, rotation, world_file_path)
-
-enlarged_extents = [ extents.first * Math::cos(rotation * Math::PI / 180.0) + extents.last * Math::sin(rotation * Math::PI / 180.0).abs, extents.first * Math::sin(rotation * Math::PI / 180.0).abs + extents.last * Math::cos(rotation * Math::PI / 180.0) ]
-bounds = [ centre, enlarged_extents ].transpose.map { |coord, extent| [ coord - 0.5 * extent, coord + 0.5 * extent ] }
-
 bounds.inject(:product).map { |corner| UTMGridService.zone(projection, corner) }.uniq.each do |zone|
   grid_service = UTMGridService.new({ "zone" => zone }.merge config["grid"])
   services.merge!(grid_service => {
@@ -1591,8 +1736,9 @@ bounds.inject(:product).map { |corner| UTMGridService.zone(projection, corner) }
 end
 
 puts "Final map size:"
-puts "  scale: 1:%i, rotation: %.1f degrees" % [ scaling.scale, rotation ]
-puts "  %.1fcm x %.1fcm @ %i ppi" % [ *dimensions.map { |dimension| dimension * 2.54 / scaling.ppi }, scaling.ppi ]
+puts "  scale: 1:%i" % scaling.scale
+puts "  rotation: %.1f degrees" % rotation
+puts "  %imm x %imm @ %i ppi" % [ *dimensions.map { |dimension| dimension * 25.4 / scaling.ppi }, scaling.ppi ]
 puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * dimensions.inject(:*), *dimensions ]
 
 services.each do |service, layers|
@@ -1835,7 +1981,7 @@ unless oziexplorer_formats.empty?
   corners = dimensions.map do |dimension|
     [ -0.5 * dimension * scaling.metres_per_pixel, 0.5 * dimension * scaling.metres_per_pixel ]
   end.inject(:product).map do |offsets|
-    [ centre, offsets.rotate(-rotation) ].transpose.map { |coord, offset| coord + offset }
+    [ centre, offsets.rotate(rotation * Math::PI / 180.0) ].transpose.map { |coord, offset| coord + offset }
   end
   wgs84_corners = transform_coordinates_array(projection, WGS84, corners).values_at(1,3,2,0)
   pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
@@ -1856,7 +2002,7 @@ Reserved 2
 Magnetic Variation,,,E
 Map Projection,Transverse Mercator,PolyCal,No,AutoCalOnly,Yes,BSBUseWPX,No
 #{calibration_strings.join("\n")}
-Projection Setup,0.000000000,#{wgs84_centre.first},0.999600000,500000.00,10000000.00,,,,,
+Projection Setup,0.000000000,#{projection_centre.first},0.999600000,500000.00,10000000.00,,,,,
 Map Feature = MF ; Map Comment = MC     These follow if they exist
 Track File = TF      These follow if they exist
 Moving Map Parameters = MM?    These follow if they exist
@@ -1871,8 +2017,9 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: allow map bounds to be specified by a set of points which must be on the map (with margin)
-# TODO: implement rotating calipers algorithm to find best rectangle/rotation for arbitrary points
+# TODO: reduce redundancy in calculation of projection_centre and centre/bounds?
+# TODO: change transform_coordinates to method on Array#?
+# TODO: rework intermittent water layer (e.g. tantangara dam, eucumbene dam)
 # TODO: replace all simple markers with truetype markers to allow rotation?
-# TODO: rework waterdrops?
+# TODO: (alternatively, don't rotate any symbols or layers at all...)
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

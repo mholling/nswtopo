@@ -123,7 +123,7 @@ def convex_hull(points)
   while sorted.length > 1
     u = sorted[-2].minus result.last
     v = sorted[-1].minus result.last
-    if u[0] * v[1] > u[1] * v[0]
+    if u[0] * v[1] >= u[1] * v[0]
       sorted.pop
       sorted << result.pop
     else
@@ -211,16 +211,8 @@ def http_post(uri, body, options = {}, &block)
   http_request uri, req, options, &block
 end
 
-def bounds_to_corners(bounds) # TODO: redo using inject(:product)
-  [ bounds.first, bounds.last ].transpose + [ bounds.first.reverse, bounds.last ].transpose
-end
-
-def corners_to_bounds(corners) # TODO: redo?
-  [ [ corners.transpose.first.min, corners.transpose.first.max ], [ corners.transpose.last.min, corners.transpose.last.max ] ]
-end
-
 def transform_bounds(source_projection, target_projection, bounds)
-  corners_to_bounds(bounds_to_corners(bounds).reproject(source_projection, target_projection))
+  bounds.inject(:product).reproject(source_projection, target_projection).transpose.map { |coords| [ coords.min, coords.max ] }
 end
 
 def bounds_intersect?(bounds1, bounds2)
@@ -275,12 +267,6 @@ def read_track(path)
   end
 rescue REXML::ParseException
   raise BadGpxKmlFile.new(path)
-end
-
-def read_track_or_waypoints(path)
-  trackpoints = read_track(path)
-  waypoints = read_waypoints(path)
-  trackpoints.any? ? trackpoints : waypoints.any? ? waypoints.transpose.first : []
 end
 
 class Scaling
@@ -1040,7 +1026,10 @@ when config["size"] && config["longitude"] && config["latitude"]
   [ config.values_at("longitude", "latitude") ]
 when config["bounds"] || File.exists?("bounds.kml")
   config["bounds"] ||= "bounds.kml"
-  read_track_or_waypoints(config["bounds"])
+  trackpoints = read_track(config["bounds"])
+  waypoints = read_waypoints(config["bounds"])
+  config["margin"] = 0 unless waypoints.any?
+  trackpoints.any? ? trackpoints : waypoints.transpose.first
 else
   abort "Error: map extent must be provided as zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
 end
@@ -2005,8 +1994,6 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: check final georeferencing accuracy (e.g. with dingo dell waypoints?)
-# TODO: apply margin only to waypoint bounds, not track/polgon bounds
 # TODO: rework intermittent water layer (e.g. tantangara dam, eucumbene dam)
 # TODO: replace all simple markers with truetype markers to allow rotation?
 # TODO: (alternatively, don't rotate any symbols or layers at all...)

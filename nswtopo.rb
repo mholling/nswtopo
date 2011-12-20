@@ -97,6 +97,13 @@ class Array
   def proj(other)
     dot(other) / other.norm
   end
+  
+  def reproject(source_projection, target_projection)
+    case first
+    when Array then map { |point| point.reproject(source_projection, target_projection) }
+    else %x[echo #{join(' ')} | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"].split(" ")[0..1].map { |number| number.to_f }
+    end
+  end
 end
 
 def convex_hull(points)
@@ -204,24 +211,16 @@ def http_post(uri, body, options = {}, &block)
   http_request uri, req, options, &block
 end
 
-def transform_coordinates(source_projection, target_projection, source_coords)
-  %x[echo #{source_coords.join(' ')} | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"].split(" ")[0..1].map { |number| number.to_f }
-end
-
-def transform_coordinates_array(source_projection, target_projection, source_coords_array)
-  source_coords_array.map { |source_coords| transform_coordinates(source_projection, target_projection, source_coords) }
-end
-
-def bounds_to_corners(bounds)
+def bounds_to_corners(bounds) # TODO: redo using inject(:product)
   [ bounds.first, bounds.last ].transpose + [ bounds.first.reverse, bounds.last ].transpose
 end
 
-def corners_to_bounds(corners)
+def corners_to_bounds(corners) # TODO: redo?
   [ [ corners.transpose.first.min, corners.transpose.first.max ], [ corners.transpose.last.min, corners.transpose.last.max ] ]
 end
 
 def transform_bounds(source_projection, target_projection, bounds)
-  corners_to_bounds(transform_coordinates_array(source_projection, target_projection, bounds_to_corners(bounds)))
+  corners_to_bounds(bounds_to_corners(bounds).reproject(source_projection, target_projection))
 end
 
 def bounds_intersect?(bounds1, bounds2)
@@ -489,7 +488,7 @@ class TiledMapService < Service
         [ origin + index * tile_size * metres_per_pixel, origin + (index + 1) * tile_size * metres_per_pixel ]
       end
       
-      longitude, latitude = transform_coordinates(projection, WGS84, centre)
+      longitude, latitude = centre.reproject(projection, WGS84)
       
       attributes = [ "longitude", "latitude", "zoom", "format", "hsize", "vsize", "name" ]
       values     = [  longitude,   latitude,   zoom,   format,      *tile_sizes,   name  ]
@@ -660,7 +659,7 @@ end
 
 class UTMGridService < Service
   def self.zone(projection, coords)
-    (transform_coordinates(projection, WGS84, coords).first / 6).floor + 31
+    (coords.reproject(projection, WGS84).first / 6).floor + 31
   end
   
   attr_reader :zone
@@ -751,8 +750,7 @@ end
 
 class DeclinationService < AnnotationService
   def self.get_declination(coords, projection)
-    wgs84_coords = transform_coordinates(projection, WGS84, coords)
-    degrees_minutes_seconds = wgs84_coords.map do |coord|
+    degrees_minutes_seconds = coords.reproject(projection, WGS84).map do |coord|
       [ (coord > 0 ? 1 : -1) * coord.abs.floor, (coord.abs * 60).floor % 60, (coord.abs * 3600).round % 60 ]
     end
     today = Date.today
@@ -804,7 +802,7 @@ class ControlService < AnnotationService
     weight = params["weight"]
     cx, cy = dimensions.map { |dimension| 0.5 * dimension }
     
-    string = [ transform_coordinates_array(WGS84, projection, waypoints), names ].transpose.map do |coords, name|
+    string = [ waypoints.reproject(WGS84, projection), names ].transpose.map do |coords, name|
       offsets = [ coords, centre, [ 1, -1 ] ].transpose.map { |coord, cent, sign| (coord - cent) * sign / scaling.metres_per_pixel }
       x, y = offsets.rotate(rotation * Math::PI / 180.0)
       case options["name"]
@@ -1033,11 +1031,11 @@ scaling = Scaling.new(config["scale"], config["ppi"])
 
 wgs84_points = case
 when config["zone"] && config["eastings"] && config["northings"]
-  transform_coordinates_array("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("eastings", "northings").inject(:product))
+  config.values_at("eastings", "northings").inject(:product).reproject("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84)
 when config["longitudes"] && config["latitudes"]
   config.values_at("longitudes", "latitudes").inject(:product)
 when config["size"] && config["zone"] && config["easting"] && config["northing"]
-  [ transform_coordinates("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84, config.values_at("easting", "northing")) ]
+  [ config.values_at("easting", "northing").reproject("+proj=utm +zone=#{config["zone"]} +south +datum=WGS84", WGS84) ]
 when config["size"] && config["longitude"] && config["latitude"]
   [ config.values_at("longitude", "latitude") ]
 when config["bounds"] || File.exists?("bounds.kml")
@@ -1062,9 +1060,9 @@ if config["size"]
   rotation = config["rotation"]
   abort("Error: cannot specify map size and auto-rotation together") if rotation == "auto"
   abort "Error: map rotation must be between +/-45 degrees" unless rotation.abs <= 45
-  centre = projection_centre
+  centre = projection_centre.reproject(WGS84, projection)
 else
-  bounding_points = transform_coordinates_array(WGS84, projection, wgs84_points)
+  bounding_points = wgs84_points.reproject(WGS84, projection)
   if config["rotation"] == "auto"
     centre, extents, rotation = minimum_bounding_box(bounding_points)
     rotation *= 180.0 / Math::PI
@@ -1973,7 +1971,7 @@ unless oziexplorer_formats.empty?
   end.inject(:product).map do |offsets|
     [ centre, offsets.rotate(rotation * Math::PI / 180.0) ].transpose.map { |coord, offset| coord + offset }
   end
-  wgs84_corners = transform_coordinates_array(projection, WGS84, corners).values_at(1,3,2,0)
+  wgs84_corners = corners.reproject(projection, WGS84).values_at(1,3,2,0)
   pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
   calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
     dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
@@ -2007,7 +2005,8 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: change transform_coordinates to method on Array#?
+# TODO: check final georeferencing accuracy (e.g. with dingo dell waypoints?)
+# TODO: apply margin only to waypoint bounds, not track/polgon bounds
 # TODO: rework intermittent water layer (e.g. tantangara dam, eucumbene dam)
 # TODO: replace all simple markers with truetype markers to allow rotation?
 # TODO: (alternatively, don't rotate any symbols or layers at all...)

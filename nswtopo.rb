@@ -570,6 +570,11 @@ class LPIOrthoService < Service
       uri = URI::HTTP.build :host => params["host"], :path => "/ImageX/ImageX.dll", :query => URI.escape(query)
       tile_path = File.join(dir, "tile.#{index}.#{format["type"]}")
       http_get(uri, "retries" => 5) do |response|
+        begin
+          xml = REXML::Document.new(response.body)
+          raise BadLayer.new(xml.elements["//Error"] ? xml.elements["//Error"].text.gsub("\n", " ") : "unexpected response")
+        rescue REXML::ParseException
+        end
         File.open(tile_path, "wb") { |file| file << response.body }
       end
       sleep params["interval"]
@@ -872,9 +877,9 @@ colours:
   dams: '#0033ff'
   water-tanks: '#7b96ff'
   water-areas: '#7b96ff'
-  water-areas-dry: '#7b96ff'
+  water-areas-intermittent: '#7b96ff'
   water-area-boundaries: '#0033ff'
-  water-areas-dry-boundaries: '#0033ff'
+  water-areas-intermittent-boundaries: '#0033ff'
   reef: 'Cyan'
   sand: '#ff6600'
   intertidal: '#1b2e7b'
@@ -954,7 +959,7 @@ patterns:
     00000000000000000000000001111100000000
     00000000000000000000000011111110000000
     00000000000000000000000111111111000000
-  water-areas-dry:
+  water-areas-intermittent:
     01,10,01,00,00,00
     10,50,10,00,00,00
     01,10,01,00,00,00
@@ -1051,6 +1056,7 @@ if config["size"]
   abort "Error: map rotation must be between +/-45 degrees" unless rotation.abs <= 45
   centre = projection_centre.reproject(WGS84, projection)
 else
+  puts "Calculating map bounds..."
   bounding_points = wgs84_points.reproject(WGS84, projection)
   if config["rotation"] == "auto"
     centre, extents, rotation = minimum_bounding_box(bounding_points)
@@ -1289,7 +1295,7 @@ services = {
       {
         "from" => "HydroArea_1",
         "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-        "polygon" => { "1;2" => { "boundary" => false } }
+        "polygon" => { 1 => { "boundary" => false } }
       },
       {
         "from" => "TankArea_1",
@@ -1301,7 +1307,7 @@ services = {
       {
         "from" => "HydroArea_1",
         "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-        "line" => { "1;2" => { "width" => 2 } }
+        "line" => { 1 => { "width" => 2 } }
       },
       {
         "from" => "TankArea_1",
@@ -1309,15 +1315,15 @@ services = {
         "line" => { 1 => { "width" => 2 } }
       }
     ],
-    "water-areas-dry" => {
+    "water-areas-intermittent" => {
       "from" => "HydroArea_1",
       "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-      "polygon" => { 3 => { "boundary" => false } }
+      "polygon" => { "2;3" => { "boundary" => false } }
     },
-    "water-areas-dry-boundaries" => {
+    "water-areas-intermittent-boundaries" => {
       "from" => "HydroArea_1",
       "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-      "line" => { 3 => { "width" => 1 } }
+      "line" => { "2;3" => { "width" => 1 } }
     },
     "dams" => {
       "from" => "HydroPoint_1",
@@ -1841,8 +1847,8 @@ unless formats_paths.empty?
       "ocean",
       "dams",
       "water-tanks",
-      "water-areas-dry",
-      "water-areas-dry-boundaries",
+      "water-areas-intermittent",
+      "water-areas-intermittent-boundaries",
       "water-areas",
       "water-area-boundaries",
       "intertidal",
@@ -1994,7 +2000,6 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: rework intermittent water layer (e.g. tantangara dam, eucumbene dam)
 # TODO: replace all simple markers with truetype markers to allow rotation?
-# TODO: (alternatively, don't rotate any symbols or layers at all...)
+# TODO: (alternatively, don't rotate any symbols or labels at all...)
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

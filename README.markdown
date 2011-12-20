@@ -258,8 +258,8 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * watercourses: watercourse lines, with single-pixel lines representing intermittent watercourses and thicker lines representing perennial watercourses, in blue
 * water-areas: areas of water in rivers, lakes and larger dams, in light blue
 * water-area-boundaries: boundaries of water areas, in blue
-* water-areas-dry: normally-dry water areas, in dotted light blue
-* water-areas-dry-boundaries: boundaries of normally-dry water areas, in blue
+* water-areas-intermittent: intermittent or mostly-dry water areas, in dotted light blue
+* water-areas-intermittent-boundaries: boundaries of intermittent or mostly-dry water areas, in blue
 * dams: smaller farm dams and other small water points, represented as blue squares
 * water-tanks: water tanks, represented as light blue circles
 * ocean: ocean areas, in light blue

@@ -230,7 +230,7 @@ Finally, specify any layers which you would like to be lifted slightly with a 'g
       labels: true      # specify 'true' to apply the default glow (white, 80% strength, 0.2mm thick) ...
       utm-55-eastings:     # ... or you can override the colour, strength and/or size individually
         colour: white   # white-coloured glow
-        amount: 80      # 80% strength
+        amount: 100     # 100% strength
         radius: 0.2     # 0.2mm thickness
 
 Georeferencing
@@ -388,5 +388,5 @@ Release History
 * 12/12/2011: version 0.1 (initial release)
   * 13/12/2011: version 0.1.1: added bridges, floodways, fixed narrow gaps in roads
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
-* HEAD: added ability to rotate map; added ability to specify map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
+* 21/12/2011: version 0.2: added map rotation; added specification of map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
 

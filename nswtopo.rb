@@ -101,7 +101,7 @@ class Array
   def reproject(source_projection, target_projection)
     case first
     when Array then map { |point| point.reproject(source_projection, target_projection) }
-    else %x[echo #{join(' ')} | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"].split(" ")[0..1].map { |number| number.to_f }
+    else %x[echo #{join(' ')} | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"].split(" ")[0..1].map(&:to_f)
     end
   end
 end
@@ -243,7 +243,7 @@ def read_waypoints(path)
     xml.elements.collect("/kml//Placemark") do |element|
       coords = element.elements["Point/coordinates"]
       name = element.elements["name"]
-      coords && [ coords.text.split(',')[0..1].map { |coord| coord.to_f }, name ? name.text : "" ]
+      coords && [ coords.text.split(',')[0..1].map(&:to_f), name ? name.text : "" ]
     end.compact
   else
     raise BadGpxKmlFile.new(path)
@@ -261,7 +261,7 @@ def read_track(path)
     end
   when xml.elements["/kml"]
     element = xml.elements["/kml//LineString/coordinates | /kml//Polygon//coordinates"]
-    element ? element.text.split(' ').map { |triplet| triplet.split(',')[0..1].map { |coord| coord.to_f } } : []
+    element ? element.text.split(' ').map { |triplet| triplet.split(',')[0..1].map(&:to_f) } : []
   else
     raise BadGpxKmlFile.new(path)
   end
@@ -306,13 +306,13 @@ class ArcIMS < Service
       end.map do |pixels|
         origin.send(increment, pixels * scaling.metres_per_pixel)
       end
-      [ boundaries[0..-2], boundaries[1..-1] ].transpose.map { |bounds| bounds.sort }
+      [ boundaries[0..-2], boundaries[1..-1] ].transpose.map(&:sort)
     end
     
     [ tile_bounds.inject(:product), tile_extents.inject(:product) ].transpose
   end
   
-  def dataset(input_bounds, input_projection, scaling, label, options_or_array, dir)
+  def dataset(input_bounds, input_projection, scaling, rotation, label, options_or_array, dir)
     projected_bounds = transform_bounds(input_projection, params["envelope"]["projection"], input_bounds)
     return nil unless bounds_intersect?(projected_bounds, params["envelope"]["bounds"])
     
@@ -361,7 +361,14 @@ class ArcIMS < Service
                   renderer_type = "#{options["lookup"] ? 'VALUEMAP' : 'SIMPLE'}#{'LABEL' if options["label"]}RENDERER"
                   renderer_attributes = {}
                   renderer_attributes.merge! (options["lookup"] ? "labelfield" : "field") => options["label"]["field"] if options["label"]
-                  renderer_attributes.merge! options["label"].reject { |k, v| k == "field" || (k == "rotationalangles" && v.zero?) } if options["label"]
+                  if options["label"]
+                    label_attrs = options["label"].reject { |k, v| k == "field" }
+                    if label_attrs["rotationalangles"]
+                      angles = label_attrs["rotationalangles"].to_s.split(",").map(&:to_f).map { |angle| angle + rotation }
+                      angles.all?(&:zero?) ? label_attrs.delete("rotationalangles") : label_attrs["rotationalangles"] = angles.join(",")
+                    end
+                    renderer_attributes.merge! label_attrs
+                  end
                   renderer_attributes.merge! "lookupfield" => options["lookup"] if options["lookup"]
                   layer.add_element(renderer_type, renderer_attributes) do |renderer|
                     content = lambda do |parent, type, attributes|
@@ -385,7 +392,8 @@ class ArcIMS < Service
                         attrs["interval"] = (attrs["interval"] / 25.4 * scaling.ppi).round
                         parent.add_element("TEXTSYMBOL", attrs)
                       when "truetypemarker"
-                        attrs = { "fontcolor" => "255,255,255", "outline" => "0,0,0", "antialiasing" => true }.merge(attributes)
+                        attrs = { "fontcolor" => "255,255,255", "outline" => "0,0,0", "antialiasing" => true, "angle" => 0 }.merge(attributes)
+                        attrs["angle"] += rotation
                         attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
                         parent.add_element("TRUETYPEMARKERSYMBOL", attrs)
                       end
@@ -439,7 +447,7 @@ class ArcIMS < Service
 end
 
 class TiledMapService < Service
-  def dataset(input_bounds, input_projection, scaling, label, options, dir)
+  def dataset(input_bounds, input_projection, scaling, rotation, label, options, dir)
     tile_sizes = params["tile_sizes"]
     tile_limit = params["tile_limit"]
     crops = params["crops"] || [ [ 0, 0 ], [ 0, 0 ] ]
@@ -500,7 +508,7 @@ class TiledMapService < Service
 end
 
 class LPIOrthoService < Service
-  def dataset(input_bounds, input_projection, scaling, label, options, dir)
+  def dataset(input_bounds, input_projection, scaling, rotation, label, options, dir)
     puts "Layer: #{label}"
     puts "  retrieving LPI imagery metadata..."
     images_regions = case
@@ -511,7 +519,7 @@ class LPIOrthoService < Service
         vars, images = response.body.scan(/(.+)_ECWP_URL\s*?=\s*?.*"(.+)";/x).transpose
         regions = vars.map do |var|
           response.body.match(/#{var}_CLIP_REGION\s*?=\s*?\[(.+)\]/x) do |match|
-            match[1].scan(/\[(.+?),(.+?)\]/x).map { |coords| coords.map { |coord| coord.to_f } }
+            match[1].scan(/\[(.+?),(.+?)\]/x).map { |coords| coords.map(&:to_f) }
           end
         end
         [ images, regions ].transpose.map { |image, region| { image => region } }.inject(:merge)
@@ -561,7 +569,7 @@ class LPIOrthoService < Service
           end.send(order)
         end
         [ tile_indices, tile_bounds ].transpose
-      end.inject(:product).map { |pair| pair.transpose }.map do |(tx, ty), tile_bounds|
+      end.inject(:product).map(&:transpose).map do |(tx, ty), tile_bounds|
         query = format.merge("l" => zoom, "tx" => tx, "ty" => ty, "ts" => tile_size, "layers" => image, "fillcolor" => "0x000000")
         query["inregion"] = "#{attributes["region"].flatten.join(",")},INSRC" if attributes["region"]
         [ "?image?#{query.to_query}", tile_bounds, resolutions ]
@@ -589,7 +597,7 @@ class OneEarthDEMRelief < Service
     @projection = WGS84
   end
   
-  def dataset(input_bounds, input_projection, scaling, label, options, dir)
+  def dataset(input_bounds, input_projection, scaling, rotation, label, options, dir)
     bounds = transform_bounds(input_projection, projection, input_bounds)
     bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
     counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
@@ -671,7 +679,7 @@ class UTMGridService < Service
     end
   end
     
-  def dataset(input_bounds, input_projection, scaling, label, options, dir)
+  def dataset(input_bounds, input_projection, scaling, rotation, label, options, dir)
     puts "Layer: #{label}"
     puts "  calculating..."
     intervals, fontsize, family, weight = params.values_at("intervals", "fontsize", "family", "weight")
@@ -728,7 +736,7 @@ class UTMGridService < Service
 end
 
 class AnnotationService < Service
-  def dataset(input_bounds, input_projection, scaling, label, options, dir)
+  def dataset(input_bounds, input_projection, scaling, rotation, label, options, dir)
     puts "Layer: #{label}"
     []
   end
@@ -1048,7 +1056,7 @@ File.open(proj_path, "w") { |file| file.puts projection }
 config["rotation"] = -(config["declination"]["angle"] || DeclinationService.get_declination(projection_centre, WGS84)) if config["rotation"] == "magnetic"
 
 if config["size"]
-  sizes = config["size"].split(/[x,]/).map { |number| number.to_f }
+  sizes = config["size"].split(/[x,]/).map(&:to_f)
   abort("Error: invalid map size: #{config["size"]}") unless sizes.length == 2 && sizes.all? { |size| size > 0.0 }
   extents = sizes.map { |size| size * 0.001 * scaling.scale }
   rotation = config["rotation"]
@@ -1198,13 +1206,13 @@ services = {
       },
       { # waterbody labels
         "from" => "HydroArea_Label_1",
-        "label" => { "field" => "delivsdm:geodb.HydroArea.HydroName delivsdm:geodb.HydroArea.HydroNameType", "rotationalangles" => rotation },
+        "label" => { "field" => "delivsdm:geodb.HydroArea.HydroName delivsdm:geodb.HydroArea.HydroNameType" },
         "lookup" => "delivsdm:geodb.HydroArea.classsubtype",
         "text" => { 1 => { "fontsize" => 5.5, "printmode" => "titlecaps" } }
       },
       { # fuzzy water labels
         "from" => "FuzzyExtentWaterArea_1",
-        "label" => { "field" => "delivsdm:geodb.FuzzyExtentWaterArea.HydroName delivsdm:geodb.FuzzyExtentWaterArea.HydroNameType", "rotationalangles" => rotation },
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentWaterArea.HydroName delivsdm:geodb.FuzzyExtentWaterArea.HydroNameType" },
         "lookup" => "delivsdm:geodb.FuzzyExtentWaterArea.classsubtype",
         "text" => { 2 => { "fontsize" => 4.2, "fontstyle" => "italic", "printmode" => "titlecaps" } }
       },
@@ -1221,7 +1229,7 @@ services = {
       },
       { # fuzzy area labels
         "from" => "FuzzyExtentArea_Label_1",
-        "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName", "rotationalangles" => rotation },
+        "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
         "text" => { "fontsize" => 5.5, "printmode" => "allupper" }
       },
       { # fuzzy line labels (valleys, beaches)
@@ -1243,13 +1251,13 @@ services = {
       },
       { # building labels
         "from" => "BuildingComplexPoint_Label_1",
-        "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName", "rotationalangles" => rotation },
+        "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName", "rotationalangles" => 0 },
         "text" => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 }
       },
       { # cave labels
         "from" => "DLSPoint_Label_1",
         "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-        "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => rotation },
+        "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => 0 },
         "text" => { 1 => { "fontsize" => 4.8, "printmode" => "titlecaps", "interval" => 2.0 } }
       },
       { # cableway labels
@@ -1328,12 +1336,14 @@ services = {
     "dams" => {
       "from" => "HydroPoint_1",
       "lookup" => "delivsdm:geodb.HydroPoint.ClassSubtype",
-      "marker" => { 1 => { "type" => "square", "width" => 0.8 } }
+      # "marker" => { 1 => { "type" => "square", "width" => 0.8 } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 243 } }
     },
     "water-tanks" => {
       "from" => "TankPoint_1",
       "lookup" => "delivsdm:geodb.TankPoint.tanktype",
-      "marker" => { 1 => { "type" => "circle", "width" => 0.8 } }
+      # "marker" => { 1 => { "type" => "circle", "width" => 0.8 } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 244 } }
     },
     "ocean" => {
       "from" => "FuzzyExtentWaterArea_1",
@@ -1415,7 +1425,8 @@ services = {
     "buildings" => {
       "from" => "GeneralCulturalPoint_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
-      "marker" => { 5 => { "type" => "square", "width" => 0.5 } }
+      # "marker" => { 5 => { "type" => "square", "width" => 0.5 } }
+      "truetypemarker" => { 5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
     },
     "intertidal" => {
       "from" => "DLSArea_1",
@@ -1472,7 +1483,7 @@ services = {
     "caves" => {
       "from" => "DLSPoint_1",
       "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Default Marker", "fontsize" => 7, "character" => 216, "angle" => rotation } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Default Marker", "fontsize" => 7, "character" => 216 } }
     },
     "rocks-pinnacles" => {
       "from" => "DLSPoint_1",
@@ -1525,30 +1536,32 @@ services = {
     "towers" => {
       "from" => "GeneralCulturalPoint_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "marker" => { 7 => { "type" => "square", "width" => 0.5 } }
+      # "marker" => { 7 => { "type" => "square", "width" => 0.5 } }
+      "truetypemarker" => { 7 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
     },
     "mines" => {
       "from" => "GeneralCulturalPoint_1",
       "where" => "generalculturaltype = 11 OR generalculturaltype = 12",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 204, "fontsize" => 7, "angle" => rotation } }
+      "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 204, "fontsize" => 7 } }
     },
     "yards" => {
       "from" => "GeneralCulturalPoint_1",
       "where" => "ClassSubtype = 4",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.generalculturaltype",
-      "marker" => { "6;9" => { "type" => "square", "width" => 0.7, "color" => "0,0,0", "outline" => "255,255,255" } }
+      # "marker" => { "6;9" => { "type" => "square", "width" => 0.7, "color" => "0,0,0", "outline" => "255,255,255" } }
+      "truetypemarker" => { "6;9" => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.25, "character" => 67 } }
     },
     "windmills" => {
       "from" => "GeneralCulturalPoint_1",
       "where" => "generalculturaltype = 8",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 4 => { "font" => "ESRI Default Marker", "character" => 69, "angle" => 45 + rotation, "fontsize" => 3 } }
+      "truetypemarker" => { 4 => { "font" => "ESRI Default Marker", "character" => 69, "angle" => 45, "fontsize" => 3 } }
     },
     "beacons" => {
       "from" => "GeneralCulturalPoint_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7, "angle" => rotation } }
+      "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7 } }
     },
     "railways" => {
       "scale" => 0.35,
@@ -1587,8 +1600,8 @@ services = {
       "from" => "TrafficControlDevice_1",
       "lookup" => "delivsdm:geodb.TrafficControlDevice.ClassSubtype",
       "truetypemarker" => {
-        1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178, "angle" => rotation }, # gate
-        2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177, "angle" => rotation }  # grid
+        1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178 }, # gate
+        2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177 }  # grid
       }
     },
     "wharves" => {
@@ -1606,7 +1619,7 @@ services = {
     "trig-points" => {
       "from" => "SurveyMarks_1",
       "lookup" => "delivsdm:geodb.SurveyMark.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 6, "character" => 180, "angle" => rotation } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 6, "character" => 180 } }
     },
   },
   act_heritage => {
@@ -1732,7 +1745,7 @@ services.each do |service, layers|
       output_path = File.join(output_dir, "#{label}.png")
       unless File.exists?(output_path)
         Dir.mktmpdir do |temp_dir|
-          dataset = service.dataset(bounds, projection, scaling, label, options, temp_dir)
+          dataset = service.dataset(bounds, projection, scaling, rotation, label, options, temp_dir)
           if dataset
             working_path = File.join(temp_dir, "layer.tif")
             canvas_path = File.join(temp_dir, "canvas.tif")
@@ -1811,8 +1824,8 @@ unless formats_paths.empty?
         tile_path = File.join(output_dir, string)
       else
         tile_path = File.join(temp_dir, "tile-#{label}.tif")
-        tile = string.split(" ").map { |line| line.split(line[/,/] ? "," : "").map { |number| number.to_f } }
-        abort("Error: fill pattern for '#{label}' must be rectangular") unless tile.map { |line| line.length }.uniq.length == 1
+        tile = string.split(" ").map { |line| line.split(line[/,/] ? "," : "").map(&:to_f) }
+        abort("Error: fill pattern for '#{label}' must be rectangular") unless tile.map(&:length).uniq.length == 1
         maximum = tile.flatten.max
         tile.map! { |row| row.map { |number| number / maximum } }
         size = "#{tile.first.length}x#{tile.length}"
@@ -1922,11 +1935,11 @@ unless formats_paths.empty?
         ""
       end
       if config["glow"][label]
-        glow = { "colour" => "white", "radius" => 0.15, "amount" => 80, "gamma" => 1 }
+        glow = { "colour" => "white", "radius" => 0.15, "amount" => 100, "gamma" => 1 }
         glow.merge! config["glow"][label] if config["glow"][label].is_a? Hash
         colour, radius, amount, gamma = glow.values_at("colour", "radius", "amount", "gamma")
         sigma = radius * scaling.ppi / 25.4
-        sequence += %Q[ #{OP} +clone -alpha Extract -blur 0x#{sigma} -normalize +level 0%,#{amount}% -background "#{colour}" -alpha Shape #{CP} -compose dst-over -composite]
+        sequence += %Q[ #{OP} +clone -alpha Extract -blur 0x#{sigma} -auto-level +level 0%,#{amount}% -background "#{colour}" -alpha Shape #{CP} -compose dst-over -composite]
       end
       %x[convert "#{path}" #{sequence} -type TrueColorMatte -depth 8 "#{layer_path}"]
       [ label, layer_path ]
@@ -2000,6 +2013,4 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: replace all simple markers with truetype markers to allow rotation?
-# TODO: (alternatively, don't rotate any symbols or labels at all...)
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

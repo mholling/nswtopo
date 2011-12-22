@@ -1254,6 +1254,13 @@ services = {
         "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName", "rotationalangles" => 0 },
         "text" => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 }
       },
+      { # some hut labels
+        "from" => "GeneralCulturalPoint_1",
+        "label" => { "field" => "delivsdm:geodb.GeneralCulturalPoint.generalname delivsdm:geodb.GeneralCulturalPoint.alternativelabel" },
+        "where" => "GeneralCulturalType = 0 AND (upper(AlternativeLabel) = 'HUT' OR upper(GeneralName) LIKE '%HUT')",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
+        "text" => { 5 => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
+      },
       { # cave labels
         "from" => "DLSPoint_Label_1",
         "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
@@ -1336,13 +1343,11 @@ services = {
     "dams" => {
       "from" => "HydroPoint_1",
       "lookup" => "delivsdm:geodb.HydroPoint.ClassSubtype",
-      # "marker" => { 1 => { "type" => "square", "width" => 0.8 } }
       "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 243 } }
     },
     "water-tanks" => {
       "from" => "TankPoint_1",
       "lookup" => "delivsdm:geodb.TankPoint.tanktype",
-      # "marker" => { 1 => { "type" => "circle", "width" => 0.8 } }
       "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 244 } }
     },
     "ocean" => {
@@ -1422,12 +1427,19 @@ services = {
         "7"     => { "width" => 5, "captype" => "square" },
       }
     },
-    "buildings" => {
-      "from" => "GeneralCulturalPoint_1",
-      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
-      # "marker" => { 5 => { "type" => "square", "width" => 0.5 } }
-      "truetypemarker" => { 5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
-    },
+    "buildings" => [
+      {
+        "from" => "GeneralCulturalPoint_1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
+        "truetypemarker" => { 5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
+      },
+      { # (mountain huts)
+        "from" => "BuildingComplexPoint_1",
+        "lookup" => "delivsdm:geodb.BuildingComplexPoint.ClassSubtype",
+        "where" => "BuildingComplexType = 0",
+        "truetypemarker" => { 2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
+      }
+    ],
     "intertidal" => {
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
@@ -1536,7 +1548,6 @@ services = {
     "towers" => {
       "from" => "GeneralCulturalPoint_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      # "marker" => { 7 => { "type" => "square", "width" => 0.5 } }
       "truetypemarker" => { 7 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
     },
     "mines" => {
@@ -1549,7 +1560,6 @@ services = {
       "from" => "GeneralCulturalPoint_1",
       "where" => "ClassSubtype = 4",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.generalculturaltype",
-      # "marker" => { "6;9" => { "type" => "square", "width" => 0.7, "color" => "0,0,0", "outline" => "255,255,255" } }
       "truetypemarker" => { "6;9" => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.25, "character" => 67 } }
     },
     "windmills" => {

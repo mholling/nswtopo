@@ -346,7 +346,7 @@ class ArcIMS < Service
               properties.add_element("ENVELOPE", "minx" => bounds.first.first, "maxx" => bounds.first.last, "miny" => bounds.last.first, "maxy" => bounds.last.last)
               properties.add_element("IMAGESIZE", "width" => extents.first, "height" => extents.last, "dpi" => dpi, "scalesymbols" => true)
               properties.add_element("BACKGROUND", "color" => "0,0,0")
-              properties.add_element("OUTPUT", "format" => "png")
+              properties.add_element("OUTPUT", "type" => "png")
               properties.add_element("LAYERLIST", "nodefault" => true) do |layerlist|
                 options_array.each_with_index do |options, layer_index|
                   layerlist.add_element("LAYERDEF", "id" => options["image"] || "custom#{layer_index}", "visible" => true)
@@ -741,7 +741,7 @@ class AnnotationService < Service
     []
   end
   
-  def post_process(path, centre, projection, dimensions, scaling, rotation, options)
+  def post_process(centre, projection, dimensions, scaling, rotation, options, path)
     draw_string = draw(centre, projection, dimensions, scaling, rotation, options)
     %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} #{draw_string} "#{path}"]
   end
@@ -1779,7 +1779,7 @@ services.each do |service, layers|
           
             if service.respond_to? :post_process
               puts "  processing..."
-              service.post_process(working_path, centre, projection, dimensions, scaling, rotation, options)
+              service.post_process(centre, projection, dimensions, scaling, rotation, options, working_path)
             end
         
             %x[convert -quiet "#{working_path}" "#{output_path}"]
@@ -1845,81 +1845,81 @@ unless formats_paths.empty?
     end
     
     puts "  preparing layers..."
-    layers = [
-      "aerial-google",
-      "aerial-nokia",
-      "aerial-lpi-sydney",
-      "aerial-lpi-eastcoast",
-      "aerial-lpi-towns",
-      "aerial-lpi-ads40",
-      "vegetation",
-      "rock-area",
-      "pine",
-      "orchards-plantations",
-      "built-up-areas",
-      "contours",
-      "ancillary-contours",
-      "swamp-wet",
-      "swamp-dry",
-      "sand",
-      "inundation",
-      "cliffs",
-      "cadastre",
-      "act-cadastre",
-      "watercourses",
-      "ocean",
-      "dams",
-      "water-tanks",
-      "water-areas-intermittent",
-      "water-areas-intermittent-boundaries",
-      "water-areas",
-      "water-area-boundaries",
-      "intertidal",
-      "reef",
-      "clifftops",
-      "rocks-pinnacles",
-      "misc-perimeters",
-      "excavation",
-      "coastline",
-      "dam-walls",
-      "wharves",
-      "pipelines",
-      "act-border",
-      "pathways",
-      "bridges-culverts",
-      "floodways",
-      "tracks-4wd",
-      "tracks-vehicular",
-      "roads-unsealed",
-      "roads-sealed",
-      "cableways",
-      "gates-grids",
-      "railways",
-      "landing-grounds",
-      "transmission-lines",
-      "buildings",
-      "building-areas",
-      "caves",
-      "towers",
-      "windmills",
-      "beacons",
-      "mines",
-      "yards",
-      "trig-points",
-      "labels",
-      "waterdrops",
-      "control-circles",
-      "control-labels",
-      "declination",
-      "utm-54-grid",
-      "utm-54-eastings",
-      "utm-54-northings",
-      "utm-55-grid",
-      "utm-55-eastings",
-      "utm-55-northings",
-      "utm-56-grid",
-      "utm-56-eastings",
-      "utm-56-northings"
+    layers = %w[
+      aerial-google
+      aerial-nokia
+      aerial-lpi-sydney
+      aerial-lpi-eastcoast
+      aerial-lpi-towns
+      aerial-lpi-ads40
+      vegetation
+      rock-area
+      pine
+      orchards-plantations
+      built-up-areas
+      contours
+      ancillary-contours
+      swamp-wet
+      swamp-dry
+      sand
+      inundation
+      cliffs
+      cadastre
+      act-cadastre
+      watercourses
+      ocean
+      dams
+      water-tanks
+      water-areas-intermittent
+      water-areas-intermittent-boundaries
+      water-areas
+      water-area-boundaries
+      intertidal
+      reef
+      clifftops
+      rocks-pinnacles
+      misc-perimeters
+      excavation
+      coastline
+      dam-walls
+      wharves
+      pipelines
+      act-border
+      pathways
+      bridges-culverts
+      floodways
+      tracks-4wd
+      tracks-vehicular
+      roads-unsealed
+      roads-sealed
+      cableways
+      gates-grids
+      railways
+      landing-grounds
+      transmission-lines
+      buildings
+      building-areas
+      caves
+      towers
+      windmills
+      beacons
+      mines
+      yards
+      trig-points
+      labels
+      waterdrops
+      control-circles
+      control-labels
+      declination
+      utm-54-grid
+      utm-54-eastings
+      utm-54-northings
+      utm-55-grid
+      utm-55-eastings
+      utm-55-northings
+      utm-56-grid
+      utm-56-eastings
+      utm-56-northings
     ].reject do |label|
       config["exclude"].include? label
     end.map do |label|

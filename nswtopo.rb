@@ -1256,7 +1256,7 @@ services = {
       },
       { # some hut labels
         "from" => "GeneralCulturalPoint_1",
-        "label" => { "field" => "delivsdm:geodb.GeneralCulturalPoint.generalname delivsdm:geodb.GeneralCulturalPoint.alternativelabel" },
+        "label" => { "field" => "delivsdm:geodb.GeneralCulturalPoint.generalname delivsdm:geodb.GeneralCulturalPoint.alternativelabel", "rotationalangles" => 0 },
         "where" => "GeneralCulturalType = 0 AND (upper(AlternativeLabel) = 'HUT' OR upper(GeneralName) LIKE '%HUT')",
         "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
         "text" => { 5 => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
@@ -1272,6 +1272,12 @@ services = {
         "label" => { "field" => "delivsdm:geodb.Cableway.GeneralName", "linelabelposition" => "placeabovebelow" },
         "lookup" => "delivsdm:geodb.Cableway.ClassSubtype",
         "text" => { "1;2" => { "fontsize" => 3, "fontstyle" => "italic", "printmode" => "allupper", "font" => "Arial Narrow", "interval" => 0.5 } }
+      },
+      { # rock/pinnacle labels
+        "from" => "DLSPoint_1",
+        "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => 0 },
+        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+        "text" => { "2;5;6" => { "fontsize" => 4.8, "printmode" => "allupper", "interval" => 2.0 } }
       },
     ],
     "contours" => [

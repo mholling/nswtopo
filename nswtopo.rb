@@ -922,6 +922,7 @@ colours:
   towers: '#000001'
   windmills: '#000001'
   beacons: '#000001'
+  lookouts: '#000001'
   mines: '#000001'
   yards: '#000001'
   trig-points: '#000001'
@@ -1279,6 +1280,13 @@ services = {
         "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
         "text" => { "2;5;6" => { "fontsize" => 4.8, "printmode" => "allupper", "interval" => 2.0 } }
       },
+      { # lookout labels
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "generalculturaltype = 5",
+        "label" => { "field" => "delivsdm:geodb.GeneralCulturalPoint.GeneralName", "rotationalangles" => 0 },
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+        "text" => { 1 => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 } }
+      },
     ],
     "contours" => [
       {
@@ -1506,7 +1514,7 @@ services = {
     "rocks-pinnacles" => {
       "from" => "DLSPoint_1",
       "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "truetypemarker" => { "2;5;6" => { "font" => "ESRI Default Marker", "character" => 107, "fontsize" => 3 } }
+      "truetypemarker" => { "2;5;6" => { "font" => "ESRI Default Marker", "character" => 107, "fontsize" => 4.5 } }
     },
     "built-up-areas" => {
       "from" => "GeneralCulturalArea_1",
@@ -1578,6 +1586,12 @@ services = {
       "from" => "GeneralCulturalPoint_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
       "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7 } }
+    },
+    "lookouts" => {
+      "from" => "GeneralCulturalPoint_1",
+      "where" => "generalculturaltype = 5",
+      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65 } }
     },
     "railways" => {
       "scale" => 0.35,
@@ -1909,6 +1923,7 @@ unless formats_paths.empty?
       towers
       windmills
       beacons
+      lookouts
       mines
       yards
       trig-points
@@ -2029,4 +2044,6 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
+# TODO: remove non-existent watercourses
+# TODO: add picnic areas, campgrounds, carparks (or labels for them)
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

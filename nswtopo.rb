@@ -906,6 +906,7 @@ colours:
   dam-walls: '#000001'
   cableways: '#000001'
   wharves: '#000001'
+  railways: '#000001'
   bridges-culverts: '#000001'
   floodways: '#0033ff'
   pathways: '#000001'
@@ -914,7 +915,6 @@ colours:
   roads-unsealed: 'Dark Orange'
   roads-sealed: 'Red'
   gates-grids: '#000001'
-  railways: '#000001'
   pipelines: '#00a6e5'
   landing-grounds: '#333334'
   transmission-lines: '#000001'
@@ -923,6 +923,7 @@ colours:
   windmills: '#000001'
   beacons: '#000001'
   lookouts: '#000001'
+  camping-grounds: '#000001'
   mines: '#000001'
   yards: '#000001'
   trig-points: '#000001'
@@ -1228,6 +1229,11 @@ services = {
           7 => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 0.6 },
         }
       },
+      { # crossing labels
+        "from" => "Crossing_Label_1",
+        "label" => { "field" => "delivsdm:geodb.Crossing.GeneralName", "rotationalangles" => 0 },
+        "text" => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 }
+      },
       { # fuzzy area labels
         "from" => "FuzzyExtentArea_Label_1",
         "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
@@ -1266,7 +1272,7 @@ services = {
         "from" => "DLSPoint_Label_1",
         "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
         "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => 0 },
-        "text" => { 1 => { "fontsize" => 4.8, "printmode" => "titlecaps", "interval" => 2.0 } }
+        "text" => { 1 => { "fontsize" => 4.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
       },
       { # cableway labels
         "from" => "Cableway_Label_1",
@@ -1280,12 +1286,15 @@ services = {
         "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
         "text" => { "2;5;6" => { "fontsize" => 4.8, "printmode" => "allupper", "interval" => 2.0 } }
       },
-      { # lookout labels
+      { # lookout, camping ground labels
         "from" => "GeneralCulturalPoint_1",
-        "where" => "generalculturaltype = 5",
+        "where" => "ClassSubtype = 1",
         "label" => { "field" => "delivsdm:geodb.GeneralCulturalPoint.GeneralName", "rotationalangles" => 0 },
         "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-        "text" => { 1 => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 } }
+        "text" => {
+          5 => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 }, # lookouts
+          1 => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 }, # camping grounds
+        }
       },
     ],
     "contours" => [
@@ -1509,7 +1518,7 @@ services = {
     "caves" => {
       "from" => "DLSPoint_1",
       "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Default Marker", "fontsize" => 7, "character" => 216 } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65 } }
     },
     "rocks-pinnacles" => {
       "from" => "DLSPoint_1",
@@ -1592,6 +1601,12 @@ services = {
       "where" => "generalculturaltype = 5",
       "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
       "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65 } }
+    },
+    "camping-grounds" => {
+      "from" => "GeneralCulturalPoint_1",
+      "where" => "generalculturaltype = 1",
+      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+      "truetypemarker" => { 1 => { "font" => "ESRI Environmental & Icons", "character" => 60, "fontsize" => 7 } }
     },
     "railways" => {
       "scale" => 0.35,
@@ -1905,6 +1920,7 @@ unless formats_paths.empty?
       wharves
       pipelines
       act-border
+      railways
       pathways
       bridges-culverts
       floodways
@@ -1914,7 +1930,6 @@ unless formats_paths.empty?
       roads-sealed
       cableways
       gates-grids
-      railways
       landing-grounds
       transmission-lines
       buildings
@@ -1924,6 +1939,7 @@ unless formats_paths.empty?
       windmills
       beacons
       lookouts
+      camping-grounds
       mines
       yards
       trig-points
@@ -2044,6 +2060,5 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: remove non-existent watercourses
-# TODO: add picnic areas, campgrounds, carparks (or labels for them)
+# TODO: add picnic areas, carparks (or labels for them)
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

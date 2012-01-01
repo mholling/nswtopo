@@ -392,7 +392,7 @@ class ArcIMS < Service
                         attrs["interval"] = (attrs["interval"] / 25.4 * scaling.ppi).round
                         parent.add_element("TEXTSYMBOL", attrs)
                       when "truetypemarker"
-                        attrs = { "fontcolor" => "255,255,255", "outline" => "0,0,0", "antialiasing" => true, "angle" => 0 }.merge(attributes)
+                        attrs = { "fontcolor" => "255,255,255", "outline" => "0,0,0", "antialiasing" => true, "angle" => 0, "overlap" => false }.merge(attributes)
                         attrs["angle"] += rotation
                         attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
                         parent.add_element("TRUETYPEMARKERSYMBOL", attrs)
@@ -887,15 +887,12 @@ colours:
   water-areas: '#7b96ff'
   water-areas-intermittent: '#7b96ff'
   water-area-boundaries: '#0033ff'
-  water-areas-intermittent-boundaries: '#0033ff'
   reef: 'Cyan'
   sand: '#ff6600'
   intertidal: '#1b2e7b'
   inundation: '#00bdff'
   cliffs: '#c6c6c7'
   clifftops: '#ff00ba'
-  rocks-pinnacles: '#ff00ba'
-  buildings: '#111112'
   building-areas: '#666667'
   cadastre: '#888889'
   act-cadastre: '#888889'
@@ -914,20 +911,11 @@ colours:
   tracks-vehicular: 'Dark Orange'
   roads-unsealed: 'Dark Orange'
   roads-sealed: 'Red'
-  gates-grids: '#000001'
   pipelines: '#00a6e5'
   landing-grounds: '#333334'
   transmission-lines: '#000001'
-  caves: '#000001'
-  towers: '#000001'
-  windmills: '#000001'
-  beacons: '#000001'
-  lookouts: '#000001'
-  camping-grounds: '#000001'
-  mines: '#000001'
-  yards: '#000001'
   trig-points: '#000001'
-  labels: '#000001'
+  markers-labels: '#000001'
   waterdrops: '#0033ff'
   control-circles: '#9e00c0'
   control-labels: '#9e00c0'
@@ -1007,7 +995,8 @@ patterns:
     000000000
     000000000
 glow:
-  labels: true
+  trig-points: true
+  markers-labels: true
   utm-54-eastings: true
   utm-54-northings: true
   utm-55-eastings: true
@@ -1180,7 +1169,7 @@ services = {
     "vegetation" => {
       "image" => "Vegetation_1"
     },
-    "labels" => [
+    "markers-labels" => [
       { # contour labels
         "from" => "Contour_1",
         "where" => "MOD(elevation, #{config["contours"]["labels"]}) = 0 AND elevation > 0",
@@ -1256,10 +1245,96 @@ services = {
           "3;5;13" => { "fontsize" => 6.5, "printmode" => "allupper" }
         }
       },
+      { # cableway labels
+        "from" => "Cableway_Label_1",
+        "label" => { "field" => "delivsdm:geodb.Cableway.GeneralName", "linelabelposition" => "placeabovebelow" },
+        "lookup" => "delivsdm:geodb.Cableway.ClassSubtype",
+        "text" => { "1;2" => { "fontsize" => 3, "fontstyle" => "italic", "printmode" => "allupper", "font" => "Arial Narrow", "interval" => 0.5 } }
+      },
+      { # caves
+        "from" => "DLSPoint_1",
+        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+        "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65 } }
+      },
+      { # cave labels
+        "from" => "DLSPoint_Label_1",
+        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+        "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => 0 },
+        "text" => { 1 => { "fontsize" => 4.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
+      },
+      { # rocks/pinnacles
+        "from" => "DLSPoint_1",
+        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+        "truetypemarker" => { "2;5;6" => { "font" => "ESRI Default Marker", "character" => 107, "fontsize" => 4.5 } }
+      },
+      { # rock/pinnacle labels
+        "from" => "DLSPoint_1",
+        "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => 0 },
+        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+        "text" => { "2;5;6" => { "fontsize" => 4.8, "printmode" => "allupper", "interval" => 2.0 } }
+      },
+      { # towers
+        "from" => "GeneralCulturalPoint_1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+        "truetypemarker" => { 7 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
+      },
+      { # mines
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "generalculturaltype = 11 OR generalculturaltype = 12",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+        "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 204, "fontsize" => 7 } }
+      },
+      { # yards
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "ClassSubtype = 4",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.generalculturaltype",
+        "truetypemarker" => { "6;9" => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.25, "character" => 67 } }
+      },
+      { # windmills
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "generalculturaltype = 8",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+        "truetypemarker" => { 4 => { "font" => "ESRI Default Marker", "character" => 69, "angle" => 45, "fontsize" => 3 } }
+      },
+      { # beacons
+        "from" => "GeneralCulturalPoint_1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+        "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7 } }
+      },
+      { # lookouts, campgrounds
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "ClassSubtype = 1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.GeneralCulturalType",
+        "truetypemarker" => {
+          5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65 }, # lookouts
+          1 => { "font" => "ESRI Environmental & Icons", "character" => 60, "fontsize" => 7 } # campgrounds
+        }
+      },
+      { # lookout, campground labels
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "ClassSubtype = 1",
+        "label" => { "field" => "delivsdm:geodb.GeneralCulturalPoint.GeneralName", "rotationalangles" => 0 },
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.GeneralCulturalType",
+        "text" => {
+          5 => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 }, # lookouts
+          1 => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 }, # camping grounds
+        }
+      },
+      { # buildings
+        "from" => "GeneralCulturalPoint_1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
+        "truetypemarker" => { 5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
+      },
       { # building labels
         "from" => "BuildingComplexPoint_Label_1",
         "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName", "rotationalangles" => 0 },
         "text" => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 }
+      },
+      { # some mountain huts
+        "from" => "BuildingComplexPoint_1",
+        "lookup" => "delivsdm:geodb.BuildingComplexPoint.ClassSubtype",
+        "where" => "BuildingComplexType = 0",
+        "truetypemarker" => { 2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
       },
       { # some hut labels
         "from" => "GeneralCulturalPoint_1",
@@ -1268,57 +1343,37 @@ services = {
         "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
         "text" => { 5 => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
       },
-      { # cave labels
-        "from" => "DLSPoint_Label_1",
-        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-        "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => 0 },
-        "text" => { 1 => { "fontsize" => 4.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
-      },
-      { # cableway labels
-        "from" => "Cableway_Label_1",
-        "label" => { "field" => "delivsdm:geodb.Cableway.GeneralName", "linelabelposition" => "placeabovebelow" },
-        "lookup" => "delivsdm:geodb.Cableway.ClassSubtype",
-        "text" => { "1;2" => { "fontsize" => 3, "fontstyle" => "italic", "printmode" => "allupper", "font" => "Arial Narrow", "interval" => 0.5 } }
-      },
-      { # rock/pinnacle labels
-        "from" => "DLSPoint_1",
-        "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => 0 },
-        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-        "text" => { "2;5;6" => { "fontsize" => 4.8, "printmode" => "allupper", "interval" => 2.0 } }
-      },
-      { # lookout, camping ground labels
-        "from" => "GeneralCulturalPoint_1",
-        "where" => "ClassSubtype = 1",
-        "label" => { "field" => "delivsdm:geodb.GeneralCulturalPoint.GeneralName", "rotationalangles" => 0 },
-        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-        "text" => {
-          5 => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 }, # lookouts
-          1 => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 }, # camping grounds
+      { # gates, grids
+        "from" => "TrafficControlDevice_1",
+        "lookup" => "delivsdm:geodb.TrafficControlDevice.ClassSubtype",
+        "truetypemarker" => {
+          1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178 }, # gate
+          2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177 }  # grid
         }
       },
     ],
     "contours" => [
-      {
+      { # normal
         "from" => "Contour_1",
         "where" => "MOD(elevation, #{config["contours"]["interval"]}) = 0 AND sourceprogram = #{config["contours"]["source"]}",
         "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
         "line" => { 1 => { "width" => 1 } },
         "hashline" => { 2 => { "width" => 2, "linethickness" => 1, "thickness" => 1, "interval" => 8 } }
       },
-      {
+      { # index
         "from" => "Contour_1",
         "where" => "MOD(elevation, #{config["contours"]["index"]}) = 0 AND elevation > 0 AND sourceprogram = #{config["contours"]["source"]}",
         "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
         "line" => { 1 => { "width" => 2 } },
         "hashline" => { 2 => { "width" => 3, "linethickness" => 2, "thickness" => 1, "interval" => 8 } }
       },
+      { # ancillary (TODO: separate/remove?)
+        "from" => "Contour_1",
+        "where" => "sourceprogram = #{config["contours"]["source"]}",
+        "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
+        "line" => { 3 => { "width" => 1, "type" => "dash" } },
+      },
     ],
-    "ancillary-contours" => {
-      "from" => "Contour_1",
-      "where" => "sourceprogram = #{config["contours"]["source"]}",
-      "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
-      "line" => { 3 => { "width" => 1, "type" => "dash" } },
-    },
     "watercourses" => {
       "from" => "HydroLine_1",
       "where" => "ClassSubtype = 1",
@@ -1345,7 +1400,10 @@ services = {
       {
         "from" => "HydroArea_1",
         "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-        "line" => { 1 => { "width" => 2 } }
+        "line" => {
+          1 => { "width" => 2 },
+          "2;3" => { "width" => 1 }
+        }
       },
       {
         "from" => "TankArea_1",
@@ -1357,11 +1415,6 @@ services = {
       "from" => "HydroArea_1",
       "lookup" => "delivsdm:geodb.HydroArea.perenniality",
       "polygon" => { "2;3" => { "boundary" => false } }
-    },
-    "water-areas-intermittent-boundaries" => {
-      "from" => "HydroArea_1",
-      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-      "line" => { "2;3" => { "width" => 1 } }
     },
     "dams" => {
       "from" => "HydroPoint_1",
@@ -1450,19 +1503,6 @@ services = {
         "7"     => { "width" => 5, "captype" => "square" },
       }
     },
-    "buildings" => [
-      {
-        "from" => "GeneralCulturalPoint_1",
-        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
-        "truetypemarker" => { 5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
-      },
-      { # (mountain huts)
-        "from" => "BuildingComplexPoint_1",
-        "lookup" => "delivsdm:geodb.BuildingComplexPoint.ClassSubtype",
-        "where" => "BuildingComplexType = 0",
-        "truetypemarker" => { 2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
-      }
-    ],
     "intertidal" => {
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
@@ -1515,16 +1555,6 @@ services = {
       "scale" => 0.25,
       "line" => { 3 => { "width" => 2, "type" => "dot", "antialiasing" => false } }
     },
-    "caves" => {
-      "from" => "DLSPoint_1",
-      "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65 } }
-    },
-    "rocks-pinnacles" => {
-      "from" => "DLSPoint_1",
-      "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-      "truetypemarker" => { "2;5;6" => { "font" => "ESRI Default Marker", "character" => 107, "fontsize" => 4.5 } }
-    },
     "built-up-areas" => {
       "from" => "GeneralCulturalArea_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
@@ -1568,46 +1598,6 @@ services = {
       "scale" => 0.15,
       "line" => { 3 => { "width" => 1, "type" => "dash" } }
     },
-    "towers" => {
-      "from" => "GeneralCulturalPoint_1",
-      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 7 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
-    },
-    "mines" => {
-      "from" => "GeneralCulturalPoint_1",
-      "where" => "generalculturaltype = 11 OR generalculturaltype = 12",
-      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 204, "fontsize" => 7 } }
-    },
-    "yards" => {
-      "from" => "GeneralCulturalPoint_1",
-      "where" => "ClassSubtype = 4",
-      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.generalculturaltype",
-      "truetypemarker" => { "6;9" => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.25, "character" => 67 } }
-    },
-    "windmills" => {
-      "from" => "GeneralCulturalPoint_1",
-      "where" => "generalculturaltype = 8",
-      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 4 => { "font" => "ESRI Default Marker", "character" => 69, "angle" => 45, "fontsize" => 3 } }
-    },
-    "beacons" => {
-      "from" => "GeneralCulturalPoint_1",
-      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7 } }
-    },
-    "lookouts" => {
-      "from" => "GeneralCulturalPoint_1",
-      "where" => "generalculturaltype = 5",
-      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65 } }
-    },
-    "camping-grounds" => {
-      "from" => "GeneralCulturalPoint_1",
-      "where" => "generalculturaltype = 1",
-      "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Environmental & Icons", "character" => 60, "fontsize" => 7 } }
-    },
     "railways" => {
       "scale" => 0.35,
       "from" => "Railway_1",
@@ -1639,14 +1629,6 @@ services = {
         1 => { "width" => 1 },
         2 => { "width" => 5 },
         3 => { "width" => 0.5 }
-      }
-    },
-    "gates-grids" => {
-      "from" => "TrafficControlDevice_1",
-      "lookup" => "delivsdm:geodb.TrafficControlDevice.ClassSubtype",
-      "truetypemarker" => {
-        1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178 }, # gate
-        2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177 }  # grid
       }
     },
     "wharves" => {
@@ -1893,7 +1875,6 @@ unless formats_paths.empty?
       orchards-plantations
       built-up-areas
       contours
-      ancillary-contours
       swamp-wet
       swamp-dry
       sand
@@ -1906,13 +1887,11 @@ unless formats_paths.empty?
       dams
       water-tanks
       water-areas-intermittent
-      water-areas-intermittent-boundaries
       water-areas
       water-area-boundaries
       intertidal
       reef
       clifftops
-      rocks-pinnacles
       misc-perimeters
       excavation
       coastline
@@ -1929,21 +1908,11 @@ unless formats_paths.empty?
       roads-unsealed
       roads-sealed
       cableways
-      gates-grids
       landing-grounds
       transmission-lines
-      buildings
       building-areas
-      caves
-      towers
-      windmills
-      beacons
-      lookouts
-      camping-grounds
-      mines
-      yards
       trig-points
-      labels
+      markers-labels
       waterdrops
       control-circles
       control-labels

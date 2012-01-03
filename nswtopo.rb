@@ -72,14 +72,14 @@ class Array
     end
   end
   
-  def rotate(angle)
+  def rotate_by(angle)
     cos = Math::cos(angle)
     sin = Math::sin(angle)
     [ self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos ]
   end
   
-  def rotate!(angle)
-    self[0], self[1] = rotate(angle)
+  def rotate_by!(angle)
+    self[0], self[1] = rotate_by(angle)
   end
   
   def minus(other)
@@ -150,7 +150,7 @@ def minimum_bounding_box(points)
       Math::acos(edge.dot(caliper) / edge.norm)
     end.map.with_index.min_by { |angle, index| angle }
     
-    calipers.each { |caliper| caliper.rotate!(angle) }
+    calipers.each { |caliper| caliper.rotate_by!(angle) }
     rotation += angle
     
     break if rotation >= Math::PI / 2
@@ -160,12 +160,12 @@ def minimum_bounding_box(points)
     end
     
     centre = polygon.values_at(*indices).map do |point|
-      point.rotate(-rotation)
+      point.rotate_by(-rotation)
     end.partition.with_index do |point, index|
       index.even?
     end.map.with_index do |pair, index|
       0.5 * pair.map { |point| point[index] }.inject(:+)
-    end.rotate(rotation)
+    end.rotate_by(rotation)
     
     if rotation < Math::PI / 4
       candidates << [ centre, dimensions, rotation ]
@@ -289,6 +289,114 @@ class Service
 end
 
 class ArcIMS < Service
+  def get_tile(bounds, extents, scaling, rotation, options_array, path)
+    scales = options_array.map { |options| options["scale"] }.compact.uniq
+    abort("more than one scale specified") if scales.length > 1
+    dpi = scales.any? ? (scales.first * scaling.ppi).round : params["dpi"]
+
+    xml = REXML::Document.new
+    xml << REXML::XMLDecl.new(1.0, "UTF-8")
+    xml.add_element("ARCXML", "version" => 1.1) do |arcxml|
+      arcxml.add_element("REQUEST") do |request|
+        request.add_element("GET_IMAGE") do |get_image|
+          get_image.add_element("PROPERTIES") do |properties|
+            properties.add_element("FEATURECOORDSYS", "string" => params["wkt"])
+            properties.add_element("FILTERCOORDSYS", "string" => params["wkt"])
+            properties.add_element("ENVELOPE", "minx" => bounds.first.first, "maxx" => bounds.first.last, "miny" => bounds.last.first, "maxy" => bounds.last.last)
+            properties.add_element("IMAGESIZE", "width" => extents.first, "height" => extents.last, "dpi" => dpi, "scalesymbols" => true)
+            properties.add_element("BACKGROUND", "color" => "0,0,0")
+            properties.add_element("OUTPUT", "type" => "png")
+            properties.add_element("LAYERLIST", "nodefault" => true) do |layerlist|
+              options_array.each.with_index do |options, layer_index|
+                layerlist.add_element("LAYERDEF", "id" => options["image"] || "custom#{layer_index}", "visible" => true)
+              end
+            end
+          end
+          options_array.each.with_index do |options, layer_index|
+            unless options["image"]
+              colour = options.delete("colour")
+              get_image.add_element("LAYER", "type" => options["image"] ? "image" : "featureclass", "visible" => true, "id" => "custom#{layer_index}") do |layer|
+                layer.add_element("DATASET", "fromlayer" => options["from"])
+                layer.add_element("SPATIALQUERY", "where" => options["where"]) if options["where"]
+                renderer_type = "#{options["lookup"] ? 'VALUEMAP' : 'SIMPLE'}#{'LABEL' if options["label"]}RENDERER"
+                renderer_attributes = {}
+                renderer_attributes.merge! (options["lookup"] ? "labelfield" : "field") => options["label"]["field"] if options["label"]
+                if options["label"]
+                  label_attrs = options["label"].reject { |k, v| k == "field" }
+                  if label_attrs["rotationalangles"]
+                    angles = label_attrs["rotationalangles"].to_s.split(",").map(&:to_f).map { |angle| angle + rotation }
+                    angles.all?(&:zero?) ? label_attrs.delete("rotationalangles") : label_attrs["rotationalangles"] = angles.join(",")
+                  end
+                  renderer_attributes.merge! label_attrs
+                end
+                renderer_attributes.merge! "lookupfield" => options["lookup"] if options["lookup"]
+                layer.add_element(renderer_type, renderer_attributes) do |renderer|
+                  content = lambda do |parent, type, attributes|
+                    case type
+                    when "line"
+                      attrs = { "color" => colour, "antialiasing" => true }.merge(attributes)
+                      parent.add_element("SIMPLELINESYMBOL", attrs)
+                    when "hashline"
+                      attrs = { "color" => colour, "antialiasing" => true }.merge(attributes)
+                      parent.add_element("HASHLINESYMBOL", attrs)
+                    when "polygon"
+                      attrs = { "fillcolor" => colour, "boundarycolor" => colour }.merge(attributes)
+                      parent.add_element("SIMPLEPOLYGONSYMBOL", attrs)
+                    when "text"
+                      attrs = { "fontcolor" => colour, "antialiasing" => true, "interval" => 0 }.merge(attributes)
+                      attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
+                      attrs["interval"] = (attrs["interval"] / 25.4 * scaling.ppi).round
+                      parent.add_element("TEXTSYMBOL", attrs)
+                    when "truetypemarker"
+                      attrs = { "fontcolor" => colour, "outline" => "0,0,0", "antialiasing" => true, "angle" => 0, "overlap" => false }.merge(attributes)
+                      attrs["angle"] += rotation
+                      attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
+                      parent.add_element("TRUETYPEMARKERSYMBOL", attrs)
+                    end
+                  end
+                  [ "line", "hashline", "polygon", "text", "truetypemarker" ].each do |type|
+                    if options[type]
+                      if options["lookup"]
+                        options[type].each do |value, attributes|
+                          tag, tag_attributes = case value
+                          when Range
+                            [ "RANGE", { "lower" => value.min, "upper" => value.max } ]
+                          when nil
+                            [ "OTHER", { } ]
+                          else
+                            [ "EXACT", { "value" => value } ]
+                          end
+                          renderer.add_element(tag, tag_attributes) do |exact|
+                            content.call(exact, type, attributes)
+                          end
+                        end
+                      else
+                        content.call(renderer, type, options[type])
+                      end
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+    post_uri = URI::HTTP.build :host => params["host"], :path => params["path"], :query => "ServiceName=#{params["name"]}"
+    http_post(post_uri, xml, "retries" => 5) do |post_response|
+      sleep params["interval"] if params["interval"]
+      xml = REXML::Document.new(post_response.body)
+      error = xml.elements["/ARCXML/RESPONSE/ERROR"]
+      raise InternetError.new(error.text) if error
+      get_uri = URI.parse xml.elements["/ARCXML/RESPONSE/IMAGE/OUTPUT"].attributes["url"]
+      get_uri.host = params["host"] if params["keep_host"]
+      http_get(get_uri, "retries" => 5) do |get_response|
+        File.open(path, "wb") { |file| file << get_response.body }
+      end
+    end
+  end
+  
   def tiles(tile_sizes, input_bounds, input_projection, scaling)
     bounds = transform_bounds(input_projection, projection, input_bounds)
     extents = bounds.map { |bound| bound.max - bound.min }
@@ -316,137 +424,56 @@ class ArcIMS < Service
     projected_bounds = transform_bounds(input_projection, params["envelope"]["projection"], input_bounds)
     
     if bounds_intersect?(projected_bounds, params["envelope"]["bounds"])
-      layers.each do |label, options_or_array|
-        options_array = [ options_or_array ].flatten
-  
-        margin = options_array.any? { |options| options["text"] } ? 0 : (1.27 * scaling.ppi / 25.4).ceil
+      layers.group_by do |label, options_or_array|
+        options_or_array["group"] if options_or_array.is_a? Hash
+      end.inject([]) do |memo, (group, group_layers)|
+        group ? memo << group_layers : memo + group_layers.zip
+      end.each do |labels_options|
+        options_array = labels_options.map.with_index do |(labels, options_or_array), index|
+          [ options_or_array ].flatten.map do |options|
+            options.merge("colour" => labels_options.length > 3 ? "#{index+1},0,0" : [ 255, 0, 0 ].rotate(index).join(","))
+          end
+        end.flatten
+        margin = options_array.any? { |options| options["text"] } ? 0 : (1.27 / 25.4 * scaling.ppi).ceil
         cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - 2 * margin }
-  
-        scales = options_array.map { |options| options["scale"] }.compact.uniq
-        abort("more than one scale specified") if scales.length > 1
-        dpi = scales.any? ? (scales.first * scaling.ppi).round : params["dpi"]
-  
-        puts "Layer: #{label}"
+        
+        puts "Layers: #{labels_options.map(&:first).join(", ")}"
         puts "  downloading..."
         Dir.mktmpdir do |temp_dir|
-          dataset = tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(cropped_bounds, cropped_extents), tile_index|
+          datasets = tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(cropped_bounds, cropped_extents), tile_index|
             extents = cropped_extents.map { |cropped_extent| cropped_extent + 2 * margin }
             bounds = cropped_bounds.map do |cropped_bound|
               [ cropped_bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
             end
-    
             tile_path = File.join(temp_dir, "tile.#{tile_index}.png")
-    
-            xml = REXML::Document.new
-            xml << REXML::XMLDecl.new(1.0, "UTF-8")
-            xml.add_element("ARCXML", "version" => 1.1) do |arcxml|
-              arcxml.add_element("REQUEST") do |request|
-                request.add_element("GET_IMAGE") do |get_image|
-                  get_image.add_element("PROPERTIES") do |properties|
-                    properties.add_element("FEATURECOORDSYS", "string" => params["wkt"])
-                    properties.add_element("FILTERCOORDSYS", "string" => params["wkt"])
-                    properties.add_element("ENVELOPE", "minx" => bounds.first.first, "maxx" => bounds.first.last, "miny" => bounds.last.first, "maxy" => bounds.last.last)
-                    properties.add_element("IMAGESIZE", "width" => extents.first, "height" => extents.last, "dpi" => dpi, "scalesymbols" => true)
-                    properties.add_element("BACKGROUND", "color" => "0,0,0")
-                    properties.add_element("OUTPUT", "type" => "png")
-                    properties.add_element("LAYERLIST", "nodefault" => true) do |layerlist|
-                      options_array.each_with_index do |options, layer_index|
-                        layerlist.add_element("LAYERDEF", "id" => options["image"] || "custom#{layer_index}", "visible" => true)
-                      end
-                    end
-                  end
-                  options_array.each_with_index do |options, layer_index|
-                    unless options["image"]
-                      get_image.add_element("LAYER", "type" => options["image"] ? "image" : "featureclass", "visible" => true, "id" => "custom#{layer_index}") do |layer|
-                        layer.add_element("DATASET", "fromlayer" => options["from"])
-                        layer.add_element("SPATIALQUERY", "where" => options["where"]) if options["where"]
-                        renderer_type = "#{options["lookup"] ? 'VALUEMAP' : 'SIMPLE'}#{'LABEL' if options["label"]}RENDERER"
-                        renderer_attributes = {}
-                        renderer_attributes.merge! (options["lookup"] ? "labelfield" : "field") => options["label"]["field"] if options["label"]
-                        if options["label"]
-                          label_attrs = options["label"].reject { |k, v| k == "field" }
-                          if label_attrs["rotationalangles"]
-                            angles = label_attrs["rotationalangles"].to_s.split(",").map(&:to_f).map { |angle| angle + rotation }
-                            angles.all?(&:zero?) ? label_attrs.delete("rotationalangles") : label_attrs["rotationalangles"] = angles.join(",")
-                          end
-                          renderer_attributes.merge! label_attrs
-                        end
-                        renderer_attributes.merge! "lookupfield" => options["lookup"] if options["lookup"]
-                        layer.add_element(renderer_type, renderer_attributes) do |renderer|
-                          content = lambda do |parent, type, attributes|
-                            case type
-                            when "line"
-                              attrs = { "color" => "255,255,255", "antialiasing" => true }.merge(attributes)
-                              parent.add_element("SIMPLELINESYMBOL", attrs)
-                            when "hashline"
-                              attrs = { "color" => "255,255,255", "antialiasing" => true }.merge(attributes)
-                              parent.add_element("HASHLINESYMBOL", attrs)
-                            when "marker"
-                              attrs = { "color" => "255,255,255", "outline" => "0,0,0" }.merge(attributes)
-                              attrs["width"] = (attrs["width"] / 25.4 * scaling.ppi).round
-                              parent.add_element("SIMPLEMARKERSYMBOL", attrs)
-                            when "polygon"
-                              attrs = { "fillcolor" => "255,255,255", "boundarycolor" => "255,255,255" }.merge(attributes)
-                              parent.add_element("SIMPLEPOLYGONSYMBOL", attrs)
-                            when "text"
-                              attrs = { "fontcolor" => "255,255,255", "antialiasing" => true, "interval" => 0 }.merge(attributes)
-                              attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
-                              attrs["interval"] = (attrs["interval"] / 25.4 * scaling.ppi).round
-                              parent.add_element("TEXTSYMBOL", attrs)
-                            when "truetypemarker"
-                              attrs = { "fontcolor" => "255,255,255", "outline" => "0,0,0", "antialiasing" => true, "angle" => 0, "overlap" => false }.merge(attributes)
-                              attrs["angle"] += rotation
-                              attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
-                              parent.add_element("TRUETYPEMARKERSYMBOL", attrs)
-                            end
-                          end
-                          [ "line", "hashline", "marker", "polygon", "text", "truetypemarker" ].each do |type|
-                            if options[type]
-                              if options["lookup"]
-                                options[type].each do |value, attributes|
-                                  tag, tag_attributes = case value
-                                  when Range
-                                    [ "RANGE", { "lower" => value.min, "upper" => value.max } ]
-                                  when nil
-                                    [ "OTHER", { } ]
-                                  else
-                                    [ "EXACT", { "value" => value } ]
-                                  end
-                                  renderer.add_element(tag, tag_attributes) do |exact|
-                                    content.call(exact, type, attributes)
-                                  end
-                                end
-                              else
-                                content.call(renderer, type, options[type])
-                              end
-                            end
-                          end
-                        end
-                      end
-                    end
-                  end
-                end
+            get_tile(bounds, extents, scaling, rotation, options_array, tile_path)
+            labels_options.map.with_index do |(label, options_or_array), index|
+              path = File.join(temp_dir, "#{label}.tile.#{tile_index}.png")
+              extract = case
+              when options_or_array.is_a?(Hash) && options_or_array["image"]
+                ""
+              when labels_options.length > 3
+                %Q[-fill Black +opaque "rgb(#{index+1},0,0)" -fill White -opaque "rgb(#{index+1},0,0)"]
+              else
+                %Q[-channel #{%w[Red Green Blue].rotate(-index).first} -separate]
               end
+              %x[convert "#{tile_path}" #{extract} -crop #{cropped_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{path}"]
+              [ cropped_bounds, scaling.metres_per_pixel, path ]
             end
-    
-            post_uri = URI::HTTP.build :host => params["host"], :path => params["path"], :query => "ServiceName=#{params["name"]}"
-            http_post(post_uri, xml, "retries" => 5) do |post_response|
-              sleep params["interval"] if params["interval"]
-              xml = REXML::Document.new(post_response.body)
-              error = xml.elements["/ARCXML/RESPONSE/ERROR"]
-              raise InternetError.new(error.text) if error
-              get_uri = URI.parse xml.elements["/ARCXML/RESPONSE/IMAGE/OUTPUT"].attributes["url"]
-              get_uri.host = params["host"] if params["keep_host"]
-              http_get(get_uri, "retries" => 5) do |get_response|
-                File.open(tile_path, "wb") { |file| file << get_response.body }
-              end
-            end
-    
-            %x[mogrify -crop #{cropped_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{tile_path}"]
-            [ cropped_bounds, scaling.metres_per_pixel, tile_path ]
-          end
-      
-          yield label, dataset
+          end.transpose
+          
+          [ labels_options.map(&:first), datasets ].transpose.each { |label, dataset| yield label, dataset }
+          
+          # dataset = tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(cropped_bounds, cropped_extents), tile_index|
+          #   extents = cropped_extents.map { |cropped_extent| cropped_extent + 2 * margin }
+          #   bounds = cropped_bounds.map do |cropped_bound|
+          #     [ cropped_bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
+          #   end
+          #   tile_path = File.join(temp_dir, "tile.#{tile_index}.png")
+          #   get_tile(bounds, extents, scaling, rotation, options_array, tile_path)
+          #   %x[mogrify -crop #{cropped_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{tile_path}"]
+          #   [ cropped_bounds, scaling.metres_per_pixel, tile_path ]
+          # end
         end
       end
     end
@@ -839,7 +866,7 @@ class ControlService < AnnotationService
     
     string = [ waypoints.reproject(WGS84, projection), names ].transpose.map do |coords, name|
       offsets = [ coords, centre, [ 1, -1 ] ].transpose.map { |coord, cent, sign| (coord - cent) * sign / scaling.metres_per_pixel }
-      x, y = offsets.rotate(rotation * Math::PI / 180.0)
+      x, y = offsets.rotate_by(rotation * Math::PI / 180.0)
       case options["name"]
       when "control-circles"
         case name
@@ -921,8 +948,10 @@ colours:
   dams: '#0033ff'
   water-tanks: '#7b96ff'
   water-areas: '#7b96ff'
+  tank-areas: '#7b96ff'
   water-areas-intermittent: '#7b96ff'
   water-area-boundaries: '#0033ff'
+  tank-area-boundaries: '#0033ff'
   reef: 'Cyan'
   sand: '#ff6600'
   intertidal: '#1b2e7b'
@@ -940,7 +969,8 @@ colours:
   cableways: '#000001'
   wharves: '#000001'
   railways: '#000001'
-  bridges-culverts: '#000001'
+  bridges: '#000001'
+  culverts: '#000001'
   floodways: '#0033ff'
   pathways: '#000001'
   tracks-4wd: 'Dark Orange'
@@ -1100,19 +1130,19 @@ else
     rotation = config["rotation"]
     abort "Error: map rotation must be between -45 and +45 degrees" unless rotation.abs <= 45
     centre, extents = bounding_points.map do |point|
-      point.rotate(-rotation * Math::PI / 180.0)
+      point.rotate_by(-rotation * Math::PI / 180.0)
     end.transpose.map do |coords|
       [ coords.max, coords.min ]
     end.map do |max, min|
       [ 0.5 * (max + min), max - min ]
     end.transpose
-    centre.rotate!(rotation * Math::PI / 180.0)
+    centre.rotate_by!(rotation * Math::PI / 180.0)
   end
   extents.map! { |extent| extent + 2 * config["margin"] * 0.001 * scaling.scale } if config["bounds"]
 end
 dimensions = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
 
-topleft = [ centre, extents.rotate(-rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
+topleft = [ centre, extents.rotate_by(-rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
 world_file_path = File.join(output_dir, "#{map_name}.wld")
 write_world_file(topleft, scaling.metres_per_pixel, rotation, world_file_path)
 
@@ -1411,6 +1441,7 @@ services = {
       },
     ],
     "watercourses" => {
+      "group" => "lines6",
       "from" => "HydroLine_1",
       "where" => "ClassSubtype = 1",
       "lookup" => "delivsdm:geodb.HydroLine.Perenniality",
@@ -1420,34 +1451,33 @@ services = {
         3 => { "width" => 1, "type" => "dash" }
       }
     },
-    "water-areas" => [
-      {
-        "from" => "HydroArea_1",
-        "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-        "polygon" => { 1 => { "boundary" => false } }
-      },
-      {
-        "from" => "TankArea_1",
-        "lookup" => "delivsdm:geodb.TankArea.tanktype",
-        "polygon" => { 1 => { "boundary" => false } }
+    "water-areas" => {
+      "group" => "areas2",
+      "from" => "HydroArea_1",
+      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+      "polygon" => { 1 => { "boundary" => false } }
+    },
+    "tank-areas" => {
+      "group" => "areas2",
+      "from" => "TankArea_1",
+      "lookup" => "delivsdm:geodb.TankArea.tanktype",
+      "polygon" => { 1 => { "boundary" => false } }
+    },
+    "water-area-boundaries" => {
+      "from" => "HydroArea_1",
+      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+      "line" => {
+        1 => { "width" => 2 },
+        "2;3" => { "width" => 1 }
       }
-    ],
-    "water-area-boundaries" => [
-      {
-        "from" => "HydroArea_1",
-        "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-        "line" => {
-          1 => { "width" => 2 },
-          "2;3" => { "width" => 1 }
-        }
-      },
-      {
-        "from" => "TankArea_1",
-        "lookup" => "delivsdm:geodb.TankArea.tanktype",
-        "line" => { 1 => { "width" => 2 } }
-      }
-    ],
+    },
+    "tank-area-boundaries" => {
+      "from" => "TankArea_1",
+      "lookup" => "delivsdm:geodb.TankArea.tanktype",
+      "line" => { 1 => { "width" => 2 } }
+    },
     "water-areas-intermittent" => {
+      "group" => "areas2",
       "from" => "HydroArea_1",
       "lookup" => "delivsdm:geodb.HydroArea.perenniality",
       "polygon" => { "2;3" => { "boundary" => false } }
@@ -1463,15 +1493,52 @@ services = {
       "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 244 } }
     },
     "ocean" => {
+      "group" => "areas2",
       "from" => "FuzzyExtentWaterArea_1",
       "lookup" => "delivsdm:geodb.FuzzyExtentWaterArea.classsubtype",
       "polygon" => { 3 => { } }
     },
     "coastline" => {
+      "group" => "lines6",
       "from" => "Coastline_1",
       "line" => { "width" => 1 }
     },
+    "pathways" => {
+      "scale" => 0.4,
+      "from" => "RoadSegment_1",
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => { 9 => { "width" => 2, "type" => "dash", "captype" => "round" } },
+    },
+    "tracks-4wd" => {
+      "group" => "lines1",
+      "scale" => 0.4,
+      "from" => "RoadSegment_1",
+      "where" => "Surface = 3 OR Surface = 4",
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => { 8 => { "width" => 2, "type" => "dash", "captype" => "round" } },
+    },
+    "tracks-vehicular" => {
+      "scale" => 0.6,
+      "from" => "RoadSegment_1",
+      "where" => "Surface = 2",
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => { 8 => { "width" => 2, "type" => "dash", "captype" => "round" } },
+    },
+    "roads-unsealed" => {
+      "group" => "lines1",
+      "scale" => 0.4,
+      "from" => "RoadSegment_1",
+      "where" => "Surface = 2",
+      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+      "line" => {
+        "1;2;3" => { "width" => 7, "captype" => "round" },
+        "4;5"   => { "width" => 5, "captype" => "round" },
+        "6"     => { "width" => 3, "captype" => "round" },
+        "7"     => { "width" => 2, "captype" => "round" }
+      }
+    },
     "roads-sealed" => {
+      "group" => "lines1",
       "scale" => 0.4,
       "from" => "RoadSegment_1",
       "where" => "(Surface = 0 OR Surface = 1) AND ClassSubtype != 8",
@@ -1483,42 +1550,24 @@ services = {
         "7"     => { "width" => 2, "captype" => "round" }
       }
     },
-    "roads-unsealed" => {
+    "bridges" => {
+      "group" => "lines4",
       "scale" => 0.4,
       "from" => "RoadSegment_1",
-      "where" => "Surface = 2",
+      "where" => "RoadOnType = 2",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => {
-        "1;2;3" => { "width" => 7, "captype" => "round" },
-        "4;5"   => { "width" => 5, "captype" => "round" },
-        "6"     => { "width" => 3, "captype" => "round" },
-        "7"     => { "width" => 2, "captype" => "round" }
+        "1;2;3" => { "width" => 10, "captype" => "square" },
+        "4;5"   => { "width" => 8, "captype" => "square" },
+        "6;8"   => { "width" => 6, "captype" => "square" },
+        "7"     => { "width" => 5, "captype" => "square" },
       }
     },
-    "tracks-vehicular" => {
-      "scale" => 0.6,
-      "from" => "RoadSegment_1",
-      "where" => "Surface = 2",
-      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => { 8 => { "width" => 2, "type" => "dash", "captype" => "round" } },
-    },
-    "tracks-4wd" => {
+    "culverts" => {
+      "group" => "lines4",
       "scale" => 0.4,
       "from" => "RoadSegment_1",
-      "where" => "Surface = 3 OR Surface = 4",
-      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => { 8 => { "width" => 2, "type" => "dash", "captype" => "round" } },
-    },
-    "pathways" => {
-      "scale" => 0.4,
-      "from" => "RoadSegment_1",
-      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => { 9 => { "width" => 2, "type" => "dash", "captype" => "round" } },
-    },
-    "bridges-culverts" => {
-      "scale" => 0.4,
-      "from" => "RoadSegment_1",
-      "where" => "RoadOnType = 2 OR RoadOnType = 5",
+      "where" => "RoadOnType = 5",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => {
         "1;2;3" => { "width" => 10, "captype" => "square" },
@@ -1528,6 +1577,7 @@ services = {
       }
     },
     "floodways" => {
+      "group" => "lines4",
       "scale" => 0.4,
       "from" => "RoadSegment_1",
       "where" => "RoadOnType = 4",
@@ -1540,69 +1590,82 @@ services = {
       }
     },
     "intertidal" => {
+      "group" => "areas1",
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
       "polygon" => { 1 => { } }
     },
     "inundation" => {
+      "group" => "areas1",
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
       "polygon" => { 2 => { } }
     },
     "reef" => {
+      "group" => "areas1",
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
       "polygon" => { 4 => { } }
     },
     "rock-area" => {
+      "group" => "areas1",
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
       "polygon" => { "5;6" => { } }
     },
     "sand" => {
+      "group" => "areas1",
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
       "polygon" => { 7 => { } }
     },
     "swamp-wet" => {
+      "group" => "areas1",
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
       "polygon" => { 8 => { } }
     },
     "swamp-dry" => {
+      "group" => "areas1",
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
       "polygon" => { 9 => { } }
     },
     "cliffs" => {
+      "group" => "areas1",
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
       "polygon" => { 11 => { } }
     },
     "clifftops" => {
+      "group" => "lines3",
       "from" => "DLSLine_1",
       "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
       "scale" => 0.25,
       "line" => { 1 => { "width" => 2, "type" => "dot", "antialiasing" => false } }
     },
     "excavation" => {
+      "group" => "lines3",
       "from" => "DLSLine_1",
       "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
       "scale" => 0.25,
       "line" => { 3 => { "width" => 2, "type" => "dot", "antialiasing" => false } }
     },
     "built-up-areas" => {
+      "group" => "areas1",
       "from" => "GeneralCulturalArea_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
       "polygon" => { 7 => { } }
     },
     "pine" => {
+      "group" => "areas1",
       "from" => "GeneralCulturalArea_1",
       "where" => "ClassSubtype = 6",
       "lookup" => "delivsdm:geodb.GeneralCulturalArea.GeneralCulturalType",
       "polygon" => { 1 => { } }
     },
     "orchards-plantations" => {
+      "group" => "areas1",
       "from" => "GeneralCulturalArea_1",
       "where" => "ClassSubtype = 6",
       "lookup" => "delivsdm:geodb.GeneralCulturalArea.GeneralCulturalType",
@@ -1614,12 +1677,14 @@ services = {
       "polygon" => { 5 => { } }
     },
     "dam-walls" => {
+      "group" => "lines2",
       "from" => "GeneralCulturalLine_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalLine.ClassSubtype",
       "scale" => 0.4,
       "line" => { 4 => { "width" => 3 } }
     },
     "cableways" => {
+      # "group" => "lines5",
       "from" => "Cableway_1",
       "scale" => 0.4,
       "lookup" => "delivsdm:geodb.Cableway.ClassSubtype",
@@ -1629,12 +1694,14 @@ services = {
       }
     },
     "misc-perimeters" => {
+      # "group" => "lines7",
       "from" => "GeneralCulturalLine_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalLine.classsubtype",
       "scale" => 0.15,
       "line" => { 3 => { "width" => 1, "type" => "dash" } }
     },
     "railways" => {
+      # "group" => "lines7",
       "scale" => 0.35,
       "from" => "Railway_1",
       "lookup" => "delivsdm:geodb.Railway.classsubtype",
@@ -1653,11 +1720,13 @@ services = {
       }
     },
     "transmission-lines" => {
+      # "group" => "lines5",
       "scale" => 0.7,
       "from" => "ElectricityTransmissionLine_1",
       "line" => { "width" => 1, "type" => "dash_dot" }
     },
     "landing-grounds" => {
+      # "group" => "lines5",
       "scale" => 1.0,
       "from" => "Runway_1",
       "lookup" => "delivsdm:geodb.Runway.runwaydefinition",
@@ -1668,6 +1737,7 @@ services = {
       }
     },
     "wharves" => {
+      "group" => "lines2",
       "from" => "TransportFacilityLine_1",
       "lookup" => "delivsdm:geodb.TransportFacilityLine.classsubtype",
       "scale" => 0.4,
@@ -1920,7 +1990,9 @@ unless formats_paths.empty?
       water-tanks
       water-areas-intermittent
       water-areas
+      tank-areas
       water-area-boundaries
+      tank-area-boundaries
       intertidal
       reef
       clifftops
@@ -1933,7 +2005,8 @@ unless formats_paths.empty?
       act-border
       railways
       pathways
-      bridges-culverts
+      bridges
+      culverts
       floodways
       tracks-4wd
       tracks-vehicular
@@ -2025,7 +2098,7 @@ unless oziexplorer_formats.empty?
   corners = dimensions.map do |dimension|
     [ -0.5 * dimension * scaling.metres_per_pixel, 0.5 * dimension * scaling.metres_per_pixel ]
   end.inject(:product).map do |offsets|
-    [ centre, offsets.rotate(rotation * Math::PI / 180.0) ].transpose.map { |coord, offset| coord + offset }
+    [ centre, offsets.rotate_by(rotation * Math::PI / 180.0) ].transpose.map { |coord, offset| coord + offset }
   end
   wgs84_corners = corners.reproject(projection, WGS84).values_at(1,3,2,0)
   pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
@@ -2064,5 +2137,5 @@ end
 # TODO: rework "exclude" config?
 # TODO: add picnic areas, carparks (or labels for them)
 # TODO: re-solve building/building-area problem
-# TODO: solve label overlap problem by including other layers rendered in black!
+# TODO: solve label overlap problem by including other layers rendered in black! (use "overlap" attribute to detect invisible layers to include)
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

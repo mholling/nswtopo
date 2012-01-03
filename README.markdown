@@ -182,7 +182,7 @@ Specify the format(s) of the output map files you would like to create. Choose a
       - png                   # (default map output is in PNG and multi-layered TIFF format)
       - layered.tif
 
-Specify which layers to exclude from your map. This will prevent downloading of the layers and their inclusion in the final map. List each layer individually. Use the shortcuts `coastal`, `UTM` and `aerial` to exclude all coastal feature layers, UTM grid layers and aerial imagery layers, respectively.
+Specify which layers to exclude from your map. This will prevent downloading of the layers and their inclusion in the final map. List each layer individually. Use the shortcuts `UTM`, `aerial` and `act-extras` to exclude all UTM grid layers, aerial imagery layers and extra ACT layers, respectively.
 
     exclude:
       - utm                   # (exclude UTM grid in favour of declination lines)

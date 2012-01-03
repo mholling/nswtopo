@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# Copyright 2011 Matthew Hollingworth
+# Copyright 2011, 2012 Matthew Hollingworth
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -58,7 +58,7 @@ class Hash
 end
 
 class Array
-  def with_progress(symbol = ?-, container = "    [%s]", bars = 70)
+  def with_progress(symbol = ?-, container = "  [%s]", bars = 70)
     divider = (length - 1) / 40 + 1
     Enumerator.new do |yielder|
       $stdout << container % (?\s * bars)
@@ -291,7 +291,7 @@ end
 class ArcIMS < Service
   def get_tile(bounds, extents, scaling, rotation, options_array, path)
     scales = options_array.map { |options| options["scale"] }.compact.uniq
-    abort("more than one scale specified") if scales.length > 1
+    abort("Error: more than one scale specified") if scales.length > 1
     dpi = scales.any? ? (scales.first * scaling.ppi).round : params["dpi"]
 
     xml = REXML::Document.new
@@ -314,7 +314,6 @@ class ArcIMS < Service
           end
           options_array.each.with_index do |options, layer_index|
             unless options["image"]
-              colour = options.delete("colour")
               get_image.add_element("LAYER", "type" => options["image"] ? "image" : "featureclass", "visible" => true, "id" => "custom#{layer_index}") do |layer|
                 layer.add_element("DATASET", "fromlayer" => options["from"])
                 layer.add_element("SPATIALQUERY", "where" => options["where"]) if options["where"]
@@ -334,21 +333,21 @@ class ArcIMS < Service
                   content = lambda do |parent, type, attributes|
                     case type
                     when "line"
-                      attrs = { "color" => colour, "antialiasing" => true }.merge(attributes)
+                      attrs = { "color" => options["colour"], "antialiasing" => true }.merge(attributes)
                       parent.add_element("SIMPLELINESYMBOL", attrs)
                     when "hashline"
-                      attrs = { "color" => colour, "antialiasing" => true }.merge(attributes)
+                      attrs = { "color" => options["colour"], "antialiasing" => true }.merge(attributes)
                       parent.add_element("HASHLINESYMBOL", attrs)
                     when "polygon"
-                      attrs = { "fillcolor" => colour, "boundarycolor" => colour }.merge(attributes)
+                      attrs = { "fillcolor" => options["colour"], "boundarycolor" => options["colour"] }.merge(attributes)
                       parent.add_element("SIMPLEPOLYGONSYMBOL", attrs)
                     when "text"
-                      attrs = { "fontcolor" => colour, "antialiasing" => true, "interval" => 0 }.merge(attributes)
+                      attrs = { "fontcolor" => options["colour"], "antialiasing" => true, "interval" => 0 }.merge(attributes)
                       attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
                       attrs["interval"] = (attrs["interval"] / 25.4 * scaling.ppi).round
                       parent.add_element("TEXTSYMBOL", attrs)
                     when "truetypemarker"
-                      attrs = { "fontcolor" => colour, "outline" => "0,0,0", "antialiasing" => true, "angle" => 0, "overlap" => false }.merge(attributes)
+                      attrs = { "fontcolor" => options["colour"], "outline" => "0,0,0", "antialiasing" => true, "angle" => 0, "overlap" => false }.merge(attributes)
                       attrs["angle"] += rotation
                       attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
                       parent.add_element("TRUETYPEMARKERSYMBOL", attrs)
@@ -425,7 +424,9 @@ class ArcIMS < Service
     
     if bounds_intersect?(projected_bounds, params["envelope"]["bounds"])
       layers.group_by do |label, options_or_array|
-        options_or_array["group"] if options_or_array.is_a? Hash
+        groups = [ options_or_array ].flatten.map { |options| options["group"] }.compact.uniq
+        abort("Error: multiple groups specified") if groups.length > 1
+        groups.first
       end.inject([]) do |memo, (group, group_layers)|
         group ? memo << group_layers : memo + group_layers.zip
       end.each do |labels_options|
@@ -437,8 +438,7 @@ class ArcIMS < Service
         margin = options_array.any? { |options| options["text"] } ? 0 : (1.27 / 25.4 * scaling.ppi).ceil
         cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - 2 * margin }
         
-        puts "Layers: #{labels_options.map(&:first).join(", ")}"
-        puts "  downloading..."
+        puts "Downloading: #{labels_options.map(&:first).join(", ")}"
         Dir.mktmpdir do |temp_dir|
           datasets = tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(cropped_bounds, cropped_extents), tile_index|
             extents = cropped_extents.map { |cropped_extent| cropped_extent + 2 * margin }
@@ -463,17 +463,6 @@ class ArcIMS < Service
           end.transpose
           
           [ labels_options.map(&:first), datasets ].transpose.each { |label, dataset| yield label, dataset }
-          
-          # dataset = tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(cropped_bounds, cropped_extents), tile_index|
-          #   extents = cropped_extents.map { |cropped_extent| cropped_extent + 2 * margin }
-          #   bounds = cropped_bounds.map do |cropped_bound|
-          #     [ cropped_bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
-          #   end
-          #   tile_path = File.join(temp_dir, "tile.#{tile_index}.png")
-          #   get_tile(bounds, extents, scaling, rotation, options_array, tile_path)
-          #   %x[mogrify -crop #{cropped_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{tile_path}"]
-          #   [ cropped_bounds, scaling.metres_per_pixel, tile_path ]
-          # end
         end
       end
     end
@@ -503,8 +492,7 @@ class TiledMapService < Service
       format = options["format"]
       name = options["name"]
   
-      puts "Layer: #{label}"
-      puts "  downloading #{counts.inject(:*)} tiles..."
+      puts "Downloading: #{label} (#{counts.inject(:*)} tiles)"
       Dir.mktmpdir do |temp_dir|
         dataset = counts.map { |count| (0...count).to_a }.inject(:product).with_progress.map do |indices|
           sleep params["interval"]
@@ -551,8 +539,7 @@ class LPIOrthoService < Service
   def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
     bounds = transform_bounds(input_projection, projection, input_bounds)
     layers.each do |label, options|
-      puts "Layer: #{label}"
-      puts "  retrieving LPI imagery metadata..."
+      puts "Retrieving LPI imagery metadata for: #{label}"
       images_regions = case
       when options["image"]
         { options["image"] => options["region"] }
@@ -593,7 +580,7 @@ class LPIOrthoService < Service
       else
         tile_size = params["tile_size"]
         format = images_attributes.one? ? { "type" => "jpg", "quality" => 90 } : { "type" => "png", "transparent" => true }
-        puts "  downloading..."
+        puts "Downloading: #{label}"
         Dir.mktmpdir do |temp_dir|
           dataset = images_attributes.map do |image, attributes|
             zoom = [ Math::log2(scaling.metres_per_pixel / attributes["resolutions"].first).floor, 0 ].max
@@ -654,8 +641,7 @@ class OneEarthDEMRelief < Service
     counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
     units_per_pixel = 0.125 / 300
 
-    puts "Layers: #{layers.map(&:first).join ", "}"
-    puts "  downloading..."
+    puts "Downloading: #{layers.map(&:first).join ", "}"
     Dir.mktmpdir do |temp_dir|
       tile_paths = [ counts, bounds ].transpose.map do |count, bound|
         boundaries = (0..count).map { |index| bound.first + index * 0.125 }
@@ -738,8 +724,7 @@ class UTMGridService < Service
     if input_bounds.inject(:product).map { |corner| UTMGridService.zone(input_projection, corner) }.include? zone
       bounds = transform_bounds(input_projection, projection, input_bounds)
       layers.each do |label, options|
-        puts "Layer: #{label}"
-        puts "  calculating..."
+        puts "Creating: #{label}"
         intervals, fontsize, family, weight = params.values_at("intervals", "fontsize", "family", "weight")
   
         tick_indices = [ bounds, intervals ].transpose.map do |bound, interval|
@@ -799,7 +784,7 @@ end
 class AnnotationService < Service
   def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
     layers.each do |label, options|
-      puts "Layer: #{label}"
+      puts "Creating: #{label}"
       yield label, [], options
     end
   end
@@ -1077,7 +1062,7 @@ config = config.deep_merge YAML.load(File.open(File.join(output_dir, "config.yml
   "utm" => %w{utm-54-grid utm-54-eastings utm-54-northings utm-55-grid utm-55-eastings utm-55-northings utm-56-grid utm-56-eastings utm-56-northings},
   "aerial" => %w{aerial-google aerial-nokia aerial-lpi-sydney aerial-lpi-eastcoast aerial-lpi-towns aerial-lpi-ads40},
   "coastal" => %w{ocean reef intertidal coastline wharves},
-  "act" => %w{act-rivers-and-creeks act-urban-land act-lakes-and-major-rivers act-plantations act-roads-sealed act-roads-unsealed act-vehicular-tracks act-adhoc-fire-access}
+  "act-extras" => %w{act-rivers-and-creeks act-urban-land act-lakes-and-major-rivers act-plantations act-roads-sealed act-roads-unsealed act-vehicular-tracks act-adhoc-fire-access}
 }.each do |shortcut, layers|
   config["exclude"] += layers if config["exclude"].delete(shortcut)
 end
@@ -1276,7 +1261,7 @@ services = {
       { # road/track/pathway labels
         "from" => "RoadSegment_Label_1",
         "lookup" => "delivsdm:geodb.RoadSegment.FunctionHierarchy",
-        "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix" },
+        "label" => { "field" => "delivsdm:geodb.RoadSegment.RoadNameBase delivsdm:geodb.RoadSegment.RoadNameType delivsdm:geodb.RoadSegment.RoadNameSuffix", "linelabelposition" => "placeabovebelow" },
         "text" => {
           "1;2" => { "fontsize" => 6.4, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 1.0 },
           "3;4;5" => { "fontsize" => 5.4, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 1.0 },
@@ -1420,6 +1405,7 @@ services = {
     ],
     "contours" => [
       { # normal
+        "group" => "line7",
         "from" => "Contour_1",
         "where" => "MOD(elevation, #{config["contours"]["interval"]}) = 0 AND sourceprogram = #{config["contours"]["source"]}",
         "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
@@ -1427,21 +1413,23 @@ services = {
         "hashline" => { 2 => { "width" => 2, "linethickness" => 1, "thickness" => 1, "interval" => 8 } }
       },
       { # index
+        "group" => "line7",
         "from" => "Contour_1",
         "where" => "MOD(elevation, #{config["contours"]["index"]}) = 0 AND elevation > 0 AND sourceprogram = #{config["contours"]["source"]}",
         "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
         "line" => { 1 => { "width" => 2 } },
         "hashline" => { 2 => { "width" => 3, "linethickness" => 2, "thickness" => 1, "interval" => 8 } }
       },
-      { # ancillary (TODO: separate/remove?)
-        "from" => "Contour_1",
-        "where" => "sourceprogram = #{config["contours"]["source"]}",
-        "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
-        "line" => { 3 => { "width" => 1, "type" => "dash" } },
-      },
     ],
+    "ancillary-contours" => {
+      "group" => "line7",
+      "from" => "Contour_1",
+      "where" => "sourceprogram = #{config["contours"]["source"]}",
+      "lookup" => "delivsdm:geodb.Contour.ClassSubtype",
+      "line" => { 3 => { "width" => 1, "type" => "dash" } },
+    },
     "watercourses" => {
-      "group" => "lines6",
+      "group" => "lines5",
       "from" => "HydroLine_1",
       "where" => "ClassSubtype = 1",
       "lookup" => "delivsdm:geodb.HydroLine.Perenniality",
@@ -1499,11 +1487,12 @@ services = {
       "polygon" => { 3 => { } }
     },
     "coastline" => {
-      "group" => "lines6",
+      "group" => "lines5",
       "from" => "Coastline_1",
       "line" => { "width" => 1 }
     },
     "pathways" => {
+      "group" => "lines6",
       "scale" => 0.4,
       "from" => "RoadSegment_1",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
@@ -1672,6 +1661,7 @@ services = {
       "polygon" => { "0;2;3;4" => { } }
     },
     "building-areas" => {
+      "group" => "areas2",
       "from" => "GeneralCulturalArea_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
       "polygon" => { 5 => { } }
@@ -1684,7 +1674,7 @@ services = {
       "line" => { 4 => { "width" => 3 } }
     },
     "cableways" => {
-      # "group" => "lines5",
+      "group" => "lines2",
       "from" => "Cableway_1",
       "scale" => 0.4,
       "lookup" => "delivsdm:geodb.Cableway.ClassSubtype",
@@ -1694,15 +1684,14 @@ services = {
       }
     },
     "misc-perimeters" => {
-      # "group" => "lines7",
       "from" => "GeneralCulturalLine_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalLine.classsubtype",
       "scale" => 0.15,
       "line" => { 3 => { "width" => 1, "type" => "dash" } }
     },
     "railways" => {
-      # "group" => "lines7",
-      "scale" => 0.35,
+      "group" => "lines6",
+      "scale" => 0.4,
       "from" => "Railway_1",
       "lookup" => "delivsdm:geodb.Railway.classsubtype",
       "hashline" => {
@@ -1720,20 +1709,19 @@ services = {
       }
     },
     "transmission-lines" => {
-      # "group" => "lines5",
       "scale" => 0.7,
       "from" => "ElectricityTransmissionLine_1",
       "line" => { "width" => 1, "type" => "dash_dot" }
     },
     "landing-grounds" => {
-      # "group" => "lines5",
-      "scale" => 1.0,
+      "group" => "lines6",
+      "scale" => 0.4,
       "from" => "Runway_1",
       "lookup" => "delivsdm:geodb.Runway.runwaydefinition",
       "line" => {
-        1 => { "width" => 1 },
-        2 => { "width" => 5 },
-        3 => { "width" => 0.5 }
+        1 => { "width" => 3 },
+        2 => { "width" => 12 },
+        3 => { "width" => 1 }
       }
     },
     "wharves" => {
@@ -1769,14 +1757,17 @@ services = {
       "line" => { "width" => 1 }
     },
     "act-urban-land" => {
+      "group" => "areas1",
       "from" => 71,
       "polygon" => { }
     },
     "act-lakes-and-major-rivers" => {
+      "group" => "areas1",
       "from" => 28,
       "polygon" => { }
     },
     "act-plantations" => {
+      "group" => "areas1",
       "from" => 51,
       "polygon" => { }
     },
@@ -1848,7 +1839,7 @@ services = {
   nokia_maps => {
     "aerial-nokia" => { "name" => 1, "format" => 1 }
   },
-  oneearth_relief => [ config["relief"]["azimuth"] ].flatten.map do |azimuth|
+  oneearth_relief => [ *config["relief"]["azimuth"] ].map do |azimuth|
     { "shaded-relief-#{azimuth}" => { "name" => "shaded-relief", "azimuth" => azimuth } }
   end.inject(:merge).merge(
     "elevation" => { "name" => "color-relief" }
@@ -1882,7 +1873,7 @@ services.each do |service, layers|
          canvas_path = File.join(temp_dir, "canvas.tif")
             vrt_path = File.join(temp_dir, "layer.vrt")
 
-        puts "  assembling..."
+        puts "Assembling: #{label}"
         %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{canvas_path}"]
         %x[geotifcp -c lzw -e "#{world_file_path}" -4 "#{projection}" "#{canvas_path}" "#{working_path}"]
 
@@ -1899,7 +1890,6 @@ services.each do |service, layers|
         end
 
         if service.respond_to? :post_process
-          puts "  processing..."
           service.post_process(centre, projection, dimensions, scaling, rotation, options, working_path)
         end
 
@@ -1918,9 +1908,8 @@ end.reject do |format, path|
   File.exists? path
 end
 unless formats_paths.empty?
-  puts "Building composite files:"
   Dir.mktmpdir do |temp_dir|
-    puts "  generating patterns..."
+    puts "Generating patterns"
 
     swamp = %w[
       00000100000
@@ -1963,7 +1952,7 @@ unless formats_paths.empty?
       end
     end
     
-    puts "  preparing layers..."
+    puts "Preparing layers for compositing"
     layers = %w[
       aerial-google
       aerial-nokia
@@ -1977,6 +1966,7 @@ unless formats_paths.empty?
       orchards-plantations
       built-up-areas
       contours
+      ancillary-contours
       swamp-wet
       swamp-dry
       sand
@@ -2074,7 +2064,7 @@ unless formats_paths.empty?
     
     formats_paths.each do |format, path|
       temp_path = File.join(temp_dir, "composite.#{format}")
-      puts "  compositing #{map_name}.#{format}"
+      puts "Compositing #{map_name}.#{format}"
       sequence = case format.downcase
       when "psd" then "#{flattened} #{layered}"
       when /layer/ then layered
@@ -2134,8 +2124,21 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
+# TODO: add note for layers already downloaded
+# TODO: progress bar for pattern generation?
+
 # TODO: rework "exclude" config?
+
 # TODO: add picnic areas, carparks (or labels for them)
+# TODO: add sports fields, etc. (and labels?)
+# TODO: underground roads and railways (e.g. Lithgow)
+# TODO: filter building labels to some degree
+# TODO: railway labels
+
+# TODO: http timeouts?
+
 # TODO: re-solve building/building-area problem
+
 # TODO: solve label overlap problem by including other layers rendered in black! (use "overlap" attribute to detect invisible layers to include)
+
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

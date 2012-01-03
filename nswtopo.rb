@@ -312,110 +312,115 @@ class ArcIMS < Service
     [ tile_bounds.inject(:product), tile_extents.inject(:product) ].transpose
   end
   
-  def dataset(input_bounds, input_projection, scaling, rotation, label, options_or_array, dir)
+  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
     projected_bounds = transform_bounds(input_projection, params["envelope"]["projection"], input_bounds)
-    return nil unless bounds_intersect?(projected_bounds, params["envelope"]["bounds"])
     
-    options_array = [ options_or_array ].flatten
-    
-    margin = options_array.any? { |options| options["text"] } ? 0 : (1.27 * scaling.ppi / 25.4).ceil
-    cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - 2 * margin }
-    
-    scales = options_array.map { |options| options["scale"] }.compact.uniq
-    abort("more than one scale specified") if scales.length > 1
-    dpi = scales.any? ? (scales.first * scaling.ppi).round : params["dpi"]
-    
-    puts "Layer: #{label}"
-    puts "  downloading..."
-    tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(cropped_bounds, cropped_extents), tile_index|
-      extents = cropped_extents.map { |cropped_extent| cropped_extent + 2 * margin }
-      bounds = cropped_bounds.map do |cropped_bound|
-        [ cropped_bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
-      end
-      
-      tile_path = File.join(dir, "tile.#{tile_index}.png")
-      
-      xml = REXML::Document.new
-      xml << REXML::XMLDecl.new(1.0, "UTF-8")
-      xml.add_element("ARCXML", "version" => 1.1) do |arcxml|
-        arcxml.add_element("REQUEST") do |request|
-          request.add_element("GET_IMAGE") do |get_image|
-            get_image.add_element("PROPERTIES") do |properties|
-              properties.add_element("FEATURECOORDSYS", "string" => params["wkt"])
-              properties.add_element("FILTERCOORDSYS", "string" => params["wkt"])
-              properties.add_element("ENVELOPE", "minx" => bounds.first.first, "maxx" => bounds.first.last, "miny" => bounds.last.first, "maxy" => bounds.last.last)
-              properties.add_element("IMAGESIZE", "width" => extents.first, "height" => extents.last, "dpi" => dpi, "scalesymbols" => true)
-              properties.add_element("BACKGROUND", "color" => "0,0,0")
-              properties.add_element("OUTPUT", "type" => "png")
-              properties.add_element("LAYERLIST", "nodefault" => true) do |layerlist|
-                options_array.each_with_index do |options, layer_index|
-                  layerlist.add_element("LAYERDEF", "id" => options["image"] || "custom#{layer_index}", "visible" => true)
-                end
-              end
+    if bounds_intersect?(projected_bounds, params["envelope"]["bounds"])
+      layers.each do |label, options_or_array|
+        options_array = [ options_or_array ].flatten
+  
+        margin = options_array.any? { |options| options["text"] } ? 0 : (1.27 * scaling.ppi / 25.4).ceil
+        cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - 2 * margin }
+  
+        scales = options_array.map { |options| options["scale"] }.compact.uniq
+        abort("more than one scale specified") if scales.length > 1
+        dpi = scales.any? ? (scales.first * scaling.ppi).round : params["dpi"]
+  
+        puts "Layer: #{label}"
+        puts "  downloading..."
+        Dir.mktmpdir do |temp_dir|
+          dataset = tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(cropped_bounds, cropped_extents), tile_index|
+            extents = cropped_extents.map { |cropped_extent| cropped_extent + 2 * margin }
+            bounds = cropped_bounds.map do |cropped_bound|
+              [ cropped_bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
             end
-            options_array.each_with_index do |options, layer_index|
-              unless options["image"]
-                get_image.add_element("LAYER", "type" => options["image"] ? "image" : "featureclass", "visible" => true, "id" => "custom#{layer_index}") do |layer|
-                  layer.add_element("DATASET", "fromlayer" => options["from"])
-                  layer.add_element("SPATIALQUERY", "where" => options["where"]) if options["where"]
-                  renderer_type = "#{options["lookup"] ? 'VALUEMAP' : 'SIMPLE'}#{'LABEL' if options["label"]}RENDERER"
-                  renderer_attributes = {}
-                  renderer_attributes.merge! (options["lookup"] ? "labelfield" : "field") => options["label"]["field"] if options["label"]
-                  if options["label"]
-                    label_attrs = options["label"].reject { |k, v| k == "field" }
-                    if label_attrs["rotationalangles"]
-                      angles = label_attrs["rotationalangles"].to_s.split(",").map(&:to_f).map { |angle| angle + rotation }
-                      angles.all?(&:zero?) ? label_attrs.delete("rotationalangles") : label_attrs["rotationalangles"] = angles.join(",")
-                    end
-                    renderer_attributes.merge! label_attrs
-                  end
-                  renderer_attributes.merge! "lookupfield" => options["lookup"] if options["lookup"]
-                  layer.add_element(renderer_type, renderer_attributes) do |renderer|
-                    content = lambda do |parent, type, attributes|
-                      case type
-                      when "line"
-                        attrs = { "color" => "255,255,255", "antialiasing" => true }.merge(attributes)
-                        parent.add_element("SIMPLELINESYMBOL", attrs)
-                      when "hashline"
-                        attrs = { "color" => "255,255,255", "antialiasing" => true }.merge(attributes)
-                        parent.add_element("HASHLINESYMBOL", attrs)
-                      when "marker"
-                        attrs = { "color" => "255,255,255", "outline" => "0,0,0" }.merge(attributes)
-                        attrs["width"] = (attrs["width"] / 25.4 * scaling.ppi).round
-                        parent.add_element("SIMPLEMARKERSYMBOL", attrs)
-                      when "polygon"
-                        attrs = { "fillcolor" => "255,255,255", "boundarycolor" => "255,255,255" }.merge(attributes)
-                        parent.add_element("SIMPLEPOLYGONSYMBOL", attrs)
-                      when "text"
-                        attrs = { "fontcolor" => "255,255,255", "antialiasing" => true, "interval" => 0 }.merge(attributes)
-                        attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
-                        attrs["interval"] = (attrs["interval"] / 25.4 * scaling.ppi).round
-                        parent.add_element("TEXTSYMBOL", attrs)
-                      when "truetypemarker"
-                        attrs = { "fontcolor" => "255,255,255", "outline" => "0,0,0", "antialiasing" => true, "angle" => 0, "overlap" => false }.merge(attributes)
-                        attrs["angle"] += rotation
-                        attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
-                        parent.add_element("TRUETYPEMARKERSYMBOL", attrs)
+    
+            tile_path = File.join(temp_dir, "tile.#{tile_index}.png")
+    
+            xml = REXML::Document.new
+            xml << REXML::XMLDecl.new(1.0, "UTF-8")
+            xml.add_element("ARCXML", "version" => 1.1) do |arcxml|
+              arcxml.add_element("REQUEST") do |request|
+                request.add_element("GET_IMAGE") do |get_image|
+                  get_image.add_element("PROPERTIES") do |properties|
+                    properties.add_element("FEATURECOORDSYS", "string" => params["wkt"])
+                    properties.add_element("FILTERCOORDSYS", "string" => params["wkt"])
+                    properties.add_element("ENVELOPE", "minx" => bounds.first.first, "maxx" => bounds.first.last, "miny" => bounds.last.first, "maxy" => bounds.last.last)
+                    properties.add_element("IMAGESIZE", "width" => extents.first, "height" => extents.last, "dpi" => dpi, "scalesymbols" => true)
+                    properties.add_element("BACKGROUND", "color" => "0,0,0")
+                    properties.add_element("OUTPUT", "type" => "png")
+                    properties.add_element("LAYERLIST", "nodefault" => true) do |layerlist|
+                      options_array.each_with_index do |options, layer_index|
+                        layerlist.add_element("LAYERDEF", "id" => options["image"] || "custom#{layer_index}", "visible" => true)
                       end
                     end
-                    [ "line", "hashline", "marker", "polygon", "text", "truetypemarker" ].each do |type|
-                      if options[type]
-                        if options["lookup"]
-                          options[type].each do |value, attributes|
-                            tag, tag_attributes = case value
-                            when Range
-                              [ "RANGE", { "lower" => value.min, "upper" => value.max } ]
-                            when nil
-                              [ "OTHER", { } ]
-                            else
-                              [ "EXACT", { "value" => value } ]
-                            end
-                            renderer.add_element(tag, tag_attributes) do |exact|
-                              content.call(exact, type, attributes)
+                  end
+                  options_array.each_with_index do |options, layer_index|
+                    unless options["image"]
+                      get_image.add_element("LAYER", "type" => options["image"] ? "image" : "featureclass", "visible" => true, "id" => "custom#{layer_index}") do |layer|
+                        layer.add_element("DATASET", "fromlayer" => options["from"])
+                        layer.add_element("SPATIALQUERY", "where" => options["where"]) if options["where"]
+                        renderer_type = "#{options["lookup"] ? 'VALUEMAP' : 'SIMPLE'}#{'LABEL' if options["label"]}RENDERER"
+                        renderer_attributes = {}
+                        renderer_attributes.merge! (options["lookup"] ? "labelfield" : "field") => options["label"]["field"] if options["label"]
+                        if options["label"]
+                          label_attrs = options["label"].reject { |k, v| k == "field" }
+                          if label_attrs["rotationalangles"]
+                            angles = label_attrs["rotationalangles"].to_s.split(",").map(&:to_f).map { |angle| angle + rotation }
+                            angles.all?(&:zero?) ? label_attrs.delete("rotationalangles") : label_attrs["rotationalangles"] = angles.join(",")
+                          end
+                          renderer_attributes.merge! label_attrs
+                        end
+                        renderer_attributes.merge! "lookupfield" => options["lookup"] if options["lookup"]
+                        layer.add_element(renderer_type, renderer_attributes) do |renderer|
+                          content = lambda do |parent, type, attributes|
+                            case type
+                            when "line"
+                              attrs = { "color" => "255,255,255", "antialiasing" => true }.merge(attributes)
+                              parent.add_element("SIMPLELINESYMBOL", attrs)
+                            when "hashline"
+                              attrs = { "color" => "255,255,255", "antialiasing" => true }.merge(attributes)
+                              parent.add_element("HASHLINESYMBOL", attrs)
+                            when "marker"
+                              attrs = { "color" => "255,255,255", "outline" => "0,0,0" }.merge(attributes)
+                              attrs["width"] = (attrs["width"] / 25.4 * scaling.ppi).round
+                              parent.add_element("SIMPLEMARKERSYMBOL", attrs)
+                            when "polygon"
+                              attrs = { "fillcolor" => "255,255,255", "boundarycolor" => "255,255,255" }.merge(attributes)
+                              parent.add_element("SIMPLEPOLYGONSYMBOL", attrs)
+                            when "text"
+                              attrs = { "fontcolor" => "255,255,255", "antialiasing" => true, "interval" => 0 }.merge(attributes)
+                              attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
+                              attrs["interval"] = (attrs["interval"] / 25.4 * scaling.ppi).round
+                              parent.add_element("TEXTSYMBOL", attrs)
+                            when "truetypemarker"
+                              attrs = { "fontcolor" => "255,255,255", "outline" => "0,0,0", "antialiasing" => true, "angle" => 0, "overlap" => false }.merge(attributes)
+                              attrs["angle"] += rotation
+                              attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
+                              parent.add_element("TRUETYPEMARKERSYMBOL", attrs)
                             end
                           end
-                        else
-                          content.call(renderer, type, options[type])
+                          [ "line", "hashline", "marker", "polygon", "text", "truetypemarker" ].each do |type|
+                            if options[type]
+                              if options["lookup"]
+                                options[type].each do |value, attributes|
+                                  tag, tag_attributes = case value
+                                  when Range
+                                    [ "RANGE", { "lower" => value.min, "upper" => value.max } ]
+                                  when nil
+                                    [ "OTHER", { } ]
+                                  else
+                                    [ "EXACT", { "value" => value } ]
+                                  end
+                                  renderer.add_element(tag, tag_attributes) do |exact|
+                                    content.call(exact, type, attributes)
+                                  end
+                                end
+                              else
+                                content.call(renderer, type, options[type])
+                              end
+                            end
+                          end
                         end
                       end
                     end
@@ -423,31 +428,33 @@ class ArcIMS < Service
                 end
               end
             end
+    
+            post_uri = URI::HTTP.build :host => params["host"], :path => params["path"], :query => "ServiceName=#{params["name"]}"
+            http_post(post_uri, xml, "retries" => 5) do |post_response|
+              sleep params["interval"] if params["interval"]
+              xml = REXML::Document.new(post_response.body)
+              error = xml.elements["/ARCXML/RESPONSE/ERROR"]
+              raise InternetError.new(error.text) if error
+              get_uri = URI.parse xml.elements["/ARCXML/RESPONSE/IMAGE/OUTPUT"].attributes["url"]
+              get_uri.host = params["host"] if params["keep_host"]
+              http_get(get_uri, "retries" => 5) do |get_response|
+                File.open(tile_path, "wb") { |file| file << get_response.body }
+              end
+            end
+    
+            %x[mogrify -crop #{cropped_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{tile_path}"]
+            [ cropped_bounds, scaling.metres_per_pixel, tile_path ]
           end
+      
+          yield label, dataset
         end
       end
-      
-      post_uri = URI::HTTP.build :host => params["host"], :path => params["path"], :query => "ServiceName=#{params["name"]}"
-      http_post(post_uri, xml, "retries" => 5) do |post_response|
-        sleep params["interval"] if params["interval"]
-        xml = REXML::Document.new(post_response.body)
-        error = xml.elements["/ARCXML/RESPONSE/ERROR"]
-        raise InternetError.new(error.text) if error
-        get_uri = URI.parse xml.elements["/ARCXML/RESPONSE/IMAGE/OUTPUT"].attributes["url"]
-        get_uri.host = params["host"] if params["keep_host"]
-        http_get(get_uri, "retries" => 5) do |get_response|
-          File.open(tile_path, "wb") { |file| file << get_response.body }
-        end
-      end
-      
-      %x[mogrify -crop #{cropped_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{tile_path}"]
-      [ cropped_bounds, scaling.metres_per_pixel, tile_path ]
     end
   end
 end
 
 class TiledMapService < Service
-  def dataset(input_bounds, input_projection, scaling, rotation, label, options, dir)
+  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
     tile_sizes = params["tile_sizes"]
     tile_limit = params["tile_limit"]
     crops = params["crops"] || [ [ 0, 0 ], [ 0, 0 ] ]
@@ -465,194 +472,215 @@ class TiledMapService < Service
       counts.inject(:*) < tile_limit
     end
     
-    format = options["format"]
-    name = options["name"]
+    layers.each do |label, options|
+      format = options["format"]
+      name = options["name"]
+  
+      puts "Layer: #{label}"
+      puts "  downloading #{counts.inject(:*)} tiles..."
+      Dir.mktmpdir do |temp_dir|
+        dataset = counts.map { |count| (0...count).to_a }.inject(:product).with_progress.map do |indices|
+          sleep params["interval"]
+          tile_path = File.join(temp_dir, "tile.#{indices.join('.')}.png")
     
-    puts "Layer: #{label}"
-    puts "  downloading #{counts.inject(:*)} tiles..."
-    counts.map { |count| (0...count).to_a }.inject(:product).with_progress.map do |indices|
-      sleep params["interval"]
-      tile_path = File.join(dir, "tile.#{indices.join('.')}.png")
-      
-      cropped_centre = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
-        origin + tile_size * (index + 0.5) * metres_per_pixel
-      end
-      centre = [ cropped_centre, crops ].transpose.map { |coord, crop| coord - 0.5 * crop.inject(:-) * metres_per_pixel }
-      bounds = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
-        [ origin + index * tile_size * metres_per_pixel, origin + (index + 1) * tile_size * metres_per_pixel ]
-      end
-      
-      longitude, latitude = centre.reproject(projection, WGS84)
-      
-      attributes = [ "longitude", "latitude", "zoom", "format", "hsize", "vsize", "name" ]
-      values     = [  longitude,   latitude,   zoom,   format,      *tile_sizes,   name  ]
-      uri_string = [ attributes, values ].transpose.inject(params["uri"]) do |string, array|
-        attribute, value = array
-        string.gsub(Regexp.new("\\$\\{#{attribute}\\}"), value.to_s)
-      end
-      uri = URI.parse(uri_string)
-      
-      retries_on_blank = params["retries_on_blank"] || 0
-      (1 + retries_on_blank).times do
-        http_get(uri, "retries" => 5) do |response|
-          File.open(tile_path, "wb") { |file| file << response.body }
-          %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} -type TrueColor -depth 8 -format png -define png:color-type=2 "#{tile_path}"]
+          cropped_centre = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
+            origin + tile_size * (index + 0.5) * metres_per_pixel
+          end
+          centre = [ cropped_centre, crops ].transpose.map { |coord, crop| coord - 0.5 * crop.inject(:-) * metres_per_pixel }
+          bounds = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
+            [ origin + index * tile_size * metres_per_pixel, origin + (index + 1) * tile_size * metres_per_pixel ]
+          end
+    
+          longitude, latitude = centre.reproject(projection, WGS84)
+    
+          attributes = [ "longitude", "latitude", "zoom", "format", "hsize", "vsize", "name" ]
+          values     = [  longitude,   latitude,   zoom,   format,      *tile_sizes,   name  ]
+          uri_string = [ attributes, values ].transpose.inject(params["uri"]) do |string, array|
+            attribute, value = array
+            string.gsub(Regexp.new("\\$\\{#{attribute}\\}"), value.to_s)
+          end
+          uri = URI.parse(uri_string)
+    
+          retries_on_blank = params["retries_on_blank"] || 0
+          (1 + retries_on_blank).times do
+            http_get(uri, "retries" => 5) do |response|
+              File.open(tile_path, "wb") { |file| file << response.body }
+              %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} -type TrueColor -depth 8 -format png -define png:color-type=2 "#{tile_path}"]
+            end
+            non_blank_fraction = %x[convert "#{tile_path}" -fill white +opaque black -format "%[fx:mean]" info:].to_f
+            break if non_blank_fraction > 0.995
+          end
+    
+          [ bounds, metres_per_pixel, tile_path ]
         end
-        non_blank_fraction = %x[convert "#{tile_path}" -fill white +opaque black -format "%[fx:mean]" info:].to_f
-        break if non_blank_fraction > 0.995
+    
+        yield label, dataset
       end
-      
-      [ bounds, metres_per_pixel, tile_path ]
     end
   end
 end
 
 class LPIOrthoService < Service
-  def dataset(input_bounds, input_projection, scaling, rotation, label, options, dir)
-    puts "Layer: #{label}"
-    puts "  retrieving LPI imagery metadata..."
-    images_regions = case
-    when options["image"]
-      { options["image"] => options["region"] }
-    when options["config"]
-      http_get(URI::HTTP.build(:host => params["host"], :path => options["config"]), "retries" => 5) do |response|
-        vars, images = response.body.scan(/(.+)_ECWP_URL\s*?=\s*?.*"(.+)";/x).transpose
-        regions = vars.map do |var|
-          response.body.match(/#{var}_CLIP_REGION\s*?=\s*?\[(.+)\]/x) do |match|
-            match[1].scan(/\[(.+?),(.+?)\]/x).map { |coords| coords.map(&:to_f) }
-          end
-        end
-        [ images, regions ].transpose.map { |image, region| { image => region } }.inject(:merge)
-      end
-    end
-    
+  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
     bounds = transform_bounds(input_projection, projection, input_bounds)
-    uri = URI::HTTP.build(:host => params["host"], :path => "/ImageX/ImageX.dll", :query => "?dsinfo?verbose=true&layers=#{images_regions.keys.join(',')}")
-    images_attributes = http_get(uri, "retries" => 5) do |response|
-      xml = REXML::Document.new(response.body)
-      raise BadLayer.new(xml.elements["//Error"].text) if xml.elements["//Error"]
-      coordspace = xml.elements["/DSINFO/COORDSPACE"]
-      meterfactor = coordspace.attributes["meterfactor"].to_f
-      
-      xml.elements.collect("/DSINFO/LAYERS/LAYER") do |layer|
-        image = layer.attributes["name"]
-        sizes = [ "width", "height" ].map { |key| layer.attributes[key].to_i }
-        bbox = layer.elements["BBOX"]
-        layer_bounds = [ [ "tlX", "brX" ], [ "brY", "tlY" ] ].map { |keys| keys.map { |key| bbox.attributes[key].to_f } }
-        resolutions = [ "cellsizeX", "cellsizeY" ].map { |key| bbox.attributes[key].to_f * meterfactor }
-        
-        { image => { "sizes" => sizes, "bounds" => layer_bounds, "resolutions" => resolutions, "region" => images_regions[image] } }
-      end.inject(:merge)
-    end.select do |image, attributes|
-      bounds_intersect? bounds, attributes["bounds"]
-    end
-    return [] if images_attributes.empty?
+    layers.each do |label, options|
+      puts "Layer: #{label}"
+      puts "  retrieving LPI imagery metadata..."
+      images_regions = case
+      when options["image"]
+        { options["image"] => options["region"] }
+      when options["config"]
+        http_get(URI::HTTP.build(:host => params["host"], :path => options["config"]), "retries" => 5) do |response|
+          vars, images = response.body.scan(/(.+)_ECWP_URL\s*?=\s*?.*"(.+)";/x).transpose
+          regions = vars.map do |var|
+            response.body.match(/#{var}_CLIP_REGION\s*?=\s*?\[(.+)\]/x) do |match|
+              match[1].scan(/\[(.+?),(.+?)\]/x).map { |coords| coords.map(&:to_f) }
+            end
+          end
+          [ images, regions ].transpose.map { |image, region| { image => region } }.inject(:merge)
+        end
+      end
+  
+      uri = URI::HTTP.build(:host => params["host"], :path => "/ImageX/ImageX.dll", :query => "?dsinfo?verbose=true&layers=#{images_regions.keys.join(',')}")
+      images_attributes = http_get(uri, "retries" => 5) do |response|
+        xml = REXML::Document.new(response.body)
+        raise BadLayer.new(xml.elements["//Error"].text) if xml.elements["//Error"]
+        coordspace = xml.elements["/DSINFO/COORDSPACE"]
+        meterfactor = coordspace.attributes["meterfactor"].to_f
     
-    tile_size = params["tile_size"]
-    format = images_attributes.one? ? { "type" => "jpg", "quality" => 90 } : { "type" => "png", "transparent" => true }
-    puts "  downloading..."
-    images_attributes.map do |image, attributes|
-      zoom = [ Math::log2(scaling.metres_per_pixel / attributes["resolutions"].first).floor, 0 ].max
-      resolutions = attributes["resolutions"].map { |resolution| resolution * 2**zoom }
-      [ bounds, attributes["bounds"], attributes["sizes"], resolutions ].transpose.map do |bound, layer_bound, size, resolution|
-        layer_extent = layer_bound.reverse.inject(:-)
-        first, order, plus = resolution > 0 ? [ :first, :to_a, :+ ] : [ :last, :reverse, :- ]
-        tile_indices = bound.map do |coord|
-          index = [ coord, layer_bound.send(first) ].send(order).inject(:-) * size / layer_extent
-          [ [ index, 0 ].max, size - 1 ].min
-        end.map do |pixel|
-          (pixel / tile_size / 2**zoom).floor
-        end.send(order).inject(:upto).to_a
-        tile_bounds = tile_indices.map do |tile_index|
-          [ tile_index, tile_index + 1 ].map do |index|
-            layer_bound.send(first).send(plus, layer_extent * index * tile_size * (2**zoom) / size)
-          end.send(order)
-        end
-        [ tile_indices, tile_bounds ].transpose
-      end.inject(:product).map(&:transpose).map do |(tx, ty), tile_bounds|
-        query = format.merge("l" => zoom, "tx" => tx, "ty" => ty, "ts" => tile_size, "layers" => image, "fillcolor" => "0x000000")
-        query["inregion"] = "#{attributes["region"].flatten.join(",")},INSRC" if attributes["region"]
-        [ "?image?#{query.to_query}", tile_bounds, resolutions ]
+        xml.elements.collect("/DSINFO/LAYERS/LAYER") do |layer|
+          image = layer.attributes["name"]
+          sizes = [ "width", "height" ].map { |key| layer.attributes[key].to_i }
+          bbox = layer.elements["BBOX"]
+          layer_bounds = [ [ "tlX", "brX" ], [ "brY", "tlY" ] ].map { |keys| keys.map { |key| bbox.attributes[key].to_f } }
+          resolutions = [ "cellsizeX", "cellsizeY" ].map { |key| bbox.attributes[key].to_f * meterfactor }
+      
+          { image => { "sizes" => sizes, "bounds" => layer_bounds, "resolutions" => resolutions, "region" => images_regions[image] } }
+        end.inject(:merge)
+      end.select do |image, attributes|
+        bounds_intersect? bounds, attributes["bounds"]
       end
-    end.inject(:+).with_progress.with_index.map do |(query, tile_bounds, resolutions), index|
-      uri = URI::HTTP.build :host => params["host"], :path => "/ImageX/ImageX.dll", :query => URI.escape(query)
-      tile_path = File.join(dir, "tile.#{index}.#{format["type"]}")
-      http_get(uri, "retries" => 5) do |response|
-        begin
-          xml = REXML::Document.new(response.body)
-          raise BadLayer.new(xml.elements["//Error"] ? xml.elements["//Error"].text.gsub("\n", " ") : "unexpected response")
-        rescue REXML::ParseException
+      
+      if images_attributes.empty?
+        yield label, []
+      else
+        tile_size = params["tile_size"]
+        format = images_attributes.one? ? { "type" => "jpg", "quality" => 90 } : { "type" => "png", "transparent" => true }
+        puts "  downloading..."
+        Dir.mktmpdir do |temp_dir|
+          dataset = images_attributes.map do |image, attributes|
+            zoom = [ Math::log2(scaling.metres_per_pixel / attributes["resolutions"].first).floor, 0 ].max
+            resolutions = attributes["resolutions"].map { |resolution| resolution * 2**zoom }
+            [ bounds, attributes["bounds"], attributes["sizes"], resolutions ].transpose.map do |bound, layer_bound, size, resolution|
+              layer_extent = layer_bound.reverse.inject(:-)
+              first, order, plus = resolution > 0 ? [ :first, :to_a, :+ ] : [ :last, :reverse, :- ]
+              tile_indices = bound.map do |coord|
+                index = [ coord, layer_bound.send(first) ].send(order).inject(:-) * size / layer_extent
+                [ [ index, 0 ].max, size - 1 ].min
+              end.map do |pixel|
+                (pixel / tile_size / 2**zoom).floor
+              end.send(order).inject(:upto).to_a
+              tile_bounds = tile_indices.map do |tile_index|
+                [ tile_index, tile_index + 1 ].map do |index|
+                  layer_bound.send(first).send(plus, layer_extent * index * tile_size * (2**zoom) / size)
+                end.send(order)
+              end
+              [ tile_indices, tile_bounds ].transpose
+            end.inject(:product).map(&:transpose).map do |(tx, ty), tile_bounds|
+              query = format.merge("l" => zoom, "tx" => tx, "ty" => ty, "ts" => tile_size, "layers" => image, "fillcolor" => "0x000000")
+              query["inregion"] = "#{attributes["region"].flatten.join(",")},INSRC" if attributes["region"]
+              [ "?image?#{query.to_query}", tile_bounds, resolutions ]
+            end
+          end.inject(:+).with_progress.with_index.map do |(query, tile_bounds, resolutions), index|
+            uri = URI::HTTP.build :host => params["host"], :path => "/ImageX/ImageX.dll", :query => URI.escape(query)
+            tile_path = File.join(temp_dir, "tile.#{index}.#{format["type"]}")
+            http_get(uri, "retries" => 5) do |response|
+              begin
+                xml = REXML::Document.new(response.body)
+                raise BadLayer.new(xml.elements["//Error"] ? xml.elements["//Error"].text.gsub("\n", " ") : "unexpected response")
+              rescue REXML::ParseException
+              end
+              File.open(tile_path, "wb") { |file| file << response.body }
+            end
+            sleep params["interval"]
+            [ tile_bounds, resolutions.first, tile_path ]
+          end
+      
+          yield label, dataset
         end
-        File.open(tile_path, "wb") { |file| file << response.body }
       end
-      sleep params["interval"]
-      [ tile_bounds, resolutions.first, tile_path ]
     end
   end
 end
 
 class OneEarthDEMRelief < Service
-  def initialize(params)
-    super(params)
+  def initialize(*args)
+    super(*args)
     @projection = WGS84
   end
   
-  def dataset(input_bounds, input_projection, scaling, rotation, label, options, dir)
+  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
+    return if layers.empty?
+    
     bounds = transform_bounds(input_projection, projection, input_bounds)
     bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
     counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
     units_per_pixel = 0.125 / 300
-    
-    puts "Layer: #{label}"
-    puts "  downloading..."
-    tile_paths = [ counts, bounds ].transpose.map do |count, bound|
-      boundaries = (0..count).map { |index| bound.first + index * 0.125 }
-      [ boundaries[0..-2], boundaries[1..-1] ].transpose
-    end.inject(:product).with_progress.map.with_index do |tile_bounds, index|
-      tile_path = File.join(dir, "tile.#{index}.png")
-      bbox = tile_bounds.transpose.map { |corner| corner.join "," }.join ","
-      query = {
-        "request" => "GetMap",
-        "layers" => "gdem",
-        "srs" => projection,
-        "width" => 300,
-        "height" => 300,
-        "format" => "image/png",
-        "styles" => "short_int",
-        "bbox" => bbox
-      }.to_query
-      uri = URI::HTTP.build :host => "onearth.jpl.nasa.gov", :path => "/wms.cgi", :query => URI.escape(query)
 
-      http_get(uri, "retries" => 5) do |response|
-        File.open(tile_path, "wb") { |file| file << response.body }
-        write_world_file([ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, 0, "#{tile_path}w")
-        sleep params["interval"]
+    puts "Layers: #{layers.map(&:first).join ", "}"
+    puts "  downloading..."
+    Dir.mktmpdir do |temp_dir|
+      tile_paths = [ counts, bounds ].transpose.map do |count, bound|
+        boundaries = (0..count).map { |index| bound.first + index * 0.125 }
+        [ boundaries[0..-2], boundaries[1..-1] ].transpose
+      end.inject(:product).with_progress.map.with_index do |tile_bounds, index|
+        tile_path = File.join(temp_dir, "tile.#{index}.png")
+        bbox = tile_bounds.transpose.map { |corner| corner.join "," }.join ","
+        query = {
+          "request" => "GetMap",
+          "layers" => "gdem",
+          "srs" => projection,
+          "width" => 300,
+          "height" => 300,
+          "format" => "image/png",
+          "styles" => "short_int",
+          "bbox" => bbox
+        }.to_query
+        uri = URI::HTTP.build :host => "onearth.jpl.nasa.gov", :path => "/wms.cgi", :query => URI.escape(query)
+
+        http_get(uri, "retries" => 5) do |response|
+          File.open(tile_path, "wb") { |file| file << response.body }
+          write_world_file([ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, 0, "#{tile_path}w")
+          sleep params["interval"]
+        end
+        %Q["#{tile_path}"]
       end
-      %Q["#{tile_path}"]
-    end
+  
+      vrt_path = File.join(temp_dir, "dem.vrt")
+      relief_path = File.join(temp_dir, "output.tif")
+      output_path = File.join(temp_dir, "output.png")
+      %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
     
-    vrt_path = File.join(dir, "dem.vrt")
-    relief_path = File.join(dir, "output.tif")
-    output_path = File.join(dir, "output.png")
-    %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
-    
-    case options["name"]
-    when "shaded-relief"
-      altitude = params["altitude"]
-      azimuth = options["azimuth"]
-      exaggeration = params["exaggeration"]
-      %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
-    when "color-relief"
-      colours = { "0%" => "black", "100%" => "white" }
-      colour_path = File.join(dir, "colours.txt")
-      File.open(colour_path, "w") do |file|
-        colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
+      layers.each do |label, options|
+        case options["name"]
+        when "shaded-relief"
+          altitude = params["altitude"]
+          azimuth = options["azimuth"]
+          exaggeration = params["exaggeration"]
+          %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
+        when "color-relief"
+          colours = { "0%" => "black", "100%" => "white" }
+          colour_path = File.join(temp_dir, "colours.txt")
+          File.open(colour_path, "w") do |file|
+            colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
+          end
+          %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
+        end
+        %x[convert "#{relief_path}" -quiet -type TrueColor -depth 8 -define png:color-type=2 "#{output_path}"]
+
+        yield label, [ [ bounds, units_per_pixel, output_path ] ]
       end
-      %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
     end
-    %x[convert "#{relief_path}" -quiet -type TrueColor -depth 8 -define png:color-type=2 "#{output_path}"]
-    
-    [ [ bounds, units_per_pixel, output_path ] ]
   end
 end
 
@@ -661,13 +689,13 @@ class UTMGridService < Service
     (coords.reproject(projection, WGS84).first / 6).floor + 31
   end
   
-  attr_reader :zone
-  
-  def initialize(params)
-    super(params)
+  def initialize(*args)
+    super(*args)
     @zone = params["zone"]
     @projection = "+proj=utm +zone=#{zone} +south +datum=WGS84"
   end
+  
+  attr_reader :zone
   
   def zone_contains?(coords)
     UTMGridService.zone(projection, coords) == zone
@@ -679,66 +707,74 @@ class UTMGridService < Service
     end
   end
     
-  def dataset(input_bounds, input_projection, scaling, rotation, label, options, dir)
-    puts "Layer: #{label}"
-    puts "  calculating..."
-    intervals, fontsize, family, weight = params.values_at("intervals", "fontsize", "family", "weight")
-    bounds = transform_bounds(input_projection, projection, input_bounds)
-    
-    tick_indices = [ bounds, intervals ].transpose.map do |bound, interval|
-      ((bound.first / interval).floor .. (bound.last / interval).ceil).to_a
-    end
-    tick_coords = [ tick_indices, intervals ].transpose.map { |indices, interval| indices.map { |index| index * interval } }
-    centre_coords = bounds.map { |bound| 0.5 * bound.inject(:+) }
-    centre_indices = [ centre_coords, tick_indices, intervals ].transpose.map do |coord, indices, interval|
-      indices.index((coord / interval).round)
-    end
-    
-    draw_string = case options["name"]
-    when "grid"
-      string = [ :to_a, :reverse ].map do |order|
-        tick_coords.send(order).first.map do |perpendicular_coord|
-          line_coords = tick_coords.send(order).last.map do |parallel_coord|
-            [ perpendicular_coord, parallel_coord ].send(order)
-          end.select { |coords| zone_contains? coords }
-          line_coords.length > 1 ? [ line_coords.first, line_coords.last ] : nil
-        end.compact
-      end.inject(:+).map do |end_coords|
-        end_coords.map { |coords| pixel_for coords, bounds, scaling }
-      end.map do |end_pixels|
-        %Q[-draw "line #{end_pixels.first.first},#{end_pixels.first.last} #{end_pixels.last.first},#{end_pixels.last.last}"]
-      end.join " "
-      "-stroke white -strokewidth 1 #{string}"
-    when "eastings", "northings"
-      margin = 0.04 * scaling.ppi
-      eastings = options["name"] == "eastings"
-      index = eastings ? 0 : 1
-      angle = eastings ? -90 : 0
-      divisor = intervals[index] % 1000 == 0 ? 1000 : 1
-      string = tick_coords[index].map do |coord|
-        [ coord, tick_coords[1-index][centre_indices[1-index]] ].send(index == 0 ? :to_a : :reverse)
-      end.select do |coords|
-        zone_contains? coords
-      end.map do |coords|
-        [ pixel_for(coords, bounds, scaling), coords[index] ]
-      end.map do |pixel, coord|
-        %Q[-draw "translate #{pixel.first},#{pixel.last} rotate #{angle} text #{margin},#{-margin} '#{coord / divisor}'"]
-      end.join " "
-      %Q[-fill white -style Normal -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]
-    end
-    
-    dimensions = bounds.map { |bound| ((bound.max - bound.min) / scaling.metres_per_pixel).ceil }
-    path = File.join(dir, "#{options["name"]}.tif")
-    %x[convert -size #{dimensions.join 'x'} canvas:black -units PixelsPerInch -density #{scaling.ppi} -type TrueColor -depth 8 #{draw_string} "#{path}"]
+  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
+    if input_bounds.inject(:product).map { |corner| UTMGridService.zone(input_projection, corner) }.include? zone
+      bounds = transform_bounds(input_projection, projection, input_bounds)
+      layers.each do |label, options|
+        puts "Layer: #{label}"
+        puts "  calculating..."
+        intervals, fontsize, family, weight = params.values_at("intervals", "fontsize", "family", "weight")
+  
+        tick_indices = [ bounds, intervals ].transpose.map do |bound, interval|
+          ((bound.first / interval).floor .. (bound.last / interval).ceil).to_a
+        end
+        tick_coords = [ tick_indices, intervals ].transpose.map { |indices, interval| indices.map { |index| index * interval } }
+        centre_coords = bounds.map { |bound| 0.5 * bound.inject(:+) }
+        centre_indices = [ centre_coords, tick_indices, intervals ].transpose.map do |coord, indices, interval|
+          indices.index((coord / interval).round)
+        end
+  
+        draw_string = case options["name"]
+        when "grid"
+          string = [ :to_a, :reverse ].map do |order|
+            tick_coords.send(order).first.map do |perpendicular_coord|
+              line_coords = tick_coords.send(order).last.map do |parallel_coord|
+                [ perpendicular_coord, parallel_coord ].send(order)
+              end.select { |coords| zone_contains? coords }
+              line_coords.length > 1 ? [ line_coords.first, line_coords.last ] : nil
+            end.compact
+          end.inject(:+).map do |end_coords|
+            end_coords.map { |coords| pixel_for coords, bounds, scaling }
+          end.map do |end_pixels|
+            %Q[-draw "line #{end_pixels.first.first},#{end_pixels.first.last} #{end_pixels.last.first},#{end_pixels.last.last}"]
+          end.join " "
+          "-stroke white -strokewidth 1 #{string}"
+        when "eastings", "northings"
+          margin = 0.04 * scaling.ppi
+          eastings = options["name"] == "eastings"
+          index = eastings ? 0 : 1
+          angle = eastings ? -90 : 0
+          divisor = intervals[index] % 1000 == 0 ? 1000 : 1
+          string = tick_coords[index].map do |coord|
+            [ coord, tick_coords[1-index][centre_indices[1-index]] ].send(index == 0 ? :to_a : :reverse)
+          end.select do |coords|
+            zone_contains? coords
+          end.map do |coords|
+            [ pixel_for(coords, bounds, scaling), coords[index] ]
+          end.map do |pixel, coord|
+            %Q[-draw "translate #{pixel.first},#{pixel.last} rotate #{angle} text #{margin},#{-margin} '#{coord / divisor}'"]
+          end.join " "
+          %Q[-fill white -style Normal -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]
+        end
+  
+        dimensions = bounds.map { |bound| ((bound.max - bound.min) / scaling.metres_per_pixel).ceil }
+        Dir.mktmpdir do |temp_dir|
+          path = File.join(temp_dir, "#{options["name"]}.tif")
+          %x[convert -size #{dimensions.join 'x'} canvas:black -units PixelsPerInch -density #{scaling.ppi} -type TrueColor -depth 8 #{draw_string} "#{path}"]
 
-    [ [ bounds, scaling.metres_per_pixel, path ] ]
+          yield label, [ [ bounds, scaling.metres_per_pixel, path ] ]
+        end
+      end
+    end
   end
 end
 
 class AnnotationService < Service
-  def dataset(input_bounds, input_projection, scaling, rotation, label, options, dir)
-    puts "Layer: #{label}"
-    []
+  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
+    layers.each do |label, options|
+      puts "Layer: #{label}"
+      yield label, [], options
+    end
   end
   
   def post_process(centre, projection, dimensions, scaling, rotation, options, path)
@@ -781,8 +817,8 @@ class DeclinationService < AnnotationService
 end
 
 class ControlService < AnnotationService
-  def dataset(*args)
-    params["file"] ? super(*args) : nil
+  def each_dataset(*args, &block)
+    super(*args, &block) if params["file"]
   end
   
   def draw(centre, projection, dimensions, scaling, rotation, options)
@@ -1749,7 +1785,7 @@ services = {
   ),
 }
 
-bounds.inject(:product).map { |corner| UTMGridService.zone(projection, corner) }.uniq.each do |zone|
+[ 54, 55, 56 ].each do |zone|
   grid_service = UTMGridService.new({ "zone" => zone }.merge config["grid"])
   services.merge!(grid_service => {
     "utm-#{zone}-grid" => { "name" => "grid" },
@@ -1765,43 +1801,39 @@ puts "  %imm x %imm @ %i ppi" % [ *dimensions.map { |dimension| dimension * 25.4
 puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * dimensions.inject(:*), *dimensions ]
 
 services.each do |service, layers|
-  layers.reject do |label, options|
-    config["exclude"].include? label
-  end.each do |label, options|
+  layers.reject! do |label, options|
+    config["exclude"].include?(label) || File.exists?(File.join(output_dir, "#{label}.png"))
+  end
+  service.each_dataset(layers, bounds, projection, scaling, rotation) do |label, dataset, options|
     begin
       output_path = File.join(output_dir, "#{label}.png")
-      unless File.exists?(output_path)
-        Dir.mktmpdir do |temp_dir|
-          dataset = service.dataset(bounds, projection, scaling, rotation, label, options, temp_dir)
-          if dataset
-            working_path = File.join(temp_dir, "layer.tif")
-            canvas_path = File.join(temp_dir, "canvas.tif")
-            
-            puts "  assembling..."
-            %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{canvas_path}"]
-            %x[geotifcp -c lzw -e "#{world_file_path}" -4 "#{projection}" "#{canvas_path}" "#{working_path}"]
-            
-            unless dataset.empty?
-              dataset_paths = dataset.collect do |tile_bounds, resolution, path|
-                topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
-                write_world_file(topleft, resolution, 0, "#{path}w")
-                %Q["#{path}"]
-              end
-              
-              resample = service.params["resample"] || "cubic"
-              vrt_path = File.join(temp_dir, "#{label}.vrt")
-              %x[gdalbuildvrt "#{vrt_path}" #{dataset_paths.join " "}]
-              %x[gdalwarp -s_srs "#{service.projection}" -dstalpha -r #{resample} "#{vrt_path}" "#{working_path}"]
-            end
-          
-            if service.respond_to? :post_process
-              puts "  processing..."
-              service.post_process(centre, projection, dimensions, scaling, rotation, options, working_path)
-            end
-        
-            %x[convert -quiet "#{working_path}" "#{output_path}"]
-          end
+      Dir.mktmpdir do |temp_dir|
+        working_path = File.join(temp_dir, "layer.tif")
+         canvas_path = File.join(temp_dir, "canvas.tif")
+            vrt_path = File.join(temp_dir, "layer.vrt")
+
+        puts "  assembling..."
+        %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{canvas_path}"]
+        %x[geotifcp -c lzw -e "#{world_file_path}" -4 "#{projection}" "#{canvas_path}" "#{working_path}"]
+
+        dataset_paths = dataset.map do |tile_bounds, resolution, path|
+          topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
+          write_world_file(topleft, resolution, 0, "#{path}w")
+          %Q["#{path}"]
         end
+
+        unless dataset_paths.empty?
+          resample = service.params["resample"] || "cubic"
+          %x[gdalbuildvrt "#{vrt_path}" #{dataset_paths.join " "}]
+          %x[gdalwarp -s_srs "#{service.projection}" -dstalpha -r #{resample} "#{vrt_path}" "#{working_path}"]
+        end
+
+        if service.respond_to? :post_process
+          puts "  processing..."
+          service.post_process(centre, projection, dimensions, scaling, rotation, options, working_path)
+        end
+
+        %x[convert -quiet "#{working_path}" "#{output_path}"]
       end
     rescue InternetError, BadLayer => e
       puts
@@ -2029,5 +2061,8 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
+# TODO: rework "exclude" config?
 # TODO: add picnic areas, carparks (or labels for them)
+# TODO: re-solve building/building-area problem
+# TODO: solve label overlap problem by including other layers rendered in black!
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

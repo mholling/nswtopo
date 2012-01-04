@@ -93,7 +93,7 @@ Once you have created your configuration file, run the script in the directory t
 
 When the script starts it will list the scale of your map (e.g. 1:25000), its rotation, its physical size and resolution (e.g. 380mm x 240mm @ 300 ppi) and its size in megapixels. For a 300 pixel-per-inch image (the default), an A3 map should be about 15 megapixels. An unexpectedly large or small number may indicate an error in your configuration file; similarly, if no topographic layers are downloaded, this probably indicates you've incorrectly specified bounds outside NSW.
 
-The script will then proceed to download a large number of layers. A progress bar will show for each layer. Depending on your connection and the size of your map, an hour or more may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) Any errors received will be displayed and the layer skipped; you can run the script again to retry the skipped layers as they are usually just temporary server errors.
+The script will then proceed to download a large number of layers. A progress bar will show for each group of layers. Depending on your connection and the size of your map, an hour or more may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) Any errors received will be displayed and the layer skipped; you can run the script again to retry the skipped layers as they are usually just temporary server errors.
 
 You can ctrl-c at any point to stop the script; it will pick up where it left off the next time you run it, not downloading any layers that have already been downloaded. (Conversely, deleting an already-created layer file will cause that file to be recreated when you run the script again.)
 
@@ -254,12 +254,14 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * vegetation: the base vegetation layer representing dense- and medium-crown forest; not particularly good quality and I recommend replacing this layer with one of your own, derived from an aerial imagery layer
 * labels: contains labels for all roads, watercourse, contours, homesteads etc in black; these are all combined in one layer so as to avoid overlap of labels
 * contours: regular and index contours (also contains hashed depression contours, if any exist), in brown
-* ancillary-contours: any ancillary contours that may exist, in brown
+* ancillary-contours: any ancillary contours that may exist, in dashed brown
 * watercourses: watercourse lines, with single-pixel lines representing intermittent watercourses and thicker lines representing perennial watercourses, in blue
 * water-areas: areas of water in rivers, lakes and larger dams, in light blue
 * water-area-boundaries: boundaries of water areas, in blue
 * water-areas-intermittent: intermittent or mostly-dry water areas, in dotted light blue
 * water-areas-intermittent-boundaries: boundaries of intermittent or mostly-dry water areas, in blue
+* tank-areas: large outdoor water storage areas, in light blue
+* tank-area-boundaries: boundaries of large outdoor water storage areas, in blue
 * dams: smaller farm dams and other small water points, represented as blue squares
 * water-tanks: water tanks, represented as light blue circles
 * ocean: ocean areas, in light blue
@@ -282,8 +284,6 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * cliffs: cliff sections, in grey bands
 * clifftops: tops of said cliffs, as dotted pink line
 * excavation: quarry faces, etc, as dotted grey line
-* caves: caves and sinkholes, represented with small black icons
-* rocks-pinnacles: large boulders, tors and rock pinnacles, respresented as pink stars
 * built-up-areas: urban/residential areas, represented in light yellow
 * pine: pine plantations, represented in dark green pine pattern
 * orchards-plantations: orchards, vineyards and non-pine forest plantation, represented in green tile pattern
@@ -291,16 +291,11 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * dam-walls: constructed dam walls, represented in black
 * cable-ways: chairlifts and cable cars, respresented as solid or dash-dotted black lines respectively
 * misc-perimeters: miscellaneous perimeters dividing different land use, represented as thin dashed grey lines
-* towers: telecommuncation towers, etc, represented as small black squares
-* mines: quarries and other mining areas, represented as small black icons
-* yards: small stock yards, represented as black square outlines
-* windmills: occasional farm windmills, represented as small black diagonal crosses
-* beacons: lighthouses and beacons, represented as small black stars
+* markers: symbols for caves (open circles), rocks & pinnacles (stars), towers (squares), mines & quarries (mining icons), yards (open squares), windmills (crosses), lighthouses & beacons (beacon icons), lookouts (open circles), campgrounds (tent icon), grids and gates (open circles with one and two bars, respectively); rendered in black
 * railways: heavy- and light-gauge railway lines, represented as black hashed lines
 * pipelines: water or other pipelines, represented as thin cyan lines
 * transmission-lines: high voltage electrical transmission lines, represented as black dot-dash lines
 * landing-grounds: landing strips as found on farms, etc, represented as dark grey lines
-* gates-grids: gates and grids on roads, represented as small black circular icons with two or one crossing lines, respectively
 * wharves: wharves and jetties, represented as black lines
 * cadastre: NSW cadastral lines (property boundaries), represented as thin, light grey lines
 * act-cadastre: ACT cadastral lines, represented as thin, light grey lines

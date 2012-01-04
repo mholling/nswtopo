@@ -25,7 +25,7 @@ require 'rbconfig'
 
 Signal.trap("INT") do
   puts
-  puts "Halting execution. Run the script again to resume map creation."
+  puts "Halting execution. Run the script again to resume."
   exit
 end
 
@@ -307,14 +307,14 @@ class ArcIMS < Service
             properties.add_element("BACKGROUND", "color" => "0,0,0")
             properties.add_element("OUTPUT", "type" => "png")
             properties.add_element("LAYERLIST", "nodefault" => true) do |layerlist|
-              options_array.each.with_index do |options, layer_index|
-                layerlist.add_element("LAYERDEF", "id" => options["image"] || "custom#{layer_index}", "visible" => true)
+              options_array.each.with_index do |options, index|
+                layerlist.add_element("LAYERDEF", "id" => options["image"] || "custom#{index}", "visible" => true)
               end
             end
           end
-          options_array.each.with_index do |options, layer_index|
+          options_array.each.with_index do |options, index|
             unless options["image"]
-              get_image.add_element("LAYER", "type" => options["image"] ? "image" : "featureclass", "visible" => true, "id" => "custom#{layer_index}") do |layer|
+              get_image.add_element("LAYER", "type" => options["image"] ? "image" : "featureclass", "visible" => true, "id" => "custom#{index}") do |layer|
                 layer.add_element("DATASET", "fromlayer" => options["from"])
                 layer.add_element("SPATIALQUERY", "where" => options["where"]) if options["where"]
                 renderer_type = "#{options["lookup"] ? 'VALUEMAP' : 'SIMPLE'}#{'LABEL' if options["label"]}RENDERER"
@@ -347,7 +347,7 @@ class ArcIMS < Service
                       attrs["interval"] = (attrs["interval"] / 25.4 * scaling.ppi).round
                       parent.add_element("TEXTSYMBOL", attrs)
                     when "truetypemarker"
-                      attrs = { "fontcolor" => options["colour"], "outline" => "0,0,0", "antialiasing" => true, "angle" => 0, "overlap" => false }.merge(attributes)
+                      attrs = { "fontcolor" => options["colour"], "outline" => "0,0,0", "antialiasing" => true, "angle" => 0 }.merge(attributes)
                       attrs["angle"] += rotation
                       attrs["fontsize"] = (attrs["fontsize"] * scaling.ppi / 72.0).round
                       parent.add_element("TRUETYPEMARKERSYMBOL", attrs)
@@ -419,10 +419,26 @@ class ArcIMS < Service
     [ tile_bounds.inject(:product), tile_extents.inject(:product) ].transpose
   end
   
-  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
+  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
     projected_bounds = transform_bounds(input_projection, params["envelope"]["projection"], input_bounds)
     
     if bounds_intersect?(projected_bounds, params["envelope"]["bounds"])
+      invisible_layers = [ "line", "hashline", "polygon", "truetypemarker" ].map do |key|
+        all_layers.values.flatten.select { |options| options[key] }.select do |options|
+          (options["lookup"] ? options[key].values : [ options[key] ]).any? { |hash| hash["overlap"] == false }
+        end.map do |options|
+          options["lookup"] ? options.merge(key => options[key].select { |val, hash| hash["overlap"] == false }) : options
+        end.map do |options|
+          case key
+          when "line", "hashline"
+            line = { "width" => 1, "overlap" => false }
+            replacements = options["lookup"] ? options[key].map { |val, _| { val => line } }.inject(:merge) : line
+            options.merge(key => replacements, "color" => "0,0,0", "scale" => nil)
+          else options.merge("color" => "0,0,0", "scale" => nil)
+          end
+        end
+      end.inject(:+)
+      
       layers.group_by do |label, options_or_array|
         groups = [ options_or_array ].flatten.map { |options| options["group"] }.compact.uniq
         abort("Error: multiple groups specified") if groups.length > 1
@@ -435,6 +451,7 @@ class ArcIMS < Service
             options.merge("colour" => labels_options.length > 3 ? "#{index+1},0,0" : [ 255, 0, 0 ].rotate(index).join(","))
           end
         end.flatten
+        options_array += invisible_layers if options_array.any? { |options| options["label"] }
         margin = options_array.any? { |options| options["text"] } ? 0 : (1.27 / 25.4 * scaling.ppi).ceil
         cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - 2 * margin }
         
@@ -470,7 +487,7 @@ class ArcIMS < Service
 end
 
 class TiledMapService < Service
-  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
+  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
     tile_sizes = params["tile_sizes"]
     tile_limit = params["tile_limit"]
     crops = params["crops"] || [ [ 0, 0 ], [ 0, 0 ] ]
@@ -536,7 +553,7 @@ class TiledMapService < Service
 end
 
 class LPIOrthoService < Service
-  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
+  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
     bounds = transform_bounds(input_projection, projection, input_bounds)
     layers.each do |label, options|
       puts "Retrieving LPI imagery metadata for: #{label}"
@@ -633,7 +650,7 @@ class OneEarthDEMRelief < Service
     @projection = WGS84
   end
   
-  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
+  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
     return if layers.empty?
     
     bounds = transform_bounds(input_projection, projection, input_bounds)
@@ -720,7 +737,7 @@ class UTMGridService < Service
     end
   end
     
-  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
+  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
     if input_bounds.inject(:product).map { |corner| UTMGridService.zone(input_projection, corner) }.include? zone
       bounds = transform_bounds(input_projection, projection, input_bounds)
       layers.each do |label, options|
@@ -782,7 +799,7 @@ class UTMGridService < Service
 end
 
 class AnnotationService < Service
-  def each_dataset(layers, input_bounds, input_projection, scaling, rotation)
+  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
     layers.each do |label, options|
       puts "Creating: #{label}"
       yield label, [], options
@@ -966,7 +983,9 @@ colours:
   landing-grounds: '#333334'
   transmission-lines: '#000001'
   trig-points: '#000001'
-  markers-labels: '#000001'
+  buildings: '#000001'
+  markers: '#000001'
+  labels: '#000001'
   waterdrops: '#0033ff'
   control-circles: '#9e00c0'
   control-labels: '#9e00c0'
@@ -1046,8 +1065,7 @@ patterns:
     000000000
     000000000
 glow:
-  trig-points: true
-  markers-labels: true
+  labels: true
   utm-54-eastings: true
   utm-54-northings: true
   utm-55-eastings: true
@@ -1220,7 +1238,7 @@ services = {
     "vegetation" => {
       "image" => "Vegetation_1"
     },
-    "markers-labels" => [
+    "labels" => [
       { # contour labels
         "from" => "Contour_1",
         "where" => "MOD(elevation, #{config["contours"]["labels"]}) = 0 AND elevation > 0",
@@ -1272,7 +1290,8 @@ services = {
       { # crossing labels
         "from" => "Crossing_Label_1",
         "label" => { "field" => "delivsdm:geodb.Crossing.GeneralName", "rotationalangles" => 0 },
-        "text" => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 }
+        "lookup" => "delivsdm:geodb.Crossing.ClassSubtype",
+        "text" => { "1;5" => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 } }
       },
       { # fuzzy area labels
         "from" => "FuzzyExtentArea_Label_1",
@@ -1302,64 +1321,17 @@ services = {
         "lookup" => "delivsdm:geodb.Cableway.ClassSubtype",
         "text" => { "1;2" => { "fontsize" => 3, "fontstyle" => "italic", "printmode" => "allupper", "font" => "Arial Narrow", "interval" => 0.5 } }
       },
-      { # caves
-        "from" => "DLSPoint_1",
-        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-        "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65 } }
-      },
       { # cave labels
         "from" => "DLSPoint_Label_1",
         "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
         "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => 0 },
         "text" => { 1 => { "fontsize" => 4.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
       },
-      { # rocks/pinnacles
-        "from" => "DLSPoint_1",
-        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
-        "truetypemarker" => { "2;5;6" => { "font" => "ESRI Default Marker", "character" => 107, "fontsize" => 4.5 } }
-      },
       { # rock/pinnacle labels
         "from" => "DLSPoint_1",
         "label" => { "field" => "delivsdm:geodb.DLSPoint.GeneralName", "rotationalangles" => 0 },
         "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
         "text" => { "2;5;6" => { "fontsize" => 4.8, "printmode" => "allupper", "interval" => 2.0 } }
-      },
-      { # towers
-        "from" => "GeneralCulturalPoint_1",
-        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-        "truetypemarker" => { 7 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
-      },
-      { # mines
-        "from" => "GeneralCulturalPoint_1",
-        "where" => "generalculturaltype = 11 OR generalculturaltype = 12",
-        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-        "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 204, "fontsize" => 7 } }
-      },
-      { # yards
-        "from" => "GeneralCulturalPoint_1",
-        "where" => "ClassSubtype = 4",
-        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.generalculturaltype",
-        "truetypemarker" => { "6;9" => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.25, "character" => 67 } }
-      },
-      { # windmills
-        "from" => "GeneralCulturalPoint_1",
-        "where" => "generalculturaltype = 8",
-        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-        "truetypemarker" => { 4 => { "font" => "ESRI Default Marker", "character" => 69, "angle" => 45, "fontsize" => 3 } }
-      },
-      { # beacons
-        "from" => "GeneralCulturalPoint_1",
-        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
-        "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7 } }
-      },
-      { # lookouts, campgrounds
-        "from" => "GeneralCulturalPoint_1",
-        "where" => "ClassSubtype = 1",
-        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.GeneralCulturalType",
-        "truetypemarker" => {
-          5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65 }, # lookouts
-          1 => { "font" => "ESRI Environmental & Icons", "character" => 60, "fontsize" => 7 } # campgrounds
-        }
       },
       { # lookout, campground labels
         "from" => "GeneralCulturalPoint_1",
@@ -1371,21 +1343,19 @@ services = {
           1 => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 }, # camping grounds
         }
       },
-      { # buildings
-        "from" => "GeneralCulturalPoint_1",
-        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
-        "truetypemarker" => { 5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
-      },
-      { # building labels
+      { # homestead labels
         "from" => "BuildingComplexPoint_Label_1",
         "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName", "rotationalangles" => 0 },
-        "text" => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 }
-      },
-      { # some mountain huts
-        "from" => "BuildingComplexPoint_1",
+        "where" => "BuildingComplexType = 7",
         "lookup" => "delivsdm:geodb.BuildingComplexPoint.ClassSubtype",
-        "where" => "BuildingComplexType = 0",
-        "truetypemarker" => { 2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243 } }
+        "text" => { 4 => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
+      },
+      { # some hut labels
+        "from" => "BuildingComplexPoint_Label_1",
+        "label" => { "field" => "delivsdm:geodb.BuildingComplexPoint.GeneralName", "rotationalangles" => 0 },
+        "where" => "BuildingComplexType = 0 AND (upper(AlternativeLabel) = 'HUT' OR upper(GeneralName) LIKE '%HUT')",
+        "lookup" => "delivsdm:geodb.BuildingComplexPoint.ClassSubtype",
+        "text" => { "2;6" => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
       },
       { # some hut labels
         "from" => "GeneralCulturalPoint_1",
@@ -1394,13 +1364,75 @@ services = {
         "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
         "text" => { 5 => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
       },
+    ],
+    "markers" => [
+      { # caves
+        "from" => "DLSPoint_1",
+        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+        "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65, "overlap" => false } }
+      },
+      { # rocks/pinnacles
+        "from" => "DLSPoint_1",
+        "lookup" => "delivsdm:geodb.DLSPoint.ClassSubtype",
+        "truetypemarker" => { "2;5;6" => { "font" => "ESRI Default Marker", "character" => 107, "fontsize" => 4.5, "overlap" => false } }
+      },
+      { # towers
+        "from" => "GeneralCulturalPoint_1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+        "truetypemarker" => { 7 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243, "overlap" => false } }
+      },
+      { # mines
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "generalculturaltype = 11 OR generalculturaltype = 12",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+        "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 204, "fontsize" => 7, "overlap" => false } }
+      },
+      { # yards
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "ClassSubtype = 4",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.generalculturaltype",
+        "truetypemarker" => { "6;9" => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.25, "character" => 67, "overlap" => false } }
+      },
+      { # windmills
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "generalculturaltype = 8",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+        "truetypemarker" => { 4 => { "font" => "ESRI Default Marker", "character" => 69, "angle" => 45, "fontsize" => 3, "overlap" => false } }
+      },
+      { # beacons
+        "from" => "GeneralCulturalPoint_1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+        "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7, "overlap" => false } }
+      },
+      { # lookouts, campgrounds
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "ClassSubtype = 1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.GeneralCulturalType",
+        "truetypemarker" => {
+          5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65, "overlap" => false }, # lookouts
+          1 => { "font" => "ESRI Environmental & Icons", "character" => 60, "fontsize" => 7, "overlap" => false } # campgrounds
+        }
+      },
       { # gates, grids
         "from" => "TrafficControlDevice_1",
         "lookup" => "delivsdm:geodb.TrafficControlDevice.ClassSubtype",
         "truetypemarker" => {
-          1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178 }, # gate
-          2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177 }  # grid
+          1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 178, "overlap" => false }, # gate
+          2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 177, "overlap" => false }  # grid
         }
+      },
+    ],
+    "buildings" => [
+      { # buildings
+        "from" => "GeneralCulturalPoint_1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
+        "truetypemarker" => { 5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243, "overlap" => false } }
+      },
+      { # some mountain huts
+        "from" => "BuildingComplexPoint_1",
+        "lookup" => "delivsdm:geodb.BuildingComplexPoint.ClassSubtype",
+        "where" => "BuildingComplexType = 0",
+        "truetypemarker" => { 2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 243, "overlap" => false } }
       },
     ],
     "contours" => [
@@ -1452,6 +1484,7 @@ services = {
       "polygon" => { 1 => { "boundary" => false } }
     },
     "water-area-boundaries" => {
+      "group" => "lines7",
       "from" => "HydroArea_1",
       "lookup" => "delivsdm:geodb.HydroArea.perenniality",
       "line" => {
@@ -1460,6 +1493,7 @@ services = {
       }
     },
     "tank-area-boundaries" => {
+      "group" => "lines7",
       "from" => "TankArea_1",
       "lookup" => "delivsdm:geodb.TankArea.tanktype",
       "line" => { 1 => { "width" => 2 } }
@@ -1473,12 +1507,12 @@ services = {
     "dams" => {
       "from" => "HydroPoint_1",
       "lookup" => "delivsdm:geodb.HydroPoint.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 243 } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 243, "overlap" => true } }
     },
     "water-tanks" => {
       "from" => "TankPoint_1",
       "lookup" => "delivsdm:geodb.TankPoint.tanktype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 244 } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 2, "character" => 244, "overlap" => true } }
     },
     "ocean" => {
       "group" => "areas2",
@@ -1546,10 +1580,10 @@ services = {
       "where" => "RoadOnType = 2",
       "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
       "line" => {
-        "1;2;3" => { "width" => 10, "captype" => "square" },
-        "4;5"   => { "width" => 8, "captype" => "square" },
-        "6;8"   => { "width" => 6, "captype" => "square" },
-        "7"     => { "width" => 5, "captype" => "square" },
+        "1;2;3" => { "width" => 10, "captype" => "square", "overlap" => false },
+        "4;5"   => { "width" => 8, "captype" => "square", "overlap" => false },
+        "6;8"   => { "width" => 6, "captype" => "square", "overlap" => false },
+        "7"     => { "width" => 5, "captype" => "square", "overlap" => false },
       }
     },
     "culverts" => {
@@ -1671,7 +1705,7 @@ services = {
       "from" => "GeneralCulturalLine_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalLine.ClassSubtype",
       "scale" => 0.4,
-      "line" => { 4 => { "width" => 3 } }
+      "line" => { 4 => { "width" => 3, "overlap" => false } }
     },
     "cableways" => {
       "group" => "lines2",
@@ -1695,8 +1729,10 @@ services = {
       "from" => "Railway_1",
       "lookup" => "delivsdm:geodb.Railway.classsubtype",
       "hashline" => {
-        "1;4" => { "width" => 6, "linethickness" => 3, "tickthickness" => 2, "interval" => 12 },
-        "2;3" => { "width" => 4, "linethickness" => 2, "tickthickness" => 2, "interval" => 12 }
+        # "1;4" => { "width" => 6, "linethickness" => 3, "tickthickness" => 2, "interval" => 12 },
+        # "2;3" => { "width" => 4, "linethickness" => 2, "tickthickness" => 2, "interval" => 12 },
+        "1;4" => { "width" => 6, "linethickness" => 3, "tickthickness" => 2, "interval" => 12, "overlap" => false },
+        "2;3" => { "width" => 4, "linethickness" => 2, "tickthickness" => 2, "interval" => 12, "overlap" => false },
       }
     },
     "pipelines" => {
@@ -1719,9 +1755,9 @@ services = {
       "from" => "Runway_1",
       "lookup" => "delivsdm:geodb.Runway.runwaydefinition",
       "line" => {
-        1 => { "width" => 3 },
-        2 => { "width" => 12 },
-        3 => { "width" => 1 }
+        1 => { "width" => 3, "overlap" => false },
+        2 => { "width" => 12, "overlap" => false },
+        3 => { "width" => 1, "overlap" => false }
       }
     },
     "wharves" => {
@@ -1861,11 +1897,10 @@ puts "  rotation: %.1f degrees" % rotation
 puts "  %imm x %imm @ %i ppi" % [ *dimensions.map { |dimension| dimension * 25.4 / scaling.ppi }, scaling.ppi ]
 puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * dimensions.inject(:*), *dimensions ]
 
-services.each do |service, layers|
-  layers.reject! do |label, options|
-    config["exclude"].include?(label) || File.exists?(File.join(output_dir, "#{label}.png"))
-  end
-  service.each_dataset(layers, bounds, projection, scaling, rotation) do |label, dataset, options|
+services.each do |service, all_layers|
+  all_layers.reject! { |label, options| config["exclude"].include? label }
+  layers = all_layers.reject { |label, options| File.exists?(File.join(output_dir, "#{label}.png")) }
+  service.each_dataset(all_layers, layers, bounds, projection, scaling, rotation) do |label, dataset, options|
     begin
       output_path = File.join(output_dir, "#{label}.png")
       Dir.mktmpdir do |temp_dir|
@@ -1952,7 +1987,7 @@ unless formats_paths.empty?
       end
     end
     
-    puts "Preparing layers for compositing"
+    puts "Preparing layers for composition"
     layers = %w[
       aerial-google
       aerial-nokia
@@ -2005,9 +2040,11 @@ unless formats_paths.empty?
       cableways
       landing-grounds
       transmission-lines
+      buildings
       building-areas
       trig-points
-      markers-labels
+      markers
+      labels
       waterdrops
       control-circles
       control-labels
@@ -2131,14 +2168,15 @@ end
 
 # TODO: add picnic areas, carparks (or labels for them)
 # TODO: add sports fields, etc. (and labels?)
+# TODO: recombine water-areas and tank-areas?
+# TODO: solve water-areas-intermittent/dams overlap problem?
 # TODO: underground roads and railways (e.g. Lithgow)
-# TODO: filter building labels to some degree
-# TODO: railway labels
+# TODO: railway bridges?
 
 # TODO: http timeouts?
 
-# TODO: re-solve building/building-area problem
+# TODO: shortcut for excluding relief layers
 
-# TODO: solve label overlap problem by including other layers rendered in black! (use "overlap" attribute to detect invisible layers to include)
+# TODO: update README
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

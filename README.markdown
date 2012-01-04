@@ -182,7 +182,7 @@ Specify the format(s) of the output map files you would like to create. Choose a
       - png                   # (default map output is in PNG and multi-layered TIFF format)
       - layered.tif
 
-Specify which layers to exclude from your map. This will prevent downloading of the layers and their inclusion in the final map. List each layer individually. Use the shortcuts `UTM`, `aerial` and `act-extras` to exclude all UTM grid layers, aerial imagery layers and extra ACT layers, respectively.
+Specify which layers to exclude from your map. This will prevent downloading of the layers and their inclusion in the final map. List each layer individually. Use the shortcuts `utm`, `aerial`, `relief` and `act-extras` to exclude all UTM grid layers, aerial imagery layers, shaded relief/elevation layers and extra ACT layers, respectively.
 
     exclude:
       - utm                   # (exclude UTM grid in favour of declination lines)
@@ -384,5 +384,5 @@ Release History
   * 13/12/2011: version 0.1.1: added bridges, floodways, fixed narrow gaps in roads
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
 * 21/12/2011: version 0.2: added map rotation; added specification of map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
-* HEAD: added crossing labels, lookouts, campgrounds, rock/pinnacle labels; collected point markers into single layer with labels;
+* HEAD: added brdige labels, lookouts, campgrounds, rock/pinnacle labels; collected point markers into single layer; reduced label/feature overlap; decreased download times.
 

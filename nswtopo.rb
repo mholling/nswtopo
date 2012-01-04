@@ -950,10 +950,8 @@ colours:
   dams: '#0033ff'
   water-tanks: '#7b96ff'
   water-areas: '#7b96ff'
-  tank-areas: '#7b96ff'
   water-areas-intermittent: '#7b96ff'
   water-area-boundaries: '#0033ff'
-  tank-area-boundaries: '#0033ff'
   reef: 'Cyan'
   sand: '#ff6600'
   intertidal: '#1b2e7b'
@@ -1077,10 +1075,11 @@ glow:
 config["controls"]["file"] = "controls.gpx" if File.exists? "controls.gpx"
 config = config.deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
 {
-  "utm" => %w{utm-54-grid utm-54-eastings utm-54-northings utm-55-grid utm-55-eastings utm-55-northings utm-56-grid utm-56-eastings utm-56-northings},
-  "aerial" => %w{aerial-google aerial-nokia aerial-lpi-sydney aerial-lpi-eastcoast aerial-lpi-towns aerial-lpi-ads40},
+  "utm" => [ /utm-.*/ ],
+  "aerial" => [ /aerial-.*/ ],
   "coastal" => %w{ocean reef intertidal coastline wharves},
-  "act-extras" => %w{act-rivers-and-creeks act-urban-land act-lakes-and-major-rivers act-plantations act-roads-sealed act-roads-unsealed act-vehicular-tracks act-adhoc-fire-access}
+  "act-extras" => %w{act-rivers-and-creeks act-urban-land act-lakes-and-major-rivers act-plantations act-roads-sealed act-roads-unsealed act-vehicular-tracks act-adhoc-fire-access},
+  "relief" => [ "elevation", /shaded-relief-.*/ ]
 }.each do |shortcut, layers|
   config["exclude"] += layers if config["exclude"].delete(shortcut)
 end
@@ -1471,39 +1470,41 @@ services = {
         3 => { "width" => 1, "type" => "dash" }
       }
     },
-    "water-areas" => {
-      "group" => "areas2",
-      "from" => "HydroArea_1",
-      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-      "polygon" => { 1 => { "boundary" => false } }
-    },
-    "tank-areas" => {
-      "group" => "areas2",
-      "from" => "TankArea_1",
-      "lookup" => "delivsdm:geodb.TankArea.tanktype",
-      "polygon" => { 1 => { "boundary" => false } }
-    },
-    "water-area-boundaries" => {
-      "group" => "lines7",
-      "from" => "HydroArea_1",
-      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-      "line" => {
-        1 => { "width" => 2 },
-        "2;3" => { "width" => 1 }
-      }
-    },
-    "tank-area-boundaries" => {
-      "group" => "lines7",
-      "from" => "TankArea_1",
-      "lookup" => "delivsdm:geodb.TankArea.tanktype",
-      "line" => { 1 => { "width" => 2 } }
-    },
+    "water-areas" => [
+      {
+        "group" => "areas2",
+        "from" => "HydroArea_1",
+        "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+        "polygon" => { 1 => { "boundary" => false } }
+      },
+      {
+        "group" => "areas2",
+        "from" => "TankArea_1",
+        "lookup" => "delivsdm:geodb.TankArea.tanktype",
+        "polygon" => { 1 => { "boundary" => false } }
+      },
+    ],
     "water-areas-intermittent" => {
       "group" => "areas2",
       "from" => "HydroArea_1",
       "lookup" => "delivsdm:geodb.HydroArea.perenniality",
       "polygon" => { "2;3" => { "boundary" => false } }
     },
+    "water-area-boundaries" => [
+      {
+        "from" => "HydroArea_1",
+        "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+        "line" => {
+          1 => { "width" => 2 },
+          "2;3" => { "width" => 1 }
+        }
+      },
+      {
+        "from" => "TankArea_1",
+        "lookup" => "delivsdm:geodb.TankArea.tanktype",
+        "line" => { 1 => { "width" => 2 } }
+      },
+    ],
     "dams" => {
       "from" => "HydroPoint_1",
       "lookup" => "delivsdm:geodb.HydroPoint.ClassSubtype",
@@ -1723,18 +1724,30 @@ services = {
       "scale" => 0.15,
       "line" => { 3 => { "width" => 1, "type" => "dash" } }
     },
-    "railways" => {
-      "group" => "lines6",
-      "scale" => 0.4,
-      "from" => "Railway_1",
-      "lookup" => "delivsdm:geodb.Railway.classsubtype",
-      "hashline" => {
-        # "1;4" => { "width" => 6, "linethickness" => 3, "tickthickness" => 2, "interval" => 12 },
-        # "2;3" => { "width" => 4, "linethickness" => 2, "tickthickness" => 2, "interval" => 12 },
-        "1;4" => { "width" => 6, "linethickness" => 3, "tickthickness" => 2, "interval" => 12, "overlap" => false },
-        "2;3" => { "width" => 4, "linethickness" => 2, "tickthickness" => 2, "interval" => 12, "overlap" => false },
-      }
-    },
+    "railways" => [
+      { # above ground
+        "group" => "lines6",
+        "scale" => 0.4,
+        "from" => "Railway_1",
+        "where" => "RailOnType != 3",
+        "lookup" => "delivsdm:geodb.Railway.classsubtype",
+        "hashline" => {
+          "1;4" => { "width" => 6, "linethickness" => 3, "tickthickness" => 2, "interval" => 15, "overlap" => false },
+          "2;3" => { "width" => 4, "linethickness" => 2, "tickthickness" => 2, "interval" => 15, "overlap" => false },
+        }
+      },
+      { # in tunnel
+        "group" => "lines6",
+        "scale" => 0.4,
+        "from" => "Railway_1",
+        "where" => "RailOnType = 3",
+        "lookup" => "delivsdm:geodb.Railway.classsubtype",
+        "line" => {
+          "1;4" => { "width" => 3, "type" => "dash", "overlap" => false },
+          "2;3" => { "width" => 2, "type" => "dash", "overlap" => false },
+        }
+      },
+    ],
     "pipelines" => {
       "from" => "PipeLine_1",
       "line" => { "width" => 1 },
@@ -1898,7 +1911,7 @@ puts "  %imm x %imm @ %i ppi" % [ *dimensions.map { |dimension| dimension * 25.4
 puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * dimensions.inject(:*), *dimensions ]
 
 services.each do |service, all_layers|
-  all_layers.reject! { |label, options| config["exclude"].include? label }
+  all_layers.reject! { |label, options| config["exclude"].any? { |matcher| label[matcher] } }
   layers = all_layers.reject { |label, options| File.exists?(File.join(output_dir, "#{label}.png")) }
   service.each_dataset(all_layers, layers, bounds, projection, scaling, rotation) do |label, dataset, options|
     begin
@@ -2011,9 +2024,9 @@ unless formats_paths.empty?
       act-cadastre
       watercourses
       ocean
-      dams
       water-tanks
       water-areas-intermittent
+      dams
       water-areas
       tank-areas
       water-area-boundaries
@@ -2059,7 +2072,7 @@ unless formats_paths.empty?
       utm-56-eastings
       utm-56-northings
     ].reject do |label|
-      config["exclude"].include? label
+      config["exclude"].any? { |matcher| label[matcher] }
     end.map do |label|
       [ label, File.join(output_dir, "#{label}.png") ]
     end.select do |label, path|
@@ -2161,22 +2174,19 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: add note for layers already downloaded
-# TODO: progress bar for pattern generation?
-
-# TODO: rework "exclude" config?
+# TODO: add config["include"] ?
 
 # TODO: add picnic areas, carparks (or labels for them)
 # TODO: add sports fields, etc. (and labels?)
-# TODO: recombine water-areas and tank-areas?
-# TODO: solve water-areas-intermittent/dams overlap problem?
 # TODO: underground roads and railways (e.g. Lithgow)
 # TODO: railway bridges?
+# TODO: roads in tunnels?
+# TODO: rework road bridges to go over other roads?
+# TODO: any other features need overlap?
 
 # TODO: http timeouts?
 
-# TODO: shortcut for excluding relief layers
-
 # TODO: update README
+# TODO: check working with windows
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

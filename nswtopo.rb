@@ -448,7 +448,8 @@ class ArcIMS < Service
       end.each do |labels_options|
         options_array = labels_options.map.with_index do |(labels, options_or_array), index|
           [ options_or_array ].flatten.map do |options|
-            options.merge("colour" => labels_options.length > 3 ? "#{index+1},0,0" : [ 255, 0, 0 ].rotate(index).join(","))
+            colour = options["colour"] || (labels_options.length > 3 ? "#{index+1},0,0" : [ 255, 0, 0 ].rotate(index).join(","))
+            options.merge("colour" => colour)
           end
         end.flatten
         options_array += invisible_layers if options_array.any? { |options| options["label"] }
@@ -1574,45 +1575,93 @@ services = {
         "7"     => { "width" => 2, "captype" => "round" }
       }
     },
-    "bridges" => {
-      "group" => "lines4",
-      "scale" => 0.4,
-      "from" => "RoadSegment_1",
-      "where" => "RoadOnType = 2",
-      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => {
-        "1;2;3" => { "width" => 10, "captype" => "square", "overlap" => false },
-        "4;5"   => { "width" => 8, "captype" => "square", "overlap" => false },
-        "6;8"   => { "width" => 6, "captype" => "square", "overlap" => false },
-        "7"     => { "width" => 5, "captype" => "square", "overlap" => false },
-      }
-    },
-    "culverts" => {
-      "group" => "lines4",
-      "scale" => 0.4,
-      "from" => "RoadSegment_1",
-      "where" => "RoadOnType = 5",
-      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => {
-        "1;2;3" => { "width" => 10, "captype" => "square" },
-        "4;5"   => { "width" => 8, "captype" => "square" },
-        "6;8"   => { "width" => 6, "captype" => "square" },
-        "7"     => { "width" => 5, "captype" => "square" },
-      }
-    },
-    "floodways" => {
-      "group" => "lines4",
-      "scale" => 0.4,
-      "from" => "RoadSegment_1",
-      "where" => "RoadOnType = 4",
-      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => {
-        "1;2;3" => { "width" => 10, "captype" => "square" },
-        "4;5"   => { "width" => 8, "captype" => "square" },
-        "6;8"   => { "width" => 6, "captype" => "square" },
-        "7"     => { "width" => 5, "captype" => "square" },
-      }
-    },
+    "bridges" => [
+      {
+        "group" => "lines4",
+        "scale" => 0.4,
+        "from" => "RoadSegment_1",
+        "where" => "RoadOnType = 2",
+        "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+        "line" => {
+          "1;2;3" => { "width" => 10, "captype" => "butt", "overlap" => false },
+          "4;5"   => { "width" => 8, "captype" => "butt", "overlap" => false },
+          "6;8"   => { "width" => 6, "captype" => "butt", "overlap" => false },
+          "7"     => { "width" => 5, "captype" => "butt", "overlap" => false },
+        }
+      },
+      {
+        "group" => "lines4",
+        "scale" => 0.4,
+        "from" => "RoadSegment_1",
+        "where" => "RoadOnType = 2",
+        "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+        "line" => {
+          "1;2;3" => { "width" => 7, "captype" => "square" },
+          "4;5"   => { "width" => 5, "captype" => "square" },
+          "6;8"   => { "width" => 3, "captype" => "square" },
+          "7"     => { "width" => 2, "captype" => "square" },
+        },
+        "colour" => "0,0,0"
+      },
+    ],
+    "culverts" => [
+      {
+        "group" => "lines4",
+        "scale" => 0.4,
+        "from" => "RoadSegment_1",
+        "where" => "RoadOnType = 5",
+        "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+        "line" => {
+          "1;2;3" => { "width" => 10, "captype" => "butt" },
+          "4;5"   => { "width" => 8, "captype" => "butt" },
+          "6;8"   => { "width" => 6, "captype" => "butt" },
+          "7"     => { "width" => 5, "captype" => "butt" },
+        }
+      },
+      {
+        "group" => "lines4",
+        "scale" => 0.4,
+        "from" => "RoadSegment_1",
+        "where" => "RoadOnType = 5",
+        "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+        "line" => {
+          "1;2;3" => { "width" => 7, "captype" => "square" },
+          "4;5"   => { "width" => 5, "captype" => "square" },
+          "6;8"   => { "width" => 3, "captype" => "square" },
+          "7"     => { "width" => 2, "captype" => "square" },
+        },
+        "colour" => "0,0,0"
+      },
+    ],
+    "floodways" => [
+      {
+        "group" => "lines4",
+        "scale" => 0.4,
+        "from" => "RoadSegment_1",
+        "where" => "RoadOnType = 4",
+        "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+        "line" => {
+          "1;2;3" => { "width" => 10, "captype" => "butt" },
+          "4;5"   => { "width" => 8, "captype" => "butt" },
+          "6;8"   => { "width" => 6, "captype" => "butt" },
+          "7"     => { "width" => 5, "captype" => "butt" },
+        }
+      },
+      {
+        "group" => "lines4",
+        "scale" => 0.4,
+        "from" => "RoadSegment_1",
+        "where" => "RoadOnType = 4",
+        "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+        "line" => {
+          "1;2;3" => { "width" => 7, "captype" => "square" },
+          "4;5"   => { "width" => 5, "captype" => "square" },
+          "6;8"   => { "width" => 3, "captype" => "square" },
+          "7"     => { "width" => 2, "captype" => "square" },
+        },
+        "colour" => "0,0,0"
+      },
+    ],
     "intertidal" => {
       "group" => "areas1",
       "from" => "DLSArea_1",
@@ -2043,13 +2092,13 @@ unless formats_paths.empty?
       act-border
       railways
       pathways
-      bridges
-      culverts
-      floodways
       tracks-4wd
       tracks-vehicular
       roads-unsealed
       roads-sealed
+      bridges
+      culverts
+      floodways
       cableways
       landing-grounds
       transmission-lines
@@ -2181,7 +2230,7 @@ end
 # TODO: underground roads and railways (e.g. Lithgow)
 # TODO: railway bridges?
 # TODO: roads in tunnels?
-# TODO: rework road bridges to go over other roads?
+# TODO: pedestrian bridges?
 # TODO: any other features need overlap?
 
 # TODO: http timeouts?

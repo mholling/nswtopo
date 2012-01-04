@@ -448,7 +448,7 @@ class ArcIMS < Service
       end.each do |labels_options|
         options_array = labels_options.map.with_index do |(labels, options_or_array), index|
           [ options_or_array ].flatten.map do |options|
-            colour = options["colour"] || (labels_options.length > 3 ? "#{index+1},0,0" : [ 255, 0, 0 ].rotate(index).join(","))
+            colour = options["erase"] ? "0,0,0" : (labels_options.length > 3 ? "#{index+1},0,0" : [ 255, 0, 0 ].rotate(index).join(","))
             options.merge("colour" => colour)
           end
         end.flatten
@@ -947,10 +947,10 @@ colours:
   swamp-wet: '#00bdff'
   swamp-dry: '#e3bf9a'
   watercourses: '#0033ff'
-  ocean: '#7b96ff'
+  ocean: '#9db1ff'
   dams: '#0033ff'
-  water-tanks: '#7b96ff'
-  water-areas: '#7b96ff'
+  water-tanks: '#9db1ff'
+  water-areas: '#9db1ff'
   water-areas-intermittent: '#7b96ff'
   water-area-boundaries: '#0033ff'
   reef: 'Cyan'
@@ -1562,21 +1562,36 @@ services = {
         "7"     => { "width" => 2, "captype" => "round" }
       }
     },
-    "roads-sealed" => {
-      "group" => "lines1",
-      "scale" => 0.4,
-      "from" => "RoadSegment_1",
-      "where" => "(Surface = 0 OR Surface = 1) AND ClassSubtype != 8",
-      "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-      "line" => {
-        "1;2;3" => { "width" => 7, "captype" => "round" },
-        "4;5"   => { "width" => 5, "captype" => "round" },
-        "6"     => { "width" => 3, "captype" => "round" },
-        "7"     => { "width" => 2, "captype" => "round" }
-      }
-    },
+    "roads-sealed" => [
+      { # above ground
+        "group" => "lines1",
+        "scale" => 0.4,
+        "from" => "RoadSegment_1",
+        "where" => "(Surface = 0 OR Surface = 1) AND ClassSubtype != 8 AND RoadOnType != 3",
+        "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+        "line" => {
+          "1;2;3" => { "width" => 7, "captype" => "round" },
+          "4;5"   => { "width" => 5, "captype" => "round" },
+          "6"     => { "width" => 3, "captype" => "round" },
+          "7"     => { "width" => 2, "captype" => "round" }
+        }
+      },
+      { # in tunnel
+        "group" => "lines1",
+        "scale" => 0.4,
+        "from" => "RoadSegment_1",
+        "where" => "(Surface = 0 OR Surface = 1) AND ClassSubtype != 8 AND RoadOnType = 3",
+        "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+        "line" => {
+          "1;2;3" => { "width" => 4, "captype" => "round", "type" => "dash" },
+          "4;5"   => { "width" => 3, "captype" => "round", "type" => "dash" },
+          "6"     => { "width" => 2, "captype" => "round", "type" => "dash" },
+          "7"     => { "width" => 1, "captype" => "round", "type" => "dash" }
+        }
+      },
+    ],
     "bridges" => [
-      {
+      { # road bridges
         "group" => "lines4",
         "scale" => 0.4,
         "from" => "RoadSegment_1",
@@ -1587,9 +1602,10 @@ services = {
           "4;5"   => { "width" => 8, "captype" => "butt", "overlap" => false },
           "6;8"   => { "width" => 6, "captype" => "butt", "overlap" => false },
           "7"     => { "width" => 5, "captype" => "butt", "overlap" => false },
+          "9"     => { "width" => 2, "captype" => "round", "overlap" => false },
         }
       },
-      {
+      { # (erase centre)
         "group" => "lines4",
         "scale" => 0.4,
         "from" => "RoadSegment_1",
@@ -1601,7 +1617,18 @@ services = {
           "6;8"   => { "width" => 3, "captype" => "square" },
           "7"     => { "width" => 2, "captype" => "square" },
         },
-        "colour" => "0,0,0"
+        "erase" => true
+      },
+      { # railway bridges
+        "group" => "lines4",
+        "scale" => 0.4,
+        "from" => "Railway_1",
+        "where" => "RailOnType = 2",
+        "lookup" => "delivsdm:geodb.Railway.classsubtype",
+        "line" => {
+          "1;4" => { "width" => 6, "captype" => "square", "overlap" => false },
+          "2;3" => { "width" => 4, "captype" => "square", "overlap" => false },
+        }
       },
     ],
     "culverts" => [
@@ -1630,7 +1657,7 @@ services = {
           "6;8"   => { "width" => 3, "captype" => "square" },
           "7"     => { "width" => 2, "captype" => "square" },
         },
-        "colour" => "0,0,0"
+        "erase" => true
       },
     ],
     "floodways" => [
@@ -1659,7 +1686,7 @@ services = {
           "6;8"   => { "width" => 3, "captype" => "square" },
           "7"     => { "width" => 2, "captype" => "square" },
         },
-        "colour" => "0,0,0"
+        "erase" => true
       },
     ],
     "intertidal" => {
@@ -2227,11 +2254,10 @@ end
 
 # TODO: add picnic areas, carparks (or labels for them)
 # TODO: add sports fields, etc. (and labels?)
-# TODO: underground roads and railways (e.g. Lithgow)
-# TODO: railway bridges?
-# TODO: roads in tunnels?
-# TODO: pedestrian bridges?
+# TODO: remove bridge names?
+# TODO: change culverts to brown?
 # TODO: any other features need overlap?
+# TODO: pipelines again??
 
 # TODO: http timeouts?
 

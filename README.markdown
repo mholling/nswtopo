@@ -271,7 +271,8 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * tracks-vehicular: unsealed vehicular tracks, represented as orange dashed lines
 * tracks-4wd: 4wd tracks, represented as smaller  orange dashed lines
 * pathways: various walking tracks, represented as thinner black dashed lines
-* bridges-culverts: road sections across bridges and culverts, in black
+* bridges: road and train bridges, in black
+* culverts: road sections across culverts, in black
 * floodways: road sections across floodways, in blue
 * buildings: single buildings (e.g. homesteads), respresented as black squares
 * intertidal: intertidal areas, in dotted blue
@@ -384,5 +385,5 @@ Release History
   * 13/12/2011: version 0.1.1: added bridges, floodways, fixed narrow gaps in roads
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
 * 21/12/2011: version 0.2: added map rotation; added specification of map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
-* HEAD: added brdige labels, lookouts, campgrounds, rock/pinnacle labels; collected point markers into single layer; reduced label/feature overlap; decreased download times.
+* HEAD: added brdige labels, lookouts, campgrounds, rock/pinnacle labels; collected point markers into single layer; prevented label/feature overlap; decreased download times.
 

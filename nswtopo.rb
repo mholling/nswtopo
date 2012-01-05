@@ -1993,8 +1993,8 @@ puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * dimensions.inject(:*), *dimens
 services.each do |service, all_layers|
   all_layers.reject! { |label, options| config["exclude"].any? { |matcher| label[matcher] } }
   layers = all_layers.reject { |label, options| File.exists?(File.join(output_dir, "#{label}.png")) }
-  service.each_dataset(all_layers, layers, bounds, projection, scaling, rotation) do |label, dataset, options|
-    begin
+  begin
+    service.each_dataset(all_layers, layers, bounds, projection, scaling, rotation) do |label, dataset, options|
       output_path = File.join(output_dir, "#{label}.png")
       Dir.mktmpdir do |temp_dir|
         working_path = File.join(temp_dir, "layer.tif")
@@ -2023,10 +2023,10 @@ services.each do |service, all_layers|
 
         %x[convert -quiet "#{working_path}" "#{output_path}"]
       end
-    rescue InternetError, BadLayer => e
-      puts
-      puts "  skipping layer; error: #{e.message}"
     end
+  rescue InternetError, BadLayer => e
+    puts
+    puts "  skipping layer; error: #{e.message}"
   end
 end
 
@@ -2255,8 +2255,6 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
 end
 
 # TODO: add config["include"]?
-# TODO: http timeouts?
-# TODO: update README
 # TODO: check working with windows
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

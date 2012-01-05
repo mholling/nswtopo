@@ -95,11 +95,11 @@ When the script starts it will list the scale of your map (e.g. 1:25000), its ro
 
 The script will then proceed to download a large number of layers. A progress bar will show for each group of layers. Depending on your connection and the size of your map, an hour or more may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) Any errors received will be displayed and the layer skipped; you can run the script again to retry the skipped layers as they are usually just temporary server errors.
 
-You can ctrl-c at any point to stop the script; it will pick up where it left off the next time you run it, not downloading any layers that have already been downloaded. (Conversely, deleting an already-created layer file will cause that file to be recreated when you run the script again.)
+You can ctrl-c at any point to stop the script; it will pick up where it left off the next time you run it, skipping layers that have already been downloaded. (Conversely, deleting an already-created layer file will cause that file to be recreated when you run the script again.)
 
 A description of each layer is found later in this document.
 
-After all layers have been downloaded, the script will then compile them into a final map image. The default is to create both a PNG and a multi-layered TIFF. (Several output formats are possible - see below). Depending on the specs of your computer and the size of your map, creating a multi-layered TIFF or PSD (photoshop) image may take a long time, particularly if swap memory is hit. Be patient. If you don't plan to do any further manipulation or editing of your map, just specify a PNG or PDF as output format in your configuration file, as this will take less time.
+After all layers have been downloaded, the script will then compile them into a final map image. The default is to create both a PNG and a multi-layered TIFF. (Several output formats are possible - see below). Depending on the specs of your computer and the size of your map, creating a multi-layered TIFF or PSD (photoshop) image may take a long time, particularly if swap memory is hit. Be patient. If you don't plan to do any further manipulation or editing of your map, you need only specify a PNG or PDF as output format in your configuration file, as this will take less time.
 
 Using the Output
 ================
@@ -108,16 +108,16 @@ You can use the output files in a few different ways. If you just want a quick m
 
 If you're creating a map for rogaining, you will probably want to build a multi-layered file for further editing using GIMP or Photoshop. In this case, specify `layered.tif` or `psd`, respectively, as your output format. These formats will keep each topographic feature on a separate layer, allowing you to edit them individually. In combination with the aerial layers, which you can turn on and off as underlayers, this allows you to compare the mapped location of topographic features such as roads, dams and cliffs against their position on the aerial imagery, and to manually add, correct or remove such features as needed (e.g. old firetrails that have been changed, are no longer present, or new firetrails that have not yet been mapped).
 
-(Note that the ImageMagick photoshop driver is not particularly good; it does not do any file compression, which can lead to a gigabyte+ file size and very slow performance during creation of the psd file. The file will be correctly compressed once you load and save it in Photoshop, however.)
+(Note that the ImageMagick photoshop driver is not particularly good; it does not do any file compression, which can lead to a gigabyte+ file size and very slow performance for large maps. The file will be correctly compressed once you load and save it in Photoshop, however.)
 
 It is also possible to construct your own Photoshop or GIMP document by hand, using the topographic layers as layer masks for color fill or pattern layers representing each feature. The topographic feature layers are colored white-on-black to allow you to do this easily.
 
 Map Configuration
 =================
 
-By editing `config.yml` you can customise a number of aspects of your map, including the colour and patterns used for various features and which layers to exclude. If no other configuration is provided, reasonable defaults are used. The customisation options are shown below with their default values.
+By editing `config.yml` you can customise many aspects of your map, including the colour and patterns used for various features and which layers to exclude. If no other configuration is provided, reasonable defaults are used. The customisation options are shown below with their default values. (*It is not necessary to provide these default values in your configuration file.*)
 
-Set the scale and print resolution of the map as follows. 300-400 ppi is probably optimal for most maps, and gives a resolution of about 2.1 metres per pixel at 1:25000. Going beyond 400 ppi will not yield any more detail, will make the downloads slower and will blow out the megapixel count considerably. (The size of map features mostly scales with ppi but not with the map scale.)
+Set the scale and print resolution of the map as follows. 300-400 pixels-per-inch (ppi) is probably optimal for most maps; 300 ppi give a resolution of about 2.1 metres per pixel at 1:25000. Going beyond 400 ppi will not yield any more detail, and will slow the downloads and blow out the megapixel count considerably. (The size of map features mostly scales with ppi but not with the map scale.)
 
     scale: 25000              # desired map scale (1:25000 in this case)
     ppi: 300                  # print resolution in pixels per inch
@@ -134,7 +134,7 @@ Set the filename for the output map and related files.
 
     name: map                 # filename to use for the final map image(s) and related georeferencing files
 
-Specify the contour spacing. The standard contour coverage is 10m for eastern NSW and 20m for central and western NSW (and most of the Snowy Mountains, disappointingly). Large scale contour data (source: 2) at 1m or 2m intervals seems limited to towns and coastal areas; Whilst appearing attractive, it is probably not of much use since the contours are not well-matched with the watercourses.
+Specify the contour spacing. The standard contour coverage is 10m for eastern NSW and 20m for central and western NSW (and most of the Snowy Mountains, disappointingly). If you specify a 10m interval but only get 20m intervals, this means 10m contour data does not exist in the map area. Large scale contour data (source: 2) at 1m or 2m intervals is sometimes available but seems limited to towns and coastal areas; whilst appearing attractive, it is probably not of much use since the contours are not well-matched with the watercourses.
 
     contours:
       interval: 10            # contour interval in metres
@@ -355,7 +355,7 @@ Shortcomings
 
 A few shortcomings are sometimes evident in the generated map images. These can often be fixed by manually adjusting the relevant layer in Photoshop.
 
-* Feature labels sometimes conflict with other features on the map, or are more numerous than needed. This is easily fixed in the multilayered TIFF or PSD file by manually moving or deleting the offending label.
+* Feature labels sometimes conflict with other features on the map, or are more numerous than needed. This is easily fixed in a multi-layer file by manually moving or deleting the offending label.
 * Data is not always complete or accurate. Since the map data represents the current contents of the NSW geospatial database, it reflects any errors the database contains. Aerial imagery may be helpful in identifying any such inaccuracies, which can subsequently corrected manually in the appropriate layer. Examples of inaccuracies I've observed include:
   * the trig points layer does not always show every trig station in the map area;
   * new dams on farms may not always be shown;
@@ -364,17 +364,16 @@ A few shortcomings are sometimes evident in the generated map images. These can 
   * firetrails and walking paths are sometimes absent or out-of-date.
 * Some classes of map data are not currently accessible through the NSW map servers, and are therefore missing from the map. These include:
   * spot heights
-  * labels for some geographic features including summits, saddles and islands
+  * labels for some geographic features including summits and saddles.
   * boundaries of NSW parks and reserves
   * ancillary hydrographic features including waterfalls
   * relative heights of cliffs
-  * waterfalls and rapids
   * points of interest
-* I have left out a number of obscure mand-made features that are unlikely to be found in bush and rural areas of interest.
+* I have left out a number of obscure man-made features that are unlikely to be found in bush and rural areas of interest.
 * For the time being, if you need a legend you'll need to create it manually.
 * When rotating the map using the `rotation` parameter, the image quality is reduced slightly. (Since the map servers are only able to render maps in north-up orientation, the images must are subsequently rotated, causing some resampling degradation.)
 * Not all horizontal labels remain horizontal when a map rotation is specified.
-* The NSW map servers sometimes go offline. There is a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time). This is frustrating. Interrupt the script using ctrl-c, wait a few minutes, then try again
+* The NSW map servers sometimes go offline. There is a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time). This is frustrating. Interrupt the script using ctrl-c, wait a few minutes, then try again.
 
 Release History
 ===============

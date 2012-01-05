@@ -454,17 +454,17 @@ class ArcIMS < Service
         end.flatten
         options_array += invisible_layers if options_array.any? { |options| options["label"] }
         margin = options_array.any? { |options| options["text"] } ? 0 : (1.27 / 25.4 * scaling.ppi).ceil
-        cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - 2 * margin }
+        tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - 2 * margin }
         
         puts "Downloading: #{labels_options.map(&:first).join(", ")}"
         Dir.mktmpdir do |temp_dir|
-          datasets = tiles(cropped_tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(cropped_bounds, cropped_extents), tile_index|
-            extents = cropped_extents.map { |cropped_extent| cropped_extent + 2 * margin }
-            bounds = cropped_bounds.map do |cropped_bound|
-              [ cropped_bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
+          datasets = tiles(tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(bounds, extents), tile_index|
+            enlarged_extents = extents.map { |extent| extent + 2 * margin }
+            enlarged_bounds = bounds.map do |bound|
+              [ bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
             end
             tile_path = File.join(temp_dir, "tile.#{tile_index}.png")
-            get_tile(bounds, extents, scaling, rotation, options_array, tile_path)
+            get_tile(enlarged_bounds, enlarged_extents, scaling, rotation, options_array, tile_path)
             labels_options.map.with_index do |(label, options_or_array), index|
               path = File.join(temp_dir, "#{label}.tile.#{tile_index}.png")
               extract = case
@@ -475,8 +475,8 @@ class ArcIMS < Service
               else
                 %Q[-channel #{%w[Red Green Blue].rotate(-index).first} -separate]
               end
-              %x[convert "#{tile_path}" #{extract} -crop #{cropped_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{path}"]
-              [ cropped_bounds, scaling.metres_per_pixel, path ]
+              %x[convert "#{tile_path}" #{extract} -crop #{extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{path}"]
+              [ bounds, scaling.metres_per_pixel, path ]
             end
           end.transpose
           

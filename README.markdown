@@ -260,8 +260,6 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * water-area-boundaries: boundaries of water areas, in blue
 * water-areas-intermittent: intermittent or mostly-dry water areas, in dotted light blue
 * water-areas-intermittent-boundaries: boundaries of intermittent or mostly-dry water areas, in blue
-* tank-areas: large outdoor water storage areas, in light blue
-* tank-area-boundaries: boundaries of large outdoor water storage areas, in blue
 * dams: smaller farm dams and other small water points, represented as blue squares
 * water-tanks: water tanks, represented as light blue circles
 * ocean: ocean areas, in light blue
@@ -272,7 +270,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * tracks-4wd: 4wd tracks, represented as smaller  orange dashed lines
 * pathways: various walking tracks, represented as thinner black dashed lines
 * bridges: road and train bridges, in black
-* culverts: road sections across culverts, in black
+* culverts: road sections across culverts, in dark brown
 * floodways: road sections across floodways, in blue
 * buildings: single buildings (e.g. homesteads), respresented as black squares
 * intertidal: intertidal areas, in dotted blue
@@ -297,7 +295,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * pipelines: water or other pipelines, represented as thin cyan lines
 * transmission-lines: high voltage electrical transmission lines, represented as black dot-dash lines
 * landing-grounds: landing strips as found on farms, etc, represented as dark grey lines
-* wharves: wharves and jetties, represented as black lines
+* wharves: wharves, jetties & boat ramps, represented as black lines
 * cadastre: NSW cadastral lines (property boundaries), represented as thin, light grey lines
 * act-cadastre: ACT cadastral lines, represented as thin, light grey lines
 * act-border: ACT border, represented as grey dash-dot-dot line
@@ -305,7 +303,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 
 ## Other Topographic Layers
 
-These are various layers which are not included in the composite map, but may be useful in other ways or to fill in missing information in the NSW data.
+These are various layers which are not included in the composite map, but may be useful if you are further editing your map (e.g. to correct or supplement information in the NSW data).
 
 * act-rivers-and-creeks: watercourses, as derived from ACT map servers; not as good as the NSW equivalent
 * act-urban-land: urban land, as derived from ACT map servers
@@ -385,5 +383,5 @@ Release History
   * 13/12/2011: version 0.1.1: added bridges, floodways, fixed narrow gaps in roads
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
 * 21/12/2011: version 0.2: added map rotation; added specification of map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
-* HEAD: added brdige labels, lookouts, campgrounds, rock/pinnacle labels; collected point markers into single layer; prevented label/feature overlap; decreased download times.
+* HEAD: misc. additions (e.g. lookouts, campgrounds, rock/pinnacle labels, etc); collected point markers into single layer; prevented label/feature overlap; decreased download times.
 

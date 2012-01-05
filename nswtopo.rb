@@ -971,7 +971,7 @@ colours:
   wharves: '#000001'
   railways: '#000001'
   bridges: '#000001'
-  culverts: '#000001'
+  culverts: '#6c211a'
   floodways: '#0033ff'
   pathways: '#000001'
   tracks-4wd: 'Dark Orange'
@@ -1287,12 +1287,6 @@ services = {
           7 => { "fontsize" => 3.4, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 0.6 },
         }
       },
-      { # crossing labels
-        "from" => "Crossing_Label_1",
-        "label" => { "field" => "delivsdm:geodb.Crossing.GeneralName", "rotationalangles" => 0 },
-        "lookup" => "delivsdm:geodb.Crossing.ClassSubtype",
-        "text" => { "1;5" => { "fontsize" => 4.0, "fontstyle" => "italic", "printmode" => "allupper", "interval" => 2.0 } }
-      },
       { # fuzzy area labels
         "from" => "FuzzyExtentArea_Label_1",
         "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
@@ -1387,6 +1381,12 @@ services = {
         "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
         "truetypemarker" => { 4 => { "font" => "ESRI Cartography", "character" => 204, "fontsize" => 7, "overlap" => false } }
       },
+      { # cemeteries
+        "from" => "GeneralCulturalPoint_1",
+        "where" => "generalculturaltype = 0",
+        "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
+        "truetypemarker" => { 8 => { "font" => "ESRI Cartography", "character" => 239, "fontsize" => 7.5, "overlap" => false } }
+      },
       { # yards
         "from" => "GeneralCulturalPoint_1",
         "where" => "ClassSubtype = 4",
@@ -1404,13 +1404,14 @@ services = {
         "lookup" => "delivsdm:geodb.GeneralCulturalPoint.ClassSubtype",
         "truetypemarker" => { 12 => { "font" => "ESRI Cartography", "character" => 208, "fontsize" => 7, "overlap" => false } }
       },
-      { # lookouts, campgrounds
+      { # lookouts, campgrounds, picnic areas
         "from" => "GeneralCulturalPoint_1",
         "where" => "ClassSubtype = 1",
         "lookup" => "delivsdm:geodb.GeneralCulturalPoint.GeneralCulturalType",
         "truetypemarker" => {
           5 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3.1, "character" => 65, "overlap" => false }, # lookouts
-          1 => { "font" => "ESRI Environmental & Icons", "character" => 60, "fontsize" => 7, "overlap" => false } # campgrounds
+          1 => { "font" => "ESRI Environmental & Icons", "character" => 60, "fontsize" => 7, "overlap" => false }, # campgrounds
+          8 => { "font" => "ESRI Environmental & Icons", "character" => 51, "fontsize" => 7, "overlap" => false }, # picnic areas
         }
       },
       { # gates, grids
@@ -1798,7 +1799,7 @@ services = {
       "from" => "GeneralCulturalLine_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalLine.classsubtype",
       "scale" => 0.15,
-      "line" => { 3 => { "width" => 1, "type" => "dash" } }
+      "line" => { "3;6" => { "width" => 1, "type" => "dash" } }
     },
     "railways" => [
       { # above ground
@@ -1854,7 +1855,7 @@ services = {
       "from" => "TransportFacilityLine_1",
       "lookup" => "delivsdm:geodb.TransportFacilityLine.classsubtype",
       "scale" => 0.4,
-      "line" => { 3 => { "width" => 3 } }
+      "line" => { "1;2;3" => { "width" => 3 } }
     },
   },
   cad_portlet => {
@@ -1898,6 +1899,7 @@ services = {
     },
     "act-roads-sealed" => [
       {
+        "group" => "lines1",
         "scale" => 0.4,
         "from" => 42,
         "lookup" => "RTYPE_TEXT",
@@ -1908,6 +1910,7 @@ services = {
         }
       },
       {
+        "group" => "lines1",
         "scale" => 0.4,
         "from" => 67,
         "lookup" => "RTYPE_TEXT",
@@ -1915,6 +1918,7 @@ services = {
       }
     ],
     "act-roads-unsealed" => {
+      "group" => "lines1",
       "scale" => 0.4,
       "from" => 42,
       "lookup" => "RTYPE_TEXT",
@@ -2250,17 +2254,8 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
   end
 end
 
-# TODO: add config["include"] ?
-
-# TODO: add picnic areas, carparks (or labels for them)
-# TODO: add sports fields, etc. (and labels?)
-# TODO: remove bridge names?
-# TODO: change culverts to brown?
-# TODO: any other features need overlap?
-# TODO: pipelines again??
-
+# TODO: add config["include"]?
 # TODO: http timeouts?
-
 # TODO: update README
 # TODO: check working with windows
 

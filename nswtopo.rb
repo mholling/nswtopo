@@ -1866,7 +1866,7 @@ services = {
     "trig-points" => {
       "from" => "SurveyMarks_1",
       "lookup" => "delivsdm:geodb.SurveyMark.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 6, "character" => 180 } }
+      "truetypemarker" => { 1 => { "font" => "ESRI Surveyor", "fontsize" => 9, "character" => 58 } }
     },
   },
   act_heritage => {
@@ -2255,6 +2255,5 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
 end
 
 # TODO: add config["include"]?
-# TODO: check working with windows
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

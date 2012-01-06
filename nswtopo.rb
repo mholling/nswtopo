@@ -412,8 +412,7 @@ class ArcIMS < Service
     end
   end
   
-  def tiles(tile_sizes, input_bounds, input_projection, scaling)
-    bounds = transform_bounds(input_projection, projection, input_bounds)
+  def tiles(tile_sizes, bounds, scaling)
     extents = bounds.map { |bound| bound.max - bound.min }
     pixels = extents.map { |extent| (extent / scaling.metres_per_pixel).ceil }
     counts = [ pixels, tile_sizes ].transpose.map { |pixel, tile_size| (pixel - 1) / tile_size + 1 }
@@ -432,11 +431,16 @@ class ArcIMS < Service
       [ boundaries[0..-2], boundaries[1..-1] ].transpose.map(&:sort)
     end
     
-    [ tile_bounds.inject(:product), tile_extents.inject(:product) ].transpose
+    tile_offsets = tile_extents.map do |extents|
+      extents[0..-2].inject([0]) { |offsets, extent| offsets << offsets.last + extent }
+    end
+    
+    [ tile_bounds.inject(:product), tile_extents.inject(:product), tile_offsets.inject(:product) ].transpose
   end
   
-  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
-    projected_bounds = transform_bounds(input_projection, params["envelope"]["projection"], input_bounds)
+  def get(layers, all_layers, bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
+    abort("Error: bad projection") unless input_projection == projection
+    projected_bounds = transform_bounds(projection, params["envelope"]["projection"], bounds)
     
     if bounds_intersect?(projected_bounds, params["envelope"]["bounds"])
       invisible_layers = [ "line", "hashline", "polygon", "truetypemarker" ].map do |key|
@@ -474,9 +478,9 @@ class ArcIMS < Service
         
         puts "Downloading: #{labels_options.map(&:first).join(", ")}"
         Dir.mktmpdir do |temp_dir|
-          datasets = tiles(tile_sizes, input_bounds, input_projection, scaling).with_progress.with_index.map do |(bounds, extents), tile_index|
-            enlarged_extents = extents.map { |extent| extent + 2 * margin }
-            enlarged_bounds = bounds.map do |bound|
+          sequences = tiles(tile_sizes, bounds, scaling).with_progress.with_index.map do |(tile_bounds, tile_extents, tile_offsets), tile_index|
+            enlarged_extents = tile_extents.map { |extent| extent + 2 * margin }
+            enlarged_bounds = tile_bounds.map do |bound|
               [ bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
             end
             tile_path = File.join(temp_dir, "tile.#{tile_index}.png")
@@ -491,20 +495,69 @@ class ArcIMS < Service
               else
                 %Q[-channel #{%w[Red Green Blue].rotate(-index).first} -separate]
               end
-              %x[convert "#{tile_path}" #{extract} -crop #{extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{path}"]
-              [ bounds, scaling.metres_per_pixel, path ]
+              %x[convert "#{tile_path}" #{extract} -crop #{tile_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{path}"]
+              %Q[#{OP} "#{path}" -repage +#{tile_offsets[0]}+#{tile_offsets[1]} #{CP}]
             end
           end.transpose
           
-          [ labels_options.map(&:first), datasets ].transpose.each { |label, dataset| yield label, dataset }
+          [ labels_options.map(&:first), sequences ].transpose.each do |label, sequence|
+            output_path = File.join(output_dir, "#{label}.png")
+            puts "Assembling: #{label}"
+            if rotation.zero?
+              %x[convert #{sequence.join " "} -layers mosaic -format png -define png:color-type=2 "#{output_path}"]
+            else
+              # TODO: use convert to rotate instead?
+              png_path = File.join(temp_dir, "#{label}.png")
+              pgw_path = File.join(temp_dir, "#{label}.pgw")
+              %x[convert #{sequence.join " "} -layers mosaic -format png -define png:color-type=2 "#{png_path}"]
+              write_world_file([ bounds.first.min, bounds.last.max ], scaling.metres_per_pixel, 0, pgw_path)
+              
+              tif_path = File.join(temp_dir, "#{label}.tif")
+              tfw_path = File.join(temp_dir, "#{label}.tfw")
+              %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
+              FileUtils.cp(world_file_path, tfw_path)
+              
+              %x[gdalwarp -s_srs "#{projection}" -t_srs "#{projection}" -r cubic "#{png_path}" "#{tif_path}"]
+              %x[convert "#{tif_path}" -quiet "#{output_path}"]
+            end
+          end
         end
       end
     end
   end
 end
 
-class TiledMapService < Service
-  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
+class TiledService < Service
+  def get(layers, all_layers, input_bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
+    get_tiles(layers, input_bounds, input_projection, scaling) do |label, tiles|
+      tile_paths = tiles.map do |tile_bounds, resolution, tile_path|
+        topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
+        write_world_file(topleft, resolution, 0, "#{tile_path}w")
+        %Q["#{tile_path}"]
+      end
+      
+      puts "Assembling: #{label}"
+      output_path = File.join(output_dir, "#{label}.png")
+      Dir.mktmpdir do |temp_dir|
+        tif_path = File.join(temp_dir, "layer.tif")
+        tfw_path = File.join(temp_dir, "layer.tfw")
+        vrt_path = File.join(temp_dir, "layer.vrt")
+  
+        %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
+        unless tile_paths.empty?
+          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
+          FileUtils.cp(world_file_path, tfw_path)
+          resample = params["resample"] || "cubic"
+          %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -dstalpha -r #{resample} "#{vrt_path}" "#{tif_path}"]
+        end
+        %x[convert -quiet "#{tif_path}" "#{output_path}"]
+      end
+    end
+  end
+end
+
+class TiledMapService < TiledService
+  def get_tiles(layers, input_bounds, input_projection, scaling)
     tile_sizes = params["tile_sizes"]
     tile_limit = params["tile_limit"]
     crops = params["crops"] || [ [ 0, 0 ], [ 0, 0 ] ]
@@ -569,8 +622,8 @@ class TiledMapService < Service
   end
 end
 
-class LPIOrthoService < Service
-  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
+class LPIOrthoService < TiledService
+  def get_tiles(layers, input_bounds, input_projection, scaling)
     bounds = transform_bounds(input_projection, projection, input_bounds)
     layers.recover(InternetError, BadLayer).each do |label, options|
       puts "Retrieving LPI imagery metadata for: #{label}"
@@ -616,7 +669,7 @@ class LPIOrthoService < Service
         format = images_attributes.one? ? { "type" => "jpg", "quality" => 90 } : { "type" => "png", "transparent" => true }
         puts "Downloading: #{label}"
         Dir.mktmpdir do |temp_dir|
-          dataset = images_attributes.map do |image, attributes|
+          tiles = images_attributes.map do |image, attributes|
             zoom = [ Math::log2(scaling.metres_per_pixel / attributes["resolutions"].first).floor, 0 ].max
             resolutions = attributes["resolutions"].map { |resolution| resolution * 2**zoom }
             [ bounds, attributes["bounds"], attributes["sizes"], resolutions ].transpose.map do |bound, layer_bound, size, resolution|
@@ -651,10 +704,10 @@ class LPIOrthoService < Service
               File.open(tile_path, "wb") { |file| file << response.body }
             end
             sleep params["interval"]
-            [ tile_bounds, resolutions.first, tile_path ]
+            [ tile_bounds, resolutions.first, tile_path]
           end
-      
-          yield label, dataset
+          
+          yield label, tiles
         end
       end
     end
@@ -667,7 +720,7 @@ class OneEarthDEMRelief < Service
     @projection = WGS84
   end
   
-  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
+  def get(layers, all_layers, input_bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
     return if layers.empty?
     
     bounds = transform_bounds(input_projection, projection, input_bounds)
@@ -704,16 +757,21 @@ class OneEarthDEMRelief < Service
       end
   
       vrt_path = File.join(temp_dir, "dem.vrt")
-      relief_path = File.join(temp_dir, "output.tif")
-      output_path = File.join(temp_dir, "output.png")
       %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
     
       layers.each do |label, options|
+        puts "Calculating: #{label}"
+        relief_path = File.join(temp_dir, "#{label}-small.tif")
+        result_path = File.join(temp_dir, "#{label}.tif")
+        result_tfw_path = File.join(temp_dir, "#{label}.tfw")
+        output_path = File.join(output_dir, "#{label}.png")
+        FileUtils.cp(world_file_path, result_tfw_path)
         case options["name"]
         when "shaded-relief"
           altitude = params["altitude"]
           azimuth = options["azimuth"]
           exaggeration = params["exaggeration"]
+          %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type GrayScale -depth 8 "#{result_path}"]
           %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
         when "color-relief"
           colours = { "0%" => "black", "100%" => "white" }
@@ -721,11 +779,11 @@ class OneEarthDEMRelief < Service
           File.open(colour_path, "w") do |file|
             colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
           end
+          %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{result_path}"]
           %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
         end
-        %x[convert "#{relief_path}" -quiet -type TrueColor -depth 8 -define png:color-type=2 "#{output_path}"]
-
-        yield label, [ [ bounds, units_per_pixel, output_path ] ]
+        %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -dstalpha -r bilinear "#{relief_path}" "#{result_path}"]
+        %x[convert "#{result_path}" -quiet -type TrueColor -depth 8 -define png:color-type=2 "#{output_path}"]
       end
     end
   rescue InternetError, BadLayer => e
@@ -757,7 +815,7 @@ class UTMGridService < Service
     end
   end
     
-  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
+  def get(layers, all_layers, input_bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
     if input_bounds.inject(:product).map { |corner| UTMGridService.zone(input_projection, corner) }.include? zone
       bounds = transform_bounds(input_projection, projection, input_bounds)
       layers.each do |label, options|
@@ -805,13 +863,22 @@ class UTMGridService < Service
           end.join " "
           %Q[-fill white -style Normal -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]
         end
-  
-        dimensions = bounds.map { |bound| ((bound.max - bound.min) / scaling.metres_per_pixel).ceil }
+        
+        canvas_dimensions = bounds.map { |bound| ((bound.max - bound.min) / scaling.metres_per_pixel).ceil }
+        output_path = File.join(output_dir, "#{label}.png")
         Dir.mktmpdir do |temp_dir|
-          path = File.join(temp_dir, "#{options["name"]}.tif")
-          %x[convert -size #{dimensions.join 'x'} canvas:black -units PixelsPerInch -density #{scaling.ppi} -type TrueColor -depth 8 #{draw_string} "#{path}"]
-
-          yield label, [ [ bounds, scaling.metres_per_pixel, path ] ]
+          canvas_path = File.join(temp_dir, "canvas.tif")
+          result_path = File.join(temp_dir, "result.tif")
+          canvas_tfw_path = File.join(temp_dir, "canvas.tfw")
+          result_tfw_path = File.join(temp_dir, "result.tfw")
+          
+          %x[convert -size #{canvas_dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 #{draw_string} "#{canvas_path}"]
+          write_world_file([ bounds.first.first, bounds.last.last ], scaling.metres_per_pixel, 0, canvas_tfw_path)
+          %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{result_path}"]
+          FileUtils.cp(world_file_path, result_tfw_path)
+          resample = params["resample"] || "cubic"
+          %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -dstalpha -r #{resample} "#{canvas_path}" "#{result_path}"]
+          %x[convert -quiet "#{result_path}" "#{output_path}"]
         end
       end
     end
@@ -819,16 +886,13 @@ class UTMGridService < Service
 end
 
 class AnnotationService < Service
-  def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
+  def get(layers, all_layers, input_bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
     layers.recover(InternetError, BadLayer).each do |label, options|
       puts "Creating: #{label}"
-      yield label, [], options
+      output_path = File.join(output_dir, "#{label}.png")
+      draw_string = draw(input_projection, scaling, rotation, dimensions, centre, options)
+      %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black #{draw_string} -type TrueColor -depth 8 "#{output_path}"]
     end
-  end
-  
-  def post_process(centre, projection, dimensions, scaling, rotation, options, path)
-    draw_string = draw(centre, projection, dimensions, scaling, rotation, options)
-    %x[mogrify -quiet -units PixelsPerInch -density #{scaling.ppi} #{draw_string} "#{path}"]
   end
 end
 
@@ -845,9 +909,9 @@ class DeclinationService < AnnotationService
     end
   end
   
-  def draw(centre, projection, dimensions, scaling, rotation, options)
+  def draw(input_projection, scaling, rotation, dimensions, centre, options)
     spacing = params["spacing"]
-    declination = params["angle"] || DeclinationService.get_declination(centre, projection)
+    declination = params["angle"] || DeclinationService.get_declination(centre, input_projection)
     angle = declination + rotation
     x_spacing = spacing / Math::cos(angle * Math::PI / 180.0) / scaling.metres_per_pixel
     dx = dimensions.last * Math::tan(angle * Math::PI / 180.0)
@@ -866,11 +930,11 @@ class DeclinationService < AnnotationService
 end
 
 class ControlService < AnnotationService
-  def each_dataset(*args, &block)
+  def get(*args, &block)
     super(*args, &block) if params["file"]
   end
   
-  def draw(centre, projection, dimensions, scaling, rotation, options)
+  def draw(input_projection, scaling, rotation, dimensions, centre, options)
     waypoints, names = read_waypoints(params["file"]).select do |waypoint, name|
       case options["name"]
       when /control/ then name[/\d{2,3}|HH/]
@@ -886,7 +950,7 @@ class ControlService < AnnotationService
     weight = params["weight"]
     cx, cy = dimensions.map { |dimension| 0.5 * dimension }
     
-    string = [ waypoints.reproject(WGS84, projection), names ].transpose.map do |coords, name|
+    string = [ waypoints.reproject(WGS84, input_projection), names ].transpose.map do |coords, name|
       offsets = [ coords, centre, [ 1, -1 ] ].transpose.map { |coord, cent, sign| (coord - cent) * sign / scaling.metres_per_pixel }
       x, y = offsets.rotate_by(rotation * Math::PI / 180.0)
       case options["name"]
@@ -1250,7 +1314,7 @@ google_maps = TiledMapService.new(
   "crops" => [ [ 0, 0 ], [ 30, 0 ] ],
   "tile_limit" => 250,
 )
-oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3, "resample" => "bilinear" }.merge config["relief"])
+oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
 
 services = {
   topo_portlet => {
@@ -1308,6 +1372,7 @@ services = {
       },
       { # fuzzy area labels
         "from" => "FuzzyExtentArea_Label_1",
+        "where" => "FuzzyAreaFeatureType != 12", # no plateaus (junked with general area names e.g. blue mountains)
         "label" => { "field" => "delivsdm:geodb.FuzzyExtentArea.GeneralName" },
         "text" => { "fontsize" => 5.5, "printmode" => "allupper" }
       },
@@ -2012,36 +2077,7 @@ puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * dimensions.inject(:*), *dimens
 services.each do |service, all_layers|
   all_layers.reject! { |label, options| config["exclude"].any? { |matcher| label[matcher] } }
   layers = all_layers.reject { |label, options| File.exists?(File.join(output_dir, "#{label}.png")) }
-  service.each_dataset(all_layers, layers, bounds, projection, scaling, rotation) do |label, dataset, options|
-    output_path = File.join(output_dir, "#{label}.png")
-    Dir.mktmpdir do |temp_dir|
-      tif_path = File.join(temp_dir, "layer.tif")
-      tfw_path = File.join(temp_dir, "layer.tfw")
-      vrt_path = File.join(temp_dir, "layer.vrt")
-
-      puts "Assembling: #{label}"
-      %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
-      FileUtils.cp(world_file_path, tfw_path)
-
-      dataset_paths = dataset.map do |tile_bounds, resolution, path|
-        topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
-        write_world_file(topleft, resolution, 0, "#{path}w")
-        %Q["#{path}"]
-      end
-
-      unless dataset_paths.empty?
-        resample = service.params["resample"] || "cubic"
-        %x[gdalbuildvrt "#{vrt_path}" #{dataset_paths.join " "}]
-        %x[gdalwarp -s_srs "#{service.projection}" -t_srs "#{projection}" -dstalpha -r #{resample} "#{vrt_path}" "#{tif_path}"]
-      end
-
-      if service.respond_to? :post_process
-        service.post_process(centre, projection, dimensions, scaling, rotation, options, tif_path)
-      end
-
-      %x[convert -quiet "#{tif_path}" "#{output_path}"]
-    end
-  end
+  service.get(layers, all_layers, bounds, projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
 end
 
 formats_paths = config["formats"].map do |format|
@@ -2269,5 +2305,9 @@ IWH,Map Image Width/Height,#{dimensions.join(",")}
 end
 
 # TODO: add config["include"]?
+# TODO: remove dstalpha from most (all?) gdalwarp calls
+# TODO: check aerial-lpi working?
+# TODO: check ACT layers working?
+# TODO: compare rotation with gdalwarp vs convert in ArcIMS rotation case
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

@@ -57,7 +57,7 @@ class Hash
   end
 end
 
-class Array
+module Enumerable
   def with_progress(symbol = ?-, container = "  [%s]", bars = 70)
     divider = (length - 1) / 40 + 1
     Enumerator.new do |yielder|
@@ -72,6 +72,22 @@ class Array
     end
   end
   
+  def recover(*exceptions)
+    Enumerator.new do |yielder|
+      each do |element|
+        begin
+          yielder.yield element
+        rescue *exceptions => e
+          puts
+          puts "Error: #{e.message}"
+          next
+        end
+      end
+    end
+  end
+end
+
+class Array
   def rotate_by(angle)
     cos = Math::cos(angle)
     sin = Math::sin(angle)
@@ -445,7 +461,7 @@ class ArcIMS < Service
         groups.first
       end.inject([]) do |memo, (group, group_layers)|
         group ? memo << group_layers : memo + group_layers.zip
-      end.each do |labels_options|
+      end.recover(InternetError, BadLayer).each do |labels_options|
         options_array = labels_options.map.with_index do |(labels, options_or_array), index|
           [ options_or_array ].flatten.map do |options|
             colour = options["erase"] ? "0,0,0" : (labels_options.length > 3 ? "#{index+1},0,0" : [ 255, 0, 0 ].rotate(index).join(","))
@@ -506,7 +522,7 @@ class TiledMapService < Service
       counts.inject(:*) < tile_limit
     end
     
-    layers.each do |label, options|
+    layers.recover(InternetError, BadLayer).each do |label, options|
       format = options["format"]
       name = options["name"]
   
@@ -556,7 +572,7 @@ end
 class LPIOrthoService < Service
   def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
     bounds = transform_bounds(input_projection, projection, input_bounds)
-    layers.each do |label, options|
+    layers.recover(InternetError, BadLayer).each do |label, options|
       puts "Retrieving LPI imagery metadata for: #{label}"
       images_regions = case
       when options["image"]
@@ -712,6 +728,9 @@ class OneEarthDEMRelief < Service
         yield label, [ [ bounds, units_per_pixel, output_path ] ]
       end
     end
+  rescue InternetError, BadLayer => e
+    puts
+    puts "Error: #{e.message}"
   end
 end
 
@@ -801,7 +820,7 @@ end
 
 class AnnotationService < Service
   def each_dataset(all_layers, layers, input_bounds, input_projection, scaling, rotation)
-    layers.each do |label, options|
+    layers.recover(InternetError, BadLayer).each do |label, options|
       puts "Creating: #{label}"
       yield label, [], options
     end
@@ -1993,40 +2012,35 @@ puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * dimensions.inject(:*), *dimens
 services.each do |service, all_layers|
   all_layers.reject! { |label, options| config["exclude"].any? { |matcher| label[matcher] } }
   layers = all_layers.reject { |label, options| File.exists?(File.join(output_dir, "#{label}.png")) }
-  begin
-    service.each_dataset(all_layers, layers, bounds, projection, scaling, rotation) do |label, dataset, options|
-      output_path = File.join(output_dir, "#{label}.png")
-      Dir.mktmpdir do |temp_dir|
-        working_path = File.join(temp_dir, "layer.tif")
-         canvas_path = File.join(temp_dir, "canvas.tif")
-            vrt_path = File.join(temp_dir, "layer.vrt")
+  service.each_dataset(all_layers, layers, bounds, projection, scaling, rotation) do |label, dataset, options|
+    output_path = File.join(output_dir, "#{label}.png")
+    Dir.mktmpdir do |temp_dir|
+      tif_path = File.join(temp_dir, "layer.tif")
+      tfw_path = File.join(temp_dir, "layer.tfw")
+      vrt_path = File.join(temp_dir, "layer.vrt")
 
-        puts "Assembling: #{label}"
-        %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{canvas_path}"]
-        %x[geotifcp -c lzw -e "#{world_file_path}" -4 "#{projection}" "#{canvas_path}" "#{working_path}"]
+      puts "Assembling: #{label}"
+      %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
+      FileUtils.cp(world_file_path, tfw_path)
 
-        dataset_paths = dataset.map do |tile_bounds, resolution, path|
-          topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
-          write_world_file(topleft, resolution, 0, "#{path}w")
-          %Q["#{path}"]
-        end
-
-        unless dataset_paths.empty?
-          resample = service.params["resample"] || "cubic"
-          %x[gdalbuildvrt "#{vrt_path}" #{dataset_paths.join " "}]
-          %x[gdalwarp -s_srs "#{service.projection}" -dstalpha -r #{resample} "#{vrt_path}" "#{working_path}"]
-        end
-
-        if service.respond_to? :post_process
-          service.post_process(centre, projection, dimensions, scaling, rotation, options, working_path)
-        end
-
-        %x[convert -quiet "#{working_path}" "#{output_path}"]
+      dataset_paths = dataset.map do |tile_bounds, resolution, path|
+        topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
+        write_world_file(topleft, resolution, 0, "#{path}w")
+        %Q["#{path}"]
       end
+
+      unless dataset_paths.empty?
+        resample = service.params["resample"] || "cubic"
+        %x[gdalbuildvrt "#{vrt_path}" #{dataset_paths.join " "}]
+        %x[gdalwarp -s_srs "#{service.projection}" -t_srs "#{projection}" -dstalpha -r #{resample} "#{vrt_path}" "#{tif_path}"]
+      end
+
+      if service.respond_to? :post_process
+        service.post_process(centre, projection, dimensions, scaling, rotation, options, tif_path)
+      end
+
+      %x[convert -quiet "#{tif_path}" "#{output_path}"]
     end
-  rescue InternetError, BadLayer => e
-    puts
-    puts "  skipping layer; error: #{e.message}"
   end
 end
 

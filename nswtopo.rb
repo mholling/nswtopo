@@ -478,7 +478,7 @@ class ArcIMS < Service
         
         puts "Downloading: #{labels_options.map(&:first).join(", ")}"
         Dir.mktmpdir do |temp_dir|
-          sequences = tiles(tile_sizes, bounds, scaling).with_progress.with_index.map do |(tile_bounds, tile_extents, tile_offsets), tile_index|
+          datasets = tiles(tile_sizes, bounds, scaling).with_progress.with_index.map do |(tile_bounds, tile_extents, tile_offsets), tile_index|
             enlarged_extents = tile_extents.map { |extent| extent + 2 * margin }
             enlarged_bounds = tile_bounds.map do |bound|
               [ bound, [ :-, :+ ] ].transpose.map { |coord, increment| coord.send(increment, margin * scaling.metres_per_pixel) }
@@ -495,32 +495,32 @@ class ArcIMS < Service
               else
                 %Q[-channel #{%w[Red Green Blue].rotate(-index).first} -separate]
               end
-              %x[convert "#{tile_path}" #{extract} -crop #{tile_extents.join ?x}+#{margin}+#{margin} -format png -define png:color-type=2 "#{path}"]
-              %Q[#{OP} "#{path}" -repage +#{tile_offsets[0]}+#{tile_offsets[1]} #{CP}]
+              %x[convert "#{tile_path}" #{extract} -crop #{tile_extents.join ?x}+#{margin}+#{margin} +repage -repage +#{tile_offsets[0]}+#{tile_offsets[1]} -format png -define png:color-type=2 "#{path}"]
+              [ tile_bounds, path ]
             end
           end.transpose
           
-          [ labels_options.map(&:first), sequences ].transpose.each do |label, sequence|
+          [ labels_options.map(&:first), datasets ].transpose.each do |label, dataset|
             output_path = File.join(output_dir, "#{label}.png")
             puts "Assembling: #{label}"
             if rotation.zero?
-              %x[convert #{sequence.join " "} -layers mosaic -format png -define png:color-type=2 "#{output_path}"]
+              sequence = dataset.map do |tile_bounds, tile_path|
+                %Q[#{OP} "#{tile_path}" #{CP}]
+              end.join " "
+              %x[convert #{sequence} -layers mosaic -format png -define png:color-type=2 "#{output_path}"]
             else
-              png_path = File.join(temp_dir, "#{label}.png")
-              pgw_path = File.join(temp_dir, "#{label}.pgw")
-              %x[convert #{sequence.join " "} -layers mosaic -format png -define png:color-type=2 "#{png_path}"]
-              write_world_file([ bounds.first.min, bounds.last.max ], scaling.metres_per_pixel, 0, pgw_path)
-              
+              tile_paths = dataset.map do |tile_bounds, tile_path|
+                write_world_file([ tile_bounds.first.first, tile_bounds.last.last ], scaling.metres_per_pixel, 0, "#{tile_path}w")
+                %Q["#{tile_path}"]
+              end.join " "
+              vrt_path = File.join(temp_dir, "#{label}.vrt")
+              %x[gdalbuildvrt "#{vrt_path}" #{tile_paths}]
               tif_path = File.join(temp_dir, "#{label}.tif")
-              tfw_path = File.join(temp_dir, "#{label}.tfw")
               %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
+              tfw_path = File.join(temp_dir, "#{label}.tfw")
               FileUtils.cp(world_file_path, tfw_path)
-              
-              %x[gdalwarp -s_srs "#{projection}" -t_srs "#{projection}" -r cubic "#{png_path}" "#{tif_path}"]
+              %x[gdalwarp -s_srs "#{projection}" -t_srs "#{projection}" -r cubic "#{vrt_path}" "#{tif_path}"]
               %x[convert "#{tif_path}" -quiet "#{output_path}"]
-              
-              # # alternatively (but surprisingly, slower):
-              # %x[convert #{sequence.join " "} -layers mosaic -distort SRT #{rotation} -gravity Center -crop #{dimensions.join ?x}+0+0 +repage -format png -define png:color-type=2 "#{output_path}"]
             end
           end
         end
@@ -698,9 +698,9 @@ class LPIOrthoService < TiledService
             uri = URI::HTTP.build :host => params["host"], :path => "/ImageX/ImageX.dll", :query => URI.escape(query)
             tile_path = File.join(temp_dir, "tile.#{index}.#{format["type"]}")
             http_get(uri, "retries" => 5) do |response|
+              raise InternetError.new("no data received") if response.content_length.zero?
               begin
                 xml = REXML::Document.new(response.body)
-                # puts xml.to_s; abort;
                 raise BadLayer.new(xml.elements["//Error"] ? xml.elements["//Error"].text.gsub("\n", " ") : "unexpected response")
               rescue REXML::ParseException
               end
@@ -2312,5 +2312,6 @@ end
 # TODO: check aerial-lpi working?
 # TODO: check ACT layers working?
 # TODO: separate water boundaries and intermittent water boundaries
+# TODO: separate dams into man-made and natural
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

@@ -371,9 +371,9 @@ A few shortcomings are sometimes evident in the generated map images. These can 
   * points of interest
 * I have left out a number of obscure man-made features that are unlikely to be found in bush and rural areas of interest.
 * For the time being, if you need a legend you'll need to create it manually.
-* When rotating the map using the `rotation` parameter, the image quality is reduced slightly. (Since the map servers are only able to render maps in north-up orientation, the images must are subsequently rotated, causing some resampling degradation.)
+* When rotating the map using the `rotation` parameter, the image quality is reduced slightly. (Since the map servers are only able to render maps in north-up orientation, the images must are subsequently rotated, causing some resampling degradation.) Also, construction of the map will take longer (maybe 30%-40% extra) due to the rotation.
 * Not all horizontal labels remain horizontal when a map rotation is specified.
-* The NSW map servers sometimes go offline. There is a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time). This is frustrating. Interrupt the script using ctrl-c, wait a few minutes, then try again.
+* The various map servers cause problems from time to time. For example: the NSW topographic server has a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time); the NASA OneEarth server (providing elevation data for shaded relief) is sometimes slow; the ACT servers (for ACT cadastre and border) sometimes returns errors. This is frustrating. Interrupt the script using ctrl-c, wait a few minutes, then try again. Alternately, exclude the relevant layers from your map configuration if you don't want them.
 
 Release History
 ===============

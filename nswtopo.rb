@@ -53,7 +53,7 @@ class Hash
   end
   
   def to_query
-    map { |key, value| "#{key}=#{value}" }.join("&")
+    map { |key, value| "#{key}=#{value}" }.join ?&
   end
 end
 
@@ -340,7 +340,7 @@ class ArcIMS < Service
                   label_attrs = options["label"].reject { |k, v| k == "field" }
                   if label_attrs["rotationalangles"]
                     angles = label_attrs["rotationalangles"].to_s.split(",").map(&:to_f).map { |angle| angle + rotation }
-                    angles.all?(&:zero?) ? label_attrs.delete("rotationalangles") : label_attrs["rotationalangles"] = angles.join(",")
+                    angles.all?(&:zero?) ? label_attrs.delete("rotationalangles") : label_attrs["rotationalangles"] = angles.join(?,)
                   end
                   renderer_attributes.merge! label_attrs
                 end
@@ -468,7 +468,7 @@ class ArcIMS < Service
       end.recover(InternetError, BadLayer).each do |labels_options|
         options_array = labels_options.map.with_index do |(labels, options_or_array), index|
           [ options_or_array ].flatten.map do |options|
-            colour = options["erase"] ? "0,0,0" : (labels_options.length > 3 ? "#{index+1},0,0" : [ 255, 0, 0 ].rotate(index).join(","))
+            colour = options["erase"] ? "0,0,0" : (labels_options.length > 3 ? "#{index+1},0,0" : [ 255, 0, 0 ].rotate(index).join(?,))
             options.merge("colour" => colour)
           end
         end.flatten
@@ -495,7 +495,7 @@ class ArcIMS < Service
               else
                 %Q[-channel #{%w[Red Green Blue].rotate(-index).first} -separate]
               end
-              %x[convert "#{tile_path}" #{extract} -crop #{tile_extents.join "x"}+#{margin}+#{margin} -format png -define png:color-type=2 "#{path}"]
+              %x[convert "#{tile_path}" #{extract} -crop #{tile_extents.join ?x}+#{margin}+#{margin} -format png -define png:color-type=2 "#{path}"]
               %Q[#{OP} "#{path}" -repage +#{tile_offsets[0]}+#{tile_offsets[1]} #{CP}]
             end
           end.transpose
@@ -506,7 +506,6 @@ class ArcIMS < Service
             if rotation.zero?
               %x[convert #{sequence.join " "} -layers mosaic -format png -define png:color-type=2 "#{output_path}"]
             else
-              # TODO: use convert to rotate instead?
               png_path = File.join(temp_dir, "#{label}.png")
               pgw_path = File.join(temp_dir, "#{label}.pgw")
               %x[convert #{sequence.join " "} -layers mosaic -format png -define png:color-type=2 "#{png_path}"]
@@ -514,11 +513,14 @@ class ArcIMS < Service
               
               tif_path = File.join(temp_dir, "#{label}.tif")
               tfw_path = File.join(temp_dir, "#{label}.tfw")
-              %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
+              %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
               FileUtils.cp(world_file_path, tfw_path)
               
               %x[gdalwarp -s_srs "#{projection}" -t_srs "#{projection}" -r cubic "#{png_path}" "#{tif_path}"]
               %x[convert "#{tif_path}" -quiet "#{output_path}"]
+              
+              # # alternatively (but surprisingly, slower):
+              # %x[convert #{sequence.join " "} -layers mosaic -distort SRT #{rotation} -gravity Center -crop #{dimensions.join ?x}+0+0 +repage -format png -define png:color-type=2 "#{output_path}"]
             end
           end
         end
@@ -543,12 +545,12 @@ class TiledService < Service
         tfw_path = File.join(temp_dir, "layer.tfw")
         vrt_path = File.join(temp_dir, "layer.vrt")
   
-        %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
+        %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
         unless tile_paths.empty?
           %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
           FileUtils.cp(world_file_path, tfw_path)
           resample = params["resample"] || "cubic"
-          %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -dstalpha -r #{resample} "#{vrt_path}" "#{tif_path}"]
+          %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
         end
         %x[convert -quiet "#{tif_path}" "#{output_path}"]
       end
@@ -583,7 +585,7 @@ class TiledMapService < TiledService
       Dir.mktmpdir do |temp_dir|
         dataset = counts.map { |count| (0...count).to_a }.inject(:product).with_progress.map do |indices|
           sleep params["interval"]
-          tile_path = File.join(temp_dir, "tile.#{indices.join('.')}.png")
+          tile_path = File.join(temp_dir, "tile.#{indices.join ?.}.png")
     
           cropped_centre = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
             origin + tile_size * (index + 0.5) * metres_per_pixel
@@ -607,7 +609,7 @@ class TiledMapService < TiledService
           (1 + retries_on_blank).times do
             http_get(uri, "retries" => 5) do |response|
               File.open(tile_path, "wb") { |file| file << response.body }
-              %x[mogrify -quiet -crop #{cropped_tile_sizes.join "x"}+#{crops.first.first}+#{crops.last.last} -type TrueColor -depth 8 -format png -define png:color-type=2 "#{tile_path}"]
+              %x[mogrify -quiet -crop #{cropped_tile_sizes.join ?x}+#{crops.first.first}+#{crops.last.last} -type TrueColor -depth 8 -format png -define png:color-type=2 "#{tile_path}"]
             end
             non_blank_fraction = %x[convert "#{tile_path}" -fill white +opaque black -format "%[fx:mean]" info:].to_f
             break if non_blank_fraction > 0.995
@@ -642,7 +644,7 @@ class LPIOrthoService < TiledService
         end
       end
   
-      uri = URI::HTTP.build(:host => params["host"], :path => "/ImageX/ImageX.dll", :query => "?dsinfo?verbose=true&layers=#{images_regions.keys.join(',')}")
+      uri = URI::HTTP.build(:host => params["host"], :path => "/ImageX/ImageX.dll", :query => "?dsinfo?verbose=true&layers=#{images_regions.keys.join ?,}")
       images_attributes = http_get(uri, "retries" => 5) do |response|
         xml = REXML::Document.new(response.body)
         raise BadLayer.new(xml.elements["//Error"].text) if xml.elements["//Error"]
@@ -689,7 +691,7 @@ class LPIOrthoService < TiledService
               [ tile_indices, tile_bounds ].transpose
             end.inject(:product).map(&:transpose).map do |(tx, ty), tile_bounds|
               query = format.merge("l" => zoom, "tx" => tx, "ty" => ty, "ts" => tile_size, "layers" => image, "fillcolor" => "0x000000")
-              query["inregion"] = "#{attributes["region"].flatten.join(",")},INSRC" if attributes["region"]
+              query["inregion"] = "#{attributes["region"].flatten.join ?,},INSRC" if attributes["region"]
               [ "?image?#{query.to_query}", tile_bounds, resolutions ]
             end
           end.inject(:+).with_progress.with_index.map do |(query, tile_bounds, resolutions), index|
@@ -698,6 +700,7 @@ class LPIOrthoService < TiledService
             http_get(uri, "retries" => 5) do |response|
               begin
                 xml = REXML::Document.new(response.body)
+                # puts xml.to_s; abort;
                 raise BadLayer.new(xml.elements["//Error"] ? xml.elements["//Error"].text.gsub("\n", " ") : "unexpected response")
               rescue REXML::ParseException
               end
@@ -735,7 +738,7 @@ class OneEarthDEMRelief < Service
         [ boundaries[0..-2], boundaries[1..-1] ].transpose
       end.inject(:product).with_progress.map.with_index do |tile_bounds, index|
         tile_path = File.join(temp_dir, "tile.#{index}.png")
-        bbox = tile_bounds.transpose.map { |corner| corner.join "," }.join ","
+        bbox = tile_bounds.transpose.map { |corner| corner.join ?, }.join ?,
         query = {
           "request" => "GetMap",
           "layers" => "gdem",
@@ -771,7 +774,7 @@ class OneEarthDEMRelief < Service
           altitude = params["altitude"]
           azimuth = options["azimuth"]
           exaggeration = params["exaggeration"]
-          %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type GrayScale -depth 8 "#{result_path}"]
+          %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type GrayScale -depth 8 "#{result_path}"]
           %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
         when "color-relief"
           colours = { "0%" => "black", "100%" => "white" }
@@ -779,10 +782,10 @@ class OneEarthDEMRelief < Service
           File.open(colour_path, "w") do |file|
             colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
           end
-          %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{result_path}"]
+          %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{result_path}"]
           %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
         end
-        %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -dstalpha -r bilinear "#{relief_path}" "#{result_path}"]
+        %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -r bilinear "#{relief_path}" "#{result_path}"]
         %x[convert "#{result_path}" -quiet -type TrueColor -depth 8 -define png:color-type=2 "#{output_path}"]
       end
     end
@@ -872,12 +875,12 @@ class UTMGridService < Service
           canvas_tfw_path = File.join(temp_dir, "canvas.tfw")
           result_tfw_path = File.join(temp_dir, "result.tfw")
           
-          %x[convert -size #{canvas_dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 #{draw_string} "#{canvas_path}"]
+          %x[convert -size #{canvas_dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 #{draw_string} "#{canvas_path}"]
           write_world_file([ bounds.first.first, bounds.last.last ], scaling.metres_per_pixel, 0, canvas_tfw_path)
-          %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{result_path}"]
+          %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{result_path}"]
           FileUtils.cp(world_file_path, result_tfw_path)
           resample = params["resample"] || "cubic"
-          %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -dstalpha -r #{resample} "#{canvas_path}" "#{result_path}"]
+          %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -r #{resample} "#{canvas_path}" "#{result_path}"]
           %x[convert -quiet "#{result_path}" "#{output_path}"]
         end
       end
@@ -891,7 +894,7 @@ class AnnotationService < Service
       puts "Creating: #{label}"
       output_path = File.join(output_dir, "#{label}.png")
       draw_string = draw(input_projection, scaling, rotation, dimensions, centre, options)
-      %x[convert -size #{dimensions.join 'x'} -units PixelsPerInch -density #{scaling.ppi} canvas:black #{draw_string} -type TrueColor -depth 8 "#{output_path}"]
+      %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black #{draw_string} -type TrueColor -depth 8 "#{output_path}"]
     end
   end
 end
@@ -2101,7 +2104,7 @@ unless formats_paths.empty?
       00101110011
       00011111100
       11111111111
-    ].map { |line| line.split("").join(",") }.join(" ")
+    ].map { |line| line.split("").join(?,) }.join " "
 
     inundation_tile_path = File.join(temp_dir, "tile-inundation.tif");
     swamp_wet_tile_path = File.join(temp_dir, "tile-swamp-wet.tif");
@@ -2125,7 +2128,7 @@ unless formats_paths.empty?
         maximum = tile.flatten.max
         tile.map! { |row| row.map { |number| number / maximum } }
         size = "#{tile.first.length}x#{tile.length}"
-        kernel = "#{size}: #{tile.map { |row| row.join "," }.join " "}"
+        kernel = "#{size}: #{tile.map { |row| row.join ?, }.join " "}"
         %x[convert -size #{size} -virtual-pixel tile canvas: -fx "(i==0)&&(j==0)" -morphology Convolve "#{kernel}" "#{tile_path}"]
       end
     end
@@ -2288,26 +2291,26 @@ Reserved 1
 Reserved 2
 Magnetic Variation,,,E
 Map Projection,Transverse Mercator,PolyCal,No,AutoCalOnly,Yes,BSBUseWPX,No
-#{calibration_strings.join("\n")}
+#{calibration_strings.join ?\n}
 Projection Setup,0.000000000,#{projection_centre.first},0.999600000,500000.00,10000000.00,,,,,
 Map Feature = MF ; Map Comment = MC     These follow if they exist
 Track File = TF      These follow if they exist
 Moving Map Parameters = MM?    These follow if they exist
 MM0,Yes
 MMPNUM,4
-#{pixel_corners.map.with_index { |pixel_corner, index| "MMPXY,#{index+1},#{pixel_corner.join(",")}" }.join("\n")}
-#{wgs84_corners.map.with_index { |wgs84_corner, index| "MMPLL,#{index+1},#{wgs84_corner.join(",")}" }.join("\n")}
+#{pixel_corners.map.with_index { |pixel_corner, index| "MMPXY,#{index+1},#{pixel_corner.join ?,}" }.join ?\n}
+#{wgs84_corners.map.with_index { |wgs84_corner, index| "MMPLL,#{index+1},#{wgs84_corner.join ?,}" }.join ?\n}
 MM1B,#{scaling.metres_per_pixel}
 MOP,Map Open Position,0,0
-IWH,Map Image Width/Height,#{dimensions.join(",")}
+IWH,Map Image Width/Height,#{dimensions.join ?,}
 ]
   end
 end
 
+# TODO: put ALL assembly in temp_dir before using FileUtils.cp to copy final image to output_dir
 # TODO: add config["include"]?
-# TODO: remove dstalpha from most (all?) gdalwarp calls
 # TODO: check aerial-lpi working?
 # TODO: check ACT layers working?
-# TODO: compare rotation with gdalwarp vs convert in ArcIMS rotation case
+# TODO: separate water boundaries and intermittent water boundaries
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

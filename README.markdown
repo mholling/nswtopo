@@ -182,7 +182,7 @@ Specify the format(s) of the output map files you would like to create. Choose a
       - png                   # (default map output is in PNG and multi-layered TIFF format)
       - layered.tif
 
-Specify which layers to exclude from your map. This will prevent downloading of the layers and their inclusion in the final map. List each layer individually. Use the shortcuts `utm`, `aerial`, `relief` and `act-extras` to exclude all UTM grid layers, aerial imagery layers, shaded relief/elevation layers and extra ACT layers, respectively.
+Specify which layers to exclude from your map. This will prevent downloading of the layers and their inclusion in the final map. List each layer individually. Use the shortcuts `utm`, `aerial` and `relief` to exclude all UTM grid layers, aerial imagery layers and shaded relief/elevation layers, respectively.
 
     exclude:
       - utm                   # (exclude UTM grid in favour of declination lines)
@@ -296,23 +296,8 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * transmission-lines: high voltage electrical transmission lines, represented as black dot-dash lines
 * landing-grounds: landing strips as found on farms, etc, represented as dark grey lines
 * wharves: wharves, jetties & boat ramps, represented as black lines
-* cadastre: NSW cadastral lines (property boundaries), represented as thin, light grey lines
-* act-cadastre: ACT cadastral lines, represented as thin, light grey lines
-* act-border: ACT border, represented as grey dash-dot-dot line
+* cadastre: NSW cadastral lines (property boundaries), represented as thin, light grey lines; does not include ACT cadastre which is at present unavailable
 * trig-points: trigonometric survey stations, represented as small black icons; not all trig points are present
-
-## Other Topographic Layers
-
-These are various layers which are not included in the composite map, but may be useful if you are further editing your map (e.g. to correct or supplement information in the NSW data).
-
-* act-rivers-and-creeks: watercourses, as derived from ACT map servers; not as good as the NSW equivalent
-* act-urban-land: urban land, as derived from ACT map servers
-* act-lakes-and-major-rivers: water areas, as derived from ACT map servers; not as good as the NSW equivalent
-* act-plantations: pine plantation areas in ACT
-* act-roads-sealed: sealed roads, as derived from ACT map servers
-* act-roads-unsealed: unsealed roads, as derived from ACT map servers
-* act-vehicular-tracks: vehicular tracks, as derived from ACT map servers
-* act-adhoc-fire-access: various ad-hoc fire access, as derived from ACT map servers; may include walking tracks that are not represented in the NSW database
 
 ## Aerial Imagery
 
@@ -371,9 +356,9 @@ A few shortcomings are sometimes evident in the generated map images. These can 
   * points of interest
 * I have left out a number of obscure man-made features that are unlikely to be found in bush and rural areas of interest.
 * For the time being, if you need a legend you'll need to create it manually.
-* When rotating the map using the `rotation` parameter, the image quality is reduced slightly. (Since the map servers are only able to render maps in north-up orientation, the images must are subsequently rotated, causing some resampling degradation.) Also, construction of the map will take longer due to the rotation.
+* When rotating the map using the `rotation` parameter, the image quality is reduced slightly. (Since the map servers are only able to render maps in north-up orientation, the images must are subsequently rotated, causing some resampling degradation.) Download and construction of the map will also take longer due to the rotation.
 * Not all horizontal labels remain horizontal when a map rotation is specified.
-* The various map servers cause problems from time to time. For example: the NSW topographic server has a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time); the NASA OneEarth server (providing elevation data for shaded relief) is sometimes slow; the ACT servers (for ACT cadastre and border) sometimes returns errors. This is frustrating. Interrupt the script using ctrl-c, wait a few minutes, then try again. Alternately, exclude the relevant layers from your map configuration if you don't want them.
+* The various map servers cause problems from time to time. For example: the NSW topographic server has a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time); the NASA OneEarth server (providing elevation data for shaded relief) is sometimes slow; the LPI aerial imagery server sometimes return no data. This is frustrating. Interrupt the script using ctrl-c, wait a few minutes, then try again. Alternately, exclude the relevant layers from your map configuration if you don't want them.
 
 Release History
 ===============
@@ -382,5 +367,5 @@ Release History
   * 13/12/2011: version 0.1.1: added bridges, floodways, fixed narrow gaps in roads
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
 * 21/12/2011: version 0.2: added map rotation; added specification of map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
-* HEAD: misc. additions (e.g. lookouts, campgrounds, rock/pinnacle labels, etc); collected point markers into single layer; prevented label/feature overlap; decreased download times.
+* HEAD: misc. additions (e.g. lookouts, campgrounds, rock/pinnacle labels, etc); collected point markers into single layer; separated permanent and intermittent water layers; prevented label/feature overlap; decreased download times; removed unavailable ACT layers.
 

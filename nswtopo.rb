@@ -501,13 +501,14 @@ class ArcIMS < Service
           end.transpose
           
           [ labels_options.map(&:first), datasets ].transpose.each do |label, dataset|
+            png_path = File.join(temp_dir, "#{label}.png")
             output_path = File.join(output_dir, "#{label}.png")
             puts "Assembling: #{label}"
             if rotation.zero?
               sequence = dataset.map do |tile_bounds, tile_path|
                 %Q[#{OP} "#{tile_path}" #{CP}]
               end.join " "
-              %x[convert #{sequence} -layers mosaic -format png -define png:color-type=2 "#{output_path}"]
+              %x[convert #{sequence} -layers mosaic -format png -define png:color-type=2 "#{png_path}"]
             else
               tile_paths = dataset.map do |tile_bounds, tile_path|
                 write_world_file([ tile_bounds.first.first, tile_bounds.last.last ], scaling.metres_per_pixel, 0, "#{tile_path}w")
@@ -520,8 +521,9 @@ class ArcIMS < Service
               tfw_path = File.join(temp_dir, "#{label}.tfw")
               FileUtils.cp(world_file_path, tfw_path)
               %x[gdalwarp -s_srs "#{projection}" -t_srs "#{projection}" -r cubic "#{vrt_path}" "#{tif_path}"]
-              %x[convert "#{tif_path}" -quiet "#{output_path}"]
+              %x[convert "#{tif_path}" -quiet "#{png_path}"]
             end
+            FileUtils.mv(png_path, output_path)
           end
         end
       end
@@ -541,6 +543,7 @@ class TiledService < Service
       puts "Assembling: #{label}"
       output_path = File.join(output_dir, "#{label}.png")
       Dir.mktmpdir do |temp_dir|
+        png_path = File.join(temp_dir, "layer.png")
         tif_path = File.join(temp_dir, "layer.tif")
         tfw_path = File.join(temp_dir, "layer.tfw")
         vrt_path = File.join(temp_dir, "layer.vrt")
@@ -552,7 +555,8 @@ class TiledService < Service
           resample = params["resample"] || "cubic"
           %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
         end
-        %x[convert -quiet "#{tif_path}" "#{output_path}"]
+        %x[convert -quiet "#{tif_path}" "#{png_path}"]
+        FileUtils.mv(png_path, output_path)
       end
     end
   end
@@ -765,16 +769,17 @@ class OneEarthDEMRelief < Service
       layers.each do |label, options|
         puts "Calculating: #{label}"
         relief_path = File.join(temp_dir, "#{label}-small.tif")
-        result_path = File.join(temp_dir, "#{label}.tif")
-        result_tfw_path = File.join(temp_dir, "#{label}.tfw")
+        tif_path = File.join(temp_dir, "#{label}.tif")
+        tfw_path = File.join(temp_dir, "#{label}.tfw")
+        png_path = File.join(temp_dir, "#{label}.png")
         output_path = File.join(output_dir, "#{label}.png")
-        FileUtils.cp(world_file_path, result_tfw_path)
+        FileUtils.cp(world_file_path, tfw_path)
         case options["name"]
         when "shaded-relief"
           altitude = params["altitude"]
           azimuth = options["azimuth"]
           exaggeration = params["exaggeration"]
-          %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type GrayScale -depth 8 "#{result_path}"]
+          %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type GrayScale -depth 8 "#{tif_path}"]
           %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
         when "color-relief"
           colours = { "0%" => "black", "100%" => "white" }
@@ -782,11 +787,12 @@ class OneEarthDEMRelief < Service
           File.open(colour_path, "w") do |file|
             colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
           end
-          %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{result_path}"]
+          %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
           %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
         end
-        %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -r bilinear "#{relief_path}" "#{result_path}"]
-        %x[convert "#{result_path}" -quiet -type TrueColor -depth 8 -define png:color-type=2 "#{output_path}"]
+        %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
+        %x[convert "#{tif_path}" -quiet -type TrueColor -depth 8 -define png:color-type=2 "#{png_path}"]
+        FileUtils.mv(png_path, output_path)
       end
     end
   rescue InternetError, BadLayer => e
@@ -874,6 +880,7 @@ class UTMGridService < Service
           result_path = File.join(temp_dir, "result.tif")
           canvas_tfw_path = File.join(temp_dir, "canvas.tfw")
           result_tfw_path = File.join(temp_dir, "result.tfw")
+          png_path = File.join(temp_dir, "result.png")
           
           %x[convert -size #{canvas_dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 #{draw_string} "#{canvas_path}"]
           write_world_file([ bounds.first.first, bounds.last.last ], scaling.metres_per_pixel, 0, canvas_tfw_path)
@@ -881,7 +888,8 @@ class UTMGridService < Service
           FileUtils.cp(world_file_path, result_tfw_path)
           resample = params["resample"] || "cubic"
           %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -r #{resample} "#{canvas_path}" "#{result_path}"]
-          %x[convert -quiet "#{result_path}" "#{output_path}"]
+          %x[convert -quiet "#{result_path}" "#{png_path}"]
+          FileUtils.mv(png_path, output_path)
         end
       end
     end
@@ -892,9 +900,13 @@ class AnnotationService < Service
   def get(layers, all_layers, input_bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
     layers.recover(InternetError, BadLayer).each do |label, options|
       puts "Creating: #{label}"
-      output_path = File.join(output_dir, "#{label}.png")
-      draw_string = draw(input_projection, scaling, rotation, dimensions, centre, options)
-      %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black #{draw_string} -type TrueColor -depth 8 "#{output_path}"]
+      Dir.mktmpdir do |temp_dir|
+        png_path = File.join(temp_dir, "#{label}.png")
+        output_path = File.join(output_dir, "#{label}.png")
+        draw_string = draw(input_projection, scaling, rotation, dimensions, centre, options)
+        %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black #{draw_string} -type TrueColor -depth 8 "#{png_path}"]
+        FileUtils.mv(png_path, output_path)
+      end
     end
   end
 end
@@ -1037,8 +1049,9 @@ colours:
   dams: '#0033ff'
   water-tanks: '#9db1ff'
   water-areas: '#9db1ff'
-  water-areas-intermittent: '#7b96ff'
+  water-areas-intermittent: '#0033ff'
   water-area-boundaries: '#0033ff'
+  water-area-boundaries-intermittent : '#0033ff'
   reef: 'Cyan'
   sand: '#ff6600'
   intertidal: '#1b2e7b'
@@ -1060,9 +1073,9 @@ colours:
   culverts: '#6c211a'
   floodways: '#0033ff'
   pathways: '#000001'
-  tracks-4wd: 'Dark Orange'
-  tracks-vehicular: 'Dark Orange'
-  roads-unsealed: 'Dark Orange'
+  tracks-4wd: '#e17c00'
+  tracks-vehicular: '#e17c00'
+  roads-unsealed: '#e17c00'
   roads-sealed: 'Red'
   pipelines: '#00a6e5'
   landing-grounds: '#333334'
@@ -1266,32 +1279,33 @@ cad_portlet = ArcIMS.new(
     "bounds" => [ [ 140.05983881892, 154.575951211079 ], [ -37.740334035, -27.924909045 ] ],
     "projection" => "EPSG:4283"
   })
-act_heritage = ArcIMS.new(
-  "host" => "www.gim.act.gov.au",
-  "path" => "/arcims/ims",
-  "name" => "Heritage",
-  "projection" => projection,
-  "wkt" => wkt,
-  "tile_sizes" => [ 1024, 1024 ],
-  "interval" => 0.1,
-  "dpi" => 96,
-  "envelope" => {
-    "bounds" => [ [ 660000, 718000 ], [ 6020000, 6107000 ] ],
-    "projection" => "EPSG:32755"
-  })
-act_dog = ArcIMS.new(
-  "host" => "www.gim.act.gov.au",
-  "path" => "/arcims/ims",
-  "name" => "dog",
-  "projection" => projection,
-  "wkt" => wkt,
-  "tile_sizes" => [ 1024, 1024 ],
-  "interval" => 0.1,
-  "dpi" => 96,
-  "envelope" => {
-    "bounds" => [ [ 659890.105040274, 720782.12808229 ], [ 6022931.0546655, 6111100.93973127 ] ],
-    "projection" => "EPSG:32755"
-  })
+# # ACT ArcIMS servers seem to be permanently removed:
+# act_heritage = ArcIMS.new(
+#   "host" => "www.gim.act.gov.au",
+#   "path" => "/arcims/ims",
+#   "name" => "Heritage",
+#   "projection" => projection,
+#   "wkt" => wkt,
+#   "tile_sizes" => [ 1024, 1024 ],
+#   "interval" => 0.1,
+#   "dpi" => 96,
+#   "envelope" => {
+#     "bounds" => [ [ 660000, 718000 ], [ 6020000, 6107000 ] ],
+#     "projection" => "EPSG:32755"
+#   })
+# act_dog = ArcIMS.new(
+#   "host" => "www.gim.act.gov.au",
+#   "path" => "/arcims/ims",
+#   "name" => "dog",
+#   "projection" => projection,
+#   "wkt" => wkt,
+#   "tile_sizes" => [ 1024, 1024 ],
+#   "interval" => 0.1,
+#   "dpi" => 96,
+#   "envelope" => {
+#     "bounds" => [ [ 659890.105040274, 720782.12808229 ], [ 6022931.0546655, 6111100.93973127 ] ],
+#     "projection" => "EPSG:32755"
+#   })
 declination_service = DeclinationService.new(config["declination"])
 control_service = ControlService.new(config["controls"])
 lpi_ortho = LPIOrthoService.new(
@@ -1583,10 +1597,7 @@ services = {
       {
         "from" => "HydroArea_1",
         "lookup" => "delivsdm:geodb.HydroArea.perenniality",
-        "line" => {
-          1 => { "width" => 2 },
-          "2;3" => { "width" => 1 }
-        }
+        "line" => { 1 => { "width" => 2 } },
       },
       {
         "from" => "TankArea_1",
@@ -1594,10 +1605,15 @@ services = {
         "line" => { 1 => { "width" => 2 } }
       },
     ],
+    "water-area-boundaries-intermittent" => {
+      "from" => "HydroArea_1",
+      "lookup" => "delivsdm:geodb.HydroArea.perenniality",
+      "line" => { "2;3" => { "width" => 1 } },
+    },
     "dams" => {
       "from" => "HydroPoint_1",
-      "lookup" => "delivsdm:geodb.HydroPoint.ClassSubtype",
-      "truetypemarker" => { 1 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 243, "overlap" => true } }
+      "lookup" => "delivsdm:geodb.HydroPoint.HydroType",
+      "truetypemarker" => { 2 => { "font" => "ESRI Geometric Symbols", "fontsize" => 3, "character" => 243, "overlap" => true } }
     },
     "water-tanks" => {
       "from" => "TankPoint_1",
@@ -1924,7 +1940,7 @@ services = {
     "transmission-lines" => {
       "scale" => 0.7,
       "from" => "ElectricityTransmissionLine_1",
-      "line" => { "width" => 1, "type" => "dash_dot" }
+      "line" => { "width" => 1, "type" => "dash_dot", "overlap" => false }
     },
     "landing-grounds" => {
       "group" => "lines6",
@@ -1956,85 +1972,85 @@ services = {
       "truetypemarker" => { 1 => { "font" => "ESRI Surveyor", "fontsize" => 9, "character" => 58 } }
     },
   },
-  act_heritage => {
-    "act-rivers-and-creeks" => {
-      "from" => 30,
-      "lookup" => "PEREN_TEXT",
-      "line" => {
-        "Water Feature contains water infrequently" => { "width" => 1 },
-        "Water Feature contains water frequently" => { "width" => 2 }
-      }
-    },
-    "act-cadastre" => {
-      "from" => 27,
-      "line" => { "width" => 1 }
-    },
-    "act-urban-land" => {
-      "group" => "areas1",
-      "from" => 71,
-      "polygon" => { }
-    },
-    "act-lakes-and-major-rivers" => {
-      "group" => "areas1",
-      "from" => 28,
-      "polygon" => { }
-    },
-    "act-plantations" => {
-      "group" => "areas1",
-      "from" => 51,
-      "polygon" => { }
-    },
-    "act-roads-sealed" => [
-      {
-        "group" => "lines1",
-        "scale" => 0.4,
-        "from" => 42,
-        "lookup" => "RTYPE_TEXT",
-        "line" => {
-          "MAIN ROAD" => { "width" => 7, "captype" => "round" },
-          "LOCAL CONNECTOR ROAD" => { "width" => 5, "captype" => "round" },
-          "SEALED ROAD" => { "width" => 3, "captype" => "round" }
-        }
-      },
-      {
-        "group" => "lines1",
-        "scale" => 0.4,
-        "from" => 67,
-        "lookup" => "RTYPE_TEXT",
-        "line" => { "HIGHWAY" => { "width" => 7, "captype" => "round" } }
-      }
-    ],
-    "act-roads-unsealed" => {
-      "group" => "lines1",
-      "scale" => 0.4,
-      "from" => 42,
-      "lookup" => "RTYPE_TEXT",
-      "line" => {
-        "UNSEALED ROAD" => { "width" => 3, "captype" => "round" }
-      }
-    },
-    "act-vehicular-tracks" => {
-      "scale" => 0.6,
-      "from" => 42,
-      "lookup" => "RTYPE_TEXT",
-      "line" => {
-        "VEHICULAR TRACK" => { "width" => 2, "type" => "dash", "captype" => "round" }
-      },
-    },
-    "act-border" => {
-      "scale" => 0.5,
-      "from" => 3,
-      "line" => { "width" => 2, "type" => "dash_dot_dot" }
-    }
-  },
-  act_dog => {
-    "act-adhoc-fire-access" => {
-      "from" => 39,
-      "scale" => 0.4,
-      "lookup" => "STANDARD",
-      "line" => { "Adhoc" => { "width" => 2, "type" => "dash", "captype" => "round" } }
-    }
-  },
+  # act_heritage => {
+  #   "act-rivers-and-creeks" => {
+  #     "from" => 30,
+  #     "lookup" => "PEREN_TEXT",
+  #     "line" => {
+  #       "Water Feature contains water infrequently" => { "width" => 1 },
+  #       "Water Feature contains water frequently" => { "width" => 2 }
+  #     }
+  #   },
+  #   "act-cadastre" => {
+  #     "from" => 27,
+  #     "line" => { "width" => 1 }
+  #   },
+  #   "act-urban-land" => {
+  #     "group" => "areas1",
+  #     "from" => 71,
+  #     "polygon" => { }
+  #   },
+  #   "act-lakes-and-major-rivers" => {
+  #     "group" => "areas1",
+  #     "from" => 28,
+  #     "polygon" => { }
+  #   },
+  #   "act-plantations" => {
+  #     "group" => "areas1",
+  #     "from" => 51,
+  #     "polygon" => { }
+  #   },
+  #   "act-roads-sealed" => [
+  #     {
+  #       "group" => "lines1",
+  #       "scale" => 0.4,
+  #       "from" => 42,
+  #       "lookup" => "RTYPE_TEXT",
+  #       "line" => {
+  #         "MAIN ROAD" => { "width" => 7, "captype" => "round" },
+  #         "LOCAL CONNECTOR ROAD" => { "width" => 5, "captype" => "round" },
+  #         "SEALED ROAD" => { "width" => 3, "captype" => "round" }
+  #       }
+  #     },
+  #     {
+  #       "group" => "lines1",
+  #       "scale" => 0.4,
+  #       "from" => 67,
+  #       "lookup" => "RTYPE_TEXT",
+  #       "line" => { "HIGHWAY" => { "width" => 7, "captype" => "round" } }
+  #     }
+  #   ],
+  #   "act-roads-unsealed" => {
+  #     "group" => "lines1",
+  #     "scale" => 0.4,
+  #     "from" => 42,
+  #     "lookup" => "RTYPE_TEXT",
+  #     "line" => {
+  #       "UNSEALED ROAD" => { "width" => 3, "captype" => "round" }
+  #     }
+  #   },
+  #   "act-vehicular-tracks" => {
+  #     "scale" => 0.6,
+  #     "from" => 42,
+  #     "lookup" => "RTYPE_TEXT",
+  #     "line" => {
+  #       "VEHICULAR TRACK" => { "width" => 2, "type" => "dash", "captype" => "round" }
+  #     },
+  #   },
+  #   "act-border" => {
+  #     "scale" => 0.5,
+  #     "from" => 3,
+  #     "line" => { "width" => 2, "type" => "dash_dot_dot" }
+  #   }
+  # },
+  # act_dog => {
+  #   "act-adhoc-fire-access" => {
+  #     "from" => 39,
+  #     "scale" => 0.4,
+  #     "lookup" => "STANDARD",
+  #     "line" => { "Adhoc" => { "width" => 2, "type" => "dash", "captype" => "round" } }
+  #   }
+  # },
   declination_service => {
     "declination" => { }
   },
@@ -2158,12 +2174,11 @@ unless formats_paths.empty?
       watercourses
       ocean
       water-tanks
-      water-areas-intermittent
       dams
+      water-areas-intermittent
+      water-area-boundaries-intermittent
       water-areas
-      tank-areas
       water-area-boundaries
-      tank-area-boundaries
       intertidal
       reef
       clifftops
@@ -2307,11 +2322,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
 end
 
-# TODO: put ALL assembly in temp_dir before using FileUtils.cp to copy final image to output_dir
 # TODO: add config["include"]?
-# TODO: check aerial-lpi working?
-# TODO: check ACT layers working?
-# TODO: separate water boundaries and intermittent water boundaries
-# TODO: separate dams into man-made and natural
+# TODO: fix aerial-lpi?
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

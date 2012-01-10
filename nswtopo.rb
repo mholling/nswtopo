@@ -1065,6 +1065,7 @@ colours:
   misc-perimeters: '#333334'
   excavation: '#333334'
   coastline: '#000001'
+  dam-batters: '#c6c6c7'
   dam-walls: '#000001'
   cableways: '#000001'
   wharves: '#000001'
@@ -1875,6 +1876,12 @@ services = {
       "lookup" => "delivsdm:geodb.GeneralCulturalArea.GeneralCulturalType",
       "polygon" => { "0;2;3;4" => { } }
     },
+    "dam-batters" => {
+      "group" => "areas1",
+      "from" => "GeneralCulturalArea_1",
+      "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
+      "polygon" => { 10 => { } }
+    },
     "building-areas" => {
       "group" => "areas2",
       "from" => "GeneralCulturalArea_1",
@@ -2185,6 +2192,7 @@ unless formats_paths.empty?
       misc-perimeters
       excavation
       coastline
+      dam-batters
       dam-walls
       wharves
       pipelines

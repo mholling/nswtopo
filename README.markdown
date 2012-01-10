@@ -287,6 +287,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * pine: pine plantations, represented in dark green pine pattern
 * orchards-plantations: orchards, vineyards and non-pine forest plantation, represented in green tile pattern
 * building-areas: larger building complexes (e.g. shopping centres), represented in dark grey
+* dam-batters: the inclined portions of some dam walls
 * dam-walls: constructed dam walls, represented in black
 * cable-ways: chairlifts and cable cars, respresented as solid or dash-dotted black lines respectively
 * misc-perimeters: miscellaneous perimeters dividing different land use, represented as thin dashed grey lines
@@ -315,6 +316,10 @@ Keep in mind that these aerial images have been warped into an orthographic proj
 * aerial-lpi-eastcoast: medium resolution imagery for most of the 25k topographic coverage; quite old film imagery (from the 90s?)
 * aerial-google: generally good quality, recent aerial imagery from Google Maps; limited to 250 tiles per six hour period
 * aerial-nokia: reasonable quality aerial imagery from Nokia Maps; limited to 250 tiles per six hours; georeferencing is not always the best and usually requires some manual nudging for best alignment
+
+## Reference Topographic Layer
+
+This layer (reference-top) is a copy of the low-res topo layer available from the [SIX viewer](http://lite.maps.nsw.gov.au). The original map's poor resolution (175 ppi?) and bad JPEG artifacts make it unsuited to printing, however it is useful to have as a reference to compare against the output of this software.
 
 ## Annotation Layers
 
@@ -367,5 +372,5 @@ Release History
   * 13/12/2011: version 0.1.1: added bridges, floodways, fixed narrow gaps in roads
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
 * 21/12/2011: version 0.2: added map rotation; added specification of map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
-* HEAD: misc. additions (e.g. lookouts, campgrounds, rock/pinnacle labels, etc); collected point markers into single layer; separated permanent and intermittent water layers; prevented label/feature overlap; decreased download times; removed unavailable ACT layers.
+* HEAD: misc. additions (e.g. lookouts, campgrounds, rock/pinnacle labels, etc); collected point markers into single layer; separated permanent and intermittent water layers; prevented label/feature overlap; decreased download times; removed unavailable ACT layers; added low-res reference topo.
 

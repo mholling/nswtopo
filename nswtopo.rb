@@ -647,22 +647,25 @@ class LPIOrthoService < TiledService
           [ images, regions ].transpose.map { |image, region| { image => region } }.inject(:merge)
         end
       end
-  
-      uri = URI::HTTP.build(:host => params["host"], :path => "/ImageX/ImageX.dll", :query => "?dsinfo?verbose=true&layers=#{images_regions.keys.join ?,}")
+      
+      otdf = options["otdf"]
+      dll_path = otdf ? "/otdf/otdf.dll" : "/ImageX/ImageX.dll"
+      uri = URI::HTTP.build(:host => params["host"], :path => dll_path, :query => "dsinfo?verbose=#{!otdf}&layers=#{images_regions.keys.join ?,}")
       images_attributes = http_get(uri, "retries" => 5) do |response|
         xml = REXML::Document.new(response.body)
         raise BadLayer.new(xml.elements["//Error"].text) if xml.elements["//Error"]
         coordspace = xml.elements["/DSINFO/COORDSPACE"]
-        meterfactor = coordspace.attributes["meterfactor"].to_f
-    
-        xml.elements.collect("/DSINFO/LAYERS/LAYER") do |layer|
-          image = layer.attributes["name"]
+        meterfactor = (coordspace.attributes["meterfactor"] || 1).to_f
+        xml.elements.collect(otdf ? "/DSINFO" : "/DSINFO/LAYERS/LAYER") do |layer|
+          image = layer.attributes[otdf ? "datafile" : "name"]
           sizes = [ "width", "height" ].map { |key| layer.attributes[key].to_i }
           bbox = layer.elements["BBOX"]
-          layer_bounds = [ [ "tlX", "brX" ], [ "brY", "tlY" ] ].map { |keys| keys.map { |key| bbox.attributes[key].to_f } }
           resolutions = [ "cellsizeX", "cellsizeY" ].map { |key| bbox.attributes[key].to_f * meterfactor }
-      
-          { image => { "sizes" => sizes, "bounds" => layer_bounds, "resolutions" => resolutions, "region" => images_regions[image] } }
+          tl = [ "tlX", "tlY" ].map { |key| bbox.attributes[key].to_f }
+          br = [ tl, resolutions, sizes ].transpose.map { |coord, resolution, size| coord + size * resolution }
+          layer_bounds = [ tl, br ].transpose.map(&:sort)
+          
+          { image => { "sizes" => sizes, "bounds" => layer_bounds, "resolutions" => resolutions, "regions" => images_regions[image] } }
         end.inject(:merge)
       end.select do |image, attributes|
         bounds_intersect? bounds, attributes["bounds"]
@@ -671,7 +674,7 @@ class LPIOrthoService < TiledService
       if images_attributes.empty?
         yield label, []
       else
-        tile_size = params["tile_size"]
+        tile_size = otdf ? 256 : params["tile_size"]
         format = images_attributes.one? ? { "type" => "jpg", "quality" => 90 } : { "type" => "png", "transparent" => true }
         puts "Downloading: #{label}"
         Dir.mktmpdir do |temp_dir|
@@ -696,10 +699,10 @@ class LPIOrthoService < TiledService
             end.inject(:product).map(&:transpose).map do |(tx, ty), tile_bounds|
               query = format.merge("l" => zoom, "tx" => tx, "ty" => ty, "ts" => tile_size, "layers" => image, "fillcolor" => "0x000000")
               query["inregion"] = "#{attributes["region"].flatten.join ?,},INSRC" if attributes["region"]
-              [ "?image?#{query.to_query}", tile_bounds, resolutions ]
+              [ "image?#{query.to_query}", tile_bounds, resolutions ]
             end
           end.inject(:+).with_progress.with_index.map do |(query, tile_bounds, resolutions), index|
-            uri = URI::HTTP.build :host => params["host"], :path => "/ImageX/ImageX.dll", :query => URI.escape(query)
+            uri = URI::HTTP.build :host => params["host"], :path => dll_path, :query => URI.escape(query)
             tile_path = File.join(temp_dir, "tile.#{index}.#{format["type"]}")
             http_get(uri, "retries" => 5) do |response|
               raise InternetError.new("no data received") if response.content_length.zero?
@@ -2070,7 +2073,8 @@ services = {
     "aerial-lpi-ads40" => { "config" => "/ADS40ImagesConfig.js" },
     "aerial-lpi-sydney" => { "config" => "/SydneyImagesConfig.js" },
     "aerial-lpi-towns" => { "config" => "/NSWRegionalCentresConfig.js" },
-    "aerial-lpi-eastcoast" => { "image" => "/Imagery/lr94ortho1m.ecw" }
+    "aerial-lpi-eastcoast" => { "image" => "/Imagery/lr94ortho1m.ecw" },
+    "reference-topo" => { "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw", "otdf" => true }
   },
   google_maps => {
     "aerial-google" => { "name" => "satellite", "format" => "jpg" }
@@ -2158,6 +2162,7 @@ unless formats_paths.empty?
     
     puts "Preparing layers for composition"
     layers = %w[
+      reference-topo
       aerial-google
       aerial-nokia
       aerial-lpi-sydney

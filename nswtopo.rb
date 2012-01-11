@@ -1035,10 +1035,6 @@ controls:
 formats:
   - png
   - layered.tif
-exclude:
-  - utm
-  - aerial-lpi-sydney
-  - aerial-lpi-towns
 colours:
   pine: '#009f00'
   orchards-plantations: '#009f00'
@@ -1178,6 +1174,7 @@ glow:
 )
 config["controls"]["file"] = "controls.gpx" if File.exists? "controls.gpx"
 config = config.deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
+config["exclude"] = [ *config["exclude"] ]
 {
   "utm" => [ /utm-.*/ ],
   "aerial" => [ /aerial-.*/ ],

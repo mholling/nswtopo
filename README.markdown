@@ -182,12 +182,12 @@ Specify the format(s) of the output map files you would like to create. Choose a
       - png                   # (default map output is in PNG and multi-layered TIFF format)
       - layered.tif
 
-Specify which layers to exclude from your map. This will prevent downloading of the layers and their inclusion in the final map. List each layer individually. Use the shortcuts `utm`, `aerial` and `relief` to exclude all UTM grid layers, aerial imagery layers and shaded relief/elevation layers, respectively.
+Specify which layers to exclude from your map. This will prevent downloading of the layers and their inclusion in the final map. List each layer individually. Use the shortcuts `utm`, `aerial` and `relief` to exclude all UTM grid layers, aerial imagery layers and shaded relief/elevation layers, respectively. By default, all layers are included; you will always want to exclude either `utm` or `declination` in order to prevent both being drawn on the same map. For example:
 
     exclude:
       - utm                   # (exclude UTM grid in favour of declination lines)
-      - aerial-lpi-sydney     # (exclude hi-resolution sydney aerial imagery)
-      - aerial-lpi-towns      # (exclude aerial imagery of towns and regional centres)
+      - aerial                # (don't download aerial imagery)
+      - trig-points           # (don't include trig points)
 
 Specify colours for individual topographic layers. Each colour should be specified as one of a recognised colour name (e.g. Red, Dark Magenta, Royal Blue), a quoted hex triplet (e.g. '#00FF00', '#2020e0', '#0033ff') or a decimal triplet (e.g. rgb(0,0,255), rgb(127,127,0)). The default color scheme closely matches the current 2nd-edition 25k NSW map sheets (except with brown contours, which I prefer).
 

@@ -2224,6 +2224,4 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
 end
 
-# TODO: add config["include"]?
-
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

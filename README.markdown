@@ -319,11 +319,11 @@ Keep in mind that these aerial images have been warped into an orthographic proj
 
 ## Reference Topographic Layer
 
-This layer (reference-top) is a copy of the low-res topo layer available from the [SIX viewer](http://lite.maps.nsw.gov.au). The original map's poor resolution (175 ppi?) and bad JPEG artifacts make it unsuited to printing, however it is useful to have as a reference to compare against the output of this software.
+This layer (reference-topo) contains the low-resolution topographic map image available from the [SIX viewer](http://lite.maps.nsw.gov.au). This map's poor resolution (175 ppi?) and bad JPEG artifacts make it unsuited to printing, however it is useful to have as a reference for comparison against the output of this software.
 
 ## Annotation Layers
 
-* utm-XX-grid: represents a UTM grid for zone XX (zone determined by map bounds)
+* utm-XX-grid: represents a UTM grid for zone XX (zone or zones determined by map bounds)
 * utm-XX-eastings: annotates UTM eastings for zone XX across the middle of the map
 * utm-XX-northings: annotates UTM northings for zone XX down the middle of the map
 * declination: represents lines of magnetic declination for map area
@@ -347,7 +347,7 @@ A few shortcomings are sometimes evident in the generated map images. These can 
 
 * Feature labels sometimes conflict with other features on the map, or are more numerous than needed. This is easily fixed in a multi-layer file by manually moving or deleting the offending label.
 * Data is not always complete or accurate. Since the map data represents the current contents of the NSW geospatial database, it reflects any errors the database contains. Aerial imagery may be helpful in identifying any such inaccuracies, which can subsequently corrected manually in the appropriate layer. Examples of inaccuracies I've observed include:
-  * the trig points layer does not always show every trig station in the map area;
+  * the trig points layer depicts some extra points compared to the printed maps, and missed some others;
   * new dams on farms may not always be shown;
   * cliff areas are not always accurately located;
   * the difference between vehicular and 4WD tracks is sometimes debatable; and
@@ -359,11 +359,13 @@ A few shortcomings are sometimes evident in the generated map images. These can 
   * ancillary hydrographic features including waterfalls
   * relative heights of cliffs
   * points of interest
+  * cadastral lines in the ACT
 * I have left out a number of obscure man-made features that are unlikely to be found in bush and rural areas of interest.
 * For the time being, if you need a legend you'll need to create it manually.
 * When rotating the map using the `rotation` parameter, the image quality is reduced slightly. (Since the map servers are only able to render maps in north-up orientation, the images must are subsequently rotated, causing some resampling degradation.) Download and construction of the map will also take longer due to the rotation.
 * Not all horizontal labels remain horizontal when a map rotation is specified.
 * The various map servers cause problems from time to time. For example: the NSW topographic server has a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time); the NASA OneEarth server (providing elevation data for shaded relief) is sometimes slow; the LPI aerial imagery server sometimes return no data. This is frustrating. Interrupt the script using ctrl-c, wait a few minutes, then try again. Alternately, exclude the relevant layers from your map configuration if you don't want them.
+* There is no guarantee that the NSW ArcIMS servers will continue to function in the future!
 
 Release History
 ===============

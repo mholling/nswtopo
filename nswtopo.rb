@@ -1283,33 +1283,6 @@ cad_portlet = ArcIMS.new(
     "bounds" => [ [ 140.05983881892, 154.575951211079 ], [ -37.740334035, -27.924909045 ] ],
     "projection" => "EPSG:4283"
   })
-# # ACT ArcIMS servers seem to be permanently removed:
-# act_heritage = ArcIMS.new(
-#   "host" => "www.gim.act.gov.au",
-#   "path" => "/arcims/ims",
-#   "name" => "Heritage",
-#   "projection" => projection,
-#   "wkt" => wkt,
-#   "tile_sizes" => [ 1024, 1024 ],
-#   "interval" => 0.1,
-#   "dpi" => 96,
-#   "envelope" => {
-#     "bounds" => [ [ 660000, 718000 ], [ 6020000, 6107000 ] ],
-#     "projection" => "EPSG:32755"
-#   })
-# act_dog = ArcIMS.new(
-#   "host" => "www.gim.act.gov.au",
-#   "path" => "/arcims/ims",
-#   "name" => "dog",
-#   "projection" => projection,
-#   "wkt" => wkt,
-#   "tile_sizes" => [ 1024, 1024 ],
-#   "interval" => 0.1,
-#   "dpi" => 96,
-#   "envelope" => {
-#     "bounds" => [ [ 659890.105040274, 720782.12808229 ], [ 6022931.0546655, 6111100.93973127 ] ],
-#     "projection" => "EPSG:32755"
-#   })
 declination_service = DeclinationService.new(config["declination"])
 control_service = ControlService.new(config["controls"])
 lpi_ortho = LPIOrthoService.new(
@@ -1982,85 +1955,6 @@ services = {
       "truetypemarker" => { 1 => { "font" => "ESRI Surveyor", "fontsize" => 9, "character" => 58 } }
     },
   },
-  # act_heritage => {
-  #   "act-rivers-and-creeks" => {
-  #     "from" => 30,
-  #     "lookup" => "PEREN_TEXT",
-  #     "line" => {
-  #       "Water Feature contains water infrequently" => { "width" => 1 },
-  #       "Water Feature contains water frequently" => { "width" => 2 }
-  #     }
-  #   },
-  #   "act-cadastre" => {
-  #     "from" => 27,
-  #     "line" => { "width" => 1 }
-  #   },
-  #   "act-urban-land" => {
-  #     "group" => "areas1",
-  #     "from" => 71,
-  #     "polygon" => { }
-  #   },
-  #   "act-lakes-and-major-rivers" => {
-  #     "group" => "areas1",
-  #     "from" => 28,
-  #     "polygon" => { }
-  #   },
-  #   "act-plantations" => {
-  #     "group" => "areas1",
-  #     "from" => 51,
-  #     "polygon" => { }
-  #   },
-  #   "act-roads-sealed" => [
-  #     {
-  #       "group" => "lines1",
-  #       "scale" => 0.4,
-  #       "from" => 42,
-  #       "lookup" => "RTYPE_TEXT",
-  #       "line" => {
-  #         "MAIN ROAD" => { "width" => 7, "captype" => "round" },
-  #         "LOCAL CONNECTOR ROAD" => { "width" => 5, "captype" => "round" },
-  #         "SEALED ROAD" => { "width" => 3, "captype" => "round" }
-  #       }
-  #     },
-  #     {
-  #       "group" => "lines1",
-  #       "scale" => 0.4,
-  #       "from" => 67,
-  #       "lookup" => "RTYPE_TEXT",
-  #       "line" => { "HIGHWAY" => { "width" => 7, "captype" => "round" } }
-  #     }
-  #   ],
-  #   "act-roads-unsealed" => {
-  #     "group" => "lines1",
-  #     "scale" => 0.4,
-  #     "from" => 42,
-  #     "lookup" => "RTYPE_TEXT",
-  #     "line" => {
-  #       "UNSEALED ROAD" => { "width" => 3, "captype" => "round" }
-  #     }
-  #   },
-  #   "act-vehicular-tracks" => {
-  #     "scale" => 0.6,
-  #     "from" => 42,
-  #     "lookup" => "RTYPE_TEXT",
-  #     "line" => {
-  #       "VEHICULAR TRACK" => { "width" => 2, "type" => "dash", "captype" => "round" }
-  #     },
-  #   },
-  #   "act-border" => {
-  #     "scale" => 0.5,
-  #     "from" => 3,
-  #     "line" => { "width" => 2, "type" => "dash_dot_dot" }
-  #   }
-  # },
-  # act_dog => {
-  #   "act-adhoc-fire-access" => {
-  #     "from" => 39,
-  #     "scale" => 0.4,
-  #     "lookup" => "STANDARD",
-  #     "line" => { "Adhoc" => { "width" => 2, "type" => "dash", "captype" => "round" } }
-  #   }
-  # },
   declination_service => {
     "declination" => { }
   },
@@ -2182,7 +2076,6 @@ unless formats_paths.empty?
       inundation
       cliffs
       cadastre
-      act-cadastre
       watercourses
       ocean
       water-tanks
@@ -2201,7 +2094,6 @@ unless formats_paths.empty?
       dam-walls
       wharves
       pipelines
-      act-border
       railways
       pathways
       tracks-4wd
@@ -2336,6 +2228,5 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
 end
 
 # TODO: add config["include"]?
-# TODO: fix aerial-lpi?
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

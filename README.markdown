@@ -292,12 +292,13 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * dam-walls: constructed dam walls, represented in black
 * cable-ways: chairlifts and cable cars, respresented as solid or dash-dotted black lines respectively
 * misc-perimeters: miscellaneous perimeters dividing different land use (also conveyor belts), represented as thin dashed grey lines
+* restricted-areas: outlines of restricted areas (mostly water catchments), as thick, dithered, dashed lines
 * markers: symbols for caves (open circles), rocks & pinnacles (stars), towers (squares), mines & quarries (mining icons), yards (open squares), windmills (crosses), lighthouses & beacons (beacon icons), lookouts (open circles), campgrounds (tent icon), grids and gates (open circles with one and two bars, respectively); rendered in black
 * railways: heavy- and light-gauge railway lines, represented as black hashed lines
-* pipelines: water or other pipelines, represented as thin cyan lines
+* pipelines-canals: pipelines and canals, represented as thin cyan lines (dashed when underground)
 * transmission-lines: high voltage electrical transmission lines, represented as black dot-dash lines
 * landing-grounds: landing strips as found on farms, etc, represented as dark grey lines
-* wharves: wharves, jetties & boat ramps, represented as black lines
+* wharves-breakwaters: wharves, jetties, boat ramps and breakwaters, represented as black lines
 * cadastre: NSW cadastral lines (property boundaries), represented as thin, light grey lines; does not include ACT cadastre which is at present unavailable
 * trig-points: trigonometric survey stations, represented as small black icons; not all trig points are present
 

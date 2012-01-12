@@ -1054,6 +1054,7 @@ colours:
   reef: 'Cyan'
   sand: '#ff6600'
   intertidal: '#1b2e7b'
+  mangrove: '#87be8d'
   inundation: '#00bdff'
   cliffs: '#c6c6c7'
   clifftops: '#ff00ba'
@@ -1077,6 +1078,7 @@ colours:
   tracks-vehicular: '#e17c00'
   roads-unsealed: '#e17c00'
   roads-sealed: 'Red'
+  ferry-routes: '#00197f'
   pipelines: '#00a6e5'
   landing-grounds: '#333334'
   transmission-lines: '#000001'
@@ -1178,7 +1180,7 @@ config["exclude"] = [ *config["exclude"] ]
 {
   "utm" => [ /utm-.*/ ],
   "aerial" => [ /aerial-.*/ ],
-  "coastal" => %w{ocean reef intertidal coastline wharves},
+  "coastal" => %w{ocean reef intertidal mangrove coastline wharves},
   "act-extras" => %w{act-rivers-and-creeks act-urban-land act-lakes-and-major-rivers act-plantations act-roads-sealed act-roads-unsealed act-vehicular-tracks act-adhoc-fire-access},
   "relief" => [ "elevation", /shaded-relief-.*/ ]
 }.each do |shortcut, layers|
@@ -1433,6 +1435,11 @@ services = {
         "lookup" => "delivsdm:geodb.GeneralCulturalPoint.classsubtype",
         "text" => { 5 => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 } }
       },
+      { # ferry route labels
+        "from" => "FerryRoute_1",
+        "label" => { "field" => "delivsdm:geodb.FerryRoute.GeneralName", "linelabelposition" => "placeabovebelow" },
+        "text" => { "fontsize" => 3.8, "fontstyle" => "italic", "printmode" => "titlecaps", "interval" => 2.0 }
+      },
     ],
     "markers" => [
       { # caves
@@ -1560,6 +1567,12 @@ services = {
         "lookup" => "delivsdm:geodb.TankArea.tanktype",
         "polygon" => { 1 => { "boundary" => false } }
       },
+      {
+        "group" => "areas2",
+        "from" => "GeneralCulturalArea_1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
+        "polygon" => { 9 => { "boundary" => false } }
+      },
     ],
     "water-areas-intermittent" => {
       "group" => "areas2",
@@ -1577,6 +1590,11 @@ services = {
         "from" => "TankArea_1",
         "lookup" => "delivsdm:geodb.TankArea.tanktype",
         "line" => { 1 => { "width" => 2 } }
+      },
+      {
+        "from" => "GeneralCulturalArea_1",
+        "lookup" => "delivsdm:geodb.GeneralCulturalArea.ClassSubtype",
+        "line" => { 9 => { "width" => 2 } }
       },
     ],
     "water-area-boundaries-intermittent" => {
@@ -1767,6 +1785,12 @@ services = {
         "erase" => true
       },
     ],
+    "ferry-routes" => {
+      "group" => "lines3",
+      "from" => "FerryRoute_1",
+      "scale" => 0.25,
+      "line" => { "width" => 3, "type" => "dash", "captype" => "round" },
+    },
     "intertidal" => {
       "group" => "areas1",
       "from" => "DLSArea_1",
@@ -1778,6 +1802,12 @@ services = {
       "from" => "DLSArea_1",
       "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
       "polygon" => { 2 => { } }
+    },
+    "mangrove" => {
+      "group" => "areas1",
+      "from" => "DLSArea_1",
+      "lookup" => "delivsdm:geodb.DLSArea.ClassSubtype",
+      "polygon" => { 3 => { } }
     },
     "reef" => {
       "group" => "areas1",
@@ -1829,6 +1859,12 @@ services = {
       "scale" => 0.25,
       "line" => { 3 => { "width" => 2, "type" => "dot", "antialiasing" => false } }
     },
+    # "levees" => {
+    #   "from" => "DLSLine_1",
+    #   "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
+    #   "scale" => 0.4,
+    #   "hashline" => { 4 => { "width" => 6, "linethickness" => 1, "tickthickness" => 1, "interval" => 5 } },
+    # },
     "built-up-areas" => {
       "group" => "areas1",
       "from" => "GeneralCulturalArea_1",
@@ -1882,7 +1918,10 @@ services = {
       "from" => "GeneralCulturalLine_1",
       "lookup" => "delivsdm:geodb.GeneralCulturalLine.classsubtype",
       "scale" => 0.15,
-      "line" => { "3;6" => { "width" => 1, "type" => "dash" } }
+      "line" => {
+        "3;6;7" => { "width" => 1, "type" => "dash" },
+        1 => { "width" => 1, "type" => "solid" } # (conveyor belts)
+      }
     },
     "railways" => [
       { # above ground
@@ -2028,12 +2067,13 @@ unless formats_paths.empty?
     swamp_wet_tile_path = File.join(temp_dir, "tile-swamp-wet.tif");
     swamp_dry_tile_path = File.join(temp_dir, "tile-swamp-dry.tif");
     rock_area_tile_path = File.join(temp_dir, "tile-rock-area.tif");
+    mangrove_tile_path = File.join(temp_dir, "tile-mangrove.tif")
     
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx "j%12==0" #{OP} +clone +noise Random -blur 0x2 -threshold 50% #{CP} -compose Multiply -composite "#{inundation_tile_path}"]
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx "j%12==7" #{OP} +clone +noise Random -threshold 88% #{CP} -compose Multiply -composite -morphology Dilate "11: #{swamp}" "#{inundation_tile_path}" -compose Plus -composite "#{swamp_wet_tile_path}"]
     %x[convert -size 480x480 -virtual-pixel tile canvas: -fx "j%12==7" #{OP} +clone +noise Random -threshold 88% #{CP} -compose Multiply -composite -morphology Dilate "11: #{swamp}" "#{inundation_tile_path}" -compose Plus -composite "#{swamp_dry_tile_path}"]
     %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x1 -modulate 100,1,100 -auto-level -ordered-dither threshold,4 +level 70%,95% "#{rock_area_tile_path}"]
-    
+    %x[convert -size 400x400 -virtual-pixel tile canvas: +noise Random -blur 0x1.3 -auto-level -contrast-stretch 20x30% -channel G -separate "#{mangrove_tile_path}"]
     config["patterns"].each do |label, string|
       if File.exists?(string)
         tile_path = string
@@ -2080,9 +2120,10 @@ unless formats_paths.empty?
       water-areas-intermittent
       water-area-boundaries-intermittent
       water-areas
-      water-area-boundaries
       intertidal
+      mangrove
       reef
+      water-area-boundaries
       clifftops
       misc-perimeters
       excavation
@@ -2097,6 +2138,7 @@ unless formats_paths.empty?
       tracks-vehicular
       roads-unsealed
       roads-sealed
+      ferry-routes
       bridges
       culverts
       floodways

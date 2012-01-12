@@ -269,6 +269,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * tracks-vehicular: unsealed vehicular tracks, represented as orange dashed lines
 * tracks-4wd: 4wd tracks, represented as smaller  orange dashed lines
 * pathways: various walking tracks, represented as thinner black dashed lines
+* ferry-routes: vehicular and pedestrian ferries, as dashed dark blue lines
 * bridges: road and train bridges, in black
 * culverts: road sections across culverts, in dark brown
 * floodways: road sections across floodways, in blue
@@ -290,7 +291,7 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * dam-batters: the inclined portions of some dam walls
 * dam-walls: constructed dam walls, represented in black
 * cable-ways: chairlifts and cable cars, respresented as solid or dash-dotted black lines respectively
-* misc-perimeters: miscellaneous perimeters dividing different land use, represented as thin dashed grey lines
+* misc-perimeters: miscellaneous perimeters dividing different land use (also conveyor belts), represented as thin dashed grey lines
 * markers: symbols for caves (open circles), rocks & pinnacles (stars), towers (squares), mines & quarries (mining icons), yards (open squares), windmills (crosses), lighthouses & beacons (beacon icons), lookouts (open circles), campgrounds (tent icon), grids and gates (open circles with one and two bars, respectively); rendered in black
 * railways: heavy- and light-gauge railway lines, represented as black hashed lines
 * pipelines: water or other pipelines, represented as thin cyan lines
@@ -375,4 +376,4 @@ Release History
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
 * 21/12/2011: version 0.2: added map rotation; added specification of map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
 * 11/01/2012: version 0.3: misc. additions (e.g. lookouts, campgrounds, rock/pinnacle labels, etc); collected point markers into single layer; separated permanent and intermittent water layers; prevented label/feature overlap; decreased download times; removed unavailable ACT layers; added low-res reference topo.
-
+* HEAD: added ferry routes, mangroves

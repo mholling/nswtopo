@@ -2321,8 +2321,8 @@ unless oziexplorer_formats.empty?
   end
   File.open(oziexplorer_path, "w") do |file|
     file << %Q[OziExplorer Map Data File Version 2.2
+#{map_name}
 #{image_file}
-#{image_path}
 1 ,Map Code,
 WGS 84,WGS84,0.0000,0.0000,WGS84
 Reserved 1

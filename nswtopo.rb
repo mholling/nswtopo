@@ -884,11 +884,12 @@ class UTMGridService < Service
           end.map do |coords|
             [ pixel_for(coords, bounds, scaling), coords[index] ]
           end.map do |pixel, coord|
+            grid_reference = (coord / divisor).to_i
             case params["labels"]["style"]
             when "grid"
-              %Q[#{OP} -pointsize #{fontsize} -family "#{family}" -weight #{weight} -size #{square}x#{square} canvas:none -gravity Center -annotate "#{angle}" '#{coord / divisor}' -repage %+i%+i #{CP} -layers flatten] % pixel.map { |p| p - square / 2 }
+              %Q[#{OP} -pointsize #{fontsize} -family "#{family}" -weight #{weight} -size #{square}x#{square} canvas:none -gravity Center -annotate "#{angle}" "#{grid_reference}" -repage %+i%+i #{CP} -layers flatten] % pixel.map { |p| p - square / 2 }
             when "line"
-              %Q[-draw "translate #{pixel.join ?,} rotate #{angle} text #{margin},#{-margin} '#{coord / divisor}'"]
+              %Q[-draw "translate #{pixel.join ?,} rotate #{angle} text #{margin},#{-margin} '#{grid_reference}'"]
             end
           end.join " "
           %Q[-background none -fill white -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]

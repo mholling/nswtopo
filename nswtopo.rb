@@ -832,14 +832,14 @@ class UTMGridService < Service
       bounds = transform_bounds(input_projection, projection, input_bounds)
       layers.each do |label, options|
         puts "Creating: #{label}"
-        intervals, fontsize, family, weight = params.values_at("intervals", "fontsize", "family", "weight")
+        interval, fontsize, family, weight = params.values_at("interval", "fontsize", "family", "weight")
   
-        tick_indices = [ bounds, intervals ].transpose.map do |bound, interval|
+        tick_indices = bounds.map do |bound|
           ((bound.first / interval).floor .. (bound.last / interval).ceil).to_a
         end
-        tick_coords = [ tick_indices, intervals ].transpose.map { |indices, interval| indices.map { |index| index * interval } }
+        tick_coords = tick_indices.map { |indices| indices.map { |index| index * interval } }
         centre_coords = bounds.map { |bound| 0.5 * bound.inject(:+) }
-        centre_indices = [ centre_coords, tick_indices, intervals ].transpose.map do |coord, indices, interval|
+        centre_indices = [ centre_coords, tick_indices ].transpose.map do |coord, indices|
           indices.index((coord / interval).round)
         end
   
@@ -859,21 +859,39 @@ class UTMGridService < Service
           end.join " "
           "-stroke white -strokewidth 1 #{string}"
         when "eastings", "northings"
-          margin = 0.04 * scaling.ppi
           eastings = options["name"] == "eastings"
           index = eastings ? 0 : 1
-          angle = eastings ? -90 : 0
-          divisor = intervals[index] % 1000 == 0 ? 1000 : 1
-          string = tick_coords[index].map do |coord|
-            [ coord, tick_coords[1-index][centre_indices[1-index]] ].send(index == 0 ? :to_a : :reverse)
-          end.select do |coords|
+          angle = eastings ? 90 : 0
+          label_spacing = params["labels"]["spacing"]
+          divisor = interval % 1000 == 0 ? 1000 : 1
+          square = (interval / scaling.metres_per_pixel).round
+          margin = (0.04 * scaling.ppi).ceil
+          string = tick_coords[index].select do |coord|
+            coord % (label_spacing * interval) == 0
+          end.map do |coord|
+            case params["labels"]["style"]
+            when "line"
+              [ [ coord, tick_coords[1-index][centre_indices[1-index]] ].send(index.zero? ? :to_a : :reverse) ]
+            when "grid"
+              tick_coords[1-index].select do |perp_coord|
+                perp_coord % (label_spacing * interval) == 0
+              end.map do |perp_coord|
+                [ coord, perp_coord + 0.5 * interval ].send(index.zero? ? :to_a : :reverse)
+              end
+            end
+          end.inject(:+).select do |coords|
             zone_contains? coords
           end.map do |coords|
             [ pixel_for(coords, bounds, scaling), coords[index] ]
           end.map do |pixel, coord|
-            %Q[-draw "translate #{pixel.first},#{pixel.last} rotate #{angle} text #{margin},#{-margin} '#{coord / divisor}'"]
+            case params["labels"]["style"]
+            when "grid"
+              %Q[#{OP} -pointsize #{fontsize} -family "#{family}" -weight #{weight} -size #{square}x#{square} canvas:none -gravity Center -annotate "#{angle}" '#{coord / divisor}' -repage %+i%+i #{CP} -layers flatten] % pixel.map { |p| p - square / 2 }
+            when "line"
+              %Q[-draw "translate #{pixel.join ?,} rotate #{angle} text #{margin},#{-margin} '#{coord / divisor}'"]
+            end
           end.join " "
-          %Q[-fill white -style Normal -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]
+          %Q[-background none -fill white -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]
         end
         
         canvas_dimensions = bounds.map { |bound| ((bound.max - bound.min) / scaling.metres_per_pixel).ceil }
@@ -1013,10 +1031,11 @@ contours:
 declination:
   spacing: 1000
 grid:
-  intervals:
-    - 1000
-    - 1000
-  fontsize: 6.0
+  interval: 1000
+  labels:
+    style: grid
+    spacing: 5
+  fontsize: 7.8
   family: Arial Narrow
   weight: 200
 relief:
@@ -1168,12 +1187,24 @@ patterns:
     01
 glow:
   labels: true
-  utm-54-eastings: true
-  utm-54-northings: true
-  utm-55-eastings: true
-  utm-55-northings: true
-  utm-56-eastings: true
-  utm-56-northings: true
+  utm-54-eastings:
+    radius: 0.4
+    gamma: 5.0
+  utm-54-northings:
+    radius: 0.4
+    gamma: 5.0
+  utm-55-eastings:
+    radius: 0.4
+    gamma: 5.0
+  utm-55-northings:
+    radius: 0.4
+    gamma: 5.0
+  utm-56-eastings:
+    radius: 0.4
+    gamma: 5.0
+  utm-56-northings:
+    radius: 0.4
+    gamma: 5.0
 ]
 )
 config["controls"]["file"] = "controls.gpx" if File.exists? "controls.gpx"
@@ -2315,3 +2346,4 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
 end
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
+# TODO: put long command lines into text file...

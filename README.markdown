@@ -148,13 +148,14 @@ Specify spacing for the magnetic declination lines. This layer is automatically 
     declination:
       spacing: 1000           # perpendicular spacing of magnetic declination lines in metres
 
-Specify UTM grid intervals and appearance. You should include the UTM grid if the map is for normal use. For a rogaining map, the UTM is not needed and clutters up the map, so leave it out.
+Specify the appearance of the UTM grid and labels. You should include the UTM grid if the map is for normal use; for a rogaining map, the grid is not needed and clutters up the map, so leave it out. You can choose from two label styles: `grid` or `line`. Grid-style yields easting and northing labels superimposed on the grid lines at regular intervals; line-style yields two lines of easting and northing labels crossing at the centre of the map. Set label spacing with the labels `spacing` attribute.
 
     grid:
-      intervals:              # horizontal and vertical spacing of UTM grid lines in metres
-        - 1000                # (East-West grid spacing in metres)
-        - 1000                # (North-South grid spacing in metres)
-      fontsize: 6.0           # font size of UTM grid labels
+      interval: 1000          # horizontal and vertical spacing of UTM grid lines in metres
+      labels:
+        style: grid           # default to grid-style labels...
+        spacing: 5            # ... with a spacing of 5 grid squares between labels
+      fontsize: 7.8           # font size of UTM grid labels
       family: Arial Narrow    # font family of UTM grid labels
       weight: 200             # font weight of UTM grid labels
 
@@ -377,4 +378,4 @@ Release History
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
 * 21/12/2011: version 0.2: added map rotation; added specification of map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
 * 11/01/2012: version 0.3: misc. additions (e.g. lookouts, campgrounds, rock/pinnacle labels, etc); collected point markers into single layer; separated permanent and intermittent water layers; prevented label/feature overlap; decreased download times; removed unavailable ACT layers; added low-res reference topo.
-* HEAD: added ferry routes, mangroves
+* HEAD: added ferry routes, mangroves, restricted areas, canals, breakwaters

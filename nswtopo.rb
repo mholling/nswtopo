@@ -24,9 +24,7 @@ require 'fileutils'
 require 'rbconfig'
 
 Signal.trap("INT") do
-  puts
-  puts "Halting execution. Run the script again to resume."
-  exit
+  abort "\nHalting execution. Run the script again to resume."
 end
 
 EARTH_RADIUS = 6378137.0
@@ -58,8 +56,9 @@ class Hash
 end
 
 module Enumerable
-  def with_progress(symbol = ?-, container = "  [%s]", bars = 70)
-    divider = (length - 1) / 40 + 1
+  def with_progress(message = nil)
+    puts message if message
+    bars, container, symbol = 70, "  [%s]", ?-
     Enumerator.new do |yielder|
       $stdout << container % (?\s * bars)
       each_with_index do |object, index|
@@ -78,8 +77,7 @@ module Enumerable
         begin
           yielder.yield element
         rescue *exceptions => e
-          puts
-          puts "Error: #{e.message}"
+          $stderr.puts "\nError: #{e.message}"
           next
         end
       end
@@ -197,34 +195,44 @@ def minimum_bounding_box(points)
 end
 
 InternetError = Class.new(Exception)
-BadLayer = Class.new(Exception)
+ServerError = Class.new(Exception)
 BadGpxKmlFile = Class.new(Exception)
+BadLayerError = Class.new(Exception)
 
-def http_request(uri, req, options)
-  retries = options["retries"] || 0
+def retry_on(*exceptions)
+  intervals = [ 1, 2, 4, 8 ]
   begin
-    response = Net::HTTP.start(uri.host, uri.port) { |http| http.request(req) }
-    case response
-    when Net::HTTPSuccess then return yield response
-    else response.error!
-    end
-  rescue Timeout::Error, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError => e
-    if retries > 0
-      retries -= 1 and retry
+    yield
+  rescue *exceptions => e
+    case
+    when intervals.any?
+      sleep(intervals.shift) and retry
     else
       raise InternetError.new(e.message)
+      # $stderr.puts "Error: #{e.message}"
+      # sleep(60) and retry
     end
   end
 end
 
-def http_get(uri, options = {}, &block)
-  http_request uri, Net::HTTP::Get.new(uri.request_uri), options, &block
+def http_request(uri, req)
+  retry_on(Timeout::Error, Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError) do
+    response = Net::HTTP.start(uri.host, uri.port) { |http| http.request(req) }
+    case response
+    when Net::HTTPSuccess then yield response
+    else response.error!
+    end
+  end
 end
 
-def http_post(uri, body, options = {}, &block)
+def http_get(uri, &block)
+  http_request uri, Net::HTTP::Get.new(uri.request_uri), &block
+end
+
+def http_post(uri, body, &block)
   req = Net::HTTP::Post.new(uri.request_uri)
   req.body = body.to_s
-  http_request uri, req, options, &block
+  http_request uri, req, &block
 end
 
 def transform_bounds(source_projection, target_projection, bounds)
@@ -399,16 +407,18 @@ class ArcIMS < Service
     end
 
     post_uri = URI::HTTP.build :host => params["host"], :path => params["path"], :query => "ServiceName=#{params["name"]}"
-    http_post(post_uri, xml, "retries" => 5) do |post_response|
-      sleep params["interval"] if params["interval"]
-      xml = REXML::Document.new(post_response.body)
-      error = xml.elements["/ARCXML/RESPONSE/ERROR"]
-      raise InternetError.new(error.text) if error
-      get_uri = URI.parse xml.elements["/ARCXML/RESPONSE/IMAGE/OUTPUT"].attributes["url"]
-      get_uri.host = params["host"] if params["keep_host"]
-      http_get(get_uri, "retries" => 5) do |get_response|
-        File.open(path, "wb") { |file| file << get_response.body }
+    get_uri = retry_on(ServerError) do
+      http_post(post_uri, xml) do |post_response|
+        xml = REXML::Document.new(post_response.body)
+        error = xml.elements["/ARCXML/RESPONSE/ERROR"]
+        raise ServerError.new(error.text) if error
+        URI.parse xml.elements["/ARCXML/RESPONSE/IMAGE/OUTPUT"].attributes["url"]
       end
+    end
+    
+    get_uri.host = params["host"] if params["keep_host"]
+    http_get(get_uri) do |get_response|
+      File.open(path, "wb") { |file| file << get_response.body }
     end
   end
   
@@ -465,7 +475,7 @@ class ArcIMS < Service
         groups.first
       end.inject([]) do |memo, (group, group_layers)|
         group ? memo << group_layers : memo + group_layers.zip
-      end.recover(InternetError, BadLayer).each do |labels_options|
+      end.recover(InternetError).each do |labels_options|
         options_array = labels_options.map.with_index do |(labels, options_or_array), index|
           [ options_or_array ].flatten.map do |options|
             colour = options["erase"] ? "0,0,0" : (labels_options.length > 3 ? "#{index+1},0,0" : [ 255, 0, 0 ].rotate(index).join(?,))
@@ -485,6 +495,7 @@ class ArcIMS < Service
             end
             tile_path = File.join(temp_dir, "tile.#{tile_index}.png")
             get_tile(enlarged_bounds, enlarged_extents, scaling, rotation, options_array, tile_path)
+            sleep params["interval"] if params["interval"]
             labels_options.map.with_index do |(label, options_or_array), index|
               path = File.join(temp_dir, "#{label}.tile.#{tile_index}.png")
               extract = case
@@ -581,7 +592,7 @@ class TiledMapService < TiledService
       counts.inject(:*) < tile_limit
     end
     
-    layers.recover(InternetError, BadLayer).each do |label, options|
+    layers.recover(InternetError).each do |label, options|
       format = options["format"]
       name = options["name"]
   
@@ -611,7 +622,7 @@ class TiledMapService < TiledService
     
           retries_on_blank = params["retries_on_blank"] || 0
           (1 + retries_on_blank).times do
-            http_get(uri, "retries" => 5) do |response|
+            http_get(uri) do |response|
               File.open(tile_path, "wb") { |file| file << response.body }
               %x[mogrify -quiet -crop #{cropped_tile_sizes.join ?x}+#{crops.first.first}+#{crops.last.last} -type TrueColor -depth 8 -format png -define png:color-type=2 "#{tile_path}"]
             end
@@ -631,13 +642,13 @@ end
 class LPIOrthoService < TiledService
   def get_tiles(layers, input_bounds, input_projection, scaling)
     bounds = transform_bounds(input_projection, projection, input_bounds)
-    layers.recover(InternetError, BadLayer).each do |label, options|
+    layers.recover(InternetError, ServerError).each do |label, options|
       puts "Retrieving LPI imagery metadata for: #{label}"
       images_regions = case
       when options["image"]
         { options["image"] => options["region"] }
       when options["config"]
-        http_get(URI::HTTP.build(:host => params["host"], :path => options["config"]), "retries" => 5) do |response|
+        http_get(URI::HTTP.build(:host => params["host"], :path => options["config"])) do |response|
           vars, images = response.body.scan(/(.+)_ECWP_URL\s*?=\s*?.*"(.+)";/x).transpose
           regions = vars.map do |var|
             response.body.match(/#{var}_CLIP_REGION\s*?=\s*?\[(.+)\]/x) do |match|
@@ -651,9 +662,9 @@ class LPIOrthoService < TiledService
       otdf = options["otdf"]
       dll_path = otdf ? "/otdf/otdf.dll" : "/ImageX/ImageX.dll"
       uri = URI::HTTP.build(:host => params["host"], :path => dll_path, :query => "dsinfo?verbose=#{!otdf}&layers=#{images_regions.keys.join ?,}")
-      images_attributes = http_get(uri, "retries" => 5) do |response|
+      images_attributes = http_get(uri) do |response|
         xml = REXML::Document.new(response.body)
-        raise BadLayer.new(xml.elements["//Error"].text) if xml.elements["//Error"]
+        raise ServerError.new(xml.elements["//Error"].text) if xml.elements["//Error"]
         coordspace = xml.elements["/DSINFO/COORDSPACE"]
         meterfactor = (coordspace.attributes["meterfactor"] || 1).to_f
         xml.elements.collect(otdf ? "/DSINFO" : "/DSINFO/LAYERS/LAYER") do |layer|
@@ -704,11 +715,11 @@ class LPIOrthoService < TiledService
           end.inject(:+).with_progress.with_index.map do |(query, tile_bounds, resolutions), index|
             uri = URI::HTTP.build :host => params["host"], :path => dll_path, :query => URI.escape(query)
             tile_path = File.join(temp_dir, "tile.#{index}.#{format["type"]}")
-            http_get(uri, "retries" => 5) do |response|
+            http_get(uri) do |response|
               raise InternetError.new("no data received") if response.content_length.zero?
               begin
                 xml = REXML::Document.new(response.body)
-                raise BadLayer.new(xml.elements["//Error"] ? xml.elements["//Error"].text.gsub("\n", " ") : "unexpected response")
+                raise ServerError.new(xml.elements["//Error"] ? xml.elements["//Error"].text.gsub("\n", " ") : "unexpected response")
               rescue REXML::ParseException
               end
               File.open(tile_path, "wb") { |file| file << response.body }
@@ -758,7 +769,7 @@ class OneEarthDEMRelief < Service
         }.to_query
         uri = URI::HTTP.build :host => "onearth.jpl.nasa.gov", :path => "/wms.cgi", :query => URI.escape(query)
 
-        http_get(uri, "retries" => 5) do |response|
+        http_get(uri) do |response|
           File.open(tile_path, "wb") { |file| file << response.body }
           write_world_file([ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, 0, "#{tile_path}w")
           sleep params["interval"]
@@ -798,9 +809,8 @@ class OneEarthDEMRelief < Service
         FileUtils.mv(png_path, output_path)
       end
     end
-  rescue InternetError, BadLayer => e
-    puts
-    puts "Error: #{e.message}"
+  rescue InternetError => e
+    $stderr.puts "\nError: #{e.message}"
   end
 end
 
@@ -920,7 +930,7 @@ end
 
 class AnnotationService < Service
   def get(layers, all_layers, input_bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
-    layers.recover(InternetError, BadLayer).each do |label, options|
+    layers.recover(InternetError, BadLayerError).each do |label, options|
       puts "Creating: #{label}"
       Dir.mktmpdir do |temp_dir|
         png_path = File.join(temp_dir, "#{label}.png")
@@ -1012,7 +1022,7 @@ class ControlService < AnnotationService
       %Q[-fill black -draw "color 0,0 reset" -stroke white -strokewidth #{strokewidth} -pointsize #{fontsize} -family Wingdings #{string}]
     end
   rescue BadGpxKmlFile => e
-    raise BadLayer.new("Error: #{e.message} not a valid GPX or KML file")
+    raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
   end
 end
 
@@ -1081,6 +1091,7 @@ colours:
   building-areas: '#666667'
   restricted-areas: '#404041'
   cadastre: '#888889'
+  levees: '#333334'
   misc-perimeters: '#333334'
   excavation: '#333334'
   coastline: '#000001'
@@ -1208,9 +1219,10 @@ glow:
     gamma: 5.0
 ]
 )
-config["controls"]["file"] = "controls.gpx" if File.exists? "controls.gpx"
+config["controls"]["file"] ||= "controls.gpx" if File.exists? "controls.gpx"
 config = config.deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
 config["exclude"] = [ *config["exclude"] ]
+config["formats"].each(&:downcase!)
 {
   "utm" => [ /utm-.*/ ],
   "aerial" => [ /aerial-.*/ ],
@@ -1905,13 +1917,13 @@ services = {
       "scale" => 0.25,
       "line" => { 3 => { "width" => 2, "type" => "dot", "antialiasing" => false } }
     },
-    # "levees" => {
-    #   "group" => "lines8",
-    #   "from" => "DLSLine_1",
-    #   "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
-    #   "scale" => 0.4,
-    #   "hashline" => { 4 => { "width" => 6, "linethickness" => 1, "tickthickness" => 1, "interval" => 5 } },
-    # },
+    "levees" => {
+      "group" => "lines8",
+      "from" => "DLSLine_1",
+      "lookup" => "delivsdm:geodb.DLSLine.ClassSubtype",
+      "scale" => 0.4,
+      "hashline" => { 4 => { "width" => 6, "linethickness" => 1, "tickthickness" => 1, "interval" => 5 } },
+    },
     # "rock-lines" => {
     #   "group" => "lines8",
     #   "from" => "DLSLine_1",
@@ -2170,7 +2182,6 @@ unless formats_paths.empty?
       end
     end
     
-    puts "Preparing layers for composition"
     layers = %w[
       reference-topo
       aerial-google
@@ -2204,6 +2215,7 @@ unless formats_paths.empty?
       reef
       water-area-boundaries
       clifftops
+      levees
       misc-perimeters
       excavation
       coastline
@@ -2249,9 +2261,9 @@ unless formats_paths.empty?
       [ label, File.join(output_dir, "#{label}.png") ]
     end.select do |label, path|
       File.exists? path
-    end.reject do |label, path|
+    end.with_progress("Discarding empty layers").reject do |label, path|
       %x[convert -quiet "#{path}" -format "%[max]" info:].to_i == 0
-    end.with_progress.map do |label, path|
+    end.with_progress("Preparing layers for composition").map do |label, path|
       layer_path = File.join(temp_dir, "#{label}.tif")
       tile_path = File.join(temp_dir, "tile-#{label}.tif")
       colour = config["colours"][label]
@@ -2344,6 +2356,12 @@ MOP,Map Open Position,0,0
 IWH,Map Image Width/Height,#{dimensions.join ?,}
 ]
   end
+end
+
+([ "bmp", "png", "gif", "tif" ] & config["formats"]).each do |format|
+  format_world_file = "#{map_name}.#{format[0]}#{format[2]}w"
+  format_world_file_path = File.join(output_dir, format_world_file)
+  FileUtils.cp(world_file_path, format_world_file)
 end
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?

@@ -379,4 +379,4 @@ Release History
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
 * 21/12/2011: version 0.2: added map rotation; added specification of map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
 * 11/01/2012: version 0.3: misc. additions (e.g. lookouts, campgrounds, rock/pinnacle labels, etc); collected point markers into single layer; separated permanent and intermittent water layers; prevented label/feature overlap; decreased download times; removed unavailable ACT layers; added low-res reference topo.
-* HEAD: added ferry routes, mangroves, restricted areas, canals, breakwaters; added grid-style UTM labels; removed absolute path from OziExplorer .map file
+* HEAD: added ferry routes, mangroves, restricted areas, canals, breakwaters, levees; added grid-style UTM labels; removed absolute path from OziExplorer .map file

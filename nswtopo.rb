@@ -1088,7 +1088,7 @@ glow:
             divisor = interval % 1000 == 0 ? 1000 : 1
             square = (interval / scaling.metres_per_pixel).round
             margin = (0.04 * scaling.ppi).ceil
-            string = tick_coords[index].select do |coord|
+            label_coords = tick_coords[index].select do |coord|
               coord % (label_spacing * interval) == 0
             end.map do |coord|
               case params["labels"]["style"]
@@ -1101,7 +1101,8 @@ glow:
                   [ coord, perp_coord + 0.5 * interval ].send(index.zero? ? :to_a : :reverse)
                 end
               end
-            end.inject(:+).select do |coords|
+            end.inject(:+) || []
+            string = label_coords.select do |coords|
               zone_contains? coords
             end.map do |coords|
               [ pixel_for(coords, bounds, scaling), coords[index] ]
@@ -2399,5 +2400,4 @@ end
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
 # TODO: put long command lines into text file...
 
-# TODO: fix inject(:+) causing errors for empty arrays
 # TODO: fix shaded relief errors

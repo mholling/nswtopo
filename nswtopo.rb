@@ -22,6 +22,100 @@ require 'tmpdir'
 require 'yaml'
 require 'fileutils'
 require 'rbconfig'
+  
+class REXML::Element
+  alias_method :unadorned_add_element, :add_element
+  def add_element(name, attrs = {})
+    result = unadorned_add_element(name, attrs)
+    yield result if block_given?
+    result
+  end
+end
+
+module HashHelpers
+  def deep_merge(hash)
+    hash.inject(self.dup) do |result, (key, value)|
+      result.merge(key => result[key].is_a?(Hash) && value.is_a?(Hash) ? result[key].deep_merge(value) : value)
+    end
+  end
+
+  def to_query
+    map { |key, value| "#{key}=#{value}" }.join ?&
+  end
+end
+Hash.send :include, HashHelpers
+
+module Enumerable
+  def with_progress_interactive(message = nil)
+    puts message if message
+    bars, container, symbol = 70, "  [%s]", ?-
+    Enumerator.new do |yielder|
+      $stdout << container % (?\s * bars)
+      each_with_index do |object, index|
+        yielder << object
+        filled = (index + 1) * bars / length
+        content = (symbol * filled) << (?\s * (bars - filled))
+        $stdout << "\r" << container % content
+      end
+      puts
+    end
+  end
+  
+  def with_progress_scripted(message = nil)
+    puts message if message
+    Enumerator.new(self.each)
+  end
+  
+  alias_method :with_progress, File.identical?(__FILE__, $0) ? :with_progress_interactive : :with_progress_scripted
+
+  def recover(*exceptions)
+    Enumerator.new do |yielder|
+      each do |element|
+        begin
+          yielder.yield element
+        rescue *exceptions => e
+          $stderr.puts "\nError: #{e.message}"
+          next
+        end
+      end
+    end
+  end
+end
+
+class Array
+  def rotate_by(angle)
+    cos = Math::cos(angle)
+    sin = Math::sin(angle)
+    [ self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos ]
+  end
+
+  def rotate_by!(angle)
+    self[0], self[1] = rotate_by(angle)
+  end
+
+  def minus(other)
+    [ self, other ].transpose.map { |values| values.inject(:-) }
+  end
+
+  def dot(other)
+    [ self, other ].transpose.map { |values| values.inject(:*) }.inject(:+)
+  end
+
+  def norm
+    Math::sqrt(dot self)
+  end
+
+  def proj(other)
+    dot(other) / other.norm
+  end
+
+  def reproject(source_projection, target_projection)
+    case first
+    when Array then map { |point| point.reproject(source_projection, target_projection) }
+    else %x[echo #{join(' ')} | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"].split(" ")[0..1].map(&:to_f)
+    end
+  end
+end
 
 module NSWTopo
   EARTH_RADIUS = 6378137.0
@@ -31,95 +125,197 @@ module NSWTopo
   OP = WINDOWS ? '(' : '\('
   CP = WINDOWS ? ')' : '\)'
   
-  class REXML::Element
-    alias_method :unadorned_add_element, :add_element
-    def add_element(name, attrs = {})
-      result = unadorned_add_element(name, attrs)
-      yield result if block_given?
-      result
-    end
-  end
-
-  module HashHelpers
-    def deep_merge(hash)
-      hash.inject(self.dup) do |result, (key, value)|
-        result.merge(key => result[key].is_a?(Hash) && value.is_a?(Hash) ? result[key].deep_merge(value) : value)
-      end
-    end
+  CONFIG = %q[
+name: map
+scale: 25000
+ppi: 300
+rotation: 0
+margin: 15
+contours:
+  interval: 10
+  index: 100
+  labels: 50
+  source: 1
+declination:
+  spacing: 1000
+grid:
+  interval: 1000
+  labels:
+    style: grid
+    spacing: 5
+  fontsize: 7.8
+  family: Arial Narrow
+  weight: 200
+relief:
+  altitude: 45
+  azimuth:
+    - 315
+    - 45
+  exaggeration: 1
+controls:
+  family: Arial
+  fontsize: 14
+  weight: 200
+  diameter: 7.0
+  thickness: 0.2
+  waterdrop-size: 4.5
+formats:
+  - png
+  - layered.tif
+colours:
+  pine: '#009f00'
+  orchards-plantations: '#009f00'
+  built-up-areas: '#F8FF73'
+  contours: '#9c3026'
+  ancillary-contours: '#9c3026'
+  swamp-wet: '#00bdff'
+  swamp-dry: '#e3bf9a'
+  watercourses: '#0033ff'
+  ocean: '#9db1ff'
+  dams: '#0033ff'
+  water-tanks: '#9db1ff'
+  water-areas: '#9db1ff'
+  water-areas-intermittent: '#0033ff'
+  water-area-boundaries: '#0033ff'
+  water-area-boundaries-intermittent : '#0033ff'
+  reef: 'Cyan'
+  sand: '#ff6600'
+  intertidal: '#1b2e7b'
+  mangrove: '#87be8d'
+  inundation: '#00bdff'
+  cliffs: '#c6c6c7'
+  clifftops: '#ff00ba'
+  building-areas: '#666667'
+  restricted-areas: '#404041'
+  cadastre: '#888889'
+  levees: '#333334'
+  misc-perimeters: '#333334'
+  excavation: '#333334'
+  coastline: '#000001'
+  dam-batters: '#c6c6c7'
+  dam-walls: '#000001'
+  cableways: '#000001'
+  wharves-breakwaters: '#000001'
+  railways: '#000001'
+  bridges: '#000001'
+  culverts: '#6c211a'
+  floodways: '#0033ff'
+  pathways: '#000001'
+  tracks-4wd: '#e17c00'
+  tracks-vehicular: '#e17c00'
+  roads-unsealed: '#e17c00'
+  roads-sealed: 'Red'
+  ferry-routes: '#00197f'
+  pipelines-canals: '#00a6e5'
+  landing-grounds: '#333334'
+  transmission-lines: '#000001'
+  trig-points: '#000001'
+  buildings: '#000001'
+  markers: '#000001'
+  labels: '#000001'
+  waterdrops: '#0033ff'
+  control-circles: '#9e00c0'
+  control-labels: '#9e00c0'
+  declination: '#000001'
+  utm-54-grid: '#000001'
+  utm-54-eastings: '#000001'
+  utm-54-northings: '#000001'
+  utm-55-grid: '#000001'
+  utm-55-eastings: '#000001'
+  utm-55-northings: '#000001'
+  utm-56-grid: '#000001'
+  utm-56-eastings: '#000001'
+  utm-56-northings: '#000001'
+patterns:
+  pine:
+    00000000100000000000001111111111100000
+    00000000100000000000000000010000000000
+    00000001110000000000000000010000000000
+    00000001110000000000000000000000000000
+    00000011111000000000000000000000000000
+    00000011111000000000000000000000000000
+    00000111111100000000000000000000000000
+    00000111111100000000000000000000000000
+    00000000100000000000000000000000000000
+    00000001110000000000000000000000000000
+    00000011111000000000000000000000000000
+    00000111111100000000000000000000000000
+    00001111111110000000000000000000000000
+    00011111111111000000000000010000000000
+    00000000100000000000000000010000000000
+    00000000100000000000000000111000000000
+    00000000000000000000000000111000000000
+    00000000000000000000000001111100000000
+    00000000000000000000000001111100000000
+    00000000000000000000000011111110000000
+    00000000000000000000000011111110000000
+    00000000000000000000000000010000000000
+    00000000000000000000000000111000000000
+    00000000000000000000000001111100000000
+    00000000000000000000000011111110000000
+    00000000000000000000000111111111000000
+  water-areas-intermittent:
+    01,10,01,00,00,00
+    10,50,10,00,00,00
+    01,10,01,00,00,00
+    00,00,00,01,10,01
+    00,00,00,10,50,10
+    00,00,00,01,10,01
+  sand:
+    01,10,01,00,00,00
+    10,50,10,00,00,00
+    01,10,01,00,00,00
+    00,00,00,01,10,01
+    00,00,00,10,50,10
+    00,00,00,01,10,01
+  intertidal:
+    01,10,01,00,00,00
+    10,50,10,00,00,00
+    01,10,01,00,00,00
+    00,00,00,01,10,01
+    00,00,00,10,50,10
+    00,00,00,01,10,01
+  reef:
+    00000
+    00100
+    01110
+    00100
+    00000
+  orchards-plantations:
+    111110000
+    111110000
+    111110000
+    111110000
+    111110000
+    000000000
+    000000000
+    000000000
+    000000000
+  restricted-areas:
+    10
+    01
+glow:
+  labels: true
+  utm-54-eastings:
+    radius: 0.4
+    gamma: 5.0
+  utm-54-northings:
+    radius: 0.4
+    gamma: 5.0
+  utm-55-eastings:
+    radius: 0.4
+    gamma: 5.0
+  utm-55-northings:
+    radius: 0.4
+    gamma: 5.0
+  utm-56-eastings:
+    radius: 0.4
+    gamma: 5.0
+  utm-56-northings:
+    radius: 0.4
+    gamma: 5.0
+]
   
-    def to_query
-      map { |key, value| "#{key}=#{value}" }.join ?&
-    end
-  end
-  Hash.send :include, HashHelpers
-
-  module EnumerableHelpers
-    def with_progress(message = nil)
-      puts message if message
-      bars, container, symbol = 70, "  [%s]", ?-
-      Enumerator.new do |yielder|
-        $stdout << container % (?\s * bars)
-        each_with_index do |object, index|
-          yielder << object
-          filled = (index + 1) * bars / length
-          content = (symbol * filled) << (?\s * (bars - filled))
-          $stdout << "\r" << container % content
-        end
-        puts
-      end
-    end
-  
-    def recover(*exceptions)
-      Enumerator.new do |yielder|
-        each do |element|
-          begin
-            yielder.yield element
-          rescue *exceptions => e
-            $stderr.puts "\nError: #{e.message}"
-            next
-          end
-        end
-      end
-    end
-  end
-  [ Enumerator, Array, Hash ].each { |klass| klass.send :include, EnumerableHelpers }
-
-  module Vector2DMethods
-    def rotate_by(angle)
-      cos = Math::cos(angle)
-      sin = Math::sin(angle)
-      [ self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos ]
-    end
-  
-    def rotate_by!(angle)
-      self[0], self[1] = rotate_by(angle)
-    end
-  
-    def minus(other)
-      [ self, other ].transpose.map { |values| values.inject(:-) }
-    end
-  
-    def dot(other)
-      [ self, other ].transpose.map { |values| values.inject(:*) }.inject(:+)
-    end
-  
-    def norm
-      Math::sqrt(dot self)
-    end
-  
-    def proj(other)
-      dot(other) / other.norm
-    end
-  
-    def reproject(source_projection, target_projection)
-      case first
-      when Array then map { |point| point.reproject(source_projection, target_projection) }
-      else %x[echo #{join(' ')} | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"].split(" ")[0..1].map(&:to_f)
-      end
-    end
-  end
-  Array.send :include, Vector2DMethods
-
   module BoundingBox
     def self.convex_hull(points)
       seed = points.inject do |point, candidate|
@@ -209,12 +405,12 @@ module NSWTopo
       rescue *exceptions => e
         case
         when intervals.any?
-          puts "retrying: #{e.message}"
           sleep(intervals.shift) and retry
-        else
+        when File.identical?(__FILE__, $0)
           raise InternetError.new(e.message)
-          # $stderr.puts "Error: #{e.message}"
-          # sleep(60) and retry
+        else
+          $stderr.puts "Error: #{e.message}"
+          sleep(60) and retry
         end
       end
     end
@@ -1042,198 +1238,8 @@ module NSWTopo
     end
   end
   
-  CONFIG = %q[
-name: map
-scale: 25000
-ppi: 300
-rotation: 0
-margin: 15
-contours:
-  interval: 10
-  index: 100
-  labels: 50
-  source: 1
-declination:
-  spacing: 1000
-grid:
-  interval: 1000
-  labels:
-    style: grid
-    spacing: 5
-  fontsize: 7.8
-  family: Arial Narrow
-  weight: 200
-relief:
-  altitude: 45
-  azimuth:
-    - 315
-    - 45
-  exaggeration: 1
-controls:
-  family: Arial
-  fontsize: 14
-  weight: 200
-  diameter: 7.0
-  thickness: 0.2
-  waterdrop-size: 4.5
-formats:
-  - png
-  - layered.tif
-colours:
-  pine: '#009f00'
-  orchards-plantations: '#009f00'
-  built-up-areas: '#F8FF73'
-  contours: '#9c3026'
-  ancillary-contours: '#9c3026'
-  swamp-wet: '#00bdff'
-  swamp-dry: '#e3bf9a'
-  watercourses: '#0033ff'
-  ocean: '#9db1ff'
-  dams: '#0033ff'
-  water-tanks: '#9db1ff'
-  water-areas: '#9db1ff'
-  water-areas-intermittent: '#0033ff'
-  water-area-boundaries: '#0033ff'
-  water-area-boundaries-intermittent : '#0033ff'
-  reef: 'Cyan'
-  sand: '#ff6600'
-  intertidal: '#1b2e7b'
-  mangrove: '#87be8d'
-  inundation: '#00bdff'
-  cliffs: '#c6c6c7'
-  clifftops: '#ff00ba'
-  building-areas: '#666667'
-  restricted-areas: '#404041'
-  cadastre: '#888889'
-  levees: '#333334'
-  misc-perimeters: '#333334'
-  excavation: '#333334'
-  coastline: '#000001'
-  dam-batters: '#c6c6c7'
-  dam-walls: '#000001'
-  cableways: '#000001'
-  wharves-breakwaters: '#000001'
-  railways: '#000001'
-  bridges: '#000001'
-  culverts: '#6c211a'
-  floodways: '#0033ff'
-  pathways: '#000001'
-  tracks-4wd: '#e17c00'
-  tracks-vehicular: '#e17c00'
-  roads-unsealed: '#e17c00'
-  roads-sealed: 'Red'
-  ferry-routes: '#00197f'
-  pipelines-canals: '#00a6e5'
-  landing-grounds: '#333334'
-  transmission-lines: '#000001'
-  trig-points: '#000001'
-  buildings: '#000001'
-  markers: '#000001'
-  labels: '#000001'
-  waterdrops: '#0033ff'
-  control-circles: '#9e00c0'
-  control-labels: '#9e00c0'
-  declination: '#000001'
-  utm-54-grid: '#000001'
-  utm-54-eastings: '#000001'
-  utm-54-northings: '#000001'
-  utm-55-grid: '#000001'
-  utm-55-eastings: '#000001'
-  utm-55-northings: '#000001'
-  utm-56-grid: '#000001'
-  utm-56-eastings: '#000001'
-  utm-56-northings: '#000001'
-patterns:
-  pine:
-    00000000100000000000001111111111100000
-    00000000100000000000000000010000000000
-    00000001110000000000000000010000000000
-    00000001110000000000000000000000000000
-    00000011111000000000000000000000000000
-    00000011111000000000000000000000000000
-    00000111111100000000000000000000000000
-    00000111111100000000000000000000000000
-    00000000100000000000000000000000000000
-    00000001110000000000000000000000000000
-    00000011111000000000000000000000000000
-    00000111111100000000000000000000000000
-    00001111111110000000000000000000000000
-    00011111111111000000000000010000000000
-    00000000100000000000000000010000000000
-    00000000100000000000000000111000000000
-    00000000000000000000000000111000000000
-    00000000000000000000000001111100000000
-    00000000000000000000000001111100000000
-    00000000000000000000000011111110000000
-    00000000000000000000000011111110000000
-    00000000000000000000000000010000000000
-    00000000000000000000000000111000000000
-    00000000000000000000000001111100000000
-    00000000000000000000000011111110000000
-    00000000000000000000000111111111000000
-  water-areas-intermittent:
-    01,10,01,00,00,00
-    10,50,10,00,00,00
-    01,10,01,00,00,00
-    00,00,00,01,10,01
-    00,00,00,10,50,10
-    00,00,00,01,10,01
-  sand:
-    01,10,01,00,00,00
-    10,50,10,00,00,00
-    01,10,01,00,00,00
-    00,00,00,01,10,01
-    00,00,00,10,50,10
-    00,00,00,01,10,01
-  intertidal:
-    01,10,01,00,00,00
-    10,50,10,00,00,00
-    01,10,01,00,00,00
-    00,00,00,01,10,01
-    00,00,00,10,50,10
-    00,00,00,01,10,01
-  reef:
-    00000
-    00100
-    01110
-    00100
-    00000
-  orchards-plantations:
-    111110000
-    111110000
-    111110000
-    111110000
-    111110000
-    000000000
-    000000000
-    000000000
-    000000000
-  restricted-areas:
-    10
-    01
-glow:
-  labels: true
-  utm-54-eastings:
-    radius: 0.4
-    gamma: 5.0
-  utm-54-northings:
-    radius: 0.4
-    gamma: 5.0
-  utm-55-eastings:
-    radius: 0.4
-    gamma: 5.0
-  utm-55-northings:
-    radius: 0.4
-    gamma: 5.0
-  utm-56-eastings:
-    radius: 0.4
-    gamma: 5.0
-  utm-56-northings:
-    radius: 0.4
-    gamma: 5.0
-]
-  
-  def self.run(output_dir)
+  def self.run
+    output_dir = Dir.pwd
     config = YAML.load(CONFIG)
     config["controls"]["file"] ||= "controls.gpx" if File.exists?(File.join(output_dir, "controls.gpx"))
     config = config.deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
@@ -1291,7 +1297,7 @@ glow:
       puts "Calculating map bounds..."
       bounding_points = wgs84_points.reproject(WGS84, projection)
       if config["rotation"] == "auto"
-        centre, extents, rotation = minimum_bounding_box(bounding_points)
+        centre, extents, rotation = BoundingBox.minimum_bounding_box(bounding_points)
         rotation *= 180.0 / Math::PI
       else
         rotation = config["rotation"]
@@ -2382,12 +2388,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
 end
 
+Signal.trap("INT") do
+  abort "\nHalting execution. Run the script again to resume."
+end
+
 if File.identical?(__FILE__, $0)
-  Signal.trap("INT") do
-    abort "\nHalting execution. Run the script again to resume."
-  end
-  NSWTopo.run(Dir.pwd)
+  NSWTopo.run
 end
 
 # TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
 # TODO: put long command lines into text file...
+
+# TODO: fix inject(:+) causing errors for empty arrays
+# TODO: fix shaded relief errors

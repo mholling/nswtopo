@@ -265,10 +265,11 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * water-tanks: water tanks, represented as light blue circles
 * ocean: ocean areas, in light blue
 * coastline: ocean boundary, in black
-* roads-sealed: sealed roads, represented as red lines with thicker lines for distributor and arterial roads
+* roads-sealed: sealed roads, represented as light red lines, thicker for distributor and arterial roads
 * roads-unsealed: unsealed roads, represented as orange lines
 * tracks-vehicular: unsealed vehicular tracks, represented as orange dashed lines
-* tracks-4wd: 4wd tracks, represented as smaller  orange dashed lines
+* tracks-4wd: 4wd tracks, represented as smaller orange dashed lines
+* road-track-outlines: thin outline of all roads and tracks, in dark grey
 * pathways: various walking tracks, represented as thinner black dashed lines
 * ferry-routes: vehicular and pedestrian ferries, as dashed dark blue lines
 * bridges: road and train bridges, in black
@@ -379,4 +380,4 @@ Release History
   * 14/12/2011: version 0.1.2: reworked UTM grid to display correctly across zone boundaries
 * 21/12/2011: version 0.2: added map rotation; added specification of map bounds via gpx/kml file; added ability to auto-rotate map to minimise area.
 * 11/01/2012: version 0.3: misc. additions (e.g. lookouts, campgrounds, rock/pinnacle labels, etc); collected point markers into single layer; separated permanent and intermittent water layers; prevented label/feature overlap; decreased download times; removed unavailable ACT layers; added low-res reference topo.
-* HEAD: added ferry routes, mangroves, restricted areas, canals, breakwaters, levees; added grid-style UTM labels; removed absolute path from OziExplorer .map file
+* 2/2/2012: version 0.4: added ferry routes, mangroves, restricted areas, canals, breakwaters, levees, road outlines; tweaked road & track colours; added grid-style UTM labels; removed absolute path from OziExplorer .map file; fixed bug wherein resolution tags in some output images were incorrectly set.

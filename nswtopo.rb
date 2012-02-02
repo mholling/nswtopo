@@ -201,10 +201,11 @@ colours:
   culverts: '#6c211a'
   floodways: '#0033ff'
   pathways: '#000001'
-  tracks-4wd: '#e17c00'
-  tracks-vehicular: '#e17c00'
-  roads-unsealed: '#e17c00'
-  roads-sealed: 'Red'
+  road-track-outlines: '#333334'
+  tracks-4wd: 'OrangeRed'
+  tracks-vehicular: 'OrangeRed'
+  roads-unsealed: 'Orange'
+  roads-sealed: 'DeepPink'
   ferry-routes: '#00197f'
   pipelines-canals: '#00a6e5'
   landing-grounds: '#333334'
@@ -731,7 +732,7 @@ glow:
                 sequence = dataset.map do |tile_bounds, tile_path|
                   %Q[#{OP} "#{tile_path}" #{CP}]
                 end.join " "
-                %x[convert #{sequence} -layers mosaic -format png -define png:color-type=2 "#{png_path}"]
+                %x[convert #{sequence} -layers mosaic -units PixelsPerInch -density #{scaling.ppi} -format png -define png:color-type=2 "#{png_path}"]
               else
                 tile_paths = dataset.map do |tile_bounds, tile_path|
                   WorldFile.write([ tile_bounds.first.first, tile_bounds.last.last ], scaling.metres_per_pixel, 0, "#{tile_path}w")
@@ -1250,7 +1251,6 @@ glow:
       "utm" => [ /utm-.*/ ],
       "aerial" => [ /aerial-.*/ ],
       "coastal" => %w{ocean reef intertidal mangrove coastline wharves-breakwaters},
-      "act-extras" => %w{act-rivers-and-creeks act-urban-land act-lakes-and-major-rivers act-plantations act-roads-sealed act-roads-unsealed act-vehicular-tracks act-adhoc-fire-access},
       "relief" => [ "elevation", /shaded-relief-.*/ ]
     }.each do |shortcut, layers|
       config["exclude"] += layers if config["exclude"].delete(shortcut)
@@ -1711,34 +1711,90 @@ glow:
           "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
           "line" => { 9 => { "width" => 2, "type" => "dash", "captype" => "round" } },
         },
+        "road-track-outlines" => [
+          {
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "(Surface = 2 OR Surface = 3 OR Surface = 4) AND ClassSubtype != 8",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => { 8 => { "width" => 4, "captype" => "round" } },
+          },
+          {
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "(Surface = 0 OR Surface = 1 OR Surface = 2) AND ClassSubtype != 8 AND RoadOnType != 3",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => {
+              "1;2;3" => { "width" => 8, "captype" => "round" },
+              "4;5"   => { "width" => 6, "captype" => "round" },
+              "6"     => { "width" => 4, "captype" => "round" },
+              "7"     => { "width" => 3, "captype" => "round" }
+            }
+          },
+          {
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "(Surface = 2 OR Surface = 3 OR Surface = 4) AND ClassSubtype != 8",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => { 8 => { "width" => 3, "captype" => "round" } },
+            "erase" => true,
+          },
+          {
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "(Surface = 0 OR Surface = 1 OR Surface = 2) AND ClassSubtype != 8 AND RoadOnType != 3",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => {
+              "1;2;3" => { "width" => 7, "captype" => "round" },
+              "4;5"   => { "width" => 5, "captype" => "round" },
+              "6"     => { "width" => 3, "captype" => "round" },
+              "7"     => { "width" => 2, "captype" => "round" }
+            },
+            "erase" => true,
+          },
+        ],
         "tracks-4wd" => {
-          "group" => "lines1",
-          "scale" => 0.4,
+          "scale" => 0.3,
           "from" => "RoadSegment_1",
-          "where" => "Surface = 3 OR Surface = 4",
+          "where" => "(Surface = 3 OR Surface = 4) AND ClassSubtype != 8",
           "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-          "line" => { 8 => { "width" => 2, "type" => "dash", "captype" => "round" } },
+          "line" => { 8 => { "width" => 4, "type" => "dash", "captype" => "round" } },
         },
         "tracks-vehicular" => {
           "scale" => 0.6,
           "from" => "RoadSegment_1",
-          "where" => "Surface = 2",
+          "where" => "Surface = 2 AND ClassSubtype != 8",
           "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
           "line" => { 8 => { "width" => 2, "type" => "dash", "captype" => "round" } },
         },
-        "roads-unsealed" => {
-          "group" => "lines1",
-          "scale" => 0.4,
-          "from" => "RoadSegment_1",
-          "where" => "Surface = 2",
-          "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-          "line" => {
-            "1;2;3" => { "width" => 7, "captype" => "round" },
-            "4;5"   => { "width" => 5, "captype" => "round" },
-            "6"     => { "width" => 3, "captype" => "round" },
-            "7"     => { "width" => 2, "captype" => "round" }
-          }
-        },
+        "roads-unsealed" => [
+          { # above ground
+            "group" => "lines1",
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "Surface = 2 AND ClassSubtype != 8 AND RoadOnType != 3",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => {
+              "1;2;3" => { "width" => 7, "captype" => "round" },
+              "4;5"   => { "width" => 5, "captype" => "round" },
+              "6"     => { "width" => 3, "captype" => "round" },
+              "7"     => { "width" => 2, "captype" => "round" }
+            }
+          },
+          { # in tunnel
+            "group" => "lines1",
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "Surface = 2 AND ClassSubtype != 8 AND RoadOnType = 3",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => {
+              "1;2;3" => { "width" => 4, "captype" => "round", "type" => "dash" },
+              "4;5"   => { "width" => 3, "captype" => "round", "type" => "dash" },
+              "6"     => { "width" => 2, "captype" => "round", "type" => "dash" },
+              "7"     => { "width" => 1, "captype" => "round", "type" => "dash" }
+            }
+          },
+        ],
         "roads-sealed" => [
           { # above ground
             "group" => "lines1",
@@ -2252,6 +2308,7 @@ glow:
           tracks-vehicular
           roads-unsealed
           roads-sealed
+          road-track-outlines
           ferry-routes
           bridges
           culverts
@@ -2397,7 +2454,5 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: access missing content (FuzzyExtentPoint, SpotHeight, AncillaryHydroPoint, PointOfInterest, RelativeHeight, ClassifiedFireTrail, PlacePoint, PlaceArea) via workspace name?
+# TODO: missing content: FuzzyExtentPoint, FuzzyExtentWaterLine, AncillaryHydroPoint, SpotHeight, RelativeHeight, PointOfInterest, ClassifiedFireTrail, PlacePoint, PlaceArea
 # TODO: put long command lines into text file...
-
-# TODO: fix shaded relief errors

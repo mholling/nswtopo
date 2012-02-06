@@ -732,7 +732,7 @@ glow:
                 sequence = dataset.map do |tile_bounds, tile_path|
                   %Q[#{OP} "#{tile_path}" #{CP}]
                 end.join " "
-                %x[convert #{sequence} -layers mosaic -units PixelsPerInch -density #{scaling.ppi} -format png -define png:color-type=2 "#{png_path}"]
+                %x[convert #{sequence} -layers mosaic -units PixelsPerInch -density #{scaling.ppi} "#{png_path}"]
               else
                 tile_paths = dataset.map do |tile_bounds, tile_path|
                   WorldFile.write([ tile_bounds.first.first, tile_bounds.last.last ], scaling.metres_per_pixel, 0, "#{tile_path}w")
@@ -1018,7 +1018,7 @@ glow:
             %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
           end
           %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
-          %x[convert "#{tif_path}" -quiet -type TrueColor -depth 8 -define png:color-type=2 "#{png_path}"]
+          %x[convert "#{tif_path}" -quiet -type TrueColor -depth 8 "#{png_path}"]
           FileUtils.mv(png_path, output_path)
         end
       end
@@ -1726,7 +1726,7 @@ glow:
             "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
             "line" => {
               "1;2;3" => { "width" => 8, "captype" => "round" },
-              "4;5"   => { "width" => 6, "captype" => "round" },
+              "4;5"   => { "width" => 7, "captype" => "round" },
               "6"     => { "width" => 4, "captype" => "round" },
               "7"     => { "width" => 3, "captype" => "round" }
             }
@@ -2159,6 +2159,13 @@ glow:
           "lookup" => "delivsdm:geodb.SurveyMark.ClassSubtype",
           "truetypemarker" => { 1 => { "font" => "ESRI Surveyor", "fontsize" => 9, "character" => 58 } }
         },
+        # "town-labels" => {
+        #   "from" => "Town_Label_1",
+        #   "label" => { "field" => "NAME", "labelpriorities" => "2,1,2,2,2,1,2,2" },
+        #   # "lookup" => "POP_1996",
+        #   # "text" => { 1 => { "fontsize" => 5.5, "printmode" => "titlecaps" } }
+        #   "text" => { "fontsize" => 12, "printmode" => "allupper" },
+        # },
       },
       declination_service => {
         "declination" => { }

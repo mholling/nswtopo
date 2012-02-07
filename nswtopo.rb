@@ -1240,6 +1240,145 @@ glow:
     end
   end
   
+  module KMZ
+    TILE_SIZE = 9
+    
+    def self.lat_lon_box(bounds)
+      lambda do |box|
+        [ %w[west east south north], bounds.flatten ].transpose.each do |limit, value|
+          box.add_element(limit) { |lim| lim.text = value }
+        end
+      end
+    end
+    
+    def self.region(bounds)
+      lambda do |region|
+        region.add_element("Lod") do |lod|
+          lod.add_element("minLodPixels") { |min| min.text = 1 << (TILE_SIZE - 1) }
+          lod.add_element("maxLodPixels") { |max| max.text = -1 }
+        end
+        region.add_element("LatLonAltBox", &lat_lon_box(bounds))
+      end
+    end
+    
+    def self.build(map_name, bounds, projection, scaling, image_path, kmz_path)
+      wgs84_bounds = Bounds.transform(projection, WGS84, bounds)
+      degrees_per_pixel = 180.0 * scaling.metres_per_pixel / Math::PI / EARTH_RADIUS
+      dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel }
+      max_zoom = Math::log2(dimensions.max).ceil - TILE_SIZE
+      Dir.mktmpdir do |temp_dir|
+        blank_tile_path = File.join(temp_dir, "blank.tif")
+        %x[convert -size #{1 << TILE_SIZE}x#{1 << TILE_SIZE} canvas:none -type TrueColor -depth 8 "#{blank_tile_path}"]
+        
+        topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
+        pyramid = 0.upto(max_zoom).map do |zoom|
+          resolution = degrees_per_pixel * 2**(max_zoom - zoom)
+          degrees_per_tile = resolution * 2**TILE_SIZE
+          counts = wgs84_bounds.map { |bound| (bound.reverse.inject(:-) / degrees_per_tile).ceil }
+          indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
+            boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
+            [ boundaries[0..-2], boundaries[1..-1] ].transpose.map(&:sort)
+          end.map do |tile_bounds|
+            tile_bounds.each.with_index.to_a
+          end.inject(:product).map(&:transpose).map do |tile_bounds, indices|
+            { indices => tile_bounds }
+          end.inject(:merge)
+          { zoom => indices_bounds }
+        end.inject(:merge)
+        
+        kmz_dir = File.join(temp_dir, map_name)
+        Dir.mkdir(kmz_dir)
+        
+        pyramid.each do |zoom, indices_bounds|
+          zoom_dir = File.join(kmz_dir, zoom.to_s)
+          Dir.mkdir(zoom_dir)
+          resolution = degrees_per_pixel * 2**(max_zoom - zoom)
+          
+          indices_bounds.map do |indices, tile_bounds|
+            index_dir = File.join(zoom_dir, indices.first.to_s)
+            Dir.mkdir(index_dir) unless Dir.exists?(index_dir)
+            tile_tfw_path = File.join(temp_dir, "tile.tfw")
+            tile_tif_path = File.join(temp_dir, "tile.tif")
+            tile_kml_path = File.join(index_dir, "#{indices.last}.kml")
+            tile_png_path = File.join(index_dir, "#{indices.last}.png")
+            
+            topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
+            WorldFile.write(topleft, resolution, 0, tile_tfw_path)
+            FileUtils.cp(blank_tile_path, tile_tif_path)
+            %x[gdalwarp -s_srs "#{projection}" -t_srs "#{WGS84}" -r bilinear "#{image_path}" "#{tile_tif_path}"]
+            %x[convert "#{tile_tif_path}" -quiet "#{tile_png_path}"]
+            
+            xml = REXML::Document.new
+            xml << REXML::XMLDecl.new(1.0, "UTF-8")
+            xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
+              kml.add_element("Document") do |document|
+                document.add_element("Style") do |style|
+                  style.add_element("ListStyle", "id" => "hideChildren") do |list_style|
+                    list_style.add_element("listItemType") { |type| type.text = "checkHideChildren" }
+                  end
+                end
+                document.add_element("Region", &region(tile_bounds))
+                document.add_element("GroundOverlay") do |overlay|
+                  overlay.add_element("drawOrder") { |draw_order| draw_order.text = zoom }
+                  overlay.add_element("Icon") do |icon|
+                    icon.add_element("href") { |href| href.text = "#{indices.last}.png" }
+                  end
+                  overlay.add_element("LatLonBox", &lat_lon_box(tile_bounds))
+                end
+                unless zoom == max_zoom
+                  indices.map do |index|
+                    [ 2 * index, 2 * index + 1 ]
+                  end.inject(:product).select do |subindices|
+                    pyramid[zoom + 1][subindices]
+                  end.map do |subindices|
+                    subbounds = pyramid[zoom + 1][subindices]
+                    document.add_element("NetworkLink") do |network|
+                      network.add_element("Region", &region(subbounds))
+                      network.add_element("Link") do |link|
+                        link.add_element("href") { |href| href.text = "../../#{[ zoom+1, *subindices ].join ?/}.kml" }
+                        link.add_element("viewRefreshMode") { |mode| mode.text = "onRegion" }
+                        link.add_element("viewFormat")
+                      end
+                    end
+                  end
+                end
+              end
+            end
+            File.open(tile_kml_path, "w") { |file| file << xml }
+          end
+        end
+        
+        xml = REXML::Document.new
+        xml << REXML::XMLDecl.new(1.0, "UTF-8")
+        xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
+          kml.add_element("Document") do |document|
+            document.add_element("Name") { |name| name.text = map_name }
+            document.add_element("Style") do |style|
+              style.add_element("ListStyle", "id" => "hideChildren") do |list_style|
+                list_style.add_element("listItemType") { |type| type.text = "checkHideChildren" }
+              end
+            end
+            document.add_element("NetworkLink") do |network|
+              network.add_element("Region", &region(pyramid[0][[0,0]]))
+              network.add_element("Link") do |link|
+                link.add_element("href") { |href| href.text = "0/0/0.kml" }
+                link.add_element("viewRefreshMode") { |mode| mode.text = "onRegion" }
+                link.add_element("viewFormat")
+              end
+            end
+          end
+        end
+        
+        kml_path = File.join(kmz_dir, "doc.kml")
+        File.open(kml_path, "w") { |file| file << xml }
+        
+        temp_kmz_path = File.join(temp_dir, "#{map_name}.kmz")
+        Dir.chdir(kmz_dir) { %x[zip -r "#{temp_kmz_path}" *] }
+        FileUtils.mv(temp_kmz_path, kmz_path)
+      end
+    end
+  end
+  
   def self.run
     output_dir = Dir.pwd
     config = YAML.load(CONFIG)
@@ -2384,17 +2523,26 @@ glow:
         end
     
         formats_paths.each do |format, path|
-          temp_path = File.join(temp_dir, "composite.#{format}")
           puts "Compositing #{map_name}.#{format}"
           sequence = case format.downcase
           when "psd" then "#{flattened} #{layered}"
           when /layer/ then layered
           else "#{flattened} -type TrueColor"
           end
-          %x[convert -quiet #{sequence} "#{temp_path}"]
-          if format[/tif/i]
+          case format.downcase
+          when /tif/
+            temp_path = File.join(temp_dir, "composite.#{format}")
+            %x[convert -quiet #{sequence} "#{temp_path}"]
             %x[geotifcp -e "#{world_file_path}" -4 "#{projection}" "#{temp_path}" "#{path}"]
+          when "kmz"
+            tif_path = File.join(temp_dir, "composite.tif")
+            tfw_path = File.join(temp_dir, "composite.tfw")
+            %x[convert -quiet #{sequence} "#{tif_path}"]
+            FileUtils.cp(world_file_path, tfw_path)
+            KMZ.build(map_name, bounds, projection, scaling, tif_path, path)
           else
+            temp_path = File.join(temp_dir, "composite.#{format}")
+            %x[convert -quiet #{sequence} "#{temp_path}"]
             FileUtils.mv(temp_path, path)
           end
         end

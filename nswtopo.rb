@@ -2211,7 +2211,7 @@ glow:
     puts "  %.1f megapixels (%i x %i)" % [ 0.000001 * dimensions.inject(:*), *dimensions ]
 
     services.each do |service, all_layers|
-      all_layers.reject! { |label, options| config["exclude"].any? { |matcher| label[matcher] } }
+      all_layers.reject! { |label, options| config["exclude"].any? { |matcher| matcher.is_a?(String) ? label == matcher : label =~ matcher } }
       layers = all_layers.reject { |label, options| File.exists?(File.join(output_dir, "#{label}.png")) }
       service.get(layers, all_layers, bounds, projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
     end
@@ -2343,7 +2343,7 @@ glow:
           utm-56-eastings
           utm-56-northings
         ].reject do |label|
-          config["exclude"].any? { |matcher| label[matcher] }
+          config["exclude"].any? { |matcher| matcher.is_a?(String) ? label == matcher : label =~ matcher }
         end.map do |label|
           [ label, File.join(output_dir, "#{label}.png") ]
         end.select do |label, path|

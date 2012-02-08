@@ -1242,6 +1242,7 @@ glow:
   
   module KMZ
     TILE_SIZE = 9 # 512 x 512 tiles
+    TILE_FORMAT = "gif"
     
     def self.style
       lambda do |style|
@@ -1316,13 +1317,13 @@ glow:
             tile_tfw_path = File.join(temp_dir, "tile.tfw")
             tile_tif_path = File.join(temp_dir, "tile.tif")
             tile_kml_path = File.join(index_dir, "#{indices.last}.kml")
-            tile_png_path = File.join(index_dir, "#{indices.last}.png")
+            tile_img_path = File.join(index_dir, "#{indices.last}.#{TILE_FORMAT}")
             
             topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
             WorldFile.write(topleft, resolution, 0, tile_tfw_path)
             %x[convert -size #{1 << TILE_SIZE}x#{1 << TILE_SIZE} canvas:none -type TrueColorMatte -depth 8 "#{tile_tif_path}"]
-            %x[gdalwarp -s_srs "#{projection}" -t_srs "#{WGS84}" -r bilinear -dstalpha "#{image_path}" "#{tile_tif_path}"]
-            %x[convert "#{tile_tif_path}" -quiet "#{tile_png_path}"]
+            %x[gdalwarp -s_srs "#{projection}" -t_srs "#{WGS84}" -r near -dstalpha "#{image_path}" "#{tile_tif_path}"]
+            %x[convert "#{tile_tif_path}" -quiet "#{tile_img_path}"]
             
             xml = REXML::Document.new
             xml << REXML::XMLDecl.new(1.0, "UTF-8")
@@ -1333,7 +1334,7 @@ glow:
                 document.add_element("GroundOverlay") do |overlay|
                   overlay.add_element("drawOrder") { |draw_order| draw_order.text = zoom }
                   overlay.add_element("Icon") do |icon|
-                    icon.add_element("href") { |href| href.text = "#{indices.last}.png" }
+                    icon.add_element("href") { |href| href.text = "#{indices.last}.#{TILE_FORMAT}" }
                   end
                   overlay.add_element("LatLonBox", &lat_lon_box(tile_bounds))
                 end

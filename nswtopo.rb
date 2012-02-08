@@ -2346,14 +2346,23 @@ glow:
       layers = all_layers.reject { |label, options| File.exists?(File.join(output_dir, "#{label}.png")) }
       service.get(layers, all_layers, bounds, projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
     end
-
-    formats_paths = config["formats"].map do |format|
-      [ format, File.join(output_dir, "#{map_name}.#{format}") ]
-    end.reject do |format, path|
-      File.exists? path
+    
+    formats = [ "png", *config["formats"] ].uniq.reject do |format|
+      File.exists? File.join(output_dir, "#{map_name}.#{format}")
     end
-    unless formats_paths.empty?
-      Dir.mktmpdir do |temp_dir|
+    
+    (%w[bmp png gif tif jpg] & formats).each do |format|
+      format_world_file_path = File.join(output_dir, "#{map_name}.#{format[0]}#{format[2]}w")
+      FileUtils.cp(world_file_path, format_world_file_path)
+    end
+    
+    basic_formats = formats & %w[png psd layered.tif]
+    derived_formats = formats - basic_formats
+    
+    png_path = File.join(output_dir, "#{map_name}.png")
+    
+    Dir.mktmpdir do |temp_dir|
+      unless basic_formats.empty?
         puts "Generating patterns"
 
         swamp = %w[
@@ -2513,35 +2522,46 @@ glow:
             %Q[#{OP} "#{layer_path}" -set label #{label} #{CP}#{compose}]
           end.join " "
         end
-    
-        formats_paths.each do |format, path|
+        
+        basic_formats.each do |format|
           puts "Compositing #{map_name}.#{format}"
-          sequence = case format.downcase
-          when "psd" then "#{flattened} #{layered}"
-          when /layer/ then layered
-          else "#{flattened} -type TrueColor"
-          end
-          case format.downcase
-          when /tif/
-            temp_path = File.join(temp_dir, "composite.#{format}")
-            %x[convert -quiet #{sequence} "#{temp_path}"]
-            %x[geotifcp -e "#{world_file_path}" -4 "#{projection}" "#{temp_path}" "#{path}"]
-          when "kmz"
-            tif_path = File.join(temp_dir, "composite.tif")
-            tfw_path = File.join(temp_dir, "composite.tfw")
-            %x[convert -quiet #{sequence} "#{tif_path}"]
-            FileUtils.cp(world_file_path, tfw_path)
-            KMZ.build(map_name, bounds, projection, scaling, tif_path, path)
-          else
-            temp_path = File.join(temp_dir, "composite.#{format}")
-            %x[convert -quiet #{sequence} "#{temp_path}"]
-            FileUtils.mv(temp_path, path)
+          output_path = File.join(output_dir, "#{map_name}.#{format}")
+          temp_path = File.join(temp_dir, "#{map_name}.#{format}")
+          
+          case format
+          when "png"
+            %x[convert -quiet #{flattened} -type TrueColor "#{temp_path}"]
+            FileUtils.mv(temp_path, output_path)
+          when "psd"
+            %x[convert -quiet "#{png_path}" #{layered} "#{temp_path}"]
+            FileUtils.mv(temp_path, output_path)
+          when "layered.tif"
+            %x[convert #{layered} "#{temp_path}"]
+            %x[geotifcp -e "#{world_file_path}" -4 "#{projection}" "#{temp_path}" "#{output_path}"]
           end
         end
       end
+      
+      derived_formats.each do |format|
+        puts "Compositing #{map_name}.#{format}"
+        output_path = File.join(output_dir, "#{map_name}.#{format}")
+        temp_path = File.join(temp_dir, "#{map_name}.#{format}")
+        
+        case format
+        when "tif"
+          %x[convert "#{png_path}" "#{temp_path}"]
+          %x[geotifcp -e "#{world_file_path}" -4 "#{projection}" "#{temp_path}" "#{output_path}"]
+        when "kmz"
+          KMZ.build(map_name, bounds, projection, scaling, png_path, temp_path)
+          FileUtils.mv(temp_path, output_path)
+        else
+          %x[convert "#{png_path}" "#{temp_path}"]
+          FileUtils.mv(temp_path, output_path)
+        end
+      end
     end
-
-    oziexplorer_formats = [ "bmp", "png", "gif" ] & config["formats"]
+    
+    oziexplorer_formats = %w[bmp png gif] & formats
     unless oziexplorer_formats.empty?
       oziexplorer_path = File.join(output_dir, "#{map_name}.map")
       image_file = "#{map_name}.#{oziexplorer_formats.first}"
@@ -2583,12 +2603,6 @@ MOP,Map Open Position,0,0
 IWH,Map Image Width/Height,#{dimensions.join ?,}
 ]
       end
-    end
-
-    ([ "bmp", "png", "gif", "tif" ] & config["formats"]).each do |format|
-      format_world_file = "#{map_name}.#{format[0]}#{format[2]}w"
-      format_world_file_path = File.join(output_dir, format_world_file)
-      FileUtils.cp(world_file_path, format_world_file)
     end
   end
 end

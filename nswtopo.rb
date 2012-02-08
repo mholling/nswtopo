@@ -124,6 +124,7 @@ module NSWTopo
   WINDOWS = !RbConfig::CONFIG["host_os"][/mswin|mingw/].nil?
   OP = WINDOWS ? '(' : '\('
   CP = WINDOWS ? ')' : '\)'
+  ZIP = WINDOWS ? "7z a -tzip" : "zip"
   
   CONFIG = %q[
 name: map
@@ -201,11 +202,11 @@ colours:
   culverts: '#6c211a'
   floodways: '#0033ff'
   pathways: '#000001'
-  road-track-outlines: '#333334'
-  tracks-4wd: 'OrangeRed'
-  tracks-vehicular: 'OrangeRed'
-  roads-unsealed: 'Orange'
-  roads-sealed: 'DeepPink'
+  road-track-outlines: Red
+  tracks-vehicular: Orange
+  tracks-4wd: Orange
+  roads-unsealed: Orange
+  roads-sealed: '#FF00A5'
   ferry-routes: '#00197f'
   pipelines-canals: '#00a6e5'
   landing-grounds: '#333334'
@@ -1369,7 +1370,7 @@ glow:
         File.open(kml_path, "w") { |file| file << xml }
         
         temp_kmz_path = File.join(temp_dir, "#{map_name}.kmz")
-        Dir.chdir(kmz_dir) { %x[zip -r "#{temp_kmz_path}" *] }
+        Dir.chdir(kmz_dir) { %x[#{ZIP} -r "#{temp_kmz_path}" *] }
         FileUtils.mv(temp_kmz_path, kmz_path)
       end
     end

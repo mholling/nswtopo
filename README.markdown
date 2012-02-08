@@ -16,6 +16,7 @@ The following open-source packages are required in order to run the script:
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data.
 * The [libgeotiff](http://geotiff.osgeo.org) library, for its `geotifcp` command for georeferencing images.
+* (A zip command utility, if you wish to produce KMZ output maps for use with Google Earth.)
 
 If you plan to make further enhancements, manual corrections or additions to your maps, you'll also need a layer-based image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop.
 
@@ -23,10 +24,12 @@ If you plan to make further enhancements, manual corrections or additions to you
   * A complete Ruby 1.9 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
   * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
   * GDAL and libgeotiff are best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the _FWTools Shell_ to run the `nswtopo.rb` script.
+  * (If you want to create KMZ files, install [7-Zip](http://www.7-zip.org) and add its location (C:\Program Files\7-Zip) to your PATH; use google for instructions on how to do this.)
 * _Mac OS X_:
   * ImageMagick, GDAL and libgeotiff are best obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS. You will first need to install Xcode from your OS X disc or via download; follow the instructions on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install libgeotiff gdal` and `sudo port install imagemagick +q8`
   * Depending on which Xcode version you have, Ruby 1.9.x may already be available; type `ruby -v` to find this out. Otherwise, you can install Ruby 1.9 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/).
-* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL and libgeotiff packages using your distro's package manager (RPM, Aptitude, etc).
+  * (Max OS has the `zip` command built in.)
+* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL and libgeotiff (and zip) packages using your distro's package manager (RPM, Aptitude, etc).
 
 You can check that the tools are correctly installed by using the following commands:
 
@@ -177,7 +180,7 @@ Drop a control waypoints file (in .gpx or .kml format) into the directory and la
       thickness: 0.2          # thickness of control circles in millimetres
       waterdrop-size: 4.5     # size of waterdrop icon in millimetres
 
-Specify the format(s) of the output map files you would like to create. Choose as many of `png`, `tif`, `gif`, `bmp`, `pdf`, `psd` and `layered.tif` as you need. TIFFs will be automatically georeferenced with geotiff tags for use with GIS software. If you specify PNG/GIF/BMP format, a `.map` file will be automatically generated for use with OziExplorer.
+Specify the format(s) of the output map files you would like to create. Choose as many of `png`, `tif`, `gif`, `bmp`, `pdf`, `psd`, `layered.tif`  and `kmz` as you need. (A PNG image will always be created.) TIFFs will be automatically georeferenced with geotiff tags for use with GIS software. If you specify PNG/GIF/BMP format, a `.map` file will be automatically generated for use with OziExplorer. KMZ files can be viewed with Google Earth.
 
     formats:
       - png                   # (default map output is in PNG and multi-layered TIFF format)
@@ -265,11 +268,11 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * water-tanks: water tanks, represented as light blue circles
 * ocean: ocean areas, in light blue
 * coastline: ocean boundary, in black
-* roads-sealed: sealed roads, represented as light red lines, thicker for distributor and arterial roads
+* roads-sealed: sealed roads, represented as dark pink lines, thicker for distributor and arterial roads
 * roads-unsealed: unsealed roads, represented as orange lines
 * tracks-vehicular: unsealed vehicular tracks, represented as orange dashed lines
 * tracks-4wd: 4wd tracks, represented as smaller orange dashed lines
-* road-track-outlines: thin outline of all roads and tracks, in dark grey
+* road-track-outlines: thin outline of all roads and tracks, in red
 * pathways: various walking tracks, represented as thinner black dashed lines
 * ferry-routes: vehicular and pedestrian ferries, as dashed dark blue lines
 * bridges: road and train bridges, in black
@@ -382,3 +385,4 @@ Release History
 * 11/01/2012: version 0.3: misc. additions (e.g. lookouts, campgrounds, rock/pinnacle labels, etc); collected point markers into single layer; separated permanent and intermittent water layers; prevented label/feature overlap; decreased download times; removed unavailable ACT layers; added low-res reference topo.
 * 2/2/2012: version 0.4: added ferry routes, mangroves, restricted areas, canals, breakwaters, levees, road outlines; tweaked road & track colours; added grid-style UTM labels; removed absolute path from OziExplorer .map file; fixed bug wherein resolution tags in some output images were incorrectly set.
   * 8/2/2012: version 0.4.1: fixed bug whereby excluding labels also excluded control-labels
+  * 9/2/2012: version 0.4.2: added kmz as output format

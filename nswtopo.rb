@@ -1241,7 +1241,7 @@ glow:
   end
   
   module KMZ
-    TILE_SIZE = 9 # 512 x 512 tiles
+    TILE_SIZE = 512
     TILE_FORMAT = "gif"
     
     def self.style
@@ -1263,7 +1263,7 @@ glow:
     def self.region(bounds)
       lambda do |region|
         region.add_element("Lod") do |lod|
-          lod.add_element("minLodPixels") { |min| min.text = 1 << (TILE_SIZE - 1) }
+          lod.add_element("minLodPixels") { |min| min.text = TILE_SIZE / 2 }
           lod.add_element("maxLodPixels") { |max| max.text = -1 }
         end
         region.add_element("LatLonAltBox", &lat_lon_box(bounds))
@@ -1285,13 +1285,22 @@ glow:
       wgs84_bounds = Bounds.transform(projection, WGS84, bounds)
       degrees_per_pixel = 180.0 * scaling.metres_per_pixel / Math::PI / EARTH_RADIUS
       dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel }
-      max_zoom = Math::log2(dimensions.max).ceil - TILE_SIZE
+      max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE)
+      topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
+      
       Dir.mktmpdir do |temp_dir|
-        topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
         pyramid = 0.upto(max_zoom).map do |zoom|
           resolution = degrees_per_pixel * 2**(max_zoom - zoom)
-          degrees_per_tile = resolution * 2**TILE_SIZE
+          degrees_per_tile = resolution * TILE_SIZE
           counts = wgs84_bounds.map { |bound| (bound.reverse.inject(:-) / degrees_per_tile).ceil }
+          dimensions = counts.map { |count| count * TILE_SIZE }
+
+          tfw_path = File.join(temp_dir, "zoom-#{zoom}.tfw")
+          tif_path = File.join(temp_dir, "zoom-#{zoom}.tif")
+          WorldFile.write(topleft, resolution, 0, tfw_path)
+          %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
+          %x[gdalwarp -s_srs "#{projection}" -t_srs "#{WGS84}" -r near -dstalpha "#{image_path}" "#{tif_path}"]
+
           indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
             boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
             [ boundaries[0..-2], boundaries[1..-1] ].transpose.map(&:sort)
@@ -1309,21 +1318,15 @@ glow:
         pyramid.each do |zoom, indices_bounds|
           zoom_dir = File.join(kmz_dir, zoom.to_s)
           Dir.mkdir(zoom_dir)
-          resolution = degrees_per_pixel * 2**(max_zoom - zoom)
-          
+        
+          tif_path = File.join(temp_dir, "zoom-#{zoom}.tif")
           indices_bounds.map do |indices, tile_bounds|
             index_dir = File.join(zoom_dir, indices.first.to_s)
             Dir.mkdir(index_dir) unless Dir.exists?(index_dir)
-            tile_tfw_path = File.join(temp_dir, "tile.tfw")
-            tile_tif_path = File.join(temp_dir, "tile.tif")
             tile_kml_path = File.join(index_dir, "#{indices.last}.kml")
             tile_img_path = File.join(index_dir, "#{indices.last}.#{TILE_FORMAT}")
-            
-            topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
-            WorldFile.write(topleft, resolution, 0, tile_tfw_path)
-            %x[convert -size #{1 << TILE_SIZE}x#{1 << TILE_SIZE} canvas:none -type TrueColorMatte -depth 8 "#{tile_tif_path}"]
-            %x[gdalwarp -s_srs "#{projection}" -t_srs "#{WGS84}" -r near -dstalpha "#{image_path}" "#{tile_tif_path}"]
-            %x[convert "#{tile_tif_path}" -quiet "#{tile_img_path}"]
+            crops = indices.map { |index| index * TILE_SIZE }
+            %x[convert "#{tif_path}" -quiet -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage "#{tile_img_path}"]
             
             xml = REXML::Document.new
             xml << REXML::XMLDecl.new(1.0, "UTF-8")

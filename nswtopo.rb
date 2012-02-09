@@ -1295,12 +1295,13 @@ glow:
           degrees_per_tile = resolution * TILE_SIZE
           counts = wgs84_bounds.map { |bound| (bound.reverse.inject(:-) / degrees_per_tile).ceil }
           dimensions = counts.map { |count| count * TILE_SIZE }
+          resample = zoom == max_zoom ? "near" : "bilinear"
 
           tfw_path = File.join(temp_dir, "zoom-#{zoom}.tfw")
           tif_path = File.join(temp_dir, "zoom-#{zoom}.tif")
           WorldFile.write(topleft, resolution, 0, tfw_path)
           %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
-          %x[gdalwarp -s_srs "#{projection}" -t_srs "#{WGS84}" -r near -dstalpha "#{image_path}" "#{tif_path}"]
+          %x[gdalwarp -s_srs "#{projection}" -t_srs "#{WGS84}" -r #{resample} -dstalpha "#{image_path}" "#{tif_path}"]
 
           indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
             boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }

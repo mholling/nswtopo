@@ -83,7 +83,7 @@ or,
 
 (Make sure you get your map bounds correct the first time to avoid starting over with the downloads.)
 
-A third way of setting the map bounds is via a .kml or .gpx file. Use a tool such as Google Earth or OziExplorer to lay out a polygon, track or waypoints marking the area you want mapped, and save it as a .gpx or .kml file. A file named `bounds.kml` will be detected automatically, or specify the file name explicitly as follows:
+A third way of setting the map bounds is via a `.kml` or `.gpx` file. Use a tool such as Google Earth or OziExplorer to lay out a polygon, track or waypoints marking the area you want mapped, and save it as a `.gpx` or `.kml` file. A file named `bounds.kml` will be detected automatically, or specify the file name explicitly as follows:
 
     bounds: bounds.gpx
 
@@ -115,6 +115,8 @@ If you're creating a map for rogaining, you will probably want to build a multi-
 
 It is also possible to construct your own Photoshop or GIMP document by hand, using the topographic layers as layer masks for color fill or pattern layers representing each feature. The topographic feature layers are colored white-on-black to allow you to do this easily.
 
+You can also use the map in various GIS and mapping software. Specify `tif` as an output format to create a GeoTIFF for use with GIS programs such as GQIS; specify `png` to create a `.map` file for use with OziExplorer; specify `kmz` to create a KMZ file for viewing with Google Earth.
+
 Map Configuration
 =================
 
@@ -129,7 +131,7 @@ Set the map rotation angle as an angle between +/- 45 degrees anticlockwise from
 
     rotation: 0               # angle of rotation of map (or `magnetic` to align with magnetic north)
 
-Another special value for rotation is `auto`, available when the bounds is specified as a .gpx or .km file. In this case, a rotation angle will be automatically calculated to minimise the map area. This is useful when mapping an elongated region which lies oblique to the cardinal directions.
+Another special value for rotation is `auto`, available when the bounds is specified as a `.gpx` or `.kml` file. In this case, a rotation angle will be automatically calculated to minimise the map area. This is useful when mapping an elongated region which lies oblique to the cardinal directions.
 
     rotation: auto            # rotate the map so as to minimise map area
 
@@ -171,16 +173,16 @@ Shaded relief and elevation layers are automatically produced from the ASTER dig
       altitude: 45            # angle of illumination from horizon (45 is standard)
       exaggeration: 1         # vertical exaggeration factor
 
-Drop a control waypoints file (in .gpx or .kml format) into the directory and layers containing control circles and numbers will be automatically generated. If a waypoint is name 'HH' it will be drawn as a triangle, otherwise a circle will be drawn. If a control has 'W' after its number (e.g. '74W'), or separate waypoints marked 'W1', 'W2' etc are found, those waypoints will be represented as water drops.
+Drop a control waypoints file (in `.gpx` or `.kml` format) into the directory and layers containing control circles and numbers will be automatically generated. If a waypoint is name 'HH' it will be drawn as a triangle, otherwise a circle will be drawn. If a control has 'W' after its number (e.g. '74W'), or separate waypoints marked 'W1', 'W2' etc are found, those waypoints will be represented as water drops.
 
     controls:
-      file: controls.gpx      # filename (.gpx or .kml format) of control waypoint file
+      file: controls.gpx      # filename (`.gpx` or `.kml` format) of control waypoint file
       fontsize: 14            # font size for control numbers
       diameter: 7.0           # diameter of control circles in millimetres
       thickness: 0.2          # thickness of control circles in millimetres
       waterdrop-size: 4.5     # size of waterdrop icon in millimetres
 
-Specify the format(s) of the output map files you would like to create. Choose as many of `png`, `tif`, `gif`, `bmp`, `pdf`, `psd`, `layered.tif`  and `kmz` as you need. (A PNG image will always be created.) TIFFs will be automatically georeferenced with geotiff tags for use with GIS software. If you specify PNG/GIF/BMP format, a `.map` file will be automatically generated for use with OziExplorer. KMZ files can be viewed with Google Earth.
+Specify the format(s) of the output map files you would like to create. Choose as many of `png`, `tif`, `gif`, `bmp`, `pdf`, `psd`, `layered.tif`  and `kmz` as you need. (A PNG image will always be created.) TIFFs will be automatically georeferenced with geotiff tags for use with GIS software. If you specify PNG/GIF/BMP format, a `.map` file will be automatically generated for use with OziExplorer. KMZ files can be viewed with Google Earth. (Note that the KMZ file is rendered from the PNG image, so you can incorporate any manual changes you make by saving those to the PNG and then recreating the KMZ file.)
 
     formats:
       - png                   # (default map output is in PNG and multi-layered TIFF format)
@@ -242,11 +244,11 @@ Georeferencing
 
 The map projection used is transverse mercator, with a central meridian corresponding to the map's centre. This conformal projection is ideal for topographic maps. A grid for the relevant UTM zone(s) (usually zone 55 or 56) can be added to the map (for use with a GPS) by including the UTM grid layers. All output layers (including the aerial imagery and shaded relief layers) are precisely aligned and in the same projection.
 
-An associated world file (.wld) and proj4 projection file (.prj) are produced for the map. If you use Photoshop or GIMP to manually edit your map, the georeferencing tags will be lost. You can use these files and the `geotifcp` command to georeference your final map as a GeoTIFF (do not crop your image at all):
+An associated world file (`.wld`) and proj4 projection file (`.prj`) are produced for the map. If you use Photoshop or GIMP to manually edit your map, the georeferencing tags will be lost. You can use these files and the `geotifcp` command to georeference your final map as a GeoTIFF (do not crop your image at all):
 
     geotifcp -e map.wld -4 map.prj your-edited-map.tif your-georeferenced-map.tif
 
-If you choose `png`, `gif` or `bmp` as an output format, a .map file will also be produced for use with OziExplorer.
+If you choose `png`, `gif` or `bmp` as an output format, a `.map` file will also be produced for use with OziExplorer.
 
 Layer Descriptions
 ==================

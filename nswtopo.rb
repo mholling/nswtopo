@@ -202,7 +202,8 @@ colours:
   culverts: '#6c211a'
   floodways: '#0033ff'
   pathways: '#000001'
-  road-track-outlines: Red
+  road-outlines-sealed: '#333334'
+  road-outlines-unsealed: Red
   tracks-vehicular: Orange
   tracks-4wd: Orange
   roads-unsealed: Orange
@@ -1848,48 +1849,6 @@ glow:
           "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
           "line" => { 9 => { "width" => 2, "type" => "dash", "captype" => "round" } },
         },
-        "road-track-outlines" => [
-          {
-            "scale" => 0.4,
-            "from" => "RoadSegment_1",
-            "where" => "(Surface = 2 OR Surface = 3 OR Surface = 4) AND ClassSubtype != 8",
-            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-            "line" => { 8 => { "width" => 4, "captype" => "round" } },
-          },
-          {
-            "scale" => 0.4,
-            "from" => "RoadSegment_1",
-            "where" => "(Surface = 0 OR Surface = 1 OR Surface = 2) AND ClassSubtype != 8 AND RoadOnType != 3",
-            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-            "line" => {
-              "1;2;3" => { "width" => 8, "captype" => "round" },
-              "4;5"   => { "width" => 7, "captype" => "round" },
-              "6"     => { "width" => 4, "captype" => "round" },
-              "7"     => { "width" => 3, "captype" => "round" }
-            }
-          },
-          {
-            "scale" => 0.4,
-            "from" => "RoadSegment_1",
-            "where" => "(Surface = 2 OR Surface = 3 OR Surface = 4) AND ClassSubtype != 8",
-            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-            "line" => { 8 => { "width" => 3, "captype" => "round" } },
-            "erase" => true,
-          },
-          {
-            "scale" => 0.4,
-            "from" => "RoadSegment_1",
-            "where" => "(Surface = 0 OR Surface = 1 OR Surface = 2) AND ClassSubtype != 8 AND RoadOnType != 3",
-            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
-            "line" => {
-              "1;2;3" => { "width" => 7, "captype" => "round" },
-              "4;5"   => { "width" => 5, "captype" => "round" },
-              "6"     => { "width" => 3, "captype" => "round" },
-              "7"     => { "width" => 2, "captype" => "round" }
-            },
-            "erase" => true,
-          },
-        ],
         "tracks-4wd" => {
           "scale" => 0.3,
           "from" => "RoadSegment_1",
@@ -1958,6 +1917,74 @@ glow:
               "6"     => { "width" => 2, "captype" => "round", "type" => "dash" },
               "7"     => { "width" => 1, "captype" => "round", "type" => "dash" }
             }
+          },
+        ],
+        "road-outlines-sealed" => [
+          {
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "(Surface = 0 OR Surface = 1) AND ClassSubtype != 8 AND RoadOnType != 3",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => {
+              "1;2;3" => { "width" => 8, "captype" => "round" },
+              "4;5"   => { "width" => 7, "captype" => "round" },
+              "6"     => { "width" => 4, "captype" => "round" },
+              "7"     => { "width" => 3, "captype" => "round" }
+            }
+          },
+          {
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "(Surface = 0 OR Surface = 1) AND ClassSubtype != 8 AND RoadOnType != 3",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => {
+              "1;2;3" => { "width" => 7, "captype" => "round" },
+              "4;5"   => { "width" => 5, "captype" => "round" },
+              "6"     => { "width" => 3, "captype" => "round" },
+              "7"     => { "width" => 2, "captype" => "round" }
+            },
+            "erase" => true,
+          },
+        ],
+        "road-outlines-unsealed" => [
+          {
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "Surface = 2 AND ClassSubtype != 8 AND RoadOnType != 3",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => {
+              "1;2;3" => { "width" => 8, "captype" => "round" },
+              "4;5"   => { "width" => 7, "captype" => "round" },
+              "6"     => { "width" => 4, "captype" => "round" },
+              "7"     => { "width" => 3, "captype" => "round" }
+            }
+          },
+          {
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "(Surface = 2 OR Surface = 3 OR Surface = 4) AND ClassSubtype != 8",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => { 8 => { "width" => 4, "captype" => "round" } },
+          },
+          {
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "Surface = 2 AND ClassSubtype != 8 AND RoadOnType != 3",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => {
+              "1;2;3" => { "width" => 7, "captype" => "round" },
+              "4;5"   => { "width" => 5, "captype" => "round" },
+              "6"     => { "width" => 3, "captype" => "round" },
+              "7"     => { "width" => 2, "captype" => "round" }
+            }
+          },
+          {
+            "scale" => 0.4,
+            "from" => "RoadSegment_1",
+            "where" => "(Surface = 2 OR Surface = 3 OR Surface = 4) AND ClassSubtype != 8",
+            "lookup" => "delivsdm:geodb.RoadSegment.functionhierarchy",
+            "line" => { 8 => { "width" => 3, "captype" => "round" } },
+            "erase" => true,
           },
         ],
         "bridges" => [
@@ -2457,11 +2484,12 @@ glow:
           pipelines-canals
           railways
           pathways
+          road-outlines-unsealed
+          road-outlines-sealed
           tracks-4wd
           tracks-vehicular
           roads-unsealed
           roads-sealed
-          road-track-outlines
           ferry-routes
           bridges
           culverts

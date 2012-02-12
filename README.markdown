@@ -274,7 +274,8 @@ These are the primary topographic features and cover all of NSW and the ACT. The
 * roads-unsealed: unsealed roads, represented as orange lines
 * tracks-vehicular: unsealed vehicular tracks, represented as orange dashed lines
 * tracks-4wd: 4wd tracks, represented as smaller orange dashed lines
-* road-track-outlines: thin outline of all roads and tracks, in red
+* road-outlines-sealed: thin outline of all sealed roads and tracks, in dark grey
+* road-outlines-unsealed: thin outline of all unsealed roads and tracks, in red
 * pathways: various walking tracks, represented as thinner black dashed lines
 * ferry-routes: vehicular and pedestrian ferries, as dashed dark blue lines
 * bridges: road and train bridges, in black

@@ -2383,6 +2383,7 @@ glow:
     formats = [ "png", *config["formats"] ].uniq.reject do |format|
       File.exists? File.join(output_dir, "#{map_name}.#{format}")
     end
+    formats = [] if [ *config["formats"] ].empty?
     
     (%w[bmp png gif tif jpg] & formats).each do |format|
       format_world_file_path = File.join(output_dir, "#{map_name}.#{format[0]}#{format[2]}w")

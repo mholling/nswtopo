@@ -389,3 +389,4 @@ Release History
 * 2/2/2012: version 0.4: added ferry routes, mangroves, restricted areas, canals, breakwaters, levees, road outlines; tweaked road & track colours; added grid-style UTM labels; removed absolute path from OziExplorer .map file; fixed bug wherein resolution tags in some output images were incorrectly set.
   * 8/2/2012: version 0.4.1: fixed bug whereby excluding labels also excluded control-labels
   * 9/2/2012: version 0.4.2: added kmz as output format
+  * 13/2/2012: version 0.4.3: reworked road/track colours and outlines

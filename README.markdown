@@ -12,7 +12,7 @@ The software is run as a script, so you will need some familiarity with the comm
 
 The following open-source packages are required in order to run the script:
 
-* The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.x, not 1.8.x.
+* The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.3, not 1.8.x.
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data.
 * The [libgeotiff](http://geotiff.osgeo.org) library, for its `geotifcp` command for georeferencing images.
@@ -21,15 +21,16 @@ The following open-source packages are required in order to run the script:
 If you plan to make further enhancements, manual corrections or additions to your maps, you'll also need a layer-based image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop.
 
 * _Windows_:
-  * A complete Ruby 1.9 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
-  * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
-  * GDAL and libgeotiff are best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the _FWTools Shell_ to run the `nswtopo.rb` script.
-  * (If you want to create KMZ files, install [7-Zip](http://www.7-zip.org) and add its location (C:\Program Files\7-Zip) to your PATH; use google for instructions on how to do this.)
+  * A complete Ruby 1.9.3 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
+  * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php#windows) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
+  * GDAL and libgeotiff are best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the _FWTools Shell_ to run the `nswtopo.rb` script. (Another distribution containing the required packages is [OSGeo4W](http://trac.osgeo.org/osgeo4w/).)
+  * (If you want to create KMZ files, install [7-Zip](http://www.7-zip.org) and add its location, `C:\Program Files\7-Zip`, to your PATH following [these instructions](http://java.com/en/download/help/path.xml), using a semicolon to separate your addition.)
 * _Mac OS X_:
-  * ImageMagick, GDAL and libgeotiff are best obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS. You will first need to install Xcode from your OS X disc or via download; follow the instructions on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install libgeotiff gdal` and `sudo port install imagemagick +q8`
-  * Depending on which Xcode version you have, Ruby 1.9.x may already be available; type `ruby -v` to find this out. Otherwise, you can install Ruby 1.9 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/).
+  * ImageMagick, GDAL and libgeotiff can obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS. You will first need to install Xcode from your OS X disc or via download; follow the instructions on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install libgeotiff gdal` and `sudo port install imagemagick +q8`
+  * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software:frameworks#gdal_complete) for GDAL, and the instructions [here](http://www.imagemagick.org/script/binary-releases.php#macosx) for ImageMagick. This may or may not be quicker/easier than installing XCode and MacPorts!
+  * Depending on which Xcode version you have, Ruby 1.9.3 may already be available; type `ruby -v` in a terminal window to find this out. Otherwise, you can install Ruby 1.9.3 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/).
   * (Max OS has the `zip` command built in.)
-* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL and libgeotiff (and zip) packages using your distro's package manager (RPM, Aptitude, etc).
+* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, libgeotiff and zip packages using your distro's package manager (RPM, Aptitude, etc).
 
 You can check that the tools are correctly installed by using the following commands:
 
@@ -40,7 +41,7 @@ You can check that the tools are correctly installed by using the following comm
 
 You should receive version or usage information for each tool if it is installed correctly and in your path.
 
-A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. (On small amounts of memory, the software will still run, but the compositing step will cause memory paging to disk and become extremely slow.) Make sure you also have plenty of disk space to accommodate the intermediate image files that are generated. Finally, you will need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
+A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. (On small amounts of memory, the software will still run, but the compositing step will cause memory paging to disk and become quite slow.) Make sure you also have plenty of disk space to accommodate the intermediate image files that are generated. Finally, you will need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
 
 Usage
 =====
@@ -53,20 +54,20 @@ In this directory, create and edit a configuration text file called `config.yml`
 
     zone: 55
     eastings:
-      - 730500
-      - 741500
+    - 730500
+    - 741500
     northings:
-      - 6014500
-      - 6022500
+    - 6014500
+    - 6022500
 
 or, as latitude/longitude bounds:
 
     latitudes: 
-      - -35.951221
-      - -35.892871
+    - -35.951221
+    - -35.892871
     longitudes: 
-      - 149.383789
-      - 149.489746
+    - 149.383789
+    - 149.489746
 
 Alternatively, you can specify a single coordinate for the map's centre, and a physical size for the map at the scale you specify (1:25000 by default). The map size should be specified in millimetres. For example:
 
@@ -168,8 +169,8 @@ Shaded relief and elevation layers are automatically produced from the ASTER dig
   
     relief:
       azimuth:                # azimuth angle for shaded relief layers (degrees clockwise from North)
-        - 315                 # (315 degrees is the standard shaded relief angle)
-        - 45                  # (each azimuthal angle produces a separate shaded relief layer)
+      - 315                   # (315 degrees is the standard shaded relief angle)
+      - 45                    # (each azimuthal angle produces a separate shaded relief layer)
       altitude: 45            # angle of illumination from horizon (45 is standard)
       exaggeration: 1         # vertical exaggeration factor
 
@@ -185,15 +186,15 @@ Drop a control waypoints file (in `.gpx` or `.kml` format) into the directory an
 Specify the format(s) of the output map files you would like to create. Choose as many of `png`, `tif`, `gif`, `bmp`, `pdf`, `psd`, `layered.tif`  and `kmz` as you need. (A PNG image will always be created.) TIFFs will be automatically georeferenced with geotiff tags for use with GIS software. If you specify PNG/GIF/BMP format, a `.map` file will be automatically generated for use with OziExplorer. KMZ files can be viewed with Google Earth. (Note that the KMZ file is rendered from the PNG image, so you can incorporate any manual changes you make by saving those to the PNG and then recreating the KMZ file.)
 
     formats:
-      - png                   # (default map output is in PNG and multi-layered TIFF format)
-      - layered.tif
+    - png                     # (default map output is in PNG and multi-layered TIFF format)
+    - layered.tif
 
 Specify which layers to exclude from your map. This will prevent downloading of the layers and their inclusion in the final map. List each layer individually. Use the shortcuts `utm`, `aerial` and `relief` to exclude all UTM grid layers, aerial imagery layers and shaded relief/elevation layers, respectively. By default, all layers are included; you will always want to exclude either `utm` or `declination` in order to prevent both being drawn on the same map. For example:
 
     exclude:
-      - utm                   # (exclude UTM grid in favour of declination lines)
-      - aerial                # (don't download aerial imagery)
-      - trig-points           # (don't include trig points)
+    - utm                     # (exclude UTM grid in favour of declination lines)
+    - aerial                  # (don't download aerial imagery)
+    - trig-points             # (don't include trig points)
 
 Specify colours for individual topographic layers. Each colour should be specified as one of a recognised colour name (e.g. Red, Dark Magenta, Royal Blue), a quoted hex triplet (e.g. '#00FF00', '#2020e0', '#0033ff') or a decimal triplet (e.g. rgb(0,0,255), rgb(127,127,0)). The default color scheme closely matches the current 2nd-edition 25k NSW map sheets (except with brown contours, which I prefer).
 
@@ -375,7 +376,7 @@ A few shortcomings are sometimes evident in the generated map images. These can 
 * For the time being, if you need a legend you'll need to create it manually.
 * When rotating the map using the `rotation` parameter, the image quality is reduced slightly. (Since the map servers are only able to render maps in north-up orientation, the images must are subsequently rotated, causing some resampling degradation.) Download and construction of the map will also take longer due to the rotation.
 * Not all horizontal labels remain horizontal when a map rotation is specified.
-* The various map servers cause problems from time to time. For example: the NSW topographic server has a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time); the NASA OneEarth server (providing elevation data for shaded relief) is sometimes slow; the LPI aerial imagery server sometimes return no data. This is frustrating. Interrupt the script using ctrl-c, wait a few minutes, then try again. Alternately, exclude the relevant layers from your map configuration if you don't want them.
+* The various map servers cause problems from time to time. For example: the NSW topographic server has a daily maintenance window at around 10pm AEST for a few minutes, and at other times the servers go down for longer periods (e.g. for a week, one time); the NASA OneEarth server (providing elevation data for shaded relief) is sometimes slow; the LPI aerial imagery server sometimes return no data. This is frustrating. Interrupt the script using ctrl-c, wait a few minutes, then try again. Alternatively, exclude the relevant layers from your map configuration if you don't want them.
 * There is no guarantee that the NSW ArcIMS servers will continue to function in the future!
 
 Release History

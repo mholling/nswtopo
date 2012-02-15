@@ -1380,9 +1380,14 @@ glow:
   
   def self.run
     output_dir = Dir.pwd
-    config = YAML.load(CONFIG)
-    config["controls"]["file"] ||= "controls.gpx" if File.exists?(File.join(output_dir, "controls.gpx"))
-    config = config.deep_merge YAML.load(File.open(File.join(output_dir, "config.yml")))
+    default_config = YAML.load(CONFIG)
+    default_config["controls"]["file"] ||= "controls.gpx" if File.exists?(File.join(output_dir, "controls.gpx"))
+    user_config = begin
+      YAML.load File.open(File.join(output_dir, "config.yml"))
+    rescue ArgumentError, SyntaxError => e
+      abort "Error in configuration file: #{e.message}"
+    end
+    config = default_config.deep_merge user_config
     config["exclude"] = [ *config["exclude"] ]
     config["formats"].each(&:downcase!)
     {

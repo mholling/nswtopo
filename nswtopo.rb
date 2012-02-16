@@ -317,6 +317,7 @@ glow:
   utm-56-northings:
     radius: 0.4
     gamma: 5.0
+opacity: []
 overlays: []
 ]
   
@@ -2583,6 +2584,9 @@ overlays: []
             colour, radius, amount, gamma = glow.values_at("colour", "radius", "amount", "gamma")
             sigma = radius * scaling.ppi / 25.4
             sequence += %Q[ #{OP} +clone -alpha Extract -blur 0x#{sigma} -auto-level +level 0%,#{amount}% -background "#{colour}" -alpha Shape #{CP} -compose dst-over -composite]
+          end
+          if config["opacity"][label]
+            sequence += %Q[ -channel Alpha -evaluate multiply #{config["opacity"][label]} +channel]
           end
           %x[convert "#{path}" #{sequence} -type TrueColorMatte -depth 8 "#{layer_path}"]
           [ label, layer_path ]

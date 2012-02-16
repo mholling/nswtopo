@@ -317,6 +317,7 @@ glow:
   utm-56-northings:
     radius: 0.4
     gamma: 5.0
+overlays: []
 ]
   
   module BoundingBox
@@ -1239,6 +1240,29 @@ glow:
       end
     rescue BadGpxKmlFile => e
       raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
+    end
+  end
+  
+  class OverlayService < Service
+    def get(layers, all_layers, input_bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
+      layers.each do |label, path|
+        puts "Creating: #{label}"
+        Dir.mktmpdir do |temp_dir|
+          tif_path = File.join(temp_dir, "#{label}.tif")
+          tfw_path = File.join(temp_dir, "#{label}.tfw")
+          png_path = File.join(temp_dir, "#{label}.png")
+          gml_path = File.join(temp_dir, "#{label}.gml")
+          output_path = File.join(output_dir, "#{label}.png")
+          %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black "#{tif_path}"]
+          FileUtils.cp(world_file_path, tfw_path)
+          %x[ogr2ogr -t_srs "#{input_projection}" -f "GML" "#{gml_path}" "#{path}"]
+          %x[ogrinfo "#{path}"].scan(/\d+: ([^\(\n]*)/).flatten.each do |layername|
+            %x[gdal_rasterize -l "#{layername.strip}" -burn 255 "#{gml_path}" "#{tif_path}"]
+          end
+          %x[convert -quiet "#{tif_path}" "#{png_path}"]
+          FileUtils.mv(png_path, output_path)
+        end
+      end
     end
   end
   
@@ -2372,6 +2396,12 @@ glow:
         "utm-#{zone}-northings" => { "name" => "northings" }
       })
     end
+    
+    overlays = [ *config["overlays"] ].map do |filename_or_path|
+      { File.split(filename_or_path).last.partition(/\.\w+$/).first => filename_or_path }
+    end.inject(:merge)
+    services.merge!(OverlayService.new({}) => overlays)
+    overlay_labels = overlays.keys
 
     puts "Final map size:"
     puts "  scale: 1:%i" % scaling.scale
@@ -2447,7 +2477,7 @@ glow:
           end
         end
     
-        layers = %w[
+        labels = %w[
           reference-topo
           aerial-google
           aerial-nokia
@@ -2522,7 +2552,8 @@ glow:
           utm-56-grid
           utm-56-eastings
           utm-56-northings
-        ].reject do |label|
+        ] + overlay_labels
+        layers = labels.reject do |label|
           config["exclude"].any? { |matcher| matcher.is_a?(String) ? label == matcher : label =~ matcher }
         end.map do |label|
           [ label, File.join(output_dir, "#{label}.png") ]

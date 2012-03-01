@@ -294,9 +294,6 @@ patterns:
     000000000
     000000000
     000000000
-  restricted-areas:
-    10
-    01
 glow:
   labels: true
   utm-54-eastings:
@@ -317,7 +314,8 @@ glow:
   utm-56-northings:
     radius: 0.4
     gamma: 5.0
-opacity: []
+opacity:
+  restricted-areas: 0.5
 overlays: []
 ]
   
@@ -1246,9 +1244,10 @@ overlays: []
   
   class OverlayService < Service
     def get(layers, all_layers, input_bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
-      layers.each do |label, path|
+      layers.each do |label, options|
         puts "Creating: #{label}"
         Dir.mktmpdir do |temp_dir|
+          kml_path = options["path"]
           tif_path = File.join(temp_dir, "#{label}.tif")
           tfw_path = File.join(temp_dir, "#{label}.tfw")
           png_path = File.join(temp_dir, "#{label}.png")
@@ -1256,11 +1255,12 @@ overlays: []
           output_path = File.join(output_dir, "#{label}.png")
           %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black "#{tif_path}"]
           FileUtils.cp(world_file_path, tfw_path)
-          %x[ogr2ogr -t_srs "#{input_projection}" -f "GML" "#{gml_path}" "#{path}"]
-          %x[ogrinfo "#{path}"].scan(/\d+: ([^\(\n]*)/).flatten.each do |layername|
+          %x[ogr2ogr -t_srs "#{input_projection}" -f "GML" "#{gml_path}" "#{kml_path}"]
+          %x[ogrinfo -q "#{gml_path}"].scan(/^\d+: ([^\(\n]*)/).flatten.each do |layername|
             %x[gdal_rasterize -l "#{layername.strip}" -burn 255 "#{gml_path}" "#{tif_path}"]
           end
-          %x[convert -quiet "#{tif_path}" "#{png_path}"]
+          sequence = options["thickness"] && options["thickness"] > 0 ? "-morphology Dilate Disk:%.1f" % (0.5 * options["thickness"] * scaling.ppi / 25.4) : ""
+          %x[convert -quiet "#{tif_path}" #{sequence} "#{png_path}"]
           FileUtils.mv(png_path, output_path)
         end
       end
@@ -2398,9 +2398,9 @@ overlays: []
       })
     end
     
-    overlays = [ *config["overlays"] ].map do |filename_or_path|
-      { File.split(filename_or_path).last.partition(/\.\w+$/).first => filename_or_path }
-    end.inject(:merge)
+    overlays = [ *config["overlays"] ].inject({}) do |hash, (filename_or_path, thickness)|
+      hash.merge(File.split(filename_or_path).last.partition(/\.\w+$/).first => { "path" => filename_or_path, "thickness" => thickness })
+    end
     services.merge!(OverlayService.new({}) => overlays)
     overlay_labels = overlays.keys
 
@@ -2676,7 +2676,7 @@ MMPNUM,4
 MM1B,#{scaling.metres_per_pixel}
 MOP,Map Open Position,0,0
 IWH,Map Image Width/Height,#{dimensions.join ?,}
-]
+].gsub(/\r\n|\r|\n/, "\r\n")
       end
     end
   end

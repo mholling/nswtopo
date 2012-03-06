@@ -210,7 +210,7 @@ Specify colours for individual topographic layers. Each colour should be specifi
 
 (N.B. If a photoshop (psd) file is being produced, do not use pure greyscale colours, as an ImageMagick bug will produce will produce a faulty layer in this case. Instead substitute a slight colour hue, e.g. #000001 instead of black, #808081 instead of middle-grey.)
 
-Specify layer opacities for any layers you wish to be semi-transparent. Layers default to opacity of 1.0 (fully opaque); a different value between 0.0 and 1.0 can be specified for any layer you choose:
+Specify layer opacities for any layers you wish to be semi-transparent. Layers default to an opacity of 1.0 (fully opaque); a value between 0.0 and 1.0 can be specified for any layer you choose:
 
     opacity:
       restricted-areas: 0.5   # 50% opacity for restricted-area boundaries
@@ -250,6 +250,11 @@ You can add layers containing your own geographic data (polygons and lines) from
     overlays:
     - out-of-bounds.kml         # KML file containing out-of-bounds areas drawn with Google Earth
     - unmarked-track.gpx        # GPX file containing a track recorded by a GPS
+    colours:
+      out-of-bounds: Grey       # colour the out-of-bounds area grey...
+      unmarked-track: Orange    # ...and unmarked tracks orange
+    opacity:
+      out-of-bounds: 0.5        # make out-of-bounds area semi-transparent
 
 Line features (e.g. GPS tracks) will render as a single-pixel line by default; you can specify a thickness (in millimetres) for overlay layers using this alternative format:
 
@@ -408,4 +413,4 @@ Release History
   * 8/2/2012: version 0.4.1: fixed bug whereby excluding labels also excluded control-labels
   * 9/2/2012: version 0.4.2: added kmz as output format
   * 13/2/2012: version 0.4.3: reworked road/track colours and outlines
-* HEAD: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity configuration; added overlay layers from GPX/KML/etc files
+  * 7/3/2012: version 0.4.4: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity; added overlay layers from GPX/KML/etc files

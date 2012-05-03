@@ -1,3 +1,5 @@
+__[3/5/12: N.B. The NSW topographic map server used by this software has been decommissioned, and maps cannot currently be produced. A replacement server using a different protocol is available, however I will need to write new code to use this server. I will remove this note if/when I finish this work.]__
+
 Summary
 =======
 

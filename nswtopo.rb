@@ -144,6 +144,8 @@ contours:
   source: 1
 declination:
   spacing: 1000
+  width: 0.1
+  colour: "#000000"
 grid:
   interval: 1000
   labels:
@@ -167,6 +169,7 @@ formats:
 - png
 compose:
 - topographic
+- declination
 render:
   LS_Roads_onground:
     expand: 2
@@ -512,6 +515,40 @@ render:
         xml.add_element("svg", attributes, &block)
       end
     end
+    
+    def self.transform(map, inches_per_unit)
+      w, h = map.bounds.map { |bound| (bound.max - bound.min) / 0.0254 / map.scale }
+      t = Math::tan(map.rotation * Math::PI / 180.0)
+      d = (t * t - 1) * Math::sqrt(t * t + 1)
+      if t >= 0
+        y = (t * (h * t - w) / d).abs
+        x = (t * y).abs
+      else
+        x = -(t * (h + w * t) / d).abs
+        y = -(t * x).abs
+      end
+      offsets = [ x, -y ]
+      scaled_rotation = [ [ inches_per_unit, 0 ], [ 0, inches_per_unit ] ].map { |vector| vector.rotate_by(map.rotation * Math::PI / 180.0) }
+      coeffs = [ *scaled_rotation, offsets ].flatten
+      transform = "matrix(#{coeffs.join ' '})"
+    end
+    
+    # def self.transform(map, resolution)
+    #   w, h = map.bounds.map { |bound| (bound.max - bound.min) / resolution }
+    #   t = Math::tan(map.rotation * Math::PI / 180.0)
+    #   d = (t * t - 1) * Math::sqrt(t * t + 1)
+    #   if t >= 0
+    #     y = (t * (h * t - w) / d).abs
+    #     x = (t * y).abs
+    #   else
+    #     x = -(t * (h + w * t) / d).abs
+    #     y = -(t * x).abs
+    #   end
+    #   offset_coeffs = [ x, -y ]
+    #   rotate_coeffs = [ [ 1, 0 ], [ 0, 1 ] ].map { |vector| vector.rotate_by(map.rotation * Math::PI / 180.0) }
+    #   coeffs = [ *rotate_coeffs, offset_coeffs ].flatten.map { |coeff| coeff * resolution / 0.0254 / map.scale }
+    #   transform = "matrix(#{coeffs.join ' '})"
+    # end
   end
   
   module RasterRenderer
@@ -828,23 +865,10 @@ render:
       layer_names = service["layers"].map { |layer| layer["name"] }
       
       resolution = options["resolution"] || map.resolution
-      tile_list = tiles(map.bounds, resolution)
-      
-      w, h = dimensions(map.bounds, resolution)
-      t = Math::tan(map.rotation * Math::PI / 180.0)
-      d = (t * t - 1) * Math::sqrt(t * t + 1)
-      if t >= 0
-        y = (t * (h * t - w) / d).abs
-        x = (t * y).abs
-      else
-        x = -(t * (h + w * t) / d).abs
-        y = -(t * x).abs
-      end
-      offset_coeffs = [ x, -y ]
-      rotate_coeffs = [ [ 1, 0 ], [ 0, 1 ] ].map { |vector| vector.rotate_by(map.rotation * Math::PI / 180.0) }
       inches_per_pixel = resolution / 0.0254 / map.scale
-      coeffs = [ *rotate_coeffs, offset_coeffs ].flatten.map { |coeff| coeff * inches_per_pixel }
-      transform = "matrix(#{coeffs.join ' '})"
+      transform = SVG.transform(map, inches_per_pixel)
+      
+      tile_list = tiles(map.bounds, resolution)
       
       downloads = %w[layers labels].select do |type|
         options[type]
@@ -1280,51 +1304,61 @@ render:
   #   end
   # end
   
-  # class AnnotationService < OneToOneService
-  #   def image(label, options, input_bounds, input_projection, scaling, rotation, dimensions, centre, temp_dir, world_file_path)
-  #     puts "Creating: #{label}"
-  #     png_path = File.join(temp_dir, "#{label}.png")
-  #     draw_string = draw(input_projection, scaling, rotation, dimensions, centre, options)
-  #     %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black #{draw_string} -type TrueColor -depth 8 "#{png_path}"]
-  #     
-  #     png_path
-  #   end
-  # end
-  # 
-  # class DeclinationService < AnnotationService
-  #   def self.get_declination(coords, projection)
-  #     degrees_minutes_seconds = coords.reproject(projection, WGS84).map do |coord|
-  #       [ (coord > 0 ? 1 : -1) * coord.abs.floor, (coord.abs * 60).floor % 60, (coord.abs * 3600).round % 60 ]
-  #     end
-  #     today = Date.today
-  #     year_month_day = [ today.year, today.month, today.day ]
-  #     url = "http://www.ga.gov.au/bin/geoAGRF?latd=%i&latm=%i&lats=%i&lond=%i&lonm=%i&lons=%i&elev=0&year=%i&month=%i&day=%i&Ein=D" % (degrees_minutes_seconds.reverse.flatten + year_month_day)
-  #     HTTP.get(URI.parse url) do |response|
-  #       /D\s*=\s*(\d+\.\d+)/.match(response.body) { |match| match.captures[0].to_f }
-  #     end
-  #   end
-  # 
-  #   # TODO: won't work unless projection is true-north-aligned
-  #   def draw(input_projection, scaling, rotation, dimensions, centre, options)
-  #     spacing = params["spacing"]
-  #     declination = params["angle"] || DeclinationService.get_declination(centre, input_projection)
-  #     angle = declination + rotation
-  #     x_spacing = spacing / Math::cos(angle * Math::PI / 180.0) / scaling.metres_per_pixel
-  #     dx = dimensions.last * Math::tan(angle * Math::PI / 180.0)
-  #     x_min = [ 0, dx ].min
-  #     x_max = [ dimensions.first, dimensions.first + dx ].max
-  #     line_count = ((x_max - x_min) / x_spacing).ceil
-  #   
-  #     string = (1..line_count).map do |n|
-  #       x_min + n * x_spacing
-  #     end.map do |x|
-  #        %Q[-draw "line #{x.round},0 #{(x - dx).round},#{dimensions.last}"]
-  #     end.join " "
-  #   
-  #     %Q[-fill black -draw "color 0,0 reset" -stroke white -strokewidth 1 #{string}]
-  #   end
-  # end
-  # 
+  class AnnotationService < OneToOneService
+    def download(*args)
+    end
+    
+    def render(label, options, map, output_dir)
+      group = REXML::Element.new("g")
+      group.add_attribute("transform", SVG.transform(map, 1))
+      draw(group, label, options, map, output_dir) do |coords, projection|
+        easting, northing = coords.reproject(projection, map.projection)
+        [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
+          metres / map.scale / 0.0254
+        end
+      end
+      yield group
+    end
+  end
+  
+  class DeclinationService < AnnotationService
+    def self.get_declination(coords, projection)
+      degrees_minutes_seconds = coords.reproject(projection, WGS84).map do |coord|
+        [ (coord > 0 ? 1 : -1) * coord.abs.floor, (coord.abs * 60).floor % 60, (coord.abs * 3600).round % 60 ]
+      end
+      today = Date.today
+      year_month_day = [ today.year, today.month, today.day ]
+      url = "http://www.ga.gov.au/bin/geoAGRF?latd=%i&latm=%i&lats=%i&lond=%i&lonm=%i&lons=%i&elev=0&year=%i&month=%i&day=%i&Ein=D" % (degrees_minutes_seconds.reverse.flatten + year_month_day)
+      HTTP.get(URI.parse url) do |response|
+        /D\s*=\s*(\d+\.\d+)/.match(response.body) { |match| match.captures[0].to_f }
+      end
+    end
+    
+    def draw(group, label, options, map, output_dir)
+      centre = Bounds.transform(map.projection, WGS84, map.bounds).map { |bound| 0.5 * bound.inject(:+) }
+      projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{centre[0]} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
+      declination = params["angle"] || DeclinationService.get_declination(centre, WGS84)
+      spacing = params["spacing"] / Math::cos(declination * Math::PI / 180.0)
+      bounds = Bounds.transform(map.projection, projection, map.bounds)
+      extents = bounds.map { |bound| bound.max - bound.min }
+      longitudinal_extent = extents[0] + extents[1] * Math::tan(declination * Math::PI / 180.0)
+      0.upto(longitudinal_extent / spacing).map do |count|
+        declination > 0 ? bounds[0][1] - count * spacing : bounds[0][0] + count * spacing
+      end.map do |easting|
+        eastings = [ easting, easting + extents[1] * Math::tan(declination * Math::PI / 180.0) ]
+        northings = bounds.last
+        [ eastings, northings ].transpose
+      end.map do |line|
+        line.map { |point| yield point, projection }
+      end.map do |line|
+        "M%f %f L%f %f" % line.flatten
+      end.each do |d|
+        # TODO: best way to specify colour?
+        group.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"] / 25.4)
+      end
+    end
+  end
+  
   # class ControlService < AnnotationService
   #   def get(*args, &block)
   #     super(*args, &block) if params["file"]
@@ -1577,7 +1611,7 @@ render:
     #   "tile_sizes" => [ 2048, 2048 ],
     #   "interval" => 0.1,
     # )
-    # declination_service = DeclinationService.new(config["declination"])
+    declination_service = DeclinationService.new(config["declination"])
     # control_service = ControlService.new(config["controls"])
     lpi_ortho = LPIOrthoService.new(
       "host" => "lite.maps.nsw.gov.au",
@@ -1649,9 +1683,9 @@ render:
           "image" => true,
         },
       },
-      # declination_service => {
-      #   "declination" => { }
-      # },
+      declination_service => {
+        "declination" => { }
+      },
       # control_service => {
       #   "control-labels" => { "name" => "control-labels" },
       #   "control-circles" => { "name" => "control-circles" },

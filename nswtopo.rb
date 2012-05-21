@@ -93,6 +93,10 @@ class Array
   def rotate_by!(angle)
     self[0], self[1] = rotate_by(angle)
   end
+  
+  def plus(other)
+    [ self, other ].transpose.map { |values| values.inject(:+) }
+  end
 
   def minus(other)
     [ self, other ].transpose.map { |values| values.inject(:-) }
@@ -356,7 +360,7 @@ render:
       @dimensions = @extents.map { |extent| (extent / @resolution).ceil }
     end
     
-    attr_reader :name, :scale, :projection, :wkt, :bounds, :extents, :dimensions, :rotation, :ppi, :resolution
+    attr_reader :scale, :projection, :wkt, :bounds, :extents, :dimensions, :rotation, :ppi, :resolution
     
     def write_world_file(world_file_path)
       topleft = [ @centre, @extents.rotate_by(-@rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
@@ -745,10 +749,13 @@ render:
   end
   
   class ArcGIS < OneToOneService
+    def dimensions(bounds, resolution)
+      bounds.map { |bound| bound.max - bound.min }.map { |extent| (extent / resolution).ceil }
+    end
+    
     def tiles(bounds, resolution)
       service_tile_sizes = params["tile_sizes"]
-      extents = bounds.map { |bound| bound.max - bound.min }
-      pixels = extents.map { |extent| (extent / resolution).ceil }
+      pixels = dimensions(bounds, resolution)
       counts = [ pixels, service_tile_sizes ].transpose.map { |pixel, tile_size| (pixel - 1) / tile_size + 1 }
       origins = [ bounds.first.min, bounds.last.max ]
       
@@ -803,7 +810,7 @@ render:
           "layers" => options["layers"],
           "layerDefs" => options["layerDefs"],
           "dpi" => options["dpi"],
-          "format" => options["vector"] ? "svg" : "png32",
+          "format" => options["format"],
           "transparent" => true
         )
       end
@@ -813,7 +820,9 @@ render:
         params["headers"] = { "Cookie" => cookie }
       end
       
-      HTTP.get(export_uri(options, query), params["headers"]) { |response| response.body }
+      HTTP.get(export_uri(options, query), params["headers"]) do |response|
+        block_given? ? yield(response.body) : response.body
+      end
     end
   end
   
@@ -828,13 +837,35 @@ render:
       layer_names = service["layers"].map { |layer| layer["name"] }
       
       resolution = options["resolution"] || map.resolution
-      inches_per_pixel = resolution / 0.0254 / map.scale
-      transform = "scale(#{inches_per_pixel},#{inches_per_pixel})"
+      tile_list = tiles(map.bounds, resolution)
       
-      downloads = %w[layers labels].map do |type|
-        [ type, options[type] ]
+      w, h = dimensions(map.bounds, resolution)
+      t = Math::tan(map.rotation * Math::PI / 180.0)
+      d = (t * t - 1) * Math::sqrt(t * t + 1)
+      if t >= 0
+        y = (t * (h * t - w) / d).abs
+        x = (t * y).abs
+      else
+        x = -(t * (h + w * t) / d).abs
+        y = -(t * x).abs
+      end
+      offset_coeffs = [ x, -y ]
+      rotate_coeffs = [ [ 1, 0 ], [ 0, 1 ] ].map { |vector| vector.rotate_by(map.rotation * Math::PI / 180.0) }
+      inches_per_pixel = resolution / 0.0254 / map.scale
+      coeffs = [ *rotate_coeffs, offset_coeffs ].flatten.map { |coeff| coeff * inches_per_pixel }
+      transform = "matrix(#{coeffs.join ' '})"
+      
+      downloads = %w[layers labels].select do |type|
+        options[type]
+      end.map do |type|
+        case options[type]
+        when String, Array
+          [ type, { map.scale => [ *options[type] ] } ]
+        else
+          [ type, options[type] ]
+        end
       end.map do |type, scales_layers|
-        (scales_layers || []).map do |scale, layers|
+        scales_layers.map do |scale, layers|
           layer_options = case layers
           when Array
             ids = layers.map do |name|
@@ -848,7 +879,7 @@ render:
               [ id, string ]
             end.transpose
             { "layers" => "show:#{ids.join(?,)}", "layerDefs" => strings.join(?;) }
-          end.merge("dpi" => scale * 0.0254 / resolution, "wkt" => map.wkt)
+          end.merge("dpi" => scale * 0.0254 / resolution, "wkt" => map.wkt, "format" => "svg")
           xpath = type == "layers" ?
             "/svg//g[@id='#{service['mapName']}']//g[@id!='Labels' and not(.//g[@id])]" :
             "/svg//g[@id='#{service['mapName']}']/g[@id='Labels']"
@@ -856,12 +887,14 @@ render:
         end
       end.inject(:+)
           
-      tilesets = tiles(map.bounds, resolution).with_progress("Downloading: #{label}").map do |tile_bounds, tile_sizes, tile_offsets|
+      tilesets = tile_list.with_progress("Downloading: #{label}").map do |tile_bounds, tile_sizes, tile_offsets|
         tileset = downloads.map do |scale, layer_options, type, xpath|
           sleep params["interval"] if params["interval"]
           
           temp_dir = File.join(Dir.pwd, "tmp")
           temp_path = File.join temp_dir, [ type, scale, *tile_offsets, "svg" ].join(?.)
+          
+          ################################################################################
           tile_data = case
           when File.exists?(temp_path) then File.read(temp_path)
           else get_tile(tile_bounds, tile_sizes, options.merge(layer_options))
@@ -869,11 +902,6 @@ render:
           if Dir.exists?(temp_dir) && !File.exists?(temp_path)
             File.write temp_path, tile_data
           end
-          # tile_data = get_tile(tile_bounds, tile_sizes, options.merge(layer_options))
-          
-          # TODO: insert &amp; for inkscape, no &amp; for webkit
-          # tile_data.gsub! /ESRITransportation\&?Civic/, "ESRITransportationCivic, ESRITransportation&amp;Civic"
-          # tile_data.gsub!  /ESRIEnvironmental\&?Icons/, "ESRIEnvironmentalIcons, ESRIEnvironmental&amp;Icons"
           
           tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
           tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
@@ -888,6 +916,29 @@ render:
           end
           
           [ REXML::Document.new(tile_data), scale, type, xpath ]
+          ################################################################################
+          # tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(layer_options)) do |tile_data|
+          #   tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
+          #   tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
+          # 
+          #   [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
+          #     tile_data.gsub! regex do |match|
+          #       case $1
+          #       when "Labels", service["mapName"], *layer_names then match
+          #       else match.sub $1, [ label, type, scale, *tile_offsets, $1 ].join(?.)
+          #       end
+          #     end
+          #   end
+          #   
+          #   begin
+          #     REXML::Document.new(tile_data)
+          #   rescue REXML::ParseException => e
+          #     raise ServerError.new("Bad XML data received: #{e.message}")
+          #   end
+          # end
+          # 
+          # [ tile_xml, scale, type, xpath]
+          ################################################################################
         end
         
         [ tileset, tile_sizes, tile_offsets ]
@@ -895,7 +946,7 @@ render:
       
       xml = SVG.make(map) do |svg|
         svg.add_element("defs") do |defs|
-          tiles(map.bounds, resolution).each do |tile_bounds, tile_sizes, tile_offsets|
+          tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
             defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(?.)) do |clippath|
               clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
             end
@@ -953,6 +1004,8 @@ render:
       File.open(mosaic_path, "w") { |file| xml.write file }
       
       mosaic_path
+    rescue REXML::ParseException => e
+      abort "Bad XML received:\n#{e.message}"
     end
     
     def rerender(xml, options)
@@ -1009,7 +1062,7 @@ render:
     def image(label, options, map, temp_dir)
       scale = options["scale"] || map.scale
       resolution = options["resolution"] || map.resolution
-      layer_options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.wkt }
+      layer_options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.wkt, "format" => "png32" }
       
       dataset = tiles(map.bounds, resolution).with_progress("Downloading: #{label}").with_index.map do |(tile_bounds, tile_sizes, tile_offsets), tile_index|
         sleep params["interval"] if params["interval"]
@@ -1017,33 +1070,32 @@ render:
         File.open(tile_path, "wb") do |file|
           file << get_tile(tile_bounds, tile_sizes, options.merge(layer_options))
         end
-        [ tile_sizes, tile_offsets, tile_path ]
+        [ tile_bounds, tile_sizes, tile_offsets, tile_path ]
       end
       
       mosaic_path = File.join(temp_dir, "#{label}.png")
       puts "Assembling: #{label}"
       
       if map.rotation.zero?
-        sequence = dataset.map do |tile_sizes, tile_offsets, tile_path|
+        sequence = dataset.map do |_, tile_sizes, tile_offsets, tile_path|
           %Q[#{OP} "#{tile_path}" +repage -repage +#{tile_offsets[0]}+#{tile_offsets[1]} #{CP}]
         end.join " "
-        resize = (options["resolution"] || options["scale"]) ? "-resize #{dimensions[0]}x#{dimensions[1]}!" : ""
+        resize = (options["resolution"] || options["scale"]) ? "-resize #{map.dimensions.join ?x}!" : ""
         %x[convert -units PixelsPerInch #{sequence} -compose Copy -layers mosaic -density #{map.ppi} #{resize} "#{mosaic_path}"]
       else
-        abort "TODO: implement rotations!"
-        # # TODO: old code for rotated image, needs redoing
-        # tile_paths = dataset.map do |tile_bounds, tile_path|
-        #   WorldFile.write([ tile_bounds.first.first, tile_bounds.last.last ], scaling.metres_per_pixel, 0, "#{tile_path}w")
-        #   %Q["#{tile_path}"]
-        # end.join " "
-        # vrt_path = File.join(temp_dir, "#{label}.vrt")
-        # %x[gdalbuildvrt "#{vrt_path}" #{tile_paths}]
-        # tif_path = File.join(temp_dir, "#{label}.tif")
-        # %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
-        # tfw_path = File.join(temp_dir, "#{label}.tfw")
-        # FileUtils.cp(world_file_path, tfw_path)
-        # %x[gdalwarp -s_srs "EPSG:#{srs}" -t_srs "EPSG:#{srs}" -r cubic "#{vrt_path}" "#{tif_path}"]
-        # %x[convert "#{tif_path}" -quiet "#{mosaic_path}"]
+        tile_paths = dataset.map do |tile_bounds, _, _, tile_path|
+          topleft = [ tile_bounds.first.first, tile_bounds.last.last ]
+          WorldFile.write(topleft, resolution, 0, "#{tile_path}w")
+          %Q["#{tile_path}"]
+        end.join " "
+        vrt_path = File.join(temp_dir, "#{label}.vrt")
+        tif_path = File.join(temp_dir, "#{label}.tif")
+        tfw_path = File.join(temp_dir, "#{label}.tfw")
+        %x[gdalbuildvrt "#{vrt_path}" #{tile_paths}]
+        %x[convert -size #{map.dimensions.join ?x} -units PixelsPerInch -density #{map.ppi} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
+        map.write_world_file(tfw_path)
+        %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -dstalpha -r cubic "#{vrt_path}" "#{tif_path}"]
+        %x[convert "#{tif_path}" -quiet "#{mosaic_path}"]
       end
       
       mosaic_path
@@ -1515,13 +1567,13 @@ render:
     
     map = Map.new(config)
     
-    sixmaps = VectorArcGIS.new(
-      "host" => "maps.six.nsw.gov.au",
+    sixmaps_vector = VectorArcGIS.new(
+      "host" => "mapsq.six.nsw.gov.au",
       "folder" => "sixmaps",
       "tile_sizes" => [ 2048, 2048 ],
       "interval" => 0.1,
     )
-    sixmapsq = RasterArcGIS.new(
+    sixmaps_raster = RasterArcGIS.new(
       "host" => "mapsq.six.nsw.gov.au",
       "folder" => "sixmaps",
       "tile_sizes" => [ 2048, 2048 ],
@@ -1562,7 +1614,7 @@ render:
     oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
 
     services = {
-      sixmaps => {
+      sixmaps_vector => {
         "topographic" => {
           "service" => "LPIMap",
           "resolution" => 0.55,
@@ -1571,91 +1623,15 @@ render:
               "LS_Roads_onbridge" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND NOT "roadontype" IN (1,3)],
               "LS_Roads_onground" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 1],
             },
-            9000 => %w[
-              LS_PlacePoint
-              LS_GeneralCulturalPoint
-              PointOfInterest
-              DLSPoint
-              DLSLine
-              MS_BuildingComplexPoint
-              GeneralCulturalPoint
-              MS_RoadNameExtent_Labels
-              MS_Roads_Labels
-              TransportFacilityPoint
-              MS_Railway
-              MS_Roads
-              MS_LocalRoads
-              MS_Tracks_onground
-              MS_Roads_intunnel
-              AncillaryHydroPoint
-              AncillaryHydroPoint_Bore
-              TransportFacilityLine
-              GeneralCulturalLine
-              DLSArea_overwater
-              FuzzyExtentLine
-              Runway
-              VSS_Oceans
-              HydroArea
-              LS_Watercourse
-              LS_Hydroline
-              MS_Watercourse
-              MS_Hydroline
-              DLSArea_underwater
-              SS_Watercourse
-              VSS_Watercourse
-              TN_Watercourse
-              border
-              Rural_Property
-              Lot
-              LS_Contour
-              GeneralCulturalArea
-              Urban_Areas
-            ],
+            9000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse border Rural_Property Lot LS_Contour GeneralCulturalArea Urban_Areas],
           },
           "labels" => {
-            12000 => %w[
-              LS_PlacePoint
-              LS_GeneralCulturalPoint
-              PointOfInterest
-              DLSPoint
-              DLSLine
-              MS_BuildingComplexPoint
-              GeneralCulturalPoint
-              MS_RoadNameExtent_Labels
-              MS_Roads_Labels
-              TransportFacilityPoint
-              MS_Railway
-              MS_Roads
-              MS_LocalRoads
-              MS_Tracks_onground
-              MS_Roads_intunnel
-              AncillaryHydroPoint
-              AncillaryHydroPoint_Bore
-              TransportFacilityLine
-              GeneralCulturalLine
-              DLSArea_overwater
-              FuzzyExtentLine
-              Runway
-              VSS_Oceans
-              HydroArea
-              LS_Watercourse
-              LS_Hydroline
-              MS_Watercourse
-              MS_Hydroline
-              DLSArea_underwater
-              SS_Watercourse
-              VSS_Watercourse
-              TN_Watercourse
-              border
-              Rural_Property
-              MS_Contour
-              Urban_Areas
-            ],
+            12000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse border Rural_Property MS_Contour Urban_Areas],
             # GeneralCulturalArea # TODO: labels?
           },
           "render" => {
-            "LS_Roads_onground" => { "expand" => 2,   "colours" => { "#A39D93" => "#000000" } },
-            "LS_Roads_onbridge" => { "expand" => 1.5, "colours" => { "#A39D93" => "#000000" } },
+            "LS_Roads_onground" => { "expand" => 2, "colours" => { "#A39D93" => "#000000" } },
+            "LS_Roads_onbridge" => { "expand" => 2, "colours" => { "#A39D93" => "#000000" } },
             "LS_Contour" =>        { "expand" => 1.5 },
             "TN_Watercourse" =>    { "opacity" => 1 },
             "VSS_Watercourse" =>   { "opacity" => 1 },
@@ -1666,8 +1642,13 @@ render:
             "LS_Watercourse" =>    { "opacity" => 1 },
           },
         },
+        # "holdings" => {
+        #   "service" => "LHPA",
+        #   "layers" => %w[Holdings],
+        #   "labels" => %w[Holdings],
+        # },
       },
-      sixmapsq => {
+      sixmaps_raster => {
         "nsw-topo" => {
           "service" => "NSWTopo",
           "image" => true,
@@ -1676,13 +1657,6 @@ render:
           "service" => "Best_WebM",
           "image" => true,
         },
-        "vegetation" => {
-          "service" => "Vegetation",
-        }
-        # "holdings" => {
-        #   "service" => "LHPA",
-        #   "layers" => "show:2",
-        # },
       },
       # declination_service => {
       #   "declination" => { }
@@ -1731,7 +1705,6 @@ render:
     puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
     puts "  scale: 1:%i" % map.scale
     puts "  rotation: %.1f degrees" % map.rotation
-    # puts "  %imm x %imm @ %i ppi" % [ *dimensions.map { |dimension| dimension * 25.4 / scaling.ppi }, scaling.ppi ]
     puts "  %.1f megapixels (%i x %i) @ %i ppi" % [ 0.000001 * map.dimensions.inject(:*), *map.dimensions, map.ppi ]
     
     [ *services.values, config["compose"] ].each do |label_list|
@@ -1750,13 +1723,14 @@ render:
     File.open(output_path, "w") do |file|
       SVG.make(map) do |svg|
         config["compose"].each do |label|
-          puts label
           service = services.find do |_, labels_options|
             labels_options[label]
           end.first
           options = services[service][label]
-          service.render_svg(label, options, map, output_dir) do |element|
-            svg.elements << element
+          svg.add_element("g", "id" => label) do |group|
+            service.render_svg(label, options, map, output_dir) do |element|
+              group.elements << element
+            end
           end
         end
       end.write(file)

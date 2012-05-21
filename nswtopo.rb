@@ -27,9 +27,9 @@ require 'json'
 class REXML::Element
   alias_method :unadorned_add_element, :add_element
   def add_element(name, attrs = {})
-    result = unadorned_add_element(name, attrs)
-    yield result if block_given?
-    result
+    unadorned_add_element(name, attrs).tap do |element|
+      yield element if block_given?
+    end
   end
 end
 
@@ -154,9 +154,7 @@ grid:
   weight: 200
 relief:
   altitude: 45
-  azimuth:
-  - 315
-  - 45
+  azimuth: 315
   exaggeration: 1
 controls:
   family: Arial
@@ -168,13 +166,6 @@ controls:
 formats:
 - png
 compose:
-- aerial-lpi-ads40
-- aerial-lpi-eastcoast
-- aerial-google
-- aerial-nokia
-- aerial-webm
-- reference-topo
-- nsw-topo
 - topographic
 render:
   LS_Roads_onground:
@@ -523,8 +514,8 @@ render:
     end
   end
   
-  module SVGRasterRenderer
-    def render_svg(label, options, map, output_dir)
+  module RasterRenderer
+    def render(label, options, map, output_dir)
       image = REXML::Element.new("image")
       image.add_attributes(
         "id" => label,
@@ -569,7 +560,7 @@ render:
   end
   
   class TiledService < OneToOneService
-    include SVGRasterRenderer
+    include RasterRenderer
     
     def image(label, options, map, temp_dir)
       puts "Downloading: #{label}"
@@ -1048,7 +1039,7 @@ render:
       end
     end
     
-    def render_svg(label, options, map, output_dir, &block)
+    def render(label, options, map, output_dir, &block)
       svg = REXML::Document.new(File.read(File.join(output_dir, "#{label}.svg")))
       rerender(svg, options["render"] || {})
       svg.elements.each("/svg/defs", &block)
@@ -1057,7 +1048,7 @@ render:
   end
   
   class RasterArcGIS < ArcGIS
-    include SVGRasterRenderer
+    include RasterRenderer
     
     def image(label, options, map, temp_dir)
       scale = options["scale"] || map.scale
@@ -1103,7 +1094,7 @@ render:
   end
 
   class OneEarthDEMRelief < Service
-    include SVGRasterRenderer
+    include RasterRenderer
     
     def images(labels_options, map, temp_dir)
       bounds = Bounds.transform(map.projection, WGS84, map.bounds)
@@ -1152,7 +1143,7 @@ render:
           case options["name"]
           when "shaded-relief"
             altitude = params["altitude"]
-            azimuth = options["azimuth"]
+            azimuth = params["azimuth"]
             exaggeration = params["exaggeration"]
             %x[convert -size #{map.dimensions.join ?x} -units PixelsPerInch -density #{map.ppi} canvas:black -type GrayScale -depth 8 "#{tif_path}"]
             %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
@@ -1559,7 +1550,7 @@ render:
       "utm" => /utm-.*/,
       "aerial" => /aerial-.*/,
       "aerial-lpi" => /aerial-lpi-.*/,
-      "relief" => /elevation|shaded-relief-.*/
+      "relief" => /elevation|shaded-relief/
     }.each do |shortcut, regex|
       config["exclude"] << regex if config["exclude"].delete(shortcut)
     end
@@ -1679,11 +1670,10 @@ render:
       nokia_maps => {
         "aerial-nokia" => { "name" => 1, "format" => 1 }
       },
-      oneearth_relief => [ *config["relief"]["azimuth"] ].map do |azimuth|
-        { "shaded-relief-#{azimuth}" => { "name" => "shaded-relief", "azimuth" => azimuth } }
-      end.inject({}, &:merge).merge(
-        "elevation" => { "name" => "color-relief" }
-      ),
+      oneearth_relief => {
+        "shaded-relief" => { "name" => "shaded-relief" },
+        "elevation" => { "name" => "color-relief" },
+      },
     }
 
     # [ 54, 55, 56 ].each do |zone|
@@ -1728,7 +1718,7 @@ render:
           end.first
           options = services[service][label]
           svg.add_element("g", "id" => label) do |group|
-            service.render_svg(label, options, map, output_dir) do |element|
+            service.render(label, options, map, output_dir) do |element|
               group.elements << element
             end
           end

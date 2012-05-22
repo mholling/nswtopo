@@ -159,17 +159,19 @@ relief:
   azimuth: 315
   exaggeration: 1
 controls:
+  colour: "#880088"
   family: Arial
   fontsize: 14
-  weight: 200
   diameter: 7.0
   thickness: 0.2
-  waterdrop-size: 4.5
+  water-colour: blue
 formats:
 - png
 compose:
 - topographic
+- holdings
 - declination
+- controls
 render:
   LS_Roads_onground:
     expand: 2
@@ -311,14 +313,17 @@ render:
         abort "Error: map extent must be provided as zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
       end
 
-      projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
-      @projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{projection_centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
-      @wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{projection_centre.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
+      @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
+      @projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{@projection_centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
+      @wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{@projection_centre.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
       # # zone = UTMGridService.zone(WGS84, projection_centre)
       # # projection = "+proj=utm +zone=#{zone} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
       # # # TODO: option to select a UTM projection instead of custom mercator (require declination rewrite)
       # proj_path = File.join(output_dir, "#{map_name}.prj")
       # File.open(proj_path, "w") { |file| file.puts projection }
+      
+      @declination = config["declination"]["angle"]
+      config["rotation"] = -declination if config["rotation"] == "magnetic"
 
       if config["size"]
         sizes = config["size"].split(/[x,]/).map(&:to_f)
@@ -327,7 +332,7 @@ render:
         @rotation = config["rotation"]
         abort("Error: cannot specify map size and auto-rotation together") if @rotation == "auto"
         abort "Error: map rotation must be between +/-45 degrees" unless @rotation.abs <= 45
-        @centre = projection_centre.reproject(WGS84, @projection)
+        @centre = @projection_centre.reproject(WGS84, @projection)
       else
         puts "Calculating map bounds..."
         bounding_points = wgs84_points.reproject(WGS84, projection)
@@ -360,6 +365,20 @@ render:
       topleft = [ @centre, @extents.rotate_by(-@rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
       WorldFile.write(topleft, @resolution, @rotation, world_file_path)
     end
+    
+    def declination
+      @declination ||= begin
+        degrees_minutes_seconds = @projection_centre.map do |coord|
+          [ (coord > 0 ? 1 : -1) * coord.abs.floor, (coord.abs * 60).floor % 60, (coord.abs * 3600).round % 60 ]
+        end
+        today = Date.today
+        year_month_day = [ today.year, today.month, today.day ]
+        url = "http://www.ga.gov.au/bin/geoAGRF?latd=%i&latm=%i&lats=%i&lond=%i&lonm=%i&lons=%i&elev=0&year=%i&month=%i&day=%i&Ein=D" % (degrees_minutes_seconds.reverse.flatten + year_month_day)
+        HTTP.get(URI.parse url) do |response|
+          /D\s*=\s*(\d+\.\d+)/.match(response.body) { |match| match.captures[0].to_f }
+        end
+      end
+    end
   end
   
   InternetError = Class.new(Exception)
@@ -369,7 +388,7 @@ render:
   
   module RetryOn
     def retry_on(*exceptions)
-      intervals = [ 1, 2, 4, 8 ]
+      intervals = [ 1, 2, 2, 4, 4, 8, 8 ]
       begin
         yield
       rescue *exceptions => e
@@ -1311,7 +1330,7 @@ render:
     def render(label, options, map, output_dir)
       group = REXML::Element.new("g")
       group.add_attribute("transform", SVG.transform(map, 1))
-      draw(group, label, options, map, output_dir) do |coords, projection|
+      draw(group, options, map, output_dir) do |coords, projection|
         easting, northing = coords.reproject(projection, map.projection)
         [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
           metres / map.scale / 0.0254
@@ -1322,30 +1341,17 @@ render:
   end
   
   class DeclinationService < AnnotationService
-    def self.get_declination(coords, projection)
-      degrees_minutes_seconds = coords.reproject(projection, WGS84).map do |coord|
-        [ (coord > 0 ? 1 : -1) * coord.abs.floor, (coord.abs * 60).floor % 60, (coord.abs * 3600).round % 60 ]
-      end
-      today = Date.today
-      year_month_day = [ today.year, today.month, today.day ]
-      url = "http://www.ga.gov.au/bin/geoAGRF?latd=%i&latm=%i&lats=%i&lond=%i&lonm=%i&lons=%i&elev=0&year=%i&month=%i&day=%i&Ein=D" % (degrees_minutes_seconds.reverse.flatten + year_month_day)
-      HTTP.get(URI.parse url) do |response|
-        /D\s*=\s*(\d+\.\d+)/.match(response.body) { |match| match.captures[0].to_f }
-      end
-    end
-    
-    def draw(group, label, options, map, output_dir)
+    def draw(group, options, map, output_dir)
       centre = Bounds.transform(map.projection, WGS84, map.bounds).map { |bound| 0.5 * bound.inject(:+) }
       projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{centre[0]} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
-      declination = params["angle"] || DeclinationService.get_declination(centre, WGS84)
-      spacing = params["spacing"] / Math::cos(declination * Math::PI / 180.0)
+      spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
       bounds = Bounds.transform(map.projection, projection, map.bounds)
       extents = bounds.map { |bound| bound.max - bound.min }
-      longitudinal_extent = extents[0] + extents[1] * Math::tan(declination * Math::PI / 180.0)
+      longitudinal_extent = extents[0] + extents[1] * Math::tan(map.declination * Math::PI / 180.0)
       0.upto(longitudinal_extent / spacing).map do |count|
-        declination > 0 ? bounds[0][1] - count * spacing : bounds[0][0] + count * spacing
+        map.declination > 0 ? bounds[0][1] - count * spacing : bounds[0][0] + count * spacing
       end.map do |easting|
-        eastings = [ easting, easting + extents[1] * Math::tan(declination * Math::PI / 180.0) ]
+        eastings = [ easting, easting + extents[1] * Math::tan(map.declination * Math::PI / 180.0) ]
         northings = bounds.last
         [ eastings, northings ].transpose
       end.map do |line|
@@ -1353,62 +1359,55 @@ render:
       end.map do |line|
         "M%f %f L%f %f" % line.flatten
       end.each do |d|
-        # TODO: best way to specify colour?
         group.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"] / 25.4)
       end
     end
   end
   
-  # class ControlService < AnnotationService
-  #   def get(*args, &block)
-  #     super(*args, &block) if params["file"]
-  #   end
-  # 
-  #   def draw(input_projection, scaling, rotation, dimensions, centre, options)
-  #     waypoints, names = GPS.read_waypoints(params["file"]).select do |waypoint, name|
-  #       case options["name"]
-  #       when /control/ then name[/\d{2,3}|HH/]
-  #       when /waterdrop/ then name[/W/]
-  #       end
-  #     end.transpose
-  #     return "" unless waypoints
-  #   
-  #     radius = params["diameter"] * scaling.ppi / 25.4 / 2
-  #     strokewidth = params["thickness"] * scaling.ppi / 25.4
-  #     family = params["family"]
-  #     fontsize = options["name"] == "waterdrops" ? params["waterdrop-size"] * 3.7 : params["fontsize"]
-  #     weight = params["weight"]
-  #     cx, cy = dimensions.map { |dimension| 0.5 * dimension }
-  #   
-  #     string = [ waypoints.reproject(WGS84, input_projection), names ].transpose.map do |coords, name|
-  #       offsets = [ coords, centre, [ 1, -1 ] ].transpose.map { |coord, cent, sign| (coord - cent) * sign / scaling.metres_per_pixel }
-  #       x, y = offsets.rotate_by(rotation * Math::PI / 180.0)
-  #       case options["name"]
-  #       when "control-circles"
-  #         case name
-  #         when /HH/ then %Q[-draw "polygon #{cx + x},#{cy + y - radius} #{cx + x + radius * Math::sqrt(0.75)},#{cy + y + radius * 0.5}, #{cx + x - radius * Math::sqrt(0.75)},#{cy + y + radius * 0.5}"]
-  #         else %Q[-draw "circle #{cx + x},#{cy + y} #{cx + x + radius},#{cy + y}"]
-  #         end
-  #       when "control-labels"
-  #         %Q[-draw "text #{cx + x + radius},#{cy + y - radius} '#{name[/\d{2,3}|HH/]}'"]
-  #       when "waterdrops"
-  #         %Q[-draw "gravity Center text #{x},#{y} 'S'"]
-  #       end
-  #     end.join " "
-  #   
-  #     case options["name"]
-  #     when "control-circles"
-  #       %Q[-fill black -draw "color 0,0 reset" -stroke white -strokewidth #{strokewidth} #{string}]
-  #     when "control-labels"
-  #       %Q[-fill black -draw "color 0,0 reset" -fill white -pointsize #{fontsize} -weight #{weight} -family "#{family}" #{string}]
-  #     when "waterdrops"
-  #       %Q[-fill black -draw "color 0,0 reset" -stroke white -strokewidth #{strokewidth} -pointsize #{fontsize} -family Wingdings #{string}]
-  #     end
-  #   rescue BadGpxKmlFile => e
-  #     raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
-  #   end
-  # end
-  # 
+  class ControlService < AnnotationService
+    def draw(group, options, map, output_dir, &convert)
+      return unless params["file"]
+      radius = params["diameter"] / 25.4 / 2
+      strokewidth = params["thickness"] / 25.4
+      fontfamily = params["family"]
+      fontsize = params["fontsize"] / 72.0
+      
+      rotation = [ [ 1, 0 ], [ 0, 1 ] ].map { |axis| axis.rotate_by(-map.rotation * Math::PI / 180.0) }
+      [ [ /\d{2,3}/, :circle,   params["colour"] ],
+        [ /HH/,      :triangle, params["colour"] ],
+        [ /W/,       :water,    params["water-colour"] ],
+      ].each do |selector, type, colour|
+        GPS.read_waypoints(params["file"]).map do |waypoint, name|
+          [ yield(waypoint, WGS84), name[selector] ]
+        end.select do |point, label|
+          label
+        end.each do |point, label|
+          coeffs = [ *rotation.flatten, *point ].join " "
+          group.add_element("g", "transform" => "matrix(#{coeffs})") do |rotated|
+            case type
+            when :circle
+              rotated.add_element("circle", "r"=> radius, "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth)
+            when :triangle
+              points = [ -90, -210, -330 ].map do |angle|
+                [ radius, 0 ].rotate_by(angle * Math::PI / 180.0)
+              end.map { |vertex| vertex.join ?, }.join " "
+              rotated.add_element("polygon", "points" => points, "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth)
+            when :water
+              rotated.add_element("text", "dy" => 0.5 * radius, "font-family" => "Wingdings", "fill" => "none", "stroke" => "blue", "stroke-width" => strokewidth, "text-anchor" => "middle", "dominant-baseline" => "central", "font-size" => 2 * radius) do |text|
+                text.add_text "S"
+              end
+            end
+            rotated.add_element("text", "dx" => radius, "dy" => -radius, "font-family" => fontfamily, "font-size" => fontsize, "fill" => colour, "stroke" => "none") do |text|
+              text.add_text label
+            end unless type == :water
+          end
+        end
+      end
+    rescue BadGpxKmlFile => e
+      raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
+    end
+  end
+  
   # class OverlayService < OneToOneService
   #   # def get(labels_options, input_bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
   #   def image(label, options, input_bounds, input_projection, scaling, rotation, dimensions, centre, temp_dir, world_file_path)
@@ -1571,7 +1570,7 @@ render:
   def self.run
     output_dir = Dir.pwd
     default_config = YAML.load(CONFIG)
-    default_config["controls"]["file"] ||= "controls.gpx" if File.exists?(File.join(output_dir, "controls.gpx"))
+    %w[gpx kml].each { |ext| default_config["controls"]["file"] ||= "controls.#{ext}" if File.exists?(File.join(output_dir, "controls.#{ext}")) }
     user_config = begin
       YAML.load File.open(File.join(output_dir, "config.yml"))
     rescue ArgumentError, SyntaxError => e
@@ -1588,8 +1587,6 @@ render:
     }.each do |shortcut, regex|
       config["exclude"] << regex if config["exclude"].delete(shortcut)
     end
-    config["rotation"] = -(config["declination"]["angle"] || DeclinationService.get_declination(projection_centre, WGS84)) if config["rotation"] == "magnetic"
-    
     map = Map.new(config)
     
     sixmaps_vector = VectorArcGIS.new(
@@ -1604,15 +1601,6 @@ render:
       "tile_sizes" => [ 2048, 2048 ],
       "interval" => 0.1,
     )
-    # atlas = ArcGIS.new(
-    #   "host" => "atlas.nsw.gov.au",
-    #   "instance" => "ArcGis1",
-    #   "cookie" => "http://atlas.nsw.gov.au/",
-    #   "tile_sizes" => [ 2048, 2048 ],
-    #   "interval" => 0.1,
-    # )
-    declination_service = DeclinationService.new(config["declination"])
-    # control_service = ControlService.new(config["controls"])
     lpi_ortho = LPIOrthoService.new(
       "host" => "lite.maps.nsw.gov.au",
       "tile_size" => 1024,
@@ -1637,6 +1625,8 @@ render:
       "tile_limit" => 250,
     )
     oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
+    declination_service = DeclinationService.new(config["declination"])
+    control_service = ControlService.new(config["controls"])
 
     services = {
       sixmaps_vector => {
@@ -1657,7 +1647,7 @@ render:
           "render" => {
             "LS_Roads_onground" => { "expand" => 2, "colours" => { "#A39D93" => "#000000" } },
             "LS_Roads_onbridge" => { "expand" => 2, "colours" => { "#A39D93" => "#000000" } },
-            "LS_Contour" =>        { "expand" => 1.5 },
+            "LS_Contour" =>        { "expand" => 1.5, "colours" => { "#D6CAB6" => "#5B4D33", "#D6B781" => "#684E22" } },
             "TN_Watercourse" =>    { "opacity" => 1 },
             "VSS_Watercourse" =>   { "opacity" => 1 },
             "SS_Watercourse" =>    { "opacity" => 1 },
@@ -1665,13 +1655,14 @@ render:
             "MS_Watercourse" =>    { "opacity" => 1 },
             "LS_Hydroline" =>      { "opacity" => 1 },
             "LS_Watercourse" =>    { "opacity" => 1 },
+            "Labels" =>            { "colours" => { "#A87000" => "#000000" } },
           },
         },
-        # "holdings" => {
-        #   "service" => "LHPA",
-        #   "layers" => %w[Holdings],
-        #   "labels" => %w[Holdings],
-        # },
+        "holdings" => {
+          "service" => "LHPA",
+          "layers" => %w[Holdings],
+          "labels" => %w[Holdings],
+        },
       },
       sixmaps_raster => {
         "nsw-topo" => {
@@ -1686,11 +1677,9 @@ render:
       declination_service => {
         "declination" => { }
       },
-      # control_service => {
-      #   "control-labels" => { "name" => "control-labels" },
-      #   "control-circles" => { "name" => "control-circles" },
-      #   "waterdrops" => { "name" => "waterdrops" },
-      # },
+      control_service => {
+        "controls" => { }
+      },
       lpi_ortho => {
         "aerial-lpi-ads40" => { "config" => "/ADS40ImagesConfig.js" },
         # "aerial-lpi-sydney" => { "config" => "/SydneyImagesConfig.js" },

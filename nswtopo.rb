@@ -148,6 +148,8 @@ declination:
   colour: "#000000"
 grid:
   interval: 1000
+  width: 0.1
+  colour: "#000000"
   labels:
     style: grid
     spacing: 5
@@ -165,39 +167,11 @@ controls:
   diameter: 7.0
   thickness: 0.2
   water-colour: blue
-formats:
-- png
 compose:
 - topographic
-- holdings
+- grid
 - declination
 - controls
-render:
-  LS_Roads_onground:
-    expand: 2
-    lightness: 20
-  LS_Roads_onbridge:
-    expand: 1.5
-    colours:
-      "#A39D93": "#000000"
-  LS_Contour:
-    expand: 1.5
-    colours:
-      "#A39D93": "#000000"
-  TN_Watercourse:
-    opacity: 1
-  VSS_Watercourse:
-    opacity: 1
-  SS_Watercourse:
-    opacity: 1
-  MS_Hydroline:
-    opacity: 1
-  MS_Watercourse:
-    opacity: 1
-  LS_Hydroline:
-    opacity: 1
-  LS_Watercourse:
-    opacity: 1
 ]
   
   module BoundingBox
@@ -316,7 +290,7 @@ render:
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
       @projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{@projection_centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
       @wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{@projection_centre.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
-      # # zone = UTMGridService.zone(WGS84, projection_centre)
+      # # zone = GridService.zone(WGS84, projection_centre)
       # # projection = "+proj=utm +zone=#{zone} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
       # # # TODO: option to select a UTM projection instead of custom mercator (require declination rewrite)
       # proj_path = File.join(output_dir, "#{map_name}.prj")
@@ -1207,121 +1181,6 @@ render:
       end
     end
   end
-
-  # class UTMGridService < Service
-  #   def self.zone(projection, coords)
-  #     (coords.reproject(projection, WGS84).first / 6).floor + 31
-  #   end
-  # 
-  #   def initialize(*args)
-  #     super(*args)
-  #     @zone = params["zone"]
-  #     @projection = "+proj=utm +zone=#{zone} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-  #   end
-  # 
-  #   attr_reader :zone
-  # 
-  #   def zone_contains?(coords)
-  #     UTMGridService.zone(projection, coords) == zone
-  #   end
-  # 
-  #   def pixel_for(coords, bounds, scaling)
-  #     [ coords, bounds, [ 1, -1 ] ].transpose.map.with_index do |(coord, bound, sign), index|
-  #       ((coord - bound[index]) * sign / scaling.metres_per_pixel).round
-  #     end
-  #   end
-  #   
-  #   def images(labels_options, input_bounds, input_projection, scaling, rotation, dimensions, centre, temp_dir, world_file_path)
-  #     return [].each unless input_bounds.inject(:product).map { |corner| UTMGridService.zone(input_projection, corner) }.include? zone
-  #     
-  #     bounds = Bounds.transform(input_projection, projection, input_bounds)
-  #     Enumerator.new do |yielder|
-  #       labels_options.map do |label, options|
-  #         puts "Creating: #{label}"
-  #         interval, fontsize, family, weight = params.values_at("interval", "fontsize", "family", "weight")
-  # 
-  #         tick_indices = bounds.map do |bound|
-  #           ((bound.first / interval).floor .. (bound.last / interval).ceil).to_a
-  #         end
-  #         tick_coords = tick_indices.map { |indices| indices.map { |index| index * interval } }
-  #         centre_coords = bounds.map { |bound| 0.5 * bound.inject(:+) }
-  #         centre_indices = [ centre_coords, tick_indices ].transpose.map do |coord, indices|
-  #           indices.index((coord / interval).round)
-  #         end
-  # 
-  #         draw_string = case options["name"]
-  #         when "grid"
-  #           string = [ :to_a, :reverse ].map do |order|
-  #             tick_coords.send(order).first.map do |perpendicular_coord|
-  #               line_coords = tick_coords.send(order).last.map do |parallel_coord|
-  #                 [ perpendicular_coord, parallel_coord ].send(order)
-  #               end.select { |coords| zone_contains? coords }
-  #               line_coords.length > 1 ? [ line_coords.first, line_coords.last ] : nil
-  #             end.compact
-  #           end.inject(:+).map do |end_coords|
-  #             end_coords.map { |coords| pixel_for coords, bounds, scaling }
-  #           end.map do |end_pixels|
-  #             %Q[-draw "line #{end_pixels.first.first},#{end_pixels.first.last} #{end_pixels.last.first},#{end_pixels.last.last}"]
-  #           end.join " "
-  #           "-stroke white -strokewidth 1 #{string}"
-  #         when "eastings", "northings"
-  #           eastings = options["name"] == "eastings"
-  #           index = eastings ? 0 : 1
-  #           angle = eastings ? 90 : 0
-  #           label_spacing = params["labels"]["spacing"]
-  #           divisor = interval % 1000 == 0 ? 1000 : 1
-  #           square = (interval / scaling.metres_per_pixel).round
-  #           margin = (0.04 * scaling.ppi).ceil
-  #           label_coords = tick_coords[index].select do |coord|
-  #             coord % (label_spacing * interval) == 0
-  #           end.map do |coord|
-  #             case params["labels"]["style"]
-  #             when "line"
-  #               [ [ coord, tick_coords[1-index][centre_indices[1-index]] ].send(index.zero? ? :to_a : :reverse) ]
-  #             when "grid"
-  #               tick_coords[1-index].select do |perp_coord|
-  #                 perp_coord % (label_spacing * interval) == 0
-  #               end.map do |perp_coord|
-  #                 [ coord, perp_coord + 0.5 * interval ].send(index.zero? ? :to_a : :reverse)
-  #               end
-  #             end
-  #           end.inject(:+) || []
-  #           string = label_coords.select do |coords|
-  #             zone_contains? coords
-  #           end.map do |coords|
-  #             [ pixel_for(coords, bounds, scaling), coords[index] ]
-  #           end.map do |pixel, coord|
-  #             grid_reference = (coord / divisor).to_i
-  #             case params["labels"]["style"]
-  #             when "grid"
-  #               %Q[#{OP} -pointsize #{fontsize} -family "#{family}" -weight #{weight} -size #{square}x#{square} canvas:none -gravity Center -annotate "#{angle}" "#{grid_reference}" -repage %+i%+i #{CP} -layers flatten] % pixel.map { |p| p - square / 2 }
-  #             when "line"
-  #               %Q[-draw "translate #{pixel.join ?,} rotate #{angle} text #{margin},#{-margin} '#{grid_reference}'"]
-  #             end
-  #           end.join " "
-  #           %Q[-background none -fill white -pointsize #{fontsize} -family "#{family}" -weight #{weight} #{string}]
-  #         end
-  #     
-  #         canvas_dimensions = bounds.map { |bound| ((bound.max - bound.min) / scaling.metres_per_pixel).ceil }
-  #         canvas_path = File.join(temp_dir, "canvas.tif")
-  #         result_path = File.join(temp_dir, "result.tif")
-  #         canvas_tfw_path = File.join(temp_dir, "canvas.tfw")
-  #         result_tfw_path = File.join(temp_dir, "result.tfw")
-  #         png_path = File.join(temp_dir, "#{label}.png")
-  #     
-  #         %x[convert -size #{canvas_dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 #{draw_string} "#{canvas_path}"]
-  #         WorldFile.write([ bounds.first.first, bounds.last.last ], scaling.metres_per_pixel, 0, canvas_tfw_path)
-  #         %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black -type TrueColor -depth 8 "#{result_path}"]
-  #         FileUtils.cp(world_file_path, result_tfw_path)
-  #         resample = params["resample"] || "cubic"
-  #         %x[gdalwarp -s_srs "#{projection}" -t_srs "#{input_projection}" -r #{resample} "#{canvas_path}" "#{result_path}"]
-  #         %x[convert -quiet "#{result_path}" "#{png_path}"]
-  #       
-  #         yielder << png_path
-  #       end
-  #     end
-  #   end
-  # end
   
   class AnnotationService < OneToOneService
     def download(*args)
@@ -1364,8 +1223,51 @@ render:
     end
   end
   
+  class GridService < AnnotationService
+    def self.zone(coords, projection)
+      (coords.reproject(projection, WGS84).first / 6).floor + 31
+    end
+  
+    def draw(group, options, map, output_dir)
+      interval = params["interval"]
+      map.bounds.inject(:product).map do |corner|
+        GridService.zone(corner, map.projection)
+      end.inject do |range, zone|
+        [ *range, zone ].min .. [ *range, zone ].max
+      end.each do |zone|
+        projection = "+proj=utm +zone=#{zone} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+        eastings, northings = Bounds.transform(map.projection, projection, map.bounds).map do |bound|
+          (bound[0] / interval).floor .. (bound[1] / interval).ceil
+        end.map do |counts|
+          counts.map { |count| count * interval }
+        end
+        eastings.map do |easting|
+          northings.map do |northing|
+            [ easting, northing ]
+          end.map do |coords|
+            [ GridService.zone(coords, projection) == zone, coords ]
+          end
+        end.tap do |grid|
+          [ grid, grid.transpose ].each do |lines|
+            lines.each do |line|
+              line.select do |use, coords|
+                use
+              end.map do |_, coords|
+                yield coords, projection
+              end.map do |point|
+                point.join(" ")
+              end.join(" L").tap do |d|
+                group.add_element("path", "d" => "M#{d}", "stroke-width" => params["width"] / 25.4, "stroke" => params["colour"])
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  
   class ControlService < AnnotationService
-    def draw(group, options, map, output_dir, &convert)
+    def draw(group, options, map, output_dir)
       return unless params["file"]
       radius = params["diameter"] / 25.4 / 2
       strokewidth = params["thickness"] / 25.4
@@ -1578,7 +1480,6 @@ render:
     end
     config = default_config.deep_merge user_config
     config["exclude"] = [ *config["exclude"] ]
-    config["formats"].each(&:downcase!)
     {
       "utm" => /utm-.*/,
       "aerial" => /aerial-.*/,
@@ -1627,7 +1528,8 @@ render:
     oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
     declination_service = DeclinationService.new(config["declination"])
     control_service = ControlService.new(config["controls"])
-
+    grid_service = GridService.new(config["grid"])
+    
     services = {
       sixmaps_vector => {
         "topographic" => {
@@ -1657,6 +1559,7 @@ render:
             "LS_Watercourse" =>    { "opacity" => 1 },
             "Labels" =>            { "colours" => { "#A87000" => "#000000" } },
           },
+          # TODO: have topo rendering in config instead?
         },
         "holdings" => {
           "service" => "LHPA",
@@ -1673,12 +1576,6 @@ render:
           "service" => "Best_WebM",
           "image" => true,
         },
-      },
-      declination_service => {
-        "declination" => { }
-      },
-      control_service => {
-        "controls" => { }
       },
       lpi_ortho => {
         "aerial-lpi-ads40" => { "config" => "/ADS40ImagesConfig.js" },
@@ -1697,17 +1594,17 @@ render:
         "shaded-relief" => { "name" => "shaded-relief" },
         "elevation" => { "name" => "color-relief" },
       },
+      declination_service => {
+        "declination" => { }
+      },
+      grid_service => {
+        "grid" => { }
+      },
+      control_service => {
+        "controls" => { }
+      },
     }
 
-    # [ 54, 55, 56 ].each do |zone|
-    #   grid_service = UTMGridService.new({ "zone" => zone }.merge config["grid"])
-    #   services.merge!(grid_service => {
-    #     "utm-#{zone}-grid" => { "name" => "grid" },
-    #     "utm-#{zone}-eastings" => { "name" => "eastings" },
-    #     "utm-#{zone}-northings" => { "name" => "northings" }
-    #   })
-    # end
-    # 
     # overlays = [ *config["overlays"] ].inject({}) do |hash, (filename_or_path, thickness)|
     #   hash.merge(File.split(filename_or_path).last.partition(/\.\w+$/).first => { "path" => filename_or_path, "thickness" => thickness })
     # end
@@ -1736,6 +1633,7 @@ render:
     File.open(output_path, "w") do |file|
       SVG.make(map) do |svg|
         config["compose"].each do |label|
+          puts "Rendering #{label}"
           service = services.find do |_, labels_options|
             labels_options[label]
           end.first

@@ -150,12 +150,9 @@ grid:
   interval: 1000
   width: 0.1
   colour: "#000000"
-  labels:
-    style: grid
-    spacing: 5
+  label-spacing: 5
   fontsize: 7.8
   family: Arial Narrow
-  weight: 200
 relief:
   altitude: 45
   azimuth: 315
@@ -510,38 +507,22 @@ compose:
     end
     
     def self.transform(map, inches_per_unit)
-      w, h = map.bounds.map { |bound| (bound.max - bound.min) / 0.0254 / map.scale }
-      t = Math::tan(map.rotation * Math::PI / 180.0)
-      d = (t * t - 1) * Math::sqrt(t * t + 1)
-      if t >= 0
-        y = (t * (h * t - w) / d).abs
-        x = (t * y).abs
+      if map.rotation.zero?
+        "scale(#{inches_per_unit})"
       else
-        x = -(t * (h + w * t) / d).abs
-        y = -(t * x).abs
+        w, h = map.bounds.map { |bound| (bound.max - bound.min) / 0.0254 / map.scale }
+        t = Math::tan(map.rotation * Math::PI / 180.0)
+        d = (t * t - 1) * Math::sqrt(t * t + 1)
+        if t >= 0
+          y = (t * (h * t - w) / d).abs
+          x = (t * y).abs
+        else
+          x = -(t * (h + w * t) / d).abs
+          y = -(t * x).abs
+        end
+        "translate(#{x} #{-y}) rotate(#{map.rotation}) scale(#{inches_per_unit})"
       end
-      offsets = [ x, -y ]
-      scaled_rotation = [ [ inches_per_unit, 0 ], [ 0, inches_per_unit ] ].map { |vector| vector.rotate_by(map.rotation * Math::PI / 180.0) }
-      coeffs = [ *scaled_rotation, offsets ].flatten
-      transform = "matrix(#{coeffs.join ' '})"
     end
-    
-    # def self.transform(map, resolution)
-    #   w, h = map.bounds.map { |bound| (bound.max - bound.min) / resolution }
-    #   t = Math::tan(map.rotation * Math::PI / 180.0)
-    #   d = (t * t - 1) * Math::sqrt(t * t + 1)
-    #   if t >= 0
-    #     y = (t * (h * t - w) / d).abs
-    #     x = (t * y).abs
-    #   else
-    #     x = -(t * (h + w * t) / d).abs
-    #     y = -(t * x).abs
-    #   end
-    #   offset_coeffs = [ x, -y ]
-    #   rotate_coeffs = [ [ 1, 0 ], [ 0, 1 ] ].map { |vector| vector.rotate_by(map.rotation * Math::PI / 180.0) }
-    #   coeffs = [ *rotate_coeffs, offset_coeffs ].flatten.map { |coeff| coeff * resolution / 0.0254 / map.scale }
-    #   transform = "matrix(#{coeffs.join ' '})"
-    # end
   end
   
   module RasterRenderer
@@ -549,7 +530,7 @@ compose:
       image = REXML::Element.new("image")
       image.add_attributes(
         "id" => label,
-        "transform" => "scale(#{1.0 / map.ppi},#{1.0 / map.ppi})",
+        "transform" => "scale(#{1.0 / map.ppi})",
         "width" => map.dimensions[0],
         "height" => map.dimensions[1],
         "x" => 0,
@@ -858,8 +839,7 @@ compose:
       layer_names = service["layers"].map { |layer| layer["name"] }
       
       resolution = options["resolution"] || map.resolution
-      inches_per_pixel = resolution / 0.0254 / map.scale
-      transform = SVG.transform(map, inches_per_pixel)
+      transform = SVG.transform(map, resolution / 0.0254 / map.scale)
       
       tile_list = tiles(map.bounds, resolution)
       
@@ -992,9 +972,9 @@ compose:
             end.select do |layer, id|
               layers[id]
             end.each do |layer, id|
-              transform = "matrix(1 0 0 1 #{tile_offsets.join(' ')})"
+              tile_transform = "translate(#{tile_offsets.join ' '})"
               clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(?.)})"
-              layers[id].add_element("g", "transform" => transform, "clip-path" => clip_path) do |tile|
+              layers[id].add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
                 layer.elements.each { |element| tile << element }
               end
             end
@@ -1230,6 +1210,11 @@ compose:
   
     def draw(group, options, map, output_dir)
       interval = params["interval"]
+      label_spacing = params["label-spacing"]
+      label_interval = label_spacing * interval
+      fontfamily = params["family"]
+      fontsize = params["fontsize"] / 72.0
+      
       map.bounds.inject(:product).map do |corner|
         GridService.zone(corner, map.projection)
       end.inject do |range, zone|
@@ -1241,23 +1226,45 @@ compose:
         end.map do |counts|
           counts.map { |count| count * interval }
         end
-        eastings.map do |easting|
-          northings.map do |northing|
+        grid = eastings.map do |easting|
+          northings.reverse.map do |northing|
             [ easting, northing ]
           end.map do |coords|
             [ GridService.zone(coords, projection) == zone, coords ]
           end
-        end.tap do |grid|
-          [ grid, grid.transpose ].each do |lines|
-            lines.each do |line|
-              line.select do |use, coords|
-                use
-              end.map do |_, coords|
-                yield coords, projection
-              end.map do |point|
-                point.join(" ")
-              end.join(" L").tap do |d|
-                group.add_element("path", "d" => "M#{d}", "stroke-width" => params["width"] / 25.4, "stroke" => params["colour"])
+        end
+        [ grid, grid.transpose ].each.with_index do |gridlines, index|
+          gridlines.each do |gridline|
+            line = gridline.select(&:first).map(&:last)
+            line.map do |coords|
+              yield coords, projection
+            end.map do |point|
+              point.join(" ")
+            end.join(" L").tap do |d|
+              group.add_element("path", "d" => "M#{d}", "stroke-width" => params["width"] / 25.4, "stroke" => params["colour"])
+            end
+            if line[0] && line[0][index] % label_interval == 0 
+              coord = line[0][index]
+              label_segments = [ [ "%d", (coord / 100000), 80 ], [ "%02d", (coord / 1000) % 100, 100 ] ]
+              label_segments << [ "%03d", coord % 1000, 80 ] unless label_interval % 1000 == 0
+              label_segments.map! { |template, number, percent| [ template % number, percent ] }
+              line.inject do |*segment|
+                if segment[0][1-index] % label_interval == 0
+                  points = segment.map { |coords| yield coords, projection }
+                  middle = points.transpose.map { |values| 0.5 * values.inject(:+) }
+                  angle = 180.0 * Math::atan2(*points[1].minus(points[0]).reverse) / Math::PI
+                  transform = "translate(#{middle.join ' '}) rotate(#{angle})"
+                  [ [ "white", "white" ], [ params["colour"], "none" ] ].each do |fill, stroke|
+                    group.add_element("text", "transform" => transform, "dy" => 0.25 * fontsize, "stroke-width" => 0.15 * fontsize, "font-family" => fontfamily, "font-size" => fontsize, "fill" => fill, "stroke" => stroke, "text-anchor" => "middle") do |text|
+                      label_segments.each do |digits, percent|
+                        text.add_element("tspan", "font-size" => "#{percent}%") do |tspan|
+                          tspan.add_text(digits)
+                        end
+                      end
+                    end
+                  end
+                end
+                segment.last
               end
             end
           end
@@ -1274,7 +1281,6 @@ compose:
       fontfamily = params["family"]
       fontsize = params["fontsize"] / 72.0
       
-      rotation = [ [ 1, 0 ], [ 0, 1 ] ].map { |axis| axis.rotate_by(-map.rotation * Math::PI / 180.0) }
       [ [ /\d{2,3}/, :circle,   params["colour"] ],
         [ /HH/,      :triangle, params["colour"] ],
         [ /W/,       :water,    params["water-colour"] ],
@@ -1284,8 +1290,8 @@ compose:
         end.select do |point, label|
           label
         end.each do |point, label|
-          coeffs = [ *rotation.flatten, *point ].join " "
-          group.add_element("g", "transform" => "matrix(#{coeffs})") do |rotated|
+          transform = "translate(#{point.join ' '}) rotate(#{-map.rotation})"
+          group.add_element("g", "transform" => transform) do |rotated|
             case type
             when :circle
               rotated.add_element("circle", "r"=> radius, "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth)
@@ -1295,7 +1301,7 @@ compose:
               end.map { |vertex| vertex.join ?, }.join " "
               rotated.add_element("polygon", "points" => points, "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth)
             when :water
-              rotated.add_element("text", "dy" => 0.5 * radius, "font-family" => "Wingdings", "fill" => "none", "stroke" => "blue", "stroke-width" => strokewidth, "text-anchor" => "middle", "dominant-baseline" => "central", "font-size" => 2 * radius) do |text|
+              rotated.add_element("text", "dy" => 0.5 * radius, "font-family" => "Wingdings", "fill" => "none", "stroke" => "blue", "stroke-width" => strokewidth, "text-anchor" => "middle", "font-size" => 2 * radius) do |text|
                 text.add_text "S"
               end
             end
@@ -1629,22 +1635,25 @@ compose:
       service.download(labels_options, map, output_dir) unless labels_options.empty?
     end
     
-    output_path = File.join output_dir, "#{config['name']}.svg"
-    File.open(output_path, "w") do |file|
-      SVG.make(map) do |svg|
-        config["compose"].each do |label|
-          puts "Rendering #{label}"
-          service = services.find do |_, labels_options|
-            labels_options[label]
-          end.first
-          options = services[service][label]
-          svg.add_element("g", "id" => label) do |group|
-            service.render(label, options, map, output_dir) do |element|
-              group.elements << element
+    Dir.mktmpdir do |temp_dir|
+      svg_path = File.join temp_dir, "#{config['name']}.svg"
+      File.open(svg_path, "w") do |file|
+        SVG.make(map) do |svg|
+          config["compose"].each do |label|
+            puts "Rendering #{label}"
+            service = services.find do |_, labels_options|
+              labels_options[label]
+            end.first
+            options = services[service][label]
+            svg.add_element("g", "id" => label) do |group|
+              service.render(label, options, map, output_dir) do |element|
+                group.elements << element
+              end
             end
           end
-        end
-      end.write(file)
+        end.write(file)
+      end
+      FileUtils.mv(svg_path, output_dir)
     end
     
 #     
@@ -1707,11 +1716,7 @@ end
 # TODO: reinstate rotation
 
 # TODO: add rasters as layers
-# TODO: inline clip rects?
 # TODO: check tile scalings to avoid polygon area tile boundary lines
 # TODO: option to allow for tiles not to be clipped (e.g. for labels)?
-# TODO: workflow
 # TODO: colouring, expanding, stretching etc.
-# TODO: decide which layers and scales to use
 # TODO: label sizing
-# TODO: handle case where only image data is returned in a vector request

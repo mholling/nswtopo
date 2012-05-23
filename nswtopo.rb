@@ -1199,10 +1199,10 @@ compose:
     def download(*args)
     end
     
-    def render(label, options, map, output_dir)
+    def render(label, options, map)
       group = REXML::Element.new("g")
       group.add_attribute("transform", SVG.transform(map, 1))
-      draw(group, options, map, output_dir) do |coords, projection|
+      draw(group, options, map) do |coords, projection|
         easting, northing = coords.reproject(projection, map.projection)
         [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
           metres / map.scale / 0.0254
@@ -1213,7 +1213,7 @@ compose:
   end
   
   class DeclinationService < AnnotationService
-    def draw(group, options, map, output_dir)
+    def draw(group, options, map)
       centre = Bounds.transform(map.projection, WGS84, map.bounds).map { |bound| 0.5 * bound.inject(:+) }
       projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{centre[0]} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
       spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
@@ -1241,7 +1241,7 @@ compose:
       (coords.reproject(projection, WGS84).first / 6).floor + 31
     end
   
-    def draw(group, options, map, output_dir)
+    def draw(group, options, map)
       interval = params["interval"]
       label_spacing = params["label-spacing"]
       label_interval = label_spacing * interval
@@ -1307,7 +1307,7 @@ compose:
   end
   
   class ControlService < AnnotationService
-    def draw(group, options, map, output_dir)
+    def draw(group, options, map)
       return unless params["file"]
       radius = params["diameter"] / 25.4 / 2
       strokewidth = params["thickness"] / 25.4
@@ -1350,14 +1350,17 @@ compose:
   end
   
   class OverlayService < AnnotationService
-    def draw(group, options, map, output_dir)
+    def draw(group, options, map)
+      width = (options["width"] || 0.5) / 25.4
+      colour = options["colour"] || "red"
+      opacity = options["opacity"] || 1
       gps = GPS.new(options["path"])
-      [ [ :tracks, "polyline", { "fill" => "none", "stroke" => options["colour"], "stroke-width" => 0.3/25.4 } ],
-        [ :areas, "polygon", { "fill" => options["colour"], "stroke" => "none" } ]
+      [ [ :tracks, "polyline", { "fill" => "none", "stroke" => colour, "stroke-width" => width } ],
+        [ :areas, "polygon", { "fill" => colour, "stroke" => "none" } ]
       ].each do |feature, element, attributes|
         gps.send(feature).each do |list, name|
           points = list.map { |coords| yield(coords, WGS84).join ?, }.join " "
-          group.add_element(element, attributes.merge("points" => points, "opacity" => options["opacity"] || 1))
+          group.add_element(element, attributes.merge("points" => points, "opacity" => opacity))
         end
       end
     end

@@ -131,7 +131,7 @@ module NSWTopo
   CP = WINDOWS ? ')' : '\)'
   ZIP = WINDOWS ? "7z a -tzip" : "zip"
   
-  CONFIG = %q[
+  CONFIG = %q[---
 name: map
 scale: 25000
 ppi: 300
@@ -169,6 +169,34 @@ compose:
 - grid
 - declination
 - controls
+render:
+  pathways:
+    expand: 2
+    colours: 
+      "#A39D93": "#000000"
+  contours: 
+    expand: 1.5
+    colours: 
+      "#D6CAB6": "#805100"
+      "#D6B781": "#805100"
+  water: 
+    opacity: 1
+    colours:
+      "#73A1E6": "#4985DF"
+  tracks:
+    colours:
+      "#9C9C9C": "#363636"
+  roads:
+    colours:
+      "#9C9C9C": "#363636"
+  cadastre:
+    opacity: 0.5
+    colours:
+      "#DCDCDC": "#777777"
+      "#E4B3FF": "#777777"
+  labels: 
+    colours: 
+      "#A87000": "#000000"
 ]
   
   module BoundingBox
@@ -1029,13 +1057,13 @@ compose:
       abort "Bad XML received:\n#{e.message}"
     end
     
-    def rerender(xml, options)
+    def rerender(xml, renderings)
       xml.elements.collect("/svg/g[@id]") do |layer|
         [ layer, layer.attributes["id"].split(?.).last ]
       end.select do |layer, id|
-        options[id]
+        renderings[id]
       end.each do |layer, id|
-        xpaths = options[id].map do |command, values|
+        xpaths = renderings[id].map do |command, values|
           case command
           when "opacity"
             "./@opacity"
@@ -1049,7 +1077,7 @@ compose:
             %w[stroke fill].map { |name| values.keys.map { |colour| ".//[@#{name}='#{colour}']/@#{name}" } }.flatten
           end
         end
-        methods = options[id].map do |command, values|
+        methods = renderings[id].map do |command, values|
           lambda do |attribute|
             attribute.normalized = case command
             when "opacity"
@@ -1071,7 +1099,15 @@ compose:
     
     def render(label, options, map, output_dir, &block)
       svg = REXML::Document.new(File.read(File.join(output_dir, "#{label}.svg")))
-      rerender(svg, options["render"] || {})
+      equivalences = options["equivalences"] || {}
+      options["render"].inject({}) do |renderings, (layer_or_group, rendering)|
+        [ *(equivalences[layer_or_group] || layer_or_group) ].each do |layer|
+          renderings[layer] = rendering
+        end
+        renderings
+      end.tap do |renderings|
+        rerender(svg, renderings)
+      end
       svg.elements.each("/svg/defs", &block)
       svg.elements.each("/svg/g[@id]", &block)
     end
@@ -1199,7 +1235,7 @@ compose:
     def download(*args)
     end
     
-    def render(label, options, map)
+    def render(label, options, map, output_dir)
       group = REXML::Element.new("g")
       group.add_attribute("transform", SVG.transform(map, 1))
       draw(group, options, map) do |coords, projection|
@@ -1521,6 +1557,7 @@ compose:
     }.each do |shortcut, regex|
       config["exclude"] << regex if config["exclude"].delete(shortcut)
     end
+    
     map = Map.new(config)
     
     sixmaps_vector = VectorArcGIS.new(
@@ -1573,26 +1610,21 @@ compose:
               "LS_Roads_onbridge" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND NOT "roadontype" IN (1,3)],
               "LS_Roads_onground" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 1],
             },
-            9000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse border Rural_Property Lot LS_Contour GeneralCulturalArea Urban_Areas],
+            9000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Rural_Property Lot LS_Contour GeneralCulturalArea Urban_Areas],
           },
           "labels" => {
-            12000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse border Rural_Property MS_Contour Urban_Areas],
+            12000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Rural_Property MS_Contour Urban_Areas],
             # GeneralCulturalArea # TODO: labels?
           },
-          "render" => {
-            "LS_Roads_onground" => { "expand" => 2, "colours" => { "#A39D93" => "#000000" } },
-            "LS_Roads_onbridge" => { "expand" => 2, "colours" => { "#A39D93" => "#000000" } },
-            "LS_Contour" =>        { "expand" => 1.5, "colours" => { "#D6CAB6" => "#5B4D33", "#D6B781" => "#684E22" } },
-            "TN_Watercourse" =>    { "opacity" => 1 },
-            "VSS_Watercourse" =>   { "opacity" => 1 },
-            "SS_Watercourse" =>    { "opacity" => 1 },
-            "MS_Hydroline" =>      { "opacity" => 1 },
-            "MS_Watercourse" =>    { "opacity" => 1 },
-            "LS_Hydroline" =>      { "opacity" => 1 },
-            "LS_Watercourse" =>    { "opacity" => 1 },
-            "Labels" =>            { "colours" => { "#A87000" => "#000000" } },
+          "equivalences" => {
+            "contours" => %w[LS_Contour MS_Contour],
+            "water" => %w[TN_Watercourse VSS_Watercourse SS_Watercourse MS_Hydroline MS_Watercourse LS_Hydroline LS_Watercourse VSS_Oceans HydroArea],
+            "pathways" => %w[LS_Roads_onground LS_Roads_onbridge],
+            "tracks" => %w[MS_Tracks_onground],
+            "roads" => %w[MS_Roads MS_LocalRoads MS_Roads_intunnel],
+            "cadastre" => %w[Rural_Property Lot],
+            "labels" => %w[Labels],
           },
-          # TODO: have topo rendering in config instead?
         },
         "holdings" => {
           "service" => "LHPA",
@@ -1673,7 +1705,7 @@ compose:
             end.first
             options = services[service][label]
             svg.add_element("g", "id" => label) do |group|
-              service.render(label, options, map, output_dir) do |element|
+              service.render(label, options.merge("render" => config["render"]), map, output_dir) do |element|
                 group.elements << element
               end
             end
@@ -1742,8 +1774,10 @@ end
 # TODO: allow user to select between UTM projection and north-aligned projection
 # TODO: check tile scalings to avoid polygon area tile boundary lines
 # TODO: option to allow for tiles not to be clipped (e.g. for labels)?
-# TODO: colouring, expanding, stretching etc.
 # TODO: label sizing
 # TODO: final compose order?
-# TODO: re-rendering options
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
+# TODO: option to embed rasters instead of linking them?
+# TODO: don't render controls layer if there are no controls!
+# TODO: allow user-selectable contours
+# TODO: processing of shaded-relief layers

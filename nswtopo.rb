@@ -1648,7 +1648,7 @@ compose:
     puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
     puts "  scale: 1:%i" % map.scale
     puts "  rotation: %.1f degrees" % map.rotation
-    puts "  %.1f megapixels (%i x %i) @ %i ppi" % [ 0.000001 * map.dimensions.inject(:*), *map.dimensions, map.ppi ]
+    puts "  rasters: %i x %i (%.1fMpx) @ %i ppi" % [ *map.dimensions, 0.000001 * map.dimensions.inject(:*), map.ppi ]
     
     [ *services.values, config["compose"] ].each do |label_list|
       label_list.reject! do |label|
@@ -1681,7 +1681,7 @@ compose:
         end.write(file)
       end
       FileUtils.mv(svg_path, output_dir)
-    end
+    end unless File.exists? File.join(output_dir, "#{config['name']}.svg")
     
 #     
 #     oziexplorer_formats = %w[bmp png gif] & formats
@@ -1745,3 +1745,5 @@ end
 # TODO: colouring, expanding, stretching etc.
 # TODO: label sizing
 # TODO: final compose order?
+# TODO: re-rendering options
+# TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing

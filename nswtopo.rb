@@ -260,6 +260,77 @@ compose:
     end
   end
   
+  class GPS
+    module GPX
+      def waypoints
+        Enumerator.new do |yielder|
+          @xml.elements.each "/gpx//wpt" do |waypoint|
+            coords = [ "lon", "lat" ].map { |name| waypoint.attributes[name].to_f }
+            name = waypoint.elements["./name"]
+            yielder << [ coords, name ? name.text : "" ]
+          end
+        end
+      end
+
+      def tracks
+        Enumerator.new do |yielder|
+          @xml.elements.each "/gpx//trk" do |track|
+            list = track.elements.collect(".//trkpt") { |point| [ "lon", "lat" ].map { |name| point.attributes[name].to_f } }
+            name = track.elements["./name"]
+            yielder << [ list, name ? name.text : "" ]
+          end
+        end
+      end
+      
+      def areas
+        Enumerator.new { |yielder| }
+      end
+    end
+
+    module KML
+      def waypoints
+        Enumerator.new do |yielder|
+          @xml.elements.each "/kml//Placemark[.//Point/coordinates]" do |waypoint|
+            coords = waypoint.elements[".//Point/coordinates"].text.split(',')[0..1].map(&:to_f)
+            name = waypoint.elements["./name"]
+            yielder << [ coords, name ? name.text : "" ]
+          end
+        end
+      end
+      
+      def tracks
+        Enumerator.new do |yielder|
+          @xml.elements.each "/kml//Placemark[.//LineString//coordinates]" do |track|
+            list = track.elements[".//LineString//coordinates"].text.split(' ').map { |triplet| triplet.split(',')[0..1].map(&:to_f) }
+            name = track.elements["./name"]
+            yielder << [ list, name ? name.text : "" ]
+          end
+        end
+      end
+      
+      def areas
+        Enumerator.new do |yielder|
+          @xml.elements.each "/kml//Placemark[.//Polygon//coordinates]" do |polygon|
+            list = polygon.elements[".//Polygon//coordinates"].text.split(' ').map { |triplet| triplet.split(',')[0..1].map(&:to_f) }
+            name = polygon.elements["./name"]
+            yielder << [ list, name ? name.text : "" ]
+          end
+        end
+      end
+    end
+
+    def initialize(path)
+      @xml = REXML::Document.new(File.read path)
+      case
+      when @xml.elements["/gpx"] then class << self; include GPX; end
+      when @xml.elements["/kml"] then class << self; include KML; end
+      else raise BadGpxKmlFile.new(path)
+      end
+    rescue REXML::ParseException
+      raise BadGpxKmlFile.new(path)
+    end
+  end
+  
   class Map
     def initialize(config)
       @scale, @ppi = config.values_at("scale", "ppi")
@@ -276,10 +347,11 @@ compose:
         [ config.values_at("longitude", "latitude") ]
       when config["bounds"] || File.exists?("bounds.kml")
         config["bounds"] ||= "bounds.kml"
-        trackpoints = GPS.read_track(config["bounds"])
-        waypoints = GPS.read_waypoints(config["bounds"])
+        gps = GPS.new(config["bounds"])
+        polygon = gps.areas.first
+        waypoints = gps.waypoints.to_a
         config["margin"] = 0 unless waypoints.any?
-        trackpoints.any? ? trackpoints : waypoints.transpose.first
+        polygon ? polygon.first : waypoints.transpose.first
       else
         abort "Error: map extent must be provided as zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
       end
@@ -412,45 +484,6 @@ compose:
       [ bounds1, bounds2 ].transpose.map do |bound1, bound2|
         bound1.max > bound2.min && bound1.min < bound2.max
       end.inject(:&)
-    end
-  end
-  
-  module GPS # TODO: make into class?
-    def self.read_waypoints(path)
-      xml = REXML::Document.new(File.open path)
-      case
-      when xml.elements["/gpx"]
-        xml.elements.collect("/gpx//wpt") do |element|
-          [ [ element.attributes["lon"].to_f, element.attributes["lat"].to_f ], element.elements["name"].text ]
-        end
-      when xml.elements["/kml"]
-        xml.elements.collect("/kml//Placemark") do |element|
-          coords = element.elements["Point/coordinates"]
-          name = element.elements["name"]
-          coords && [ coords.text.split(',')[0..1].map(&:to_f), name ? name.text : "" ]
-        end.compact
-      else
-        raise BadGpxKmlFile.new(path)
-      end
-    rescue REXML::ParseException
-      raise BadGpxKmlFile.new(path)
-    end
-
-    def self.read_track(path)
-      xml = REXML::Document.new(File.open path)
-      case
-      when xml.elements["/gpx"]
-        xml.elements.collect("/gpx//trkpt") do |element|
-          [ element.attributes["lon"].to_f, element.attributes["lat"].to_f ]
-        end
-      when xml.elements["/kml"]
-        element = xml.elements["/kml//LineString/coordinates | /kml//Polygon//coordinates"]
-        element ? element.text.split(' ').map { |triplet| triplet.split(',')[0..1].map(&:to_f) } : []
-      else
-        raise BadGpxKmlFile.new(path)
-      end
-    rescue REXML::ParseException
-      raise BadGpxKmlFile.new(path)
     end
   end
   
@@ -1285,7 +1318,7 @@ compose:
         [ /HH/,      :triangle, params["colour"] ],
         [ /W/,       :water,    params["water-colour"] ],
       ].each do |selector, type, colour|
-        GPS.read_waypoints(params["file"]).map do |waypoint, name|
+        GPS.new(params["file"]).waypoints.map do |waypoint, name|
           [ yield(waypoint, WGS84), name[selector] ]
         end.select do |point, label|
           label
@@ -1316,28 +1349,19 @@ compose:
     end
   end
   
-  # class OverlayService < OneToOneService
-  #   # def get(labels_options, input_bounds, input_projection, scaling, rotation, dimensions, centre, output_dir, world_file_path)
-  #   def image(label, options, input_bounds, input_projection, scaling, rotation, dimensions, centre, temp_dir, world_file_path)
-  #     puts "Creating: #{label}"
-  #     kml_path = options["path"]
-  #     tif_path = File.join(temp_dir, "#{label}.tif")
-  #     tfw_path = File.join(temp_dir, "#{label}.tfw")
-  #     png_path = File.join(temp_dir, "#{label}.png")
-  #     gml_path = File.join(temp_dir, "#{label}.gml")
-  #     output_path = File.join(output_dir, "#{label}.png")
-  #     %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{scaling.ppi} canvas:black "#{tif_path}"]
-  #     FileUtils.cp(world_file_path, tfw_path)
-  #     %x[ogr2ogr -t_srs "#{input_projection}" -f "GML" "#{gml_path}" "#{kml_path}"]
-  #     %x[ogrinfo -q "#{gml_path}"].scan(/^\d+: ([^\(\n]*)/).flatten.each do |layername|
-  #       %x[gdal_rasterize -l "#{layername.strip}" -burn 255 "#{gml_path}" "#{tif_path}"]
-  #     end
-  #     sequence = options["thickness"] && options["thickness"] > 0 ? "-morphology Dilate Disk:%.1f" % (0.5 * options["thickness"] * scaling.ppi / 25.4) : ""
-  #     %x[convert -quiet "#{tif_path}" #{sequence} "#{png_path}"]
-  #     
-  #     png_path
-  #   end
-  # end
+  class OverlayService < AnnotationService
+    def draw(group, options, map, output_dir)
+      gps = GPS.new(options["path"])
+      [ [ :tracks, "polyline", { "fill" => "none", "stroke" => options["colour"], "stroke-width" => 0.3/25.4 } ],
+        [ :areas, "polygon", { "fill" => options["colour"], "stroke" => "none" } ]
+      ].each do |feature, element, attributes|
+        gps.send(feature).each do |list, name|
+          points = list.map { |coords| yield(coords, WGS84).join ?, }.join " "
+          group.add_element(element, attributes.merge("points" => points, "opacity" => options["opacity"] || 1))
+        end
+      end
+    end
+  end
   
   # module KMZ
   #   TILE_SIZE = 512
@@ -1611,12 +1635,12 @@ compose:
       },
     }
 
-    # overlays = [ *config["overlays"] ].inject({}) do |hash, (filename_or_path, thickness)|
-    #   hash.merge(File.split(filename_or_path).last.partition(/\.\w+$/).first => { "path" => filename_or_path, "thickness" => thickness })
-    # end
-    # services.merge!(OverlayService.new({}) => overlays)
-    # overlay_labels = overlays.keys
-
+    overlays = [ *config["overlays"] ].inject({}) do |hash, (filename_or_path, options)|
+      hash.merge(File.split(filename_or_path).last.partition(/\.\w+$/).first => options.merge("path" => filename_or_path))
+    end
+    services.merge!(OverlayService.new({}) => overlays)
+    config["compose"] += overlays.keys
+    
     puts "Map details:"
     puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
     puts "  scale: 1:%i" % map.scale
@@ -1713,10 +1737,8 @@ end
 
 # TODO: put long command lines into text file...
 # TODO: allow user to select between UTM projection and north-aligned projection
-# TODO: reinstate rotation
-
-# TODO: add rasters as layers
 # TODO: check tile scalings to avoid polygon area tile boundary lines
 # TODO: option to allow for tiles not to be clipped (e.g. for labels)?
 # TODO: colouring, expanding, stretching etc.
 # TODO: label sizing
+# TODO: final compose order?

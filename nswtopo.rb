@@ -473,6 +473,44 @@ render:
         end
       end
     end
+    
+    def svg(&block)
+      inches = @extents.map { |extent| extent / 0.0254 / @scale }
+      REXML::Document.new.tap do |xml|
+        xml << REXML::XMLDecl.new(1.0, "utf-8")
+        attributes = {
+          "version" => 1.1,
+          "baseProfile" => "full",
+          "xmlns" => "http://www.w3.org/2000/svg",
+          "xmlns:xlink" => "http://www.w3.org/1999/xlink",
+          "xmlns:ev" => "http://www.w3.org/2001/xml-events",
+          "xml:space" => "preserve",
+          "width"  => "#{inches[0]}in",
+          "height" => "#{inches[1]}in",
+          "viewBox" => "0 0 #{inches[0]} #{inches[1]}",
+          "enable-background" => "new 0 0 #{inches[0]} #{inches[1]}"
+        }
+        xml.add_element("svg", attributes, &block)
+      end
+    end
+    
+    def svg_transform(inches_per_unit)
+      if @rotation.zero?
+        "scale(#{inches_per_unit})"
+      else
+        w, h = @bounds.map { |bound| (bound.max - bound.min) / 0.0254 / @scale }
+        t = Math::tan(@rotation * Math::PI / 180.0)
+        d = (t * t - 1) * Math::sqrt(t * t + 1)
+        if t >= 0
+          y = (t * (h * t - w) / d).abs
+          x = (t * y).abs
+        else
+          x = -(t * (h + w * t) / d).abs
+          y = -(t * x).abs
+        end
+        "translate(#{x} #{-y}) rotate(#{@rotation}) scale(#{inches_per_unit})"
+      end
+    end
   end
   
   InternetError = Class.new(Exception)
@@ -565,47 +603,6 @@ render:
       when nil      then [ 0, 0, 0 ]
       end
       "#%02x%02x%02x" % rgb
-    end
-  end
-  
-  module SVG
-    def self.make(map, &block)
-      inches = map.extents.map { |extent| extent / 0.0254 / map.scale }
-      # inches = bounds.map { |bound| (bound.max - bound.min) / 0.0254 / scale }
-      REXML::Document.new.tap do |xml|
-        xml << REXML::XMLDecl.new(1.0, "utf-8")
-        attributes = {
-          "version" => 1.1,
-          "baseProfile" => "full",
-          "xmlns" => "http://www.w3.org/2000/svg",
-          "xmlns:xlink" => "http://www.w3.org/1999/xlink",
-          "xmlns:ev" => "http://www.w3.org/2001/xml-events",
-          "xml:space" => "preserve",
-          "width"  => "#{inches[0]}in",
-          "height" => "#{inches[1]}in",
-          "viewBox" => "0 0 #{inches[0]} #{inches[1]}",
-          "enable-background" => "new 0 0 #{inches[0]} #{inches[1]}"
-        }
-        xml.add_element("svg", attributes, &block)
-      end
-    end
-    
-    def self.transform(map, inches_per_unit)
-      if map.rotation.zero?
-        "scale(#{inches_per_unit})"
-      else
-        w, h = map.bounds.map { |bound| (bound.max - bound.min) / 0.0254 / map.scale }
-        t = Math::tan(map.rotation * Math::PI / 180.0)
-        d = (t * t - 1) * Math::sqrt(t * t + 1)
-        if t >= 0
-          y = (t * (h * t - w) / d).abs
-          x = (t * y).abs
-        else
-          x = -(t * (h + w * t) / d).abs
-          y = -(t * x).abs
-        end
-        "translate(#{x} #{-y}) rotate(#{map.rotation}) scale(#{inches_per_unit})"
-      end
     end
   end
   
@@ -950,7 +947,7 @@ render:
       layer_names = service["layers"].map { |layer| layer["name"] }
       
       resolution = options["resolution"] || map.resolution
-      transform = SVG.transform(map, resolution / 0.0254 / map.scale)
+      map.svg_transform(resolution / 0.0254 / map.scale)
       
       tile_list = tiles(map.bounds, resolution)
       
@@ -1043,7 +1040,7 @@ render:
         [ tileset, tile_sizes, tile_offsets ]
       end
       
-      xml = SVG.make(map) do |svg|
+      xml = map.svg do |svg|
         svg.add_element("defs") do |defs|
           tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
             defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(?.)) do |clippath|
@@ -1276,7 +1273,7 @@ render:
     
     def render(label, options, map, output_dir)
       group = REXML::Element.new("g")
-      group.add_attribute("transform", SVG.transform(map, 1))
+      group.add_attribute("transform", map.svg_transform(1))
       draw(group, options, map) do |coords, projection|
         easting, northing = coords.reproject(projection, map.projection)
         [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
@@ -1739,7 +1736,7 @@ render:
     Dir.mktmpdir do |temp_dir|
       svg_path = File.join(temp_dir, filename)
       File.open(svg_path, "w") do |file|
-        SVG.make(map) do |svg|
+        map.svg do |svg|
           config["compose"].each do |label|
             puts "Rendering #{label}"
             service = services.find do |_, labels_options|
@@ -1827,3 +1824,4 @@ end
 # TODO: allow user-selectable contours
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
 # TODO: render elevation.png or remove it!
+# TODO: add vegetation/underlay image option

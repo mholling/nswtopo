@@ -23,6 +23,7 @@ require 'yaml'
 require 'fileutils'
 require 'rbconfig'
 require 'json'
+require 'base64'
   
 class REXML::Element
   alias_method :unadorned_add_element, :add_element
@@ -157,6 +158,7 @@ relief:
   altitude: 45
   azimuth: 315
   exaggeration: 1
+  shadows: 30
 controls:
   colour: "#880088"
   family: Arial
@@ -166,6 +168,7 @@ controls:
   water-colour: blue
 compose:
 - topographic
+- shaded-relief
 - grid
 - declination
 - controls
@@ -613,8 +616,6 @@ render:
         "transform" => "scale(#{1.0 / map.ppi})",
         "width" => map.dimensions[0],
         "height" => map.dimensions[1],
-        "x" => 0,
-        "y" => 0,
         "xlink:href" => "#{label}.png",
       )
       yield image
@@ -1168,7 +1169,7 @@ render:
   end
 
   class OneEarthDEMRelief < Service
-    include RasterRenderer
+    RESOLUTION = 45.0
     
     def images(labels_options, map, temp_dir)
       bounds = Bounds.transform(map.projection, WGS84, map.bounds)
@@ -1213,29 +1214,59 @@ render:
           tif_path = File.join(temp_dir, "#{label}.tif")
           tfw_path = File.join(temp_dir, "#{label}.tfw")
           png_path = File.join(temp_dir, "#{label}.png")
-          map.write_world_file(tfw_path)
+          WorldFile.write([ map.bounds.first.min, map.bounds.last.max ], RESOLUTION, 0, tfw_path)
+          dimensions = map.bounds.map { |bound| ((bound.max - bound.min) / RESOLUTION).ceil }
+          ppi = 0.0254 * map.scale / RESOLUTION
           case options["name"]
           when "shaded-relief"
             altitude = params["altitude"]
             azimuth = params["azimuth"]
             exaggeration = params["exaggeration"]
-            %x[convert -size #{map.dimensions.join ?x} -units PixelsPerInch -density #{map.ppi} canvas:black -type GrayScale -depth 8 "#{tif_path}"]
             %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
+            %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
           when "color-relief"
             colours = { "0%" => "black", "100%" => "white" }
             colour_path = File.join(temp_dir, "colours.txt")
             File.open(colour_path, "w") do |file|
               colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
             end
-            %x[convert -size #{map.dimensions.join ?x} -units PixelsPerInch -density #{map.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
             %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
+            %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type TrueColor -depth 8 "#{tif_path}"]
           end
           %x[gdalwarp -s_srs "#{WGS84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
-          %x[convert "#{tif_path}" -quiet -type TrueColor -depth 8 "#{png_path}"]
+          %x[convert "#{tif_path}" -quiet -type Grayscale -depth 8 "#{png_path}"]
         
           yielder << png_path
         end
       end
+    end
+    
+    def render(label, options, map, output_dir)
+      transform = SVG.transform(map, RESOLUTION / map.scale / 0.0254)
+      dimensions = map.bounds.map { |bound| ((bound.max - bound.min) / RESOLUTION).ceil }
+      png_path = File.join output_dir, "#{label}.png"
+      cdf = %x[convert "#{png_path}" -format %c histogram:info:-].each_line.inject([]) do |memo, line|
+        line.match(/(\d+):\s*\(\s*(\d+)/) do |match|
+          memo << [ match[2].to_i, (memo.last || [ 0, 0 ])[1] + match[1].to_i ]
+        end || memo
+      end
+      white = cdf.find { |level, count| count >= cdf.last.last / 5 }.first
+      black = 100 - params["shadows"]
+      base64 = Dir.mktmpdir do |temp_dir|
+        temp_path = File.join temp_dir, "overlay.png"
+        %x[convert "#{png_path}" -level 0,#{white} +level #{black}%,100% -negate -alpha Copy -fill black +opaque black "#{temp_path}"]
+        Base64.encode64(File.read temp_path).gsub("\n","")
+      end
+      image = REXML::Element.new("image")
+      image.add_attributes(
+        "id" => label,
+        "transform" => transform,
+        "width" => dimensions[0],
+        "height" => dimensions[1],
+        "image-rendering" => "optimizeQuality",
+        "xlink:href" => "data:image/png;base64,#{base64}",
+      )
+      yield image
     end
   end
   
@@ -1704,7 +1735,7 @@ render:
       service.download(labels_options, map, output_dir) unless labels_options.empty?
     end
     
-    filename = "#{config['name']}"
+    filename = "#{config['name']}.svg"
     Dir.mktmpdir do |temp_dir|
       svg_path = File.join(temp_dir, filename)
       File.open(svg_path, "w") do |file|
@@ -1788,14 +1819,11 @@ end
 
 # TODO: put long command lines into text file...
 # TODO: allow user to select between UTM projection and north-aligned projection
-# TODO: check tile scalings to avoid polygon area tile boundary lines
+# TODO: solve tile-boundary gap problem
 # TODO: option to allow for tiles not to be clipped (e.g. for labels)?
-# TODO: label sizing
-# TODO: final compose order?
+# TODO: how to incorporate aerial rasters? (link or embed them?)
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
-# TODO: option to embed rasters instead of linking them?
 # TODO: don't render controls layer if there are no controls!
 # TODO: allow user-selectable contours
-# TODO: processing of shaded-relief layers
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
-
+# TODO: render elevation.png or remove it!

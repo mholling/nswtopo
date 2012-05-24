@@ -171,32 +171,51 @@ compose:
 - controls
 render:
   pathways:
-    expand: 2
+    expand: 0.5
     colours: 
-      "#A39D93": "#000000"
-  contours: 
-    expand: 1.5
+      "#A39D93": "#363636"
+  contours:
+    expand: 0.7
     colours: 
       "#D6CAB6": "#805100"
       "#D6B781": "#805100"
-  water: 
-    opacity: 1
-    colours:
-      "#73A1E6": "#4985DF"
   tracks:
+    expand: 0.6
     colours:
       "#9C9C9C": "#363636"
   roads:
+    expand: 0.6
     colours:
       "#9C9C9C": "#363636"
   cadastre:
+    expand: 0.5
     opacity: 0.5
     colours:
-      "#DCDCDC": "#777777"
-      "#E4B3FF": "#777777"
+      "#DCDCDC": "#999999"
+      "#E4B3FF": "#999999"
   labels: 
     colours: 
       "#A87000": "#000000"
+  water:
+    opacity: 1
+    colours:
+      "#73A1E6": "#4985DF"
+  LS_Hydroline:
+    expand: 0.3
+  LS_Watercourse:
+    expand: 0.3
+  MS_Hydroline:
+    expand: 0.5
+  MS_Watercourse:
+    expand: 0.5
+  SS_Watercourse:
+    expand: 0.7
+  VSS_Watercourse:
+    expand: 0.7
+  TN_Watercourse:
+    expand: 0.7
+  HydroArea:
+    expand: 0.5
 ]
   
   module BoundingBox
@@ -890,6 +909,35 @@ render:
   end
   
   class VectorArcGIS < ArcGIS
+    def rerender(element, command, values)
+      xpaths = case command
+      when "opacity"
+        "./@opacity"
+      when "expand"
+        %w[stroke-width stroke-dasharray stroke-miterlimit font-size].map { |name| ".//[@#{name}]/@#{name}" }
+      when "stretch"
+        ".//[@stroke-dasharray]/@stroke-dasharray"
+      when "hue", "saturation", "lightness"
+        %w[stroke fill].map { |name| ".//[@#{name}!='none']/@#{name}" }
+      when "colours"
+        %w[stroke fill].map { |name| values.keys.map { |colour| ".//[@#{name}='#{colour}']/@#{name}" } }.flatten
+      end
+      [ *xpaths ].each do |xpath|
+        REXML::XPath.each(element, xpath) do |attribute|
+          attribute.normalized = case command
+          when "opacity"
+            values.to_s
+          when "expand", "stretch"
+            attribute.value.split(/,\s*/).map(&:to_f).map { |size| size * values }.join(", ")
+          when "hue", "saturation", "lightness"
+            Color.new(attribute.value).tap { |color| color.send "#{command}=", values }.to_s
+          when "colours"
+            values[attribute.value] || attribute.value
+          end
+        end
+      end
+    end
+    
     def image(label, options, map, temp_dir)
       service = HTTP.get(service_uri(options, "f" => "json")) do |response|
         JSON.parse(response.body).tap do |result|
@@ -928,7 +976,7 @@ render:
               [ id, string ]
             end.transpose
             { "layers" => "show:#{ids.join(?,)}", "layerDefs" => strings.join(?;) }
-          end.merge("dpi" => scale * 0.0254 / resolution, "wkt" => map.wkt, "format" => "svg")
+          end.merge("dpi" => (scale || map.scale) * 0.0254 / resolution, "wkt" => map.wkt, "format" => "svg")
           xpath = type == "layers" ?
             "/svg//g[@id='#{service['mapName']}']//g[@id!='Labels' and not(.//g[@id])]" :
             "/svg//g[@id='#{service['mapName']}']/g[@id='Labels']"
@@ -959,7 +1007,7 @@ render:
             tile_data.gsub! regex do |match|
               case $1
               when "Labels", service["mapName"], *layer_names then match
-              else match.sub $1, [ label, type, scale, *tile_offsets, $1 ].join(?.)
+              else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(?.)
               end
             end
           end
@@ -974,7 +1022,7 @@ render:
           #     tile_data.gsub! regex do |match|
           #       case $1
           #       when "Labels", service["mapName"], *layer_names then match
-          #       else match.sub $1, [ label, type, scale, *tile_offsets, $1 ].join(?.)
+          #       else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(?.) # TODO: native?
           #       end
           #     end
           #   end
@@ -1004,13 +1052,13 @@ render:
         
         layers = tilesets.find(lambda { [ [ ] ] }) do |tileset, _, _|
           tileset.all? { |tile_xml, _, _, xpath| tile_xml.elements[xpath] }
-        end.first.map do |tile_xml, scale, type, xpath|
+        end.first.map do |tile_xml, _, _, xpath|
           tile_xml.elements.collect(xpath) do |layer|
             name = layer.attributes["id"]
             opacity = layer.parent.attributes["opacity"] || 1
             [ name, opacity ]
           end
-        end.inject([], &:+).uniq(&:first).sort_by do |name, _, _|
+        end.inject([], &:+).uniq(&:first).sort_by do |name, _|
           layer_order[name] || layer_order.length
         end.map do |name, opacity|
           { name => svg.add_element("g",
@@ -1027,7 +1075,7 @@ render:
             while tile_xml.elements["//g[not(*)]"]
               tile_xml.elements.each("//g[not(*)]") { |group| group.parent.delete_element group }
             end
-            
+            rerender(tile_xml, "expand", map.scale.to_f / scale) if scale && type == "layers"
             tile_xml.elements.collect(xpath) do |layer|
               [ layer, layer.attributes["id"] ]
             end.select do |layer, id|
@@ -1043,12 +1091,6 @@ render:
         end
       end
       
-      fonts = xml.elements.collect("//[@font-family]") { |element| element.attributes["font-family"] }.uniq
-      if fonts.any?
-        puts "Fonts required for #{label}.svg:"
-        fonts.sort.each { |font| puts "  #{font}" }
-      end
-      
       mosaic_path = File.join(temp_dir, "#{label}.svg")
       File.open(mosaic_path, "w") { |file| xml.write file }
       
@@ -1057,56 +1099,22 @@ render:
       abort "Bad XML received:\n#{e.message}"
     end
     
-    def rerender(xml, renderings)
-      xml.elements.collect("/svg/g[@id]") do |layer|
-        [ layer, layer.attributes["id"].split(?.).last ]
-      end.select do |layer, id|
-        renderings[id]
-      end.each do |layer, id|
-        xpaths = renderings[id].map do |command, values|
-          case command
-          when "opacity"
-            "./@opacity"
-          when "expand"
-            %w[stroke-width stroke-dasharray stroke-miterlimit font-size].map { |name| ".//[@#{name}]/@#{name}" }
-          when "stretch"
-            ".//[@stroke-dasharray]/@stroke-dasharray"
-          when "hue", "saturation", "lightness"
-            %w[stroke fill].map { |name| ".//[@#{name}!='none']/@#{name}" }
-          when "colours"
-            %w[stroke fill].map { |name| values.keys.map { |colour| ".//[@#{name}='#{colour}']/@#{name}" } }.flatten
-          end
-        end
-        methods = renderings[id].map do |command, values|
-          lambda do |attribute|
-            attribute.normalized = case command
-            when "opacity"
-              values.to_s
-            when "expand", "stretch"
-              attribute.value.split(/,\s*/).map(&:to_f).map { |size| size * values }.join(", ")
-            when "hue", "saturation", "lightness"
-              Color.new(attribute.value).tap { |color| color.send "#{command}=", values }.to_s
-            when "colours"
-              values[attribute.value] || attribute.value
-            end
-          end
-        end
-        [ xpaths, methods ].transpose.each do |xpath, method|
-          [ *xpath ].each { |xp| REXML::XPath.each(layer, xp, &method) }
-        end
-      end
-    end
-    
     def render(label, options, map, output_dir, &block)
       svg = REXML::Document.new(File.read(File.join(output_dir, "#{label}.svg")))
       equivalences = options["equivalences"] || {}
-      options["render"].inject({}) do |renderings, (layer_or_group, rendering)|
+      renderings = options["render"].inject({}) do |memo, (layer_or_group, rendering)|
         [ *(equivalences[layer_or_group] || layer_or_group) ].each do |layer|
-          renderings[layer] = rendering
+          memo[layer] ||= {}
+          memo[layer] = memo[layer].merge(rendering)
         end
-        renderings
-      end.tap do |renderings|
-        rerender(svg, renderings)
+        memo
+      end
+      svg.elements.collect("/svg/g[@id]") do |layer|
+        [ layer, layer.attributes["id"].split(?.).last ]
+      end.each do |layer, id|
+        renderings[id].each do |command, values|
+          rerender(layer, command, values)
+        end if renderings[id]
       end
       svg.elements.each("/svg/defs", &block)
       svg.elements.each("/svg/g[@id]", &block)
@@ -1610,10 +1618,12 @@ render:
               "LS_Roads_onbridge" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND NOT "roadontype" IN (1,3)],
               "LS_Roads_onground" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 1],
             },
-            9000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Rural_Property Lot LS_Contour GeneralCulturalArea Urban_Areas],
+            # TODO: move all roads to the 1:9000 set?
+            9000 => %w[TransportFacilityLine GeneralCulturalLine MS_LocalRoads GeneralCulturalPoint LS_Watercourse LS_Hydroline Rural_Property Lot LS_Contour GeneralCulturalArea],
+            nil => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Urban_Areas]
           },
           "labels" => {
-            12000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Rural_Property MS_Contour Urban_Areas],
+            15000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Rural_Property MS_Contour Urban_Areas],
             # GeneralCulturalArea # TODO: labels?
           },
           "equivalences" => {
@@ -1694,8 +1704,9 @@ render:
       service.download(labels_options, map, output_dir) unless labels_options.empty?
     end
     
+    filename = "#{config['name']}"
     Dir.mktmpdir do |temp_dir|
-      svg_path = File.join temp_dir, "#{config['name']}.svg"
+      svg_path = File.join(temp_dir, filename)
       File.open(svg_path, "w") do |file|
         SVG.make(map) do |svg|
           config["compose"].each do |label|
@@ -1710,10 +1721,15 @@ render:
               end
             end
           end
+          fonts = svg.elements.collect("//[@font-family]") { |element| element.attributes["font-family"] }.uniq
+          if fonts.any?
+            puts "Fonts required for #{filename}"
+            fonts.sort.each { |font| puts "  #{font}" }
+          end
         end.write(file)
       end
       FileUtils.mv(svg_path, output_dir)
-    end unless File.exists? File.join(output_dir, "#{config['name']}.svg")
+    end unless File.exists? File.join(output_dir, filename)
     
 #     
 #     oziexplorer_formats = %w[bmp png gif] & formats
@@ -1781,3 +1797,5 @@ end
 # TODO: don't render controls layer if there are no controls!
 # TODO: allow user-selectable contours
 # TODO: processing of shaded-relief layers
+# TODO: apply "expand" rendering command to point features an fill areas as well as lines?
+

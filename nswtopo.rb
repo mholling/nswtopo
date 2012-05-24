@@ -159,6 +159,7 @@ relief:
   azimuth: 315
   exaggeration: 1
   shadows: 30
+  threshold: 50
 controls:
   colour: "#880088"
   family: Arial
@@ -454,9 +455,9 @@ render:
     
     attr_reader :scale, :projection, :wkt, :bounds, :extents, :dimensions, :rotation, :ppi, :resolution
     
-    def write_world_file(world_file_path)
+    def write_world_file(world_file_path, metres_per_pixel = @resolution)
       topleft = [ @centre, @extents.rotate_by(-@rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
-      WorldFile.write(topleft, @resolution, @rotation, world_file_path)
+      WorldFile.write(topleft, metres_per_pixel, @rotation, world_file_path)
     end
     
     def declination
@@ -1214,8 +1215,8 @@ render:
           tif_path = File.join(temp_dir, "#{label}.tif")
           tfw_path = File.join(temp_dir, "#{label}.tfw")
           png_path = File.join(temp_dir, "#{label}.png")
-          WorldFile.write([ map.bounds.first.min, map.bounds.last.max ], RESOLUTION, 0, tfw_path)
-          dimensions = map.bounds.map { |bound| ((bound.max - bound.min) / RESOLUTION).ceil }
+          map.write_world_file(tfw_path, RESOLUTION)
+          dimensions = map.extents.map { |extent| (extent / RESOLUTION).ceil }
           ppi = 0.0254 * map.scale / RESOLUTION
           case options["name"]
           when "shaded-relief"
@@ -1242,24 +1243,23 @@ render:
     end
     
     def render(label, options, map, output_dir)
-      transform = SVG.transform(map, RESOLUTION / map.scale / 0.0254)
-      dimensions = map.bounds.map { |bound| ((bound.max - bound.min) / RESOLUTION).ceil }
+      transform = "scale(#{RESOLUTION / map.scale / 0.0254})"
+      dimensions = map.extents.map { |extent| (extent / RESOLUTION).ceil }
       png_path = File.join output_dir, "#{label}.png"
       cdf = %x[convert "#{png_path}" -format %c histogram:info:-].each_line.inject([]) do |memo, line|
         line.match(/(\d+):\s*\(\s*(\d+)/) do |match|
           memo << [ match[2].to_i, (memo.last || [ 0, 0 ])[1] + match[1].to_i ]
         end || memo
       end
-      white = cdf.find { |level, count| count >= cdf.last.last / 5 }.first
+      white = cdf.find { |level, count| count >= cdf.last.last * (100 - params["threshold"]) / 100 }.first
       black = 100 - params["shadows"]
       base64 = Dir.mktmpdir do |temp_dir|
         temp_path = File.join temp_dir, "overlay.png"
         %x[convert "#{png_path}" -level 0,#{white} +level #{black}%,100% -negate -alpha Copy -fill black +opaque black "#{temp_path}"]
-        Base64.encode64(File.read temp_path).gsub("\n","")
+        Base64.encode64(File.read temp_path)
       end
       image = REXML::Element.new("image")
       image.add_attributes(
-        "id" => label,
         "transform" => transform,
         "width" => dimensions[0],
         "height" => dimensions[1],

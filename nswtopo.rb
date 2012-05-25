@@ -947,7 +947,7 @@ render:
       layer_names = service["layers"].map { |layer| layer["name"] }
       
       resolution = options["resolution"] || map.resolution
-      map.svg_transform(resolution / 0.0254 / map.scale)
+      transform = map.svg_transform(resolution / 0.0254 / map.scale)
       
       tile_list = tiles(map.bounds, resolution)
       
@@ -1825,3 +1825,6 @@ end
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
 # TODO: render elevation.png or remove it!
 # TODO: add vegetation/underlay image option
+# TODO: change compose order to put controls, declination above overlays
+# TODO: use opacity instead of "shadows" parameter for shaded relief?
+

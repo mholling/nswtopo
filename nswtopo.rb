@@ -412,11 +412,15 @@ render:
       end
 
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
-      @projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{@projection_centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
-      @wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{@projection_centre.first}],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]}
-      # # zone = GridService.zone(WGS84, projection_centre)
-      # # projection = "+proj=utm +zone=#{zone} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-      # # # TODO: option to select a UTM projection instead of custom mercator (require declination rewrite)
+      if config["utm"]
+        zone = GridService.zone(@projection_centre, WGS84)
+        central_meridian = GridService.central_meridian(zone)
+        @projection = "+proj=utm +zone=#{zone} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+        @wkt = %Q{PROJCS["WGS_1984_UTM_Zone_#{zone}S",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["central_meridian",#{central_meridian}],PARAMETER["Latitude_Of_Origin",0],PARAMETER["Scale_Factor",0.9996],UNIT["Meter",1.0]]}
+      else
+        @projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{@projection_centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
+        @wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{@projection_centre.first}],PARAMETER["Latitude_Of_Origin",0.0],PARAMETER["Scale_Factor",0.9996],UNIT["Meter",1.0]]}
+      end
       # proj_path = File.join(output_dir, "#{map_name}.prj")
       # File.open(proj_path, "w") { |file| file.puts projection }
       
@@ -1318,6 +1322,10 @@ render:
     def self.zone(coords, projection)
       (coords.reproject(projection, WGS84).first / 6).floor + 31
     end
+    
+    def self.central_meridian(zone)
+      (zone - 31) * 6 + 3
+    end
   
     def draw(group, options, map)
       interval = params["interval"]
@@ -1595,7 +1603,8 @@ render:
       "utm" => /utm-.*/,
       "aerial" => /aerial-.*/,
       "aerial-lpi" => /aerial-lpi-.*/,
-      "relief" => /elevation|hillshade/
+      "relief" => /elevation|hillshade/,
+      "reference" => /reference-\d/,
     }.each do |shortcut, regex|
       config["exclude"] << regex if config["exclude"].delete(shortcut)
     end
@@ -1677,7 +1686,7 @@ render:
         },
       },
       sixmaps_raster => {
-        "nsw-topo" => {
+        "reference-1" => {
           "service" => "NSWTopo",
           "image" => true,
         },
@@ -1691,7 +1700,7 @@ render:
         # "aerial-lpi-sydney" => { "config" => "/SydneyImagesConfig.js" },
         # "aerial-lpi-towns" => { "config" => "/NSWRegionalCentresConfig.js" },
         "aerial-lpi-eastcoast" => { "image" => "/Imagery/lr94ortho1m.ecw" },
-        "reference-topo" => { "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw", "otdf" => true }
+        "reference-2" => { "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw", "otdf" => true }
       },
       google_maps => {
         "aerial-google" => { "name" => "satellite", "format" => "jpg" }
@@ -1821,7 +1830,6 @@ if File.identical?(__FILE__, $0)
 end
 
 # TODO: put long command lines into text file...
-# TODO: allow user to select between UTM projection and north-aligned projection
 # TODO: solve tile-boundary gap problem
 # TODO: option to allow for tiles not to be clipped (e.g. for labels)?
 # TODO: how to incorporate aerial rasters? (link or embed them?)

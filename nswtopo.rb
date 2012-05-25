@@ -1258,7 +1258,7 @@ render:
         temp_path = File.join temp_dir, "temp.png"
         case options["type"]
         when "hillshade"
-          threshold = 100 - options["hillshade"]["threshold"]
+          threshold = 100 - params["hillshade"]["threshold"]
           %x[convert "#{png_path}" -contrast-stretch 0x#{threshold}% -negate -alpha Copy -fill black +opaque black "#{temp_path}"]
         when "elevation"
           %x[convert "#{png_path}" -equalize -negate -alpha Copy -fill black +opaque black "#{temp_path}"]
@@ -1618,13 +1618,13 @@ render:
     config = default_config.deep_merge user_config
     
     config["compose"] -= [ "controls" ] unless config["controls"]["file"]
+    config["include"] = [ *config["include"] ]
     config["exclude"] = [ *config["exclude"] ]
     {
-      "utm" => /utm-.*/,
       "aerial" => /aerial-.*/,
       "aerial-lpi" => /aerial-lpi-.*/,
       "relief" => /elevation|hillshade/,
-      "reference" => /reference-\d/,
+      "reference" => /reference-.*/,
     }.each do |shortcut, regex|
       config["exclude"] << regex if config["exclude"].delete(shortcut)
     end
@@ -1747,7 +1747,7 @@ render:
       hash.merge(File.split(filename_or_path).last.partition(/\.\w+$/).first => options.merge("path" => filename_or_path))
     end
     services.merge!(OverlayService.new({}) => overlays)
-    config["compose"] += overlays.keys
+    config["compose"] += overlays.keys # TODO: want overlays to be inserted before controls/grid/declination
     
     puts "Map details:"
     puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
@@ -1755,12 +1755,12 @@ render:
     puts "  rotation: %.1f degrees" % map.rotation
     puts "  rasters: %i x %i (%.1fMpx) @ %i ppi" % [ *map.dimensions, 0.000001 * map.dimensions.inject(:*), map.ppi ]
     
+    labels = services.values.map(&:keys).flatten.reject do |label|
+      config["exclude"].any? { |match| label[match] } && config["include"].none? { |match| label[match] }
+    end
+    
     [ *services.values, config["compose"] ].each do |label_list|
-      label_list.reject! do |label|
-        config["exclude"].any? do |matcher|
-          matcher.is_a?(String) ? label == matcher : label =~ matcher
-        end
-      end
+      label_list.select! { |label| labels.include? label }
     end
     
     services.each do |service, labels_options|
@@ -1774,18 +1774,16 @@ render:
         map.svg do |svg|
           config["compose"].each do |label|
             puts "Rendering #{label}"
-            service = services.find do |_, labels_options|
-              labels_options[label]
-            end.first
-            options = services[service][label]
-            begin
-              svg.add_element("g", "id" => label) do |group|
-                service.render(label, options.merge("render" => config["render"]), map, output_dir) do |element|
-                  group.elements << element
+            services.find { |service, options| options[label] }.tap do |service, options|
+              begin
+                svg.add_element("g", "id" => label) do |group|
+                  service.render(label, options[label].merge("render" => config["render"]), map, output_dir) do |element|
+                    group.elements << element
+                  end
                 end
+              rescue BadLayerError => e
+                puts "Failed to render #{label}: #{e.message}"
               end
-            rescue BadLayerError => e
-              puts "Failed to render #{label}: #{e.message}"
             end
           end
           fonts = svg.elements.collect("//[@font-family]") { |element| element.attributes["font-family"] }.uniq
@@ -1862,6 +1860,5 @@ end
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
 # TODO: add vegetation/underlay image option
 # TODO: change compose order to put controls, declination above overlays
-# TODO: exclude and include config options
 # TODO: add forestry layers from atlas
 

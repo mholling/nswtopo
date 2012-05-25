@@ -908,6 +908,8 @@ render:
   end
   
   class VectorArcGIS < ArcGIS
+    SEGMENT = ?.
+    
     def rerender(element, command, values)
       xpaths = case command
       when "opacity"
@@ -1006,7 +1008,7 @@ render:
             tile_data.gsub! regex do |match|
               case $1
               when "Labels", service["mapName"], *layer_names then match
-              else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(?.)
+              else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(SEGMENT)
               end
             end
           end
@@ -1021,7 +1023,7 @@ render:
           #     tile_data.gsub! regex do |match|
           #       case $1
           #       when "Labels", service["mapName"], *layer_names then match
-          #       else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(?.) # TODO: native?
+          #       else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(SEGMENT) # TODO: native?
           #       end
           #     end
           #   end
@@ -1043,7 +1045,7 @@ render:
       xml = map.svg do |svg|
         svg.add_element("defs") do |defs|
           tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
-            defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(?.)) do |clippath|
+            defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
               clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
             end
           end
@@ -1061,7 +1063,7 @@ render:
           layer_order[name] || layer_order.length
         end.map do |name, opacity|
           { name => svg.add_element("g",
-            "id" => [ label, name ].join(?.),
+            "id" => [ label, name ].join(SEGMENT),
             "opacity" => opacity,
             "transform" => transform,
             "color-interpolation" => "linearRGB",
@@ -1081,7 +1083,7 @@ render:
               layers[id]
             end.each do |layer, id|
               tile_transform = "translate(#{tile_offsets.join ' '})"
-              clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(?.)})"
+              clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(SEGMENT)})"
               layers[id].add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
                 layer.elements.each { |element| tile << element }
               end
@@ -1109,7 +1111,7 @@ render:
         memo
       end
       svg.elements.collect("/svg/g[@id]") do |layer|
-        [ layer, layer.attributes["id"].split(?.).last ]
+        [ layer, layer.attributes["id"].split(SEGMENT).last ]
       end.each do |layer, id|
         renderings[id].each do |command, values|
           rerender(layer, command, values)

@@ -391,6 +391,7 @@ render:
       @scale, @ppi = config.values_at("scale", "ppi")
       @resolution = @scale.to_f * 0.0254 / @ppi
       
+      bounds_path = %w[bounds.kml bounds.gpx].find { |path| File.exists? path }
       wgs84_points = case
       when config["zone"] && config["eastings"] && config["northings"]
         config.values_at("eastings", "northings").inject(:product).reproject("+proj=utm +zone=#{config["zone"]} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs", WGS84)
@@ -400,15 +401,15 @@ render:
         [ config.values_at("easting", "northing").reproject("+proj=utm +zone=#{config["zone"]} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs", WGS84) ]
       when config["size"] && config["longitude"] && config["latitude"]
         [ config.values_at("longitude", "latitude") ]
-      when config["bounds"] || File.exists?("bounds.kml")
-        config["bounds"] ||= "bounds.kml"
+      when config["bounds"] || bounds_path
+        config["bounds"] ||= bounds_path
         gps = GPS.new(config["bounds"])
         polygon = gps.areas.first
         waypoints = gps.waypoints.to_a
         config["margin"] = 0 unless waypoints.any?
         polygon ? polygon.first : waypoints.transpose.first
       else
-        abort "Error: map extent must be provided as zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
+        abort "Error: map extent must be provided as a bounds file, zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
       end
 
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
@@ -459,6 +460,8 @@ render:
       enlarged_extents = [ @extents[0] * Math::cos(@rotation * Math::PI / 180.0) + @extents[1] * Math::sin(@rotation * Math::PI / 180.0).abs, @extents[0] * Math::sin(@rotation * Math::PI / 180.0).abs + @extents[1] * Math::cos(@rotation * Math::PI / 180.0) ]
       @bounds = [ @centre, enlarged_extents ].transpose.map { |coord, extent| [ coord - 0.5 * extent, coord + 0.5 * extent ] }
       @dimensions = @extents.map { |extent| (extent / @resolution).ceil }
+    rescue BadGpxKmlFile => e
+      abort "Error: #{e.message}"
     end
     
     attr_reader :scale, :projection, :wkt, :bounds, :extents, :dimensions, :rotation, :ppi, :resolution
@@ -1594,12 +1597,22 @@ render:
     output_dir = Dir.pwd
     default_config = YAML.load(CONFIG)
     %w[gpx kml].each { |ext| default_config["controls"]["file"] ||= "controls.#{ext}" if File.exists?(File.join(output_dir, "controls.#{ext}")) }
+    config_path = File.join(output_dir, "config.yml")
+    bounds_path = %w[bounds.kml bounds.gpx].find { |path| File.exists? path }
     user_config = begin
-      YAML.load File.open(File.join(output_dir, "config.yml"))
+      case
+      when File.exists?(config_path)
+        YAML.load File.read(config_path)
+      when bounds_path
+        { "bounds" => bounds_path }
+      else
+        abort "Error: no configuration or bounds file found."
+      end
     rescue ArgumentError, SyntaxError => e
       abort "Error in configuration file: #{e.message}"
     end
     config = default_config.deep_merge user_config
+    
     config["compose"] -= [ "controls" ] unless config["controls"]["file"]
     config["exclude"] = [ *config["exclude"] ]
     {
@@ -1846,3 +1859,5 @@ end
 # TODO: add vegetation/underlay image option
 # TODO: change compose order to put controls, declination above overlays
 # TODO: exclude and include config options
+# TODO: add forestry layers from atlas
+

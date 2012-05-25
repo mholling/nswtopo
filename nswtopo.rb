@@ -1449,6 +1449,8 @@ render:
           group.add_element(element, attributes.merge("points" => points, "opacity" => opacity))
         end
       end
+    rescue BadGpxKmlFile => e
+      raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
     end
   end
   
@@ -1598,6 +1600,7 @@ render:
       abort "Error in configuration file: #{e.message}"
     end
     config = default_config.deep_merge user_config
+    config["compose"] -= [ "controls" ] unless config["controls"]["file"]
     config["exclude"] = [ *config["exclude"] ]
     {
       "utm" => /utm-.*/,
@@ -1758,10 +1761,14 @@ render:
               labels_options[label]
             end.first
             options = services[service][label]
-            svg.add_element("g", "id" => label) do |group|
-              service.render(label, options.merge("render" => config["render"]), map, output_dir) do |element|
-                group.elements << element
+            begin
+              svg.add_element("g", "id" => label) do |group|
+                service.render(label, options.merge("render" => config["render"]), map, output_dir) do |element|
+                  group.elements << element
+                end
               end
+            rescue BadLayerError => e
+              puts "Failed to render #{label}: #{e.message}"
             end
           end
           fonts = svg.elements.collect("//[@font-family]") { |element| element.attributes["font-family"] }.uniq
@@ -1834,7 +1841,6 @@ end
 # TODO: option to allow for tiles not to be clipped (e.g. for labels)?
 # TODO: how to incorporate aerial rasters? (link or embed them?)
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
-# TODO: don't render controls layer if there are no controls!
 # TODO: allow user-selectable contours
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
 # TODO: add vegetation/underlay image option

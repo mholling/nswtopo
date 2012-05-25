@@ -1596,7 +1596,11 @@ render:
   def self.run
     output_dir = Dir.pwd
     default_config = YAML.load(CONFIG)
-    %w[gpx kml].each { |ext| default_config["controls"]["file"] ||= "controls.#{ext}" if File.exists?(File.join(output_dir, "controls.#{ext}")) }
+    %w[controls.kml controls.gpx].select do |filename|
+      File.exists? filename
+    end.each do |filename|
+      default_config["controls"]["file"] ||= filename
+    end
     config_path = File.join(output_dir, "config.yml")
     bounds_path = %w[bounds.kml bounds.gpx].find { |path| File.exists? path }
     user_config = begin

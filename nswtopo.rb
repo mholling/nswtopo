@@ -170,13 +170,6 @@ controls:
   diameter: 7.0
   thickness: 0.2
   water-colour: blue
-compose:
-- topographic
-- elevation
-- hillshade
-- grid
-- declination
-- controls
 render:
   pathways:
     expand: 0.5
@@ -1617,7 +1610,6 @@ render:
     end
     config = default_config.deep_merge user_config
     
-    config["compose"] -= [ "controls" ] unless config["controls"]["file"]
     config["include"] = [ *config["include"] ]
     config["exclude"] = [ *config["exclude"] ]
     {
@@ -1742,12 +1734,22 @@ render:
         "controls" => { }
       },
     }
-
+    
     overlays = [ *config["overlays"] ].inject({}) do |hash, (filename_or_path, options)|
       hash.merge(File.split(filename_or_path).last.partition(/\.\w+$/).first => options.merge("path" => filename_or_path))
     end
     services.merge!(OverlayService.new({}) => overlays)
-    config["compose"] += overlays.keys # TODO: want overlays to be inserted before controls/grid/declination
+    
+    # TODO: add aerial layers, reference layers, etc:
+    composite = %w[
+      topographic
+      elevation
+      hillshade
+      grid
+      declination
+    ]
+    composite += overlays.keys
+    composite << "controls" if config["controls"]["file"]
     
     puts "Map details:"
     puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
@@ -1759,7 +1761,7 @@ render:
       config["exclude"].any? { |match| label[match] } && config["include"].none? { |match| label[match] }
     end
     
-    [ *services.values, config["compose"] ].each do |label_list|
+    [ *services.values, composite ].each do |label_list|
       label_list.select! { |label| labels.include? label }
     end
     
@@ -1772,7 +1774,7 @@ render:
       svg_path = File.join(temp_dir, filename)
       File.open(svg_path, "w") do |file|
         map.svg do |svg|
-          config["compose"].each do |label|
+          composite.each do |label|
             puts "Rendering #{label}"
             services.find { |service, options| options[label] }.tap do |service, options|
               begin
@@ -1859,6 +1861,5 @@ end
 # TODO: allow user-selectable contours
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
 # TODO: add vegetation/underlay image option
-# TODO: change compose order to put controls, declination above overlays
 # TODO: add forestry layers from atlas
 

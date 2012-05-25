@@ -155,11 +155,14 @@ grid:
   fontsize: 7.8
   family: Arial Narrow
 relief:
-  altitude: 45
-  azimuth: 315
-  exaggeration: 1
-  shadows: 30
-  threshold: 50
+  hillshade:
+    altitude: 45
+    azimuth: 315
+    exaggeration: 2
+    opacity: 0.3
+    threshold: 50
+  elevation:
+    opacity: 0.1
 controls:
   colour: "#880088"
   family: Arial
@@ -169,7 +172,8 @@ controls:
   water-colour: blue
 compose:
 - topographic
-- shaded-relief
+- elevation
+- hillshade
 - grid
 - declination
 - controls
@@ -1217,14 +1221,14 @@ render:
           map.write_world_file(tfw_path, RESOLUTION)
           dimensions = map.extents.map { |extent| (extent / RESOLUTION).ceil }
           ppi = 0.0254 * map.scale / RESOLUTION
-          case options["name"]
-          when "shaded-relief"
-            altitude = params["altitude"]
-            azimuth = params["azimuth"]
-            exaggeration = params["exaggeration"]
+          case options["type"]
+          when "hillshade"
+            altitude = params["hillshade"]["altitude"]
+            azimuth = params["hillshade"]["azimuth"]
+            exaggeration = params["hillshade"]["exaggeration"]
             %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
             %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
-          when "color-relief"
+          when "elevation"
             colours = { "0%" => "black", "100%" => "white" }
             colour_path = File.join(temp_dir, "colours.txt")
             File.open(colour_path, "w") do |file|
@@ -1242,30 +1246,30 @@ render:
     end
     
     def render(label, options, map, output_dir)
-      transform = "scale(#{RESOLUTION / map.scale / 0.0254})"
-      dimensions = map.extents.map { |extent| (extent / RESOLUTION).ceil }
-      png_path = File.join output_dir, "#{label}.png"
-      cdf = %x[convert "#{png_path}" -format %c histogram:info:-].each_line.inject([]) do |memo, line|
-        line.match(/(\d+):\s*\(\s*(\d+)/) do |match|
-          memo << [ match[2].to_i, (memo.last || [ 0, 0 ])[1] + match[1].to_i ]
-        end || memo
+      Dir.mktmpdir do |temp_dir|
+        png_path = File.join output_dir, "#{label}.png"
+        temp_path = File.join temp_dir, "temp.png"
+        case options["type"]
+        when "hillshade"
+          threshold = 100 - options["hillshade"]["threshold"]
+          %x[convert "#{png_path}" -contrast-stretch 0x#{threshold}% -negate -alpha Copy -fill black +opaque black "#{temp_path}"]
+        when "elevation"
+          %x[convert "#{png_path}" -equalize -negate -alpha Copy -fill black +opaque black "#{temp_path}"]
+        end
+        base64 = Base64.encode64(File.read temp_path)
+        transform = "scale(#{RESOLUTION / map.scale / 0.0254})"
+        dimensions = map.extents.map { |extent| (extent / RESOLUTION).ceil }
+        image = REXML::Element.new("image")
+        image.add_attributes(
+          "opacity" => params[options["type"]]["opacity"],
+          "transform" => transform,
+          "width" => dimensions[0],
+          "height" => dimensions[1],
+          "image-rendering" => "optimizeQuality",
+          "xlink:href" => "data:image/png;base64,#{base64}",
+        )
+        yield image
       end
-      white = cdf.find { |level, count| count >= cdf.last.last * (100 - params["threshold"]) / 100 }.first
-      black = 100 - params["shadows"]
-      base64 = Dir.mktmpdir do |temp_dir|
-        temp_path = File.join temp_dir, "overlay.png"
-        %x[convert "#{png_path}" -level 0,#{white} +level #{black}%,100% -negate -alpha Copy -fill black +opaque black "#{temp_path}"]
-        Base64.encode64(File.read temp_path)
-      end
-      image = REXML::Element.new("image")
-      image.add_attributes(
-        "transform" => transform,
-        "width" => dimensions[0],
-        "height" => dimensions[1],
-        "image-rendering" => "optimizeQuality",
-        "xlink:href" => "data:image/png;base64,#{base64}",
-      )
-      yield image
     end
   end
   
@@ -1591,7 +1595,7 @@ render:
       "utm" => /utm-.*/,
       "aerial" => /aerial-.*/,
       "aerial-lpi" => /aerial-lpi-.*/,
-      "relief" => /elevation|shaded-relief/
+      "relief" => /elevation|hillshade/
     }.each do |shortcut, regex|
       config["exclude"] << regex if config["exclude"].delete(shortcut)
     end
@@ -1696,8 +1700,8 @@ render:
         "aerial-nokia" => { "name" => 1, "format" => 1 }
       },
       oneearth_relief => {
-        "shaded-relief" => { "name" => "shaded-relief" },
-        "elevation" => { "name" => "color-relief" },
+        "hillshade" => { "type" => "hillshade" },
+        "elevation" => { "type" => "elevation" },
       },
       declination_service => {
         "declination" => { }
@@ -1825,8 +1829,6 @@ end
 # TODO: don't render controls layer if there are no controls!
 # TODO: allow user-selectable contours
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
-# TODO: render elevation.png or remove it!
 # TODO: add vegetation/underlay image option
 # TODO: change compose order to put controls, declination above overlays
-# TODO: use opacity instead of "shadows" parameter for shaded relief?
-
+# TODO: exclude and include config options

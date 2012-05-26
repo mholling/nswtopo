@@ -170,9 +170,6 @@ controls:
   diameter: 7.0
   thickness: 0.2
   water-colour: blue
-exclude:
-- plantation
-- relief
 render:
   pathways:
     expand: 0.5
@@ -221,7 +218,14 @@ render:
   HydroArea:
     expand: 0.5
   Forestry:
-    opacity: 0.2
+    opacity: 1
+    colours:
+      "#38A800": "#9FD699"
+  vegetation:
+    opacity: 1
+    colours:
+      "#3F8C42": "#D5E9C8"
+      "#A8A800": "#D5E9C8"
 ]
   
   module BoundingBox
@@ -412,8 +416,8 @@ render:
 
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
       if config["utm"]
-        zone = GridService.zone(@projection_centre, WGS84)
-        central_meridian = GridService.central_meridian(zone)
+        zone = GridServer.zone(@projection_centre, WGS84)
+        central_meridian = GridServer.central_meridian(zone)
         @projection = "+proj=utm +zone=#{zone} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
         @wkt = %Q{PROJCS["WGS_1984_UTM_Zone_#{zone}S",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["central_meridian",#{central_meridian}],PARAMETER["Latitude_Of_Origin",0],PARAMETER["Scale_Factor",0.9996],UNIT["Meter",1.0]]}
       else
@@ -629,36 +633,22 @@ render:
     end
   end
   
-  class Service
-    def initialize(params)
+  class Server
+    def initialize(params = {})
       @params = params
     end
   
     attr_reader :params
     
-    def download(labels_options, map, output_dir)
+    def download(label, options, map, output_dir)
+      return if %w[png svg].any? { |ext| File.exist? File.join(output_dir, "#{label}.#{ext}") }
       Dir.mktmpdir do |temp_dir|
-        outstanding = labels_options.reject do |label, options|
-          %w[png svg].any? { |ext| File.exist? File.join(output_dir, "#{label}.#{ext}") }
-        end
-        images(outstanding, map, temp_dir).each do |image_path|
-          FileUtils.mv image_path, output_dir
-        end unless outstanding.empty?
+        FileUtils.mv image(label, options, map, temp_dir), output_dir
       end
     end
   end
   
-  class OneToOneService < Service
-    def images(labels_options, map, temp_dir)
-      Enumerator.new do |yielder|
-        labels_options.recover(InternetError, ServerError).each do |label, options|
-          yielder << image(label, options, map, temp_dir)
-        end
-      end
-    end
-  end
-  
-  class TiledService < OneToOneService
+  class TiledServer < Server
     include RasterRenderer
     
     def image(label, options, map, temp_dir)
@@ -689,7 +679,7 @@ render:
     end
   end
   
-  class TiledMapService < TiledService
+  class TiledMapServer < TiledServer
     def tiles(options, map, temp_dir)
       tile_sizes = params["tile_sizes"]
       tile_limit = params["tile_limit"]
@@ -750,7 +740,7 @@ render:
     end
   end
   
-  class LPIOrthoService < TiledService
+  class LPIOrthoServer < TiledServer
     def tiles(options, map, temp_dir)
       bounds = Bounds.transform(map.projection, params["projection"], map.bounds)
       images_regions = case
@@ -838,7 +828,7 @@ render:
     end
   end
   
-  class ArcGIS < OneToOneService
+  class ArcGIS < Server
     def dimensions(bounds, resolution)
       bounds.map { |bound| bound.max - bound.min }.map { |extent| (extent / resolution).ceil }
     end
@@ -1002,53 +992,53 @@ render:
         tileset = downloads.map do |scale, layer_options, type, xpath|
           sleep params["interval"] if params["interval"]
           
-          temp_dir = File.join(Dir.pwd, "tmp")
-          temp_path = File.join temp_dir, [ type, scale, *tile_offsets, "svg" ].join(?.)
-          
           ################################################################################
-          tile_data = case
-          when File.exists?(temp_path) then File.read(temp_path)
-          else get_tile(tile_bounds, tile_sizes, options.merge(layer_options))
-          end
-          if Dir.exists?(temp_dir) && !File.exists?(temp_path)
-            File.write temp_path, tile_data
-          end
-          
-          tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
-          tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
-          
-          [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
-            tile_data.gsub! regex do |match|
-              case $1
-              when "Labels", service["mapName"], *layer_names then match
-              else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(SEGMENT)
-              end
-            end
-          end
-          
-          [ REXML::Document.new(tile_data), scale, type, xpath ]
-          ################################################################################
-          # tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(layer_options)) do |tile_data|
-          #   tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
-          #   tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
+          # temp_dir = File.join(Dir.pwd, "tmp")
+          # temp_path = File.join temp_dir, [ type, scale, *tile_offsets, "svg" ].join(?.)
           # 
-          #   [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
-          #     tile_data.gsub! regex do |match|
-          #       case $1
-          #       when "Labels", service["mapName"], *layer_names then match
-          #       else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(SEGMENT) # TODO: native?
-          #       end
+          # tile_data = case
+          # when File.exists?(temp_path) then File.read(temp_path)
+          # else get_tile(tile_bounds, tile_sizes, options.merge(layer_options))
+          # end
+          # if Dir.exists?(temp_dir) && !File.exists?(temp_path)
+          #   File.write temp_path, tile_data
+          # end
+          # 
+          # tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
+          # tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
+          # 
+          # [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
+          #   tile_data.gsub! regex do |match|
+          #     case $1
+          #     when "Labels", service["mapName"], *layer_names then match
+          #     else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(SEGMENT)
           #     end
-          #   end
-          #   
-          #   begin
-          #     REXML::Document.new(tile_data)
-          #   rescue REXML::ParseException => e
-          #     raise ServerError.new("Bad XML data received: #{e.message}")
           #   end
           # end
           # 
-          # [ tile_xml, scale, type, xpath]
+          # [ REXML::Document.new(tile_data), scale, type, xpath ]
+          ################################################################################
+          tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(layer_options)) do |tile_data|
+            tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
+            tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
+          
+            [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
+              tile_data.gsub! regex do |match|
+                case $1
+                when "Labels", service["mapName"], *layer_names then match
+                else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(SEGMENT) # TODO: native?
+                end
+              end
+            end
+            
+            begin
+              REXML::Document.new(tile_data)
+            rescue REXML::ParseException => e
+              raise ServerError.new("Bad XML data received: #{e.message}")
+            end
+          end
+          
+          [ tile_xml, scale, type, xpath]
           ################################################################################
         end
         
@@ -1181,16 +1171,16 @@ render:
     end
   end
 
-  class OneEarthDEMRelief < Service
+  class OneEarthDEMRelief < Server
     RESOLUTION = 45.0
     
-    def images(labels_options, map, temp_dir)
+    def image(label, options, map, temp_dir)
       bounds = Bounds.transform(map.projection, WGS84, map.bounds)
       bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
       counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
       units_per_pixel = 0.125 / 300
   
-      puts "Downloading: #{labels_options.map(&:first).join ", "}"
+      puts "Downloading: #{label}"
       tile_paths = [ counts, bounds ].transpose.map do |count, bound|
         boundaries = (0..count).map { |index| bound.first + index * 0.125 }
         [ boundaries[0..-2], boundaries[1..-1] ].transpose
@@ -1220,38 +1210,34 @@ render:
       vrt_path = File.join(temp_dir, "dem.vrt")
       %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
       
-      Enumerator.new do |yielder|
-        labels_options.map do |label, options|
-          puts "Calculating: #{label}"
-          relief_path = File.join(temp_dir, "#{label}-small.tif")
-          tif_path = File.join(temp_dir, "#{label}.tif")
-          tfw_path = File.join(temp_dir, "#{label}.tfw")
-          png_path = File.join(temp_dir, "#{label}.png")
-          map.write_world_file(tfw_path, RESOLUTION)
-          dimensions = map.extents.map { |extent| (extent / RESOLUTION).ceil }
-          ppi = 0.0254 * map.scale / RESOLUTION
-          case options["type"]
-          when "hillshade"
-            altitude = params["hillshade"]["altitude"]
-            azimuth = params["hillshade"]["azimuth"]
-            exaggeration = params["hillshade"]["exaggeration"]
-            %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
-            %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
-          when "elevation"
-            colours = { "0%" => "black", "100%" => "white" }
-            colour_path = File.join(temp_dir, "colours.txt")
-            File.open(colour_path, "w") do |file|
-              colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
-            end
-            %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
-            %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type TrueColor -depth 8 "#{tif_path}"]
-          end
-          %x[gdalwarp -s_srs "#{WGS84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
-          %x[convert "#{tif_path}" -quiet -type Grayscale -depth 8 "#{png_path}"]
-        
-          yielder << png_path
+      puts "Calculating: #{label}"
+      relief_path = File.join(temp_dir, "#{label}-small.tif")
+      tif_path = File.join(temp_dir, "#{label}.tif")
+      tfw_path = File.join(temp_dir, "#{label}.tfw")
+      png_path = File.join(temp_dir, "#{label}.png")
+      map.write_world_file(tfw_path, RESOLUTION)
+      dimensions = map.extents.map { |extent| (extent / RESOLUTION).ceil }
+      ppi = 0.0254 * map.scale / RESOLUTION
+      case options["type"]
+      when "hillshade"
+        altitude = params["hillshade"]["altitude"]
+        azimuth = params["hillshade"]["azimuth"]
+        exaggeration = params["hillshade"]["exaggeration"]
+        %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
+        %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
+      when "elevation"
+        colours = { "0%" => "black", "100%" => "white" }
+        colour_path = File.join(temp_dir, "colours.txt")
+        File.open(colour_path, "w") do |file|
+          colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
         end
+        %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
+        %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type TrueColor -depth 8 "#{tif_path}"]
       end
+      %x[gdalwarp -s_srs "#{WGS84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
+      %x[convert "#{tif_path}" -quiet -type Grayscale -depth 8 "#{png_path}"]
+      
+      png_path
     end
     
     def render(label, options, map, output_dir)
@@ -1282,7 +1268,7 @@ render:
     end
   end
   
-  class AnnotationService < OneToOneService
+  class AnnotationServer < Server
     def download(*args)
     end
     
@@ -1299,7 +1285,7 @@ render:
     end
   end
   
-  class DeclinationService < AnnotationService
+  class DeclinationServer < AnnotationServer
     def draw(group, options, map)
       centre = Bounds.transform(map.projection, WGS84, map.bounds).map { |bound| 0.5 * bound.inject(:+) }
       projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{centre[0]} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
@@ -1323,7 +1309,7 @@ render:
     end
   end
   
-  class GridService < AnnotationService
+  class GridServer < AnnotationServer
     def self.zone(coords, projection)
       (coords.reproject(projection, WGS84).first / 6).floor + 31
     end
@@ -1340,7 +1326,7 @@ render:
       fontsize = params["fontsize"] / 72.0
       
       map.bounds.inject(:product).map do |corner|
-        GridService.zone(corner, map.projection)
+        GridServer.zone(corner, map.projection)
       end.inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
       end.each do |zone|
@@ -1354,7 +1340,7 @@ render:
           northings.reverse.map do |northing|
             [ easting, northing ]
           end.map do |coords|
-            [ GridService.zone(coords, projection) == zone, coords ]
+            [ GridServer.zone(coords, projection) == zone, coords ]
           end
         end
         [ grid, grid.transpose ].each.with_index do |gridlines, index|
@@ -1397,7 +1383,7 @@ render:
     end
   end
   
-  class ControlService < AnnotationService
+  class ControlServer < AnnotationServer
     def draw(group, options, map)
       return unless params["file"]
       radius = params["diameter"] / 25.4 / 2
@@ -1440,11 +1426,11 @@ render:
     end
   end
   
-  class OverlayService < AnnotationService
+  class OverlayServer < AnnotationServer
     def draw(group, options, map)
       width = (options["width"] || 0.5) / 25.4
-      colour = options["colour"] || "red"
-      opacity = options["opacity"] || 1
+      colour = options["colour"] || "black"
+      opacity = options["opacity"] || 0.3
       gps = GPS.new(options["path"])
       [ [ :tracks, "polyline", { "fill" => "none", "stroke" => colour, "stroke-width" => width } ],
         [ :areas, "polygon", { "fill" => colour, "stroke" => "none" } ]
@@ -1619,17 +1605,6 @@ render:
     end
     config = default_config.deep_merge user_config
     
-    config["include"] = [ *config["include"] ]
-    config["exclude"] = [ *config["exclude"] ]
-    {
-      "aerial" => /aerial-.*/,
-      "aerial-lpi" => /aerial-lpi-.*/,
-      "relief" => /elevation|hillshade/,
-      "reference" => /reference-.*/,
-    }.each do |shortcut, regex|
-      config["exclude"] << regex if config["exclude"].delete(shortcut)
-    end
-    
     map = Map.new(config)
     
     sixmaps_vector = VectorArcGIS.new(
@@ -1652,13 +1627,13 @@ render:
       "tile_sizes" => [ 2048, 2048 ],
       "interval" => 0.1,
     )
-    lpi_ortho = LPIOrthoService.new(
+    lpi_ortho = LPIOrthoServer.new(
       "host" => "lite.maps.nsw.gov.au",
       "tile_size" => 1024,
       "interval" => 1.0,
       "projection" => "EPSG:3308",
     )
-    nokia_maps = TiledMapService.new(
+    nokia_maps = TiledMapServer.new(
       "uri" => "http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot",
       "projection" => "EPSG:3857",
       "tile_sizes" => [ 1024, 1024 ],
@@ -1667,7 +1642,7 @@ render:
       "tile_limit" => 250,
       "retries_on_blank" => 1,
     )
-    google_maps = TiledMapService.new(
+    google_maps = TiledMapServer.new(
       "uri" => "http://maps.googleapis.com/maps/api/staticmap?zoom=${zoom}&size=${hsize}x${vsize}&scale=1&format=${format}&maptype=${name}&sensor=false&center=${latitude},${longitude}",
       "projection" => "EPSG:3857",
       "tile_sizes" => [ 640, 640 ],
@@ -1676,110 +1651,133 @@ render:
       "tile_limit" => 250,
     )
     oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
-    declination_service = DeclinationService.new(config["declination"])
-    control_service = ControlService.new(config["controls"])
-    grid_service = GridService.new(config["grid"])
+    declination_server = DeclinationServer.new(config["declination"])
+    control_server = ControlServer.new(config["controls"])
+    grid_server = GridServer.new(config["grid"])
     
-    services = {
-      sixmaps_vector => {
-        "topographic" => {
-          "service" => "LPIMap",
-          "resolution" => 0.55,
-          "layers" => {
-            4500 => {
-              "LS_Roads_onbridge" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND NOT "roadontype" IN (1,3)],
-              "LS_Roads_onground" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 1],
-            },
-            # TODO: move all roads to the 1:9000 set?
-            9000 => %w[TransportFacilityLine GeneralCulturalLine MS_LocalRoads GeneralCulturalPoint LS_Watercourse LS_Hydroline Rural_Property Lot LS_Contour GeneralCulturalArea],
-            nil => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Urban_Areas]
+    layers = {
+      "reference-1" => {
+        "server" => lpi_ortho,
+        "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw",
+        "otdf" => true,
+      },
+      "reference-2" => {
+        "server" => sixmaps_raster,
+        "service" => "NSWTopo",
+        "image" => true,
+      },
+      "aerial-lpi-eastcoast" => {
+        "server" => lpi_ortho,
+        "image" => "/Imagery/lr94ortho1m.ecw",
+      },
+      # "aerial-lpi-sydney" => {
+      #   "server" => lpi_ortho,
+      #   "config" => "/SydneyImagesConfig.js",
+      # },
+      # "aerial-lpi-towns" => {
+      #   "server" => lpi_ortho,
+      #   "config" => "/NSWRegionalCentresConfig.js",
+      # },
+      "aerial-google" => {
+        "server" => google_maps,
+        "name" => "satellite",
+        "format" => "jpg",
+      },
+      "aerial-nokia" => {
+        "server" => google_maps,
+        "name" => 1,
+        "format" => 1,
+      },
+      "aerial-lpi-ads40" => {
+        "server" => lpi_ortho,
+        "config" => "/ADS40ImagesConfig.js",
+      },
+      "aerial-webm" => {
+        "server" => sixmaps_raster,
+        "service" => "Best_WebM",
+        "image" => true,
+      },
+      # "vegetation" => {
+      #   "service" => sixmaps_vector,
+      #   "service" => "Vegetation",
+      #   "layers" => true,
+      # },
+      "vegetation" => {
+        "server" => atlas,
+        "service" => "Economy_Landuse",
+        "resolution" => 0.55,
+        "layers" => { nil => { "Landuse" => %q[LU_NSWMajo='Conservation Area' OR LU_NSWMajo LIKE 'Tree%'] } },
+        "equivalences" => { "vegetation" => %w[Landuse] },
+      },
+      "plantation" => {
+        "server" => atlas,
+        "service" => "Economy_Forestry",
+        "resolution" => 0.55,
+        "layers" => { nil => { "Forestry" => %q[Classification='Plantation forestry'] } },
+        "equivalences" => { "plantation" => %w[Forestry] },
+      },
+      "topographic" => {
+        "server" => sixmaps_vector,
+        "service" => "LPIMap",
+        "resolution" => 0.55,
+        "layers" => {
+          4500 => {
+            "LS_Roads_onbridge" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND NOT "roadontype" IN (1,3)],
+            "LS_Roads_onground" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 1],
           },
-          "labels" => {
-            15000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Rural_Property MS_Contour Urban_Areas],
-            # GeneralCulturalArea # TODO: labels?
-          },
-          "equivalences" => {
-            "contours" => %w[LS_Contour MS_Contour],
-            "water" => %w[TN_Watercourse VSS_Watercourse SS_Watercourse MS_Hydroline MS_Watercourse LS_Hydroline LS_Watercourse VSS_Oceans HydroArea],
-            "pathways" => %w[LS_Roads_onground LS_Roads_onbridge],
-            "tracks" => %w[MS_Tracks_onground],
-            "roads" => %w[MS_Roads MS_LocalRoads MS_Roads_intunnel],
-            "cadastre" => %w[Rural_Property Lot],
-            "labels" => %w[Labels],
-          },
+          # TODO: move all roads to the 1:9000 set?
+          9000 => %w[TransportFacilityLine GeneralCulturalLine MS_LocalRoads GeneralCulturalPoint LS_Watercourse LS_Hydroline Rural_Property Lot LS_Contour GeneralCulturalArea],
+          nil => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Urban_Areas]
         },
-        "holdings" => {
-          "service" => "LHPA",
-          "layers" => %w[Holdings],
-          "labels" => %w[Holdings],
+        "labels" => {
+          15000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Rural_Property MS_Contour Urban_Areas],
+          # GeneralCulturalArea # TODO: labels?
         },
-        # "vegetation" => {
-        #   "service" => "Vegetation",
-        #   "layers" => true,
-        # },
-      },
-      atlas => {
-        "plantation" => {
-          "service" => "Economy_Forestry",
-          "resolution" => 0.55,
-          "layers" => %w[Forestry],
-          "layers" => { nil => { "Forestry" => %q[Classification='Plantation forestry'] } },
+        "equivalences" => {
+          "contours" => %w[LS_Contour MS_Contour],
+          "water" => %w[TN_Watercourse VSS_Watercourse SS_Watercourse MS_Hydroline MS_Watercourse LS_Hydroline LS_Watercourse VSS_Oceans HydroArea],
+          "pathways" => %w[LS_Roads_onground LS_Roads_onbridge],
+          "tracks" => %w[MS_Tracks_onground],
+          "roads" => %w[MS_Roads MS_LocalRoads MS_Roads_intunnel],
+          "cadastre" => %w[Rural_Property Lot],
+          "labels" => %w[Labels],
         },
       },
-      sixmaps_raster => {
-        "reference-1" => {
-          "service" => "NSWTopo",
-          "image" => true,
-        },
-        "aerial-webm" => {
-          "service" => "Best_WebM",
-          "image" => true,
-        },
+      "holdings" => {
+        "server" => sixmaps_vector,
+        "service" => "LHPA",
+        "layers" => %w[Holdings],
+        "labels" => %w[Holdings],
       },
-      lpi_ortho => {
-        "aerial-lpi-ads40" => { "config" => "/ADS40ImagesConfig.js" },
-        # "aerial-lpi-sydney" => { "config" => "/SydneyImagesConfig.js" },
-        # "aerial-lpi-towns" => { "config" => "/NSWRegionalCentresConfig.js" },
-        "aerial-lpi-eastcoast" => { "image" => "/Imagery/lr94ortho1m.ecw" },
-        "reference-2" => { "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw", "otdf" => true }
+      "hillshade" => {
+        "server" => oneearth_relief,
+        "type" => "hillshade"
       },
-      google_maps => {
-        "aerial-google" => { "name" => "satellite", "format" => "jpg" }
+      "elevation" => {
+        "server" => oneearth_relief,
+        "type" => "elevation"
       },
-      nokia_maps => {
-        "aerial-nokia" => { "name" => 1, "format" => 1 }
+      "declination" => {
+        "server" => declination_server,
       },
-      oneearth_relief => {
-        "hillshade" => { "type" => "hillshade" },
-        "elevation" => { "type" => "elevation" },
-      },
-      declination_service => {
-        "declination" => { }
-      },
-      grid_service => {
-        "grid" => { }
-      },
-      control_service => {
-        "controls" => { }
+      "grid" => {
+        "server" => grid_server,
       },
     }
     
-    overlays = [ *config["overlays"] ].inject({}) do |hash, (filename_or_path, options)|
-      hash.merge(File.split(filename_or_path).last.partition(/\.\w+$/).first => options.merge("path" => filename_or_path))
-    end
-    services.merge!(OverlayService.new({}) => overlays)
+    labels = %w[topographic]
+    labels += layers.keys.select { |label| config["include"].any? { |match| label[match] } }
     
-    # TODO: add aerial layers, reference layers, etc:
-    composite = %w[
-      plantation
-      topographic
-      elevation
-      hillshade
-      grid
-      declination
-    ]
-    composite += overlays.keys
-    composite << "controls" if config["controls"]["file"]
+    (config["overlays"] || {}).each do |filename_or_path, options|
+      label = File.split(filename_or_path).last.partition(/\.\w+$/).first
+      layers.merge!(label => (options || {}).merge("server" => OverlayServer.new, "path" => filename_or_path))
+      labels << label
+    end
+    
+    if config["controls"]["file"]
+      layers.merge!("controls" => { "server" => control_server})
+      labels << "controls"
+    end
     
     puts "Map details:"
     puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
@@ -1787,16 +1785,9 @@ render:
     puts "  rotation: %.1f degrees" % map.rotation
     puts "  rasters: %i x %i (%.1fMpx) @ %i ppi" % [ *map.dimensions, 0.000001 * map.dimensions.inject(:*), map.ppi ]
     
-    labels = services.values.map(&:keys).flatten.reject do |label|
-      config["exclude"].any? { |match| label[match] } && config["include"].none? { |match| label[match] }
-    end
-    
-    [ *services.values, composite ].each do |label_list|
-      label_list.select! { |label| labels.include? label }
-    end
-    
-    services.each do |service, labels_options|
-      service.download(labels_options, map, output_dir) unless labels_options.empty?
+    labels.recover(InternetError, ServerError).each do |label|
+      options = layers[label]
+      options["server"].download(label, options, map, output_dir)
     end
     
     filename = "#{config['name']}.svg"
@@ -1804,18 +1795,18 @@ render:
       svg_path = File.join(temp_dir, filename)
       File.open(svg_path, "w") do |file|
         map.svg do |svg|
-          composite.each do |label|
+          layers.select do |label, options|
+            labels.include? label
+          end.each do |label, options|
             puts "Rendering #{label}"
-            services.find { |service, options| options[label] }.tap do |service, options|
-              begin
-                svg.add_element("g", "id" => label) do |group|
-                  service.render(label, options[label].merge("render" => config["render"]), map, output_dir) do |element|
-                    group.elements << element
-                  end
+            begin
+              svg.add_element("g", "id" => label) do |group|
+                options["server"].render(label, options.merge("render" => config["render"]), map, output_dir) do |element|
+                  group.elements << element
                 end
-              rescue BadLayerError => e
-                puts "Failed to render #{label}: #{e.message}"
               end
+            rescue BadLayerError => e
+              puts "Failed to render #{label}: #{e.message}"
             end
           end
           fonts = svg.elements.collect("//[@font-family]") { |element| element.attributes["font-family"] }.uniq
@@ -1890,5 +1881,9 @@ end
 # TODO: allow user-selectable contours
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
 # TODO: add vegetation/underlay image option (i.e. map canvas)
+# TODO: add "colour" rendering option to specify single colour
 # TODO: put long command lines into text file...
 # TODO: allow configuration to specify patterns..?
+# TODO: remove need for output_dir?
+# TODO: use yellow-toning to render elevation
+

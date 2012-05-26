@@ -170,6 +170,9 @@ controls:
   diameter: 7.0
   thickness: 0.2
   water-colour: blue
+exclude:
+- plantation
+- relief
 render:
   pathways:
     expand: 0.5
@@ -217,6 +220,8 @@ render:
     expand: 0.7
   HydroArea:
     expand: 0.5
+  Forestry:
+    opacity: 0.2
 ]
   
   module BoundingBox
@@ -900,11 +905,6 @@ render:
         )
       end
       
-      if params["cookie"] && !params["headers"]
-        cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
-        params["headers"] = { "Cookie" => cookie }
-      end
-      
       HTTP.get(export_uri(options, query), params["headers"]) do |response|
         block_given? ? yield(response.body) : response.body
       end
@@ -944,7 +944,12 @@ render:
     end
     
     def image(label, options, map, temp_dir)
-      service = HTTP.get(service_uri(options, "f" => "json")) do |response|
+      if params["cookie"] && !params["headers"]
+        cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
+        params["headers"] = { "Cookie" => cookie }
+      end
+      
+      service = HTTP.get(service_uri(options, "f" => "json"), params["headers"]) do |response|
         JSON.parse(response.body).tap do |result|
           raise ServerError.new(result["error"]["message"]) if result["error"]
         end
@@ -961,10 +966,12 @@ render:
         options[type]
       end.map do |type|
         case options[type]
-        when String, Array
-          [ type, { map.scale => [ *options[type] ] } ]
-        else
+        when Hash
           [ type, options[type] ]
+        when String, Array
+          [ type, { options["scale"] => [ *options[type] ] } ]
+        when true
+          [ type, { options["scale"] => true } ]
         end
       end.map do |type, scales_layers|
         scales_layers.map do |scale, layers|
@@ -981,10 +988,12 @@ render:
               [ id, string ]
             end.transpose
             { "layers" => "show:#{ids.join(?,)}", "layerDefs" => strings.join(?;) }
+          when true
+            { }
           end.merge("dpi" => (scale || map.scale) * 0.0254 / resolution, "wkt" => map.wkt, "format" => "svg")
           xpath = type == "layers" ?
-            "/svg//g[@id='#{service['mapName']}']//g[@id!='Labels' and not(.//g[@id])]" :
-            "/svg//g[@id='#{service['mapName']}']/g[@id='Labels']"
+            "/svg//g[@id!='Labels' and not(.//g[@id])]" :
+            "/svg//g[@id='Labels']"
           [ scale, layer_options, type, xpath ]
         end
       end.inject(:+)
@@ -1635,6 +1644,14 @@ render:
       "tile_sizes" => [ 2048, 2048 ],
       "interval" => 0.1,
     )
+    atlas = VectorArcGIS.new(
+      "host" => "atlas.nsw.gov.au",
+      "instance" => "arcgis1",
+      "folder" => "atlas",
+      "cookie" => "http://atlas.nsw.gov.au/",
+      "tile_sizes" => [ 2048, 2048 ],
+      "interval" => 0.1,
+    )
     lpi_ortho = LPIOrthoService.new(
       "host" => "lite.maps.nsw.gov.au",
       "tile_size" => 1024,
@@ -1696,6 +1713,18 @@ render:
           "layers" => %w[Holdings],
           "labels" => %w[Holdings],
         },
+        # "vegetation" => {
+        #   "service" => "Vegetation",
+        #   "layers" => true,
+        # },
+      },
+      atlas => {
+        "plantation" => {
+          "service" => "Economy_Forestry",
+          "resolution" => 0.55,
+          "layers" => %w[Forestry],
+          "layers" => { nil => { "Forestry" => %q[Classification='Plantation forestry'] } },
+        },
       },
       sixmaps_raster => {
         "reference-1" => {
@@ -1742,6 +1771,7 @@ render:
     
     # TODO: add aerial layers, reference layers, etc:
     composite = %w[
+      plantation
       topographic
       elevation
       hillshade
@@ -1853,13 +1883,12 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: put long command lines into text file...
 # TODO: solve tile-boundary gap problem
 # TODO: option to allow for tiles not to be clipped (e.g. for labels)?
 # TODO: how to incorporate aerial rasters? (link or embed them?)
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
 # TODO: allow user-selectable contours
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
-# TODO: add vegetation/underlay image option
-# TODO: add forestry layers from atlas
-
+# TODO: add vegetation/underlay image option (i.e. map canvas)
+# TODO: put long command lines into text file...
+# TODO: allow configuration to specify patterns..?

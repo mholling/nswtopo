@@ -625,23 +625,37 @@ render:
   
     attr_reader :params
     
-    def download(label, options, map, output_dir)
-      return if %w[png svg].any? { |ext| File.exist? File.join(output_dir, "#{label}.#{ext}") }
+    def download(label, options, map)
+      return if %w[png svg].any? { |ext| File.exist? "#{label}.#{ext}" }
       Dir.mktmpdir do |temp_dir|
-        FileUtils.mv image(label, options, map, temp_dir), output_dir
+        FileUtils.mv image(label, options, map, temp_dir), Dir.pwd
       end
     end
   end
   
   module RasterRenderer
-    def render(label, options, map, output_dir)
+    def render(label, options, map)
+      filename = %w[png jpg].map { |ext| "#{label}.#{ext}" }.find do |filename|
+        File.exists? filename
+      end || raise(BadLayerError.new("no raster image found for #{label}"))
+      href = if options["embed"] || params["embed"]
+        Dir.mktmpdir do |temp_dir|
+          optimised_path = File.join temp_dir, filename
+          %x[convert "#{filename}" "#{optimised_path}"]
+          type = %x[convert "#{optimised_path}" -format %m info:-].downcase
+          base64 = Base64.encode64(File.read optimised_path)
+          "data:image/#{type};base64,#{base64}"
+        end
+      else
+        filename
+      end
       image = REXML::Element.new("image")
       image.add_attributes(
         "id" => label,
         "transform" => "scale(#{1.0 / map.ppi})",
         "width" => map.dimensions[0],
         "height" => map.dimensions[1],
-        "xlink:href" => "#{label}.png",
+        "xlink:href" => href,
       )
       yield image
     end
@@ -1102,8 +1116,8 @@ render:
       abort "Bad XML received:\n#{e.message}"
     end
     
-    def render(label, options, map, output_dir, &block)
-      svg = REXML::Document.new(File.read(File.join(output_dir, "#{label}.svg")))
+    def render(label, options, map, &block)
+      svg = REXML::Document.new(File.read "#{label}.svg")
       equivalences = options["equivalences"] || {}
       renderings = options["render"].inject({}) do |memo, (layer_or_group, rendering)|
         [ *(equivalences[layer_or_group] || layer_or_group) ].each do |layer|
@@ -1227,11 +1241,11 @@ render:
       png_path
     end
     
-    def render(label, options, map, output_dir)
+    def render(label, options, map)
       Dir.mktmpdir do |temp_dir|
         render = options["render"]["relief"]
         resolution = params["resolution"]
-        png_path = File.join output_dir, "#{label}.png"
+        png_path = "#{label}.png"
         overlay_path = File.join temp_dir, "overlay.png"
         highlights = render["highlights"]
         shade = %Q["#{png_path}" -level 0,65% -negate -alpha Copy -fill black +opaque black]
@@ -1265,7 +1279,7 @@ render:
     def download(*args)
     end
     
-    def render(label, options, map, output_dir)
+    def render(label, options, map)
       group = REXML::Element.new("g")
       group.add_attribute("transform", map.svg_transform(1))
       draw(group, options, map) do |coords, projection|
@@ -1575,14 +1589,13 @@ render:
   # end
   
   def self.run
-    output_dir = Dir.pwd
     default_config = YAML.load(CONFIG)
     %w[controls.kml controls.gpx].select do |filename|
       File.exists? filename
     end.each do |filename|
       default_config["controls"]["file"] ||= filename
     end
-    config_path = File.join(output_dir, "config.yml")
+    config_path = "config.yml"
     bounds_path = %w[bounds.kml bounds.gpx].find { |path| File.exists? path }
     user_config = begin
       case
@@ -1612,6 +1625,7 @@ render:
       "folder" => "sixmaps",
       "tile_sizes" => [ 2048, 2048 ],
       "interval" => 0.1,
+      "embed" => config["embed"],
     )
     atlas = VectorArcGIS.new(
       "host" => "atlas.nsw.gov.au",
@@ -1626,6 +1640,7 @@ render:
       "tile_size" => 1024,
       "interval" => 1.0,
       "projection" => "EPSG:3308",
+      "embed" => config["embed"],
     )
     nokia_maps = TiledMapServer.new(
       "uri" => "http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot",
@@ -1635,6 +1650,7 @@ render:
       "crops" => [ [ 0, 0 ], [ 26, 0 ] ],
       "tile_limit" => 250,
       "retries_on_blank" => 1,
+      "embed" => config["embed"],
     )
     google_maps = TiledMapServer.new(
       "uri" => "http://maps.googleapis.com/maps/api/staticmap?zoom=${zoom}&size=${hsize}x${vsize}&scale=1&format=${format}&maptype=${name}&sensor=false&center=${latitude},${longitude}",
@@ -1643,11 +1659,13 @@ render:
       "interval" => 1.2,
       "crops" => [ [ 0, 0 ], [ 30, 0 ] ],
       "tile_limit" => 250,
+      "embed" => config["embed"],
     )
     oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
     declination_server = DeclinationServer.new(config["declination"])
     control_server = ControlServer.new(config["controls"])
     grid_server = GridServer.new(config["grid"])
+    canvas_server = CanvasServer.new("embed" => config["embed"])
     
     layers = {
       "reference-1" => {
@@ -1706,7 +1724,7 @@ render:
         "equivalences" => { "plantation" => %w[Forestry] },
       },
       "canvas" => {
-        "server" => CanvasServer.new,
+        "server" => canvas_server,
       },
       "topographic" => {
         "server" => sixmaps_vector,
@@ -1774,7 +1792,7 @@ render:
     
     labels.recover(InternetError, ServerError).each do |label|
       options = layers[label]
-      options["server"].download(label, options, map, output_dir)
+      options["server"].download(label, options, map)
     end
     
     filename = "#{config['name']}.svg"
@@ -1788,7 +1806,7 @@ render:
             puts "Rendering #{label}"
             begin
               svg.add_element("g", "id" => label) do |group|
-                options["server"].render(label, options.merge("render" => config["render"]), map, output_dir) do |element|
+                options["server"].render(label, options.merge("render" => config["render"]), map) do |element|
                   group.elements << element
                 end
               end
@@ -1803,8 +1821,8 @@ render:
           end
         end.write(file)
       end
-      FileUtils.mv(svg_path, output_dir)
-    end unless File.exists? File.join(output_dir, filename)
+      FileUtils.mv svg_path, Dir.pwd
+    end unless File.exists? filename
     
 #     
 #     oziexplorer_formats = %w[bmp png gif] & formats
@@ -1863,13 +1881,13 @@ end
 
 # TODO: solve tile-boundary gap problem
 # TODO: option to allow for tiles not to be clipped (e.g. for labels)?
-# TODO: how to incorporate aerial rasters? (link or embed them?)
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
 # TODO: allow user-selectable contours
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
 # TODO: add "colour" rendering option to specify single colour
 # TODO: put long command lines into text file...
 # TODO: allow configuration to specify patterns..?
-# TODO: remove need for output_dir?
 # TODO: figure out why Batik won't render...
+# TODO: replace aerial-webm with imagery-best?
+# TODO: use jpeg for embedding aerial images?
 

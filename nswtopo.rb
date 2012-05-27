@@ -618,20 +618,6 @@ render:
     end
   end
   
-  module RasterRenderer
-    def render(label, options, map, output_dir)
-      image = REXML::Element.new("image")
-      image.add_attributes(
-        "id" => label,
-        "transform" => "scale(#{1.0 / map.ppi})",
-        "width" => map.dimensions[0],
-        "height" => map.dimensions[1],
-        "xlink:href" => "#{label}.png",
-      )
-      yield image
-    end
-  end
-  
   class Server
     def initialize(params = {})
       @params = params
@@ -644,6 +630,20 @@ render:
       Dir.mktmpdir do |temp_dir|
         FileUtils.mv image(label, options, map, temp_dir), output_dir
       end
+    end
+  end
+  
+  module RasterRenderer
+    def render(label, options, map, output_dir)
+      image = REXML::Element.new("image")
+      image.add_attributes(
+        "id" => label,
+        "transform" => "scale(#{1.0 / map.ppi})",
+        "width" => map.dimensions[0],
+        "height" => map.dimensions[1],
+        "xlink:href" => "#{label}.png",
+      )
+      yield image
     end
   end
   
@@ -1169,7 +1169,7 @@ render:
       mosaic_path
     end
   end
-
+  
   class OneEarthDEMRelief < Server
     def image(label, options, map, temp_dir)
       bounds = Bounds.transform(map.projection, WGS84, map.bounds)
@@ -1251,6 +1251,13 @@ render:
         )
         yield image
       end
+    end
+  end
+  
+  class CanvasServer < Server
+    include RasterRenderer
+    
+    def download(*args)
     end
   end
   
@@ -1685,23 +1692,21 @@ render:
         "image" => true,
       },
       # "vegetation" => {
-      #   "service" => sixmaps_vector,
-      #   "service" => "Vegetation",
-      #   "layers" => true,
+      #   "server" => atlas,
+      #   "service" => "Economy_Landuse",
+      #   "resolution" => 0.55,
+      #   "layers" => { nil => { "Landuse" => %q[LU_NSWMajo='Conservation Area' OR LU_NSWMajo LIKE 'Tree%'] } },
+      #   "equivalences" => { "vegetation" => %w[Landuse] },
       # },
-      "vegetation" => {
-        "server" => atlas,
-        "service" => "Economy_Landuse",
-        "resolution" => 0.55,
-        "layers" => { nil => { "Landuse" => %q[LU_NSWMajo='Conservation Area' OR LU_NSWMajo LIKE 'Tree%'] } },
-        "equivalences" => { "vegetation" => %w[Landuse] },
-      },
       "plantation" => {
         "server" => atlas,
         "service" => "Economy_Forestry",
         "resolution" => 0.55,
         "layers" => { nil => { "Forestry" => %q[Classification='Plantation forestry'] } },
         "equivalences" => { "plantation" => %w[Forestry] },
+      },
+      "canvas" => {
+        "server" => CanvasServer.new,
       },
       "topographic" => {
         "server" => sixmaps_vector,
@@ -1862,7 +1867,6 @@ end
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
 # TODO: allow user-selectable contours
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
-# TODO: add vegetation/underlay image option (i.e. map canvas)
 # TODO: add "colour" rendering option to specify single colour
 # TODO: put long command lines into text file...
 # TODO: allow configuration to specify patterns..?

@@ -626,18 +626,18 @@ render:
     attr_reader :params
     
     def download(label, options, map)
-      return if %w[png svg].any? { |ext| File.exist? "#{label}.#{ext}" }
+      ext = options["ext"] || params["ext"] || "png"
       Dir.mktmpdir do |temp_dir|
-        FileUtils.mv image(label, options, map, temp_dir), Dir.pwd
-      end
+        FileUtils.mv image(label, ext, options, map, temp_dir), Dir.pwd
+      end unless File.exist?("#{label}.#{ext}")
     end
   end
   
   module RasterRenderer
     def render(label, options, map)
-      filename = %w[png jpg].map { |ext| "#{label}.#{ext}" }.find do |filename|
-        File.exists? filename
-      end || raise(BadLayerError.new("no raster image found for #{label}"))
+      ext = options["ext"] || params["ext"] || "png"
+      filename = "#{label}.#{ext}"
+      raise BadLayerError.new("raster image #{filename} not found") unless File.exists? filename
       href = if options["embed"] || params["embed"]
         Dir.mktmpdir do |temp_dir|
           optimised_path = File.join temp_dir, filename
@@ -664,7 +664,7 @@ render:
   class TiledServer < Server
     include RasterRenderer
     
-    def image(label, options, map, temp_dir)
+    def image(label, ext, options, map, temp_dir)
       puts "Downloading: #{label}"
       tile_paths = tiles(options, map, temp_dir).map do |tile_bounds, resolution, tile_path|
         topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
@@ -673,7 +673,6 @@ render:
       end
     
       puts "Assembling: #{label}"
-      png_path = File.join(temp_dir, "#{label}.png")
       tif_path = File.join(temp_dir, "#{label}.tif")
       tfw_path = File.join(temp_dir, "#{label}.tfw")
       vrt_path = File.join(temp_dir, "#{label}.vrt")
@@ -686,9 +685,10 @@ render:
         projection = params["projection"]
         %x[gdalwarp -s_srs "#{projection}" -t_srs "#{map.projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
       end
-      %x[convert -quiet "#{tif_path}" "#{png_path}"]
       
-      png_path
+      File.join(temp_dir, "#{label}.#{ext}").tap do |output_path|
+        %x[convert -quiet "#{tif_path}" "#{output_path}"]
+      end
     end
   end
   
@@ -917,6 +917,11 @@ render:
   class VectorArcGIS < ArcGIS
     SEGMENT = ?.
     
+    def initialize(*args)
+      super(*args)
+      params["ext"] = "svg"
+    end
+    
     def rerender(element, command, values)
       xpaths = case command
       when "opacity"
@@ -946,7 +951,7 @@ render:
       end
     end
     
-    def image(label, options, map, temp_dir)
+    def image(label, ext, options, map, temp_dir)
       if params["cookie"] && !params["headers"]
         cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
         params["headers"] = { "Cookie" => cookie }
@@ -1108,10 +1113,9 @@ render:
         end
       end
       
-      mosaic_path = File.join(temp_dir, "#{label}.svg")
-      File.open(mosaic_path, "w") { |file| xml.write file }
-      
-      mosaic_path
+      File.join(temp_dir, "#{label}.svg").tap do |mosaic_path|
+        File.open(mosaic_path, "w") { |file| xml.write file }
+      end
     rescue REXML::ParseException => e
       abort "Bad XML received:\n#{e.message}"
     end
@@ -1141,7 +1145,7 @@ render:
   class RasterArcGIS < ArcGIS
     include RasterRenderer
     
-    def image(label, options, map, temp_dir)
+    def image(label, ext, options, map, temp_dir)
       scale = options["scale"] || map.scale
       resolution = options["resolution"] || map.resolution
       layer_options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.wkt, "format" => "png32" }
@@ -1155,37 +1159,36 @@ render:
         [ tile_bounds, tile_sizes, tile_offsets, tile_path ]
       end
       
-      mosaic_path = File.join(temp_dir, "#{label}.png")
       puts "Assembling: #{label}"
       
-      if map.rotation.zero?
-        sequence = dataset.map do |_, tile_sizes, tile_offsets, tile_path|
-          %Q[#{OP} "#{tile_path}" +repage -repage +#{tile_offsets[0]}+#{tile_offsets[1]} #{CP}]
-        end.join " "
-        resize = (options["resolution"] || options["scale"]) ? "-resize #{map.dimensions.join ?x}!" : ""
-        %x[convert -units PixelsPerInch #{sequence} -compose Copy -layers mosaic -density #{map.ppi} #{resize} "#{mosaic_path}"]
-      else
-        tile_paths = dataset.map do |tile_bounds, _, _, tile_path|
-          topleft = [ tile_bounds.first.first, tile_bounds.last.last ]
-          WorldFile.write(topleft, resolution, 0, "#{tile_path}w")
-          %Q["#{tile_path}"]
-        end.join " "
-        vrt_path = File.join(temp_dir, "#{label}.vrt")
-        tif_path = File.join(temp_dir, "#{label}.tif")
-        tfw_path = File.join(temp_dir, "#{label}.tfw")
-        %x[gdalbuildvrt "#{vrt_path}" #{tile_paths}]
-        %x[convert -size #{map.dimensions.join ?x} -units PixelsPerInch -density #{map.ppi} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
-        map.write_world_file(tfw_path)
-        %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -dstalpha -r cubic "#{vrt_path}" "#{tif_path}"]
-        %x[convert "#{tif_path}" -quiet "#{mosaic_path}"]
+      File.join(temp_dir, "#{label}.#{ext}").tap do |mosaic_path|
+        if map.rotation.zero?
+          sequence = dataset.map do |_, tile_sizes, tile_offsets, tile_path|
+            %Q[#{OP} "#{tile_path}" +repage -repage +#{tile_offsets[0]}+#{tile_offsets[1]} #{CP}]
+          end.join " "
+          resize = (options["resolution"] || options["scale"]) ? "-resize #{map.dimensions.join ?x}!" : ""
+          %x[convert -units PixelsPerInch #{sequence} -compose Copy -layers mosaic -density #{map.ppi} #{resize} "#{mosaic_path}"]
+        else
+          tile_paths = dataset.map do |tile_bounds, _, _, tile_path|
+            topleft = [ tile_bounds.first.first, tile_bounds.last.last ]
+            WorldFile.write(topleft, resolution, 0, "#{tile_path}w")
+            %Q["#{tile_path}"]
+          end.join " "
+          vrt_path = File.join(temp_dir, "#{label}.vrt")
+          tif_path = File.join(temp_dir, "#{label}.tif")
+          tfw_path = File.join(temp_dir, "#{label}.tfw")
+          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths}]
+          %x[convert -size #{map.dimensions.join ?x} -units PixelsPerInch -density #{map.ppi} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
+          map.write_world_file(tfw_path)
+          %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -dstalpha -r cubic "#{vrt_path}" "#{tif_path}"]
+          %x[convert "#{tif_path}" -quiet "#{mosaic_path}"]
+        end
       end
-      
-      mosaic_path
     end
   end
   
   class OneEarthDEMRelief < Server
-    def image(label, options, map, temp_dir)
+    def image(label, ext, options, map, temp_dir)
       bounds = Bounds.transform(map.projection, WGS84, map.bounds)
       bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
       counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
@@ -1226,7 +1229,6 @@ render:
       relief_path = File.join(temp_dir, "#{label}-small.tif")
       tif_path = File.join(temp_dir, "#{label}.tif")
       tfw_path = File.join(temp_dir, "#{label}.tfw")
-      png_path = File.join(temp_dir, "#{label}.png")
       map.write_world_file(tfw_path, resolution)
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       ppi = 0.0254 * map.scale / resolution
@@ -1236,23 +1238,25 @@ render:
       %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
       %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
       %x[gdalwarp -s_srs "#{WGS84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
-      %x[convert "#{tif_path}" -quiet -type Grayscale -depth 8 "#{png_path}"]
       
-      png_path
+      File.join(temp_dir, "#{label}.#{ext}").tap do |output_path|
+        %x[convert "#{tif_path}" -quiet -type Grayscale -depth 8 "#{output_path}"]
+      end
     end
     
     def render(label, options, map)
+      ext = options["ext"] || params["ext"] || "png"
       Dir.mktmpdir do |temp_dir|
-        render = options["render"]["relief"]
         resolution = params["resolution"]
-        png_path = "#{label}.png"
+        transform = "scale(#{resolution / map.scale / 0.0254})"
+        hillshade_path = "#{label}.#{ext}"
         overlay_path = File.join temp_dir, "overlay.png"
+        render = options["render"]["relief"]
         highlights = render["highlights"]
-        shade = %Q["#{png_path}" -level 0,65% -negate -alpha Copy -fill black +opaque black]
-        sun = %Q["#{png_path}" -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
+        shade = %Q["#{hillshade_path}" -level 0,65% -negate -alpha Copy -fill black +opaque black]
+        sun = %Q["#{hillshade_path}" -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
         %x[convert #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
         base64 = Base64.encode64(File.read overlay_path)
-        transform = "scale(#{resolution / map.scale / 0.0254})"
         dimensions = map.extents.map { |extent| (extent / resolution).ceil }
         image = REXML::Element.new("image")
         image.add_attributes(
@@ -1672,43 +1676,57 @@ render:
         "server" => lpi_ortho,
         "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw",
         "otdf" => true,
+        "ext" => "png",
       },
       "reference-2" => {
         "server" => sixmaps_raster,
         "service" => "NSWTopo",
         "image" => true,
+        "ext" => "png",
       },
       "aerial-lpi-eastcoast" => {
         "server" => lpi_ortho,
         "image" => "/Imagery/lr94ortho1m.ecw",
+        "ext" => "jpg",
       },
       # "aerial-lpi-sydney" => {
       #   "server" => lpi_ortho,
       #   "config" => "/SydneyImagesConfig.js",
+      #   "ext" => "jpg",
       # },
       # "aerial-lpi-towns" => {
       #   "server" => lpi_ortho,
       #   "config" => "/NSWRegionalCentresConfig.js",
+      #   "ext" => "jpg",
       # },
       "aerial-google" => {
         "server" => google_maps,
         "name" => "satellite",
         "format" => "jpg",
+        "ext" => "jpg",
       },
       "aerial-nokia" => {
-        "server" => google_maps,
+        "server" => nokia_maps,
         "name" => 1,
         "format" => 1,
+        "ext" => "jpg",
       },
       "aerial-lpi-ads40" => {
         "server" => lpi_ortho,
         "config" => "/ADS40ImagesConfig.js",
+        "ext" => "jpg",
       },
       "aerial-webm" => {
         "server" => sixmaps_raster,
         "service" => "Best_WebM",
         "image" => true,
+        "ext" => "jpg",
       },
+      # "aerial-best" => {
+      #   "server" => sixmaps_raster,
+      #   "service" => "LPI_Imagery_Best",
+      #   "ext" => "jpg",
+      # },
       # "vegetation" => {
       #   "server" => atlas,
       #   "service" => "Economy_Landuse",
@@ -1725,6 +1743,7 @@ render:
       },
       "canvas" => {
         "server" => canvas_server,
+        "ext" => "png",
       },
       "topographic" => {
         "server" => sixmaps_vector,
@@ -1761,6 +1780,7 @@ render:
       },
       "relief" => {
         "server" => oneearth_relief,
+        "ext" => "png",
       },
       "declination" => {
         "server" => declination_server,
@@ -1888,6 +1908,4 @@ end
 # TODO: put long command lines into text file...
 # TODO: allow configuration to specify patterns..?
 # TODO: figure out why Batik won't render...
-# TODO: replace aerial-webm with imagery-best?
-# TODO: use jpeg for embedding aerial images?
 

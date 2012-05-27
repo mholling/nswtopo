@@ -155,14 +155,10 @@ grid:
   fontsize: 7.8
   family: Arial Narrow
 relief:
-  hillshade:
-    altitude: 45
-    azimuth: 315
-    exaggeration: 2
-    opacity: 0.3
-    threshold: 50
-  elevation:
-    opacity: 0.1
+  altitude: 45
+  azimuth: 315
+  exaggeration: 2
+  resolution: 45.0
 controls:
   colour: "#880088"
   family: Arial
@@ -226,6 +222,9 @@ render:
     colours:
       "#3F8C42": "#D5E9C8"
       "#A8A800": "#D5E9C8"
+  relief:
+    opacity: 0.3
+    highlights: 20
 ]
   
   module BoundingBox
@@ -1172,12 +1171,11 @@ render:
   end
 
   class OneEarthDEMRelief < Server
-    RESOLUTION = 45.0
-    
     def image(label, options, map, temp_dir)
       bounds = Bounds.transform(map.projection, WGS84, map.bounds)
       bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
       counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
+      resolution = params["resolution"]
       units_per_pixel = 0.125 / 300
   
       puts "Downloading: #{label}"
@@ -1215,25 +1213,14 @@ render:
       tif_path = File.join(temp_dir, "#{label}.tif")
       tfw_path = File.join(temp_dir, "#{label}.tfw")
       png_path = File.join(temp_dir, "#{label}.png")
-      map.write_world_file(tfw_path, RESOLUTION)
-      dimensions = map.extents.map { |extent| (extent / RESOLUTION).ceil }
-      ppi = 0.0254 * map.scale / RESOLUTION
-      case options["type"]
-      when "hillshade"
-        altitude = params["hillshade"]["altitude"]
-        azimuth = params["hillshade"]["azimuth"]
-        exaggeration = params["hillshade"]["exaggeration"]
-        %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
-        %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
-      when "elevation"
-        colours = { "0%" => "black", "100%" => "white" }
-        colour_path = File.join(temp_dir, "colours.txt")
-        File.open(colour_path, "w") do |file|
-          colours.each { |elevation, colour| file.puts "#{elevation} #{colour}" }
-        end
-        %x[gdaldem color-relief "#{vrt_path}" "#{colour_path}" "#{relief_path}" -q]
-        %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type TrueColor -depth 8 "#{tif_path}"]
-      end
+      map.write_world_file(tfw_path, resolution)
+      dimensions = map.extents.map { |extent| (extent / resolution).ceil }
+      ppi = 0.0254 * map.scale / resolution
+      altitude = params["altitude"]
+      azimuth = params["azimuth"]
+      exaggeration = params["exaggeration"]
+      %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
+      %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
       %x[gdalwarp -s_srs "#{WGS84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
       %x[convert "#{tif_path}" -quiet -type Grayscale -depth 8 "#{png_path}"]
       
@@ -1242,21 +1229,20 @@ render:
     
     def render(label, options, map, output_dir)
       Dir.mktmpdir do |temp_dir|
+        render = options["render"]["relief"]
+        resolution = params["resolution"]
         png_path = File.join output_dir, "#{label}.png"
-        temp_path = File.join temp_dir, "temp.png"
-        case options["type"]
-        when "hillshade"
-          threshold = 100 - params["hillshade"]["threshold"]
-          %x[convert "#{png_path}" -contrast-stretch 0x#{threshold}% -negate -alpha Copy -fill black +opaque black "#{temp_path}"]
-        when "elevation"
-          %x[convert "#{png_path}" -equalize -negate -alpha Copy -fill black +opaque black "#{temp_path}"]
-        end
-        base64 = Base64.encode64(File.read temp_path)
-        transform = "scale(#{RESOLUTION / map.scale / 0.0254})"
-        dimensions = map.extents.map { |extent| (extent / RESOLUTION).ceil }
+        overlay_path = File.join temp_dir, "overlay.png"
+        highlights = render["highlights"]
+        shade = %Q["#{png_path}" -level 0,65% -negate -alpha Copy -fill black +opaque black]
+        sun = %Q["#{png_path}" -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
+        %x[convert #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
+        base64 = Base64.encode64(File.read overlay_path)
+        transform = "scale(#{resolution / map.scale / 0.0254})"
+        dimensions = map.extents.map { |extent| (extent / resolution).ceil }
         image = REXML::Element.new("image")
         image.add_attributes(
-          "opacity" => params[options["type"]]["opacity"],
+          "opacity" => render["opacity"],
           "transform" => transform,
           "width" => dimensions[0],
           "height" => dimensions[1],
@@ -1604,6 +1590,7 @@ render:
       abort "Error in configuration file: #{e.message}"
     end
     config = default_config.deep_merge user_config
+    config["include"] = [ *config["include"] ]
     
     map = Map.new(config)
     
@@ -1749,13 +1736,8 @@ render:
         "layers" => %w[Holdings],
         "labels" => %w[Holdings],
       },
-      "hillshade" => {
+      "relief" => {
         "server" => oneearth_relief,
-        "type" => "hillshade"
-      },
-      "elevation" => {
-        "server" => oneearth_relief,
-        "type" => "elevation"
       },
       "declination" => {
         "server" => declination_server,
@@ -1885,5 +1867,5 @@ end
 # TODO: put long command lines into text file...
 # TODO: allow configuration to specify patterns..?
 # TODO: remove need for output_dir?
-# TODO: use yellow-toning to render elevation
+# TODO: figure out why Batik won't render...
 

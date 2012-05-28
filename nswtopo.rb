@@ -138,11 +138,6 @@ scale: 25000
 ppi: 300
 rotation: 0
 margin: 15
-contours:
-  interval: 10
-  index: 100
-  labels: 50
-  source: 1
 declination:
   spacing: 1000
   width: 0.1
@@ -169,33 +164,31 @@ controls:
 render:
   pathways:
     expand: 0.5
-    colours: 
+    colour: 
       "#A39D93": "#363636"
   contours:
     expand: 0.7
-    colours: 
+    colour: 
       "#D6CAB6": "#805100"
       "#D6B781": "#805100"
   tracks:
     expand: 0.6
-    colours:
+    colour:
       "#9C9C9C": "#363636"
   roads:
     expand: 0.6
-    colours:
+    colour:
       "#9C9C9C": "#363636"
   cadastre:
     expand: 0.5
     opacity: 0.5
-    colours:
-      "#DCDCDC": "#999999"
-      "#E4B3FF": "#999999"
+    colour: "#777777"
   labels: 
-    colours: 
+    colour: 
       "#A87000": "#000000"
   water:
     opacity: 1
-    colours:
+    colour:
       "#73A1E6": "#4985DF"
   LS_Hydroline:
     expand: 0.3
@@ -215,11 +208,11 @@ render:
     expand: 0.5
   Forestry:
     opacity: 1
-    colours:
+    colour:
       "#38A800": "#9FD699"
   vegetation:
     opacity: 1
-    colours:
+    colour:
       "#3F8C42": "#D5E9C8"
       "#A8A800": "#D5E9C8"
   relief:
@@ -588,35 +581,35 @@ render:
     end
   end
   
-  class Color
-    def initialize(hex)
-      r, g, b = rgb = hex.scan(/\h\h/).map(&:hex)
-      mx = rgb.max
-      mn = rgb.min
-      c  = mx - mn
-      @hue = c.zero? ? nil : mx == r ? 60 * (g - b) / c : mx == g ? 60 * (b - r) / c + 120 : 60 * (r - g) / c + 240
-      @lightness = 100 * (mx + mn) / 510
-      @saturation = c.zero? ? 0 : 10000 * c / (100 - (2 * lightness - 100).abs) / 255
-    end
-    
-    attr_accessor :hue, :saturation, :lightness
-    
-    def to_s
-      c = (100 - (2 * lightness - 100).abs) * saturation * 255 / 10000
-      x = hue && c * (60 - (hue % 120 - 60).abs) / 60
-      m = 255 * lightness / 100 - c / 2
-      rgb = case hue
-      when   0..59  then [ m + c, m + x, m ]
-      when  60..119 then [ m + x, m + c, m ]
-      when 120..179 then [ m, m + c, m + x ]
-      when 180..239 then [ m, m + x, m + c ]
-      when 240..319 then [ m + x, m, m + c ]
-      when 320..360 then [ m + c, m, m + x ]
-      when nil      then [ 0, 0, 0 ]
-      end
-      "#%02x%02x%02x" % rgb
-    end
-  end
+  # class Colour
+  #   def initialize(hex)
+  #     r, g, b = rgb = hex.scan(/\h\h/).map(&:hex)
+  #     mx = rgb.max
+  #     mn = rgb.min
+  #     c  = mx - mn
+  #     @hue = c.zero? ? nil : mx == r ? 60 * (g - b) / c : mx == g ? 60 * (b - r) / c + 120 : 60 * (r - g) / c + 240
+  #     @lightness = 100 * (mx + mn) / 510
+  #     @saturation = c.zero? ? 0 : 10000 * c / (100 - (2 * @lightness - 100).abs) / 255
+  #   end
+  #   
+  #   attr_accessor :hue, :lightness, :saturation
+  #   
+  #   def to_s
+  #     c = (100 - (2 * @lightness - 100).abs) * @saturation * 255 / 10000
+  #     x = @hue && c * (60 - (@hue % 120 - 60).abs) / 60
+  #     m = 255 * @lightness / 100 - c / 2
+  #     rgb = case @hue
+  #     when   0..59  then [ m + c, m + x, m ]
+  #     when  60..119 then [ m + x, m + c, m ]
+  #     when 120..179 then [ m, m + c, m + x ]
+  #     when 180..239 then [ m, m + x, m + c ]
+  #     when 240..319 then [ m + x, m, m + c ]
+  #     when 320..360 then [ m + c, m, m + x ]
+  #     when nil      then [ 0, 0, 0 ]
+  #     end
+  #     "#%02x%02x%02x" % rgb
+  #   end
+  # end
   
   class Server
     def initialize(params = {})
@@ -930,10 +923,15 @@ render:
         %w[stroke-width stroke-dasharray stroke-miterlimit font-size].map { |name| ".//[@#{name}]/@#{name}" }
       when "stretch"
         ".//[@stroke-dasharray]/@stroke-dasharray"
-      when "hue", "saturation", "lightness"
-        %w[stroke fill].map { |name| ".//[@#{name}!='none']/@#{name}" }
-      when "colours"
-        %w[stroke fill].map { |name| values.keys.map { |colour| ".//[@#{name}='#{colour}']/@#{name}" } }.flatten
+      when "colour"
+        %w[stroke fill].map do |name|
+          case values
+          when Hash
+            values.keys.map { |colour| ".//[@#{name}='#{colour}']/@#{name}" }
+          else
+            ".//[@#{name}!='none']/@#{name}"
+          end
+        end.flatten
       end
       [ *xpaths ].each do |xpath|
         REXML::XPath.each(element, xpath) do |attribute|
@@ -942,10 +940,13 @@ render:
             values.to_s
           when "expand", "stretch"
             attribute.value.split(/,\s*/).map(&:to_f).map { |size| size * values }.join(", ")
-          when "hue", "saturation", "lightness"
-            Color.new(attribute.value).tap { |color| color.send "#{command}=", values }.to_s
-          when "colours"
-            values[attribute.value] || attribute.value
+          when "colour"
+            case values
+            when Hash
+              values[attribute.value] || attribute.value
+            when String
+              values
+            end
           end
         end
       end
@@ -1904,8 +1905,9 @@ end
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
 # TODO: allow user-selectable contours
 # TODO: apply "expand" rendering command to point features an fill areas as well as lines?
-# TODO: add "colour" rendering option to specify single colour
 # TODO: put long command lines into text file...
 # TODO: allow configuration to specify patterns..?
 # TODO: figure out why Batik won't render...
+# TODO: atlas vegetation layer as raster?
+# TODO: puts rendering info for declination, grid, controls into config["render"]?
 

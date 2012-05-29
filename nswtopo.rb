@@ -835,34 +835,32 @@ render:
   end
   
   class ArcGIS < Server
-    def dimensions(bounds, resolution)
-      bounds.map { |bound| bound.max - bound.min }.map { |extent| (extent / resolution).ceil }
-    end
-    
     def tiles(bounds, resolution)
-      service_tile_sizes = params["tile_sizes"]
-      pixels = dimensions(bounds, resolution)
-      counts = [ pixels, service_tile_sizes ].transpose.map { |pixel, tile_size| (pixel - 1) / tile_size + 1 }
+      margin = params["margin"] || 0
+      cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - margin }
+      dimensions = bounds.map { |bound| ((bound.max - bound.min) / resolution).ceil }
       origins = [ bounds.first.min, bounds.last.max ]
       
-      tile_sizes = [ counts, service_tile_sizes, pixels ].transpose.map do |count, tile_size, pixel|
-        [ tile_size ] * (count - 1) << (((pixel - 1) % tile_size) + 1)
+      cropped_size_lists = [ dimensions, cropped_tile_sizes ].transpose.map do |dimension, cropped_tile_size|
+        [ cropped_tile_size ] * ((dimension - 1) / cropped_tile_size) << 1 + (dimension - 1) % cropped_tile_size
       end
       
-      tile_bounds = [ tile_sizes, origins, [ :+, :- ] ].transpose.map do |sizes, origin, increment|
-        boundaries = sizes.inject([0]) do |memo, size|
-          memo << memo.last + size
-        end.map do |pixels|
-          origin.send(increment, pixels * resolution)
-        end
-        [ boundaries[0..-2], boundaries[1..-1] ].transpose.map(&:sort)
+      bound_lists = [ cropped_size_lists, origins, [ :+, :- ] ].transpose.map do |cropped_sizes, origin, increment|
+        boundaries = cropped_sizes.inject([ 0 ]) { |memo, size| memo << size + memo.last }
+        [ 0..-2, 1..-1 ].map.with_index do |range, index|
+          boundaries[range].map { |offset| origin.send increment, (offset + index * margin) * resolution }
+        end.transpose.map(&:sort)
       end
       
-      tile_offsets = tile_sizes.map do |sizes|
-        sizes[0..-2].inject([0]) { |offsets, size| offsets << offsets.last + size }
+      size_lists = cropped_size_lists.map do |cropped_sizes|
+        cropped_sizes.map { |size| size + margin }
       end
       
-      [ tile_bounds, tile_sizes, tile_offsets ].map { |axes| axes.inject(:product) }.transpose
+      offset_lists = cropped_size_lists.map do |cropped_sizes|
+        cropped_sizes[0..-2].inject([0]) { |memo, size| memo << memo.last + size }
+      end
+      
+      [ bound_lists, size_lists, offset_lists ].map { |axes| axes.inject(:product) }.transpose
     end
     
     def export_uri(options, query)
@@ -913,6 +911,7 @@ render:
     def initialize(*args)
       super(*args)
       params["ext"] = "svg"
+      params["margin"] ||= 3
     end
     
     def rerender(element, command, values)
@@ -1061,7 +1060,7 @@ render:
           ################################################################################
         end
         
-        [ tileset, tile_sizes, tile_offsets ]
+        [ tileset, tile_offsets ]
       end
       
       xml = map.svg do |svg|
@@ -1073,7 +1072,7 @@ render:
           end
         end
         
-        layers = tilesets.find(lambda { [ [ ] ] }) do |tileset, _, _|
+        layers = tilesets.find(lambda { [ [ ] ] }) do |tileset, _|
           tileset.all? { |tile_xml, _, _, xpath| tile_xml.elements[xpath] }
         end.first.map do |tile_xml, _, _, xpath|
           tile_xml.elements.collect(xpath) do |layer|
@@ -1092,7 +1091,7 @@ render:
           )}
         end.inject({}, &:merge)
         
-        tilesets.with_progress("Assembling: #{label}").each do |tileset, tile_sizes, tile_offsets|
+        tilesets.with_progress("Assembling: #{label}").each do |tileset, tile_offsets|
           tileset.each do | tile_xml, scale, type, xpath|
             tile_xml.elements.each("//path[@d='']") { |path| path.parent.delete_element path }
             while tile_xml.elements["//g[not(*)]"]
@@ -1910,4 +1909,4 @@ end
 # TODO: figure out why Batik won't render...
 # TODO: atlas vegetation layer as raster?
 # TODO: puts rendering info for declination, grid, controls into config["render"]?
-
+# TODO: include hydro areas in contour labels download to avoid getting underwater contour labels?...

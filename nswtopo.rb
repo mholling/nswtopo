@@ -210,11 +210,6 @@ render:
     opacity: 1
     colour:
       "#38A800": "#9FD699"
-  vegetation:
-    opacity: 1
-    colour:
-      "#3F8C42": "#D5E9C8"
-      "#A8A800": "#D5E9C8"
   relief:
     opacity: 0.3
     highlights: 20
@@ -621,7 +616,7 @@ render:
     def download(label, options, map)
       ext = options["ext"] || params["ext"] || "png"
       Dir.mktmpdir do |temp_dir|
-        FileUtils.mv image(label, ext, options, map, temp_dir), Dir.pwd
+        FileUtils.mv get_image(label, ext, options, map, temp_dir), Dir.pwd
       end unless File.exist?("#{label}.#{ext}")
     end
   end
@@ -657,7 +652,7 @@ render:
   class TiledServer < Server
     include RasterRenderer
     
-    def image(label, ext, options, map, temp_dir)
+    def get_image(label, ext, options, map, temp_dir)
       puts "Downloading: #{label}"
       tile_paths = tiles(options, map, temp_dir).map do |tile_bounds, resolution, tile_path|
         topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
@@ -835,8 +830,9 @@ render:
   end
   
   class ArcGIS < Server
-    def tiles(bounds, resolution)
-      margin = params["margin"] || 0
+    SEGMENT = ?.
+    
+    def tiles(bounds, resolution, margin = 0)
       cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - margin }
       dimensions = bounds.map { |bound| ((bound.max - bound.min) / resolution).ceil }
       origins = [ bounds.first.min, bounds.last.max ]
@@ -903,16 +899,6 @@ render:
         block_given? ? yield(response.body) : response.body
       end
     end
-  end
-  
-  class VectorArcGIS < ArcGIS
-    SEGMENT = ?.
-    
-    def initialize(*args)
-      super(*args)
-      params["ext"] = "svg"
-      params["margin"] ||= 3
-    end
     
     def rerender(element, command, values)
       xpaths = case command
@@ -951,12 +937,17 @@ render:
       end
     end
     
-    def image(label, ext, options, map, temp_dir)
+    def get_image(label, ext, options, map, temp_dir)
       if params["cookie"] && !params["headers"]
         cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
         params["headers"] = { "Cookie" => cookie }
       end
       
+      ext == "svg" ? get_vector(label, ext, options, map, temp_dir) :
+                     get_raster(label, ext, options, map, temp_dir)
+    end
+    
+    def get_vector(label, ext, options, map, temp_dir)
       service = HTTP.get(service_uri(options, "f" => "json"), params["headers"]) do |response|
         JSON.parse(response.body).tap do |result|
           raise ServerError.new(result["error"]["message"]) if result["error"]
@@ -968,7 +959,7 @@ render:
       resolution = options["resolution"] || map.resolution
       transform = map.svg_transform(resolution / 0.0254 / map.scale)
       
-      tile_list = tiles(map.bounds, resolution)
+      tile_list = tiles(map.bounds, resolution, 3)
       
       downloads = %w[layers labels].select do |type|
         options[type]
@@ -1120,7 +1111,11 @@ render:
       abort "Bad XML received:\n#{e.message}"
     end
     
+    include RasterRenderer
+    
     def render(label, options, map, &block)
+      return super(label, options, map, &block) unless options["ext"] == "svg"
+      
       svg = REXML::Document.new(File.read "#{label}.svg")
       equivalences = options["equivalences"] || {}
       renderings = options["render"].inject({}) do |memo, (layer_or_group, rendering)|
@@ -1140,12 +1135,8 @@ render:
       svg.elements.each("/svg/defs", &block)
       svg.elements.each("/svg/g[@id]", &block)
     end
-  end
-  
-  class RasterArcGIS < ArcGIS
-    include RasterRenderer
     
-    def image(label, ext, options, map, temp_dir)
+    def get_raster(label, ext, options, map, temp_dir)
       scale = options["scale"] || map.scale
       resolution = options["resolution"] || map.resolution
       layer_options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.wkt, "format" => "png32" }
@@ -1188,7 +1179,7 @@ render:
   end
   
   class OneEarthDEMRelief < Server
-    def image(label, ext, options, map, temp_dir)
+    def get_image(label, ext, options, map, temp_dir)
       bounds = Bounds.transform(map.projection, WGS84, map.bounds)
       bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
       counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
@@ -1618,20 +1609,14 @@ render:
     
     map = Map.new(config)
     
-    sixmaps_vector = VectorArcGIS.new(
-      "host" => "mapsq.six.nsw.gov.au",
-      "folder" => "sixmaps",
-      "tile_sizes" => [ 2048, 2048 ],
-      "interval" => 0.1,
-    )
-    sixmaps_raster = RasterArcGIS.new(
+    sixmaps = ArcGIS.new(
       "host" => "mapsq.six.nsw.gov.au",
       "folder" => "sixmaps",
       "tile_sizes" => [ 2048, 2048 ],
       "interval" => 0.1,
       "embed" => config["embed"],
     )
-    atlas = VectorArcGIS.new(
+    atlas = ArcGIS.new(
       "host" => "atlas.nsw.gov.au",
       "instance" => "arcgis1",
       "folder" => "atlas",
@@ -1679,7 +1664,7 @@ render:
         "ext" => "png",
       },
       "reference-2" => {
-        "server" => sixmaps_raster,
+        "server" => sixmaps,
         "service" => "NSWTopo",
         "image" => true,
         "ext" => "png",
@@ -1717,22 +1702,15 @@ render:
         "ext" => "jpg",
       },
       "aerial-webm" => {
-        "server" => sixmaps_raster,
+        "server" => sixmaps,
         "service" => "Best_WebM",
         "image" => true,
         "ext" => "jpg",
       },
       # "aerial-best" => {
-      #   "server" => sixmaps_raster,
+      #   "server" => sixmaps,
       #   "service" => "LPI_Imagery_Best",
       #   "ext" => "jpg",
-      # },
-      # "vegetation" => {
-      #   "server" => atlas,
-      #   "service" => "Economy_Landuse",
-      #   "resolution" => 0.55,
-      #   "layers" => { nil => { "Landuse" => %q[LU_NSWMajo='Conservation Area' OR LU_NSWMajo LIKE 'Tree%'] } },
-      #   "equivalences" => { "vegetation" => %w[Landuse] },
       # },
       "plantation" => {
         "server" => atlas,
@@ -1740,15 +1718,17 @@ render:
         "resolution" => 0.55,
         "layers" => { nil => { "Forestry" => %q[Classification='Plantation forestry'] } },
         "equivalences" => { "plantation" => %w[Forestry] },
+        "ext" => "svg",
       },
       "canvas" => {
         "server" => canvas_server,
         "ext" => "png",
       },
       "topographic" => {
-        "server" => sixmaps_vector,
+        "server" => sixmaps,
         "service" => "LPIMap",
         "resolution" => 0.55,
+        "ext" => "svg",
         "layers" => {
           4500 => {
             "LS_Roads_onbridge" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND NOT "roadontype" IN (1,3)],
@@ -1773,8 +1753,9 @@ render:
         },
       },
       "holdings" => {
-        "server" => sixmaps_vector,
+        "server" => sixmaps,
         "service" => "LHPA",
+        "ext" => "svg",
         "layers" => %w[Holdings],
         "labels" => %w[Holdings],
       },
@@ -1899,7 +1880,6 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: solve tile-boundary gap problem
 # TODO: option to allow for tiles not to be clipped (e.g. for labels)?
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
 # TODO: allow user-selectable contours
@@ -1907,6 +1887,7 @@ end
 # TODO: put long command lines into text file...
 # TODO: allow configuration to specify patterns..?
 # TODO: figure out why Batik won't render...
-# TODO: atlas vegetation layer as raster?
 # TODO: puts rendering info for declination, grid, controls into config["render"]?
 # TODO: include hydro areas in contour labels download to avoid getting underwater contour labels?...
+# TODO: add canvas automatically if present
+

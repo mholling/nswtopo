@@ -154,6 +154,8 @@ relief:
   azimuth: 315
   exaggeration: 2
   resolution: 45.0
+  opacity: 0.3
+  highlights: 20
 controls:
   colour: "#880088"
   family: Arial
@@ -214,9 +216,6 @@ render:
     opacity: 1
     colour:
       "#38A800": "#9FD699"
-  relief:
-    opacity: 0.3
-    highlights: 20
 ]
   
   module BoundingBox
@@ -1636,13 +1635,13 @@ render:
     canvas_server = CanvasServer.new("embed" => config["embed"])
     
     layers = {
-      "reference-1" => {
+      "reference-topo-1" => {
         "server" => lpi_ortho,
         "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw",
         "otdf" => true,
         "ext" => "png",
       },
-      "reference-2" => {
+      "reference-topo-2" => {
         "server" => sixmaps,
         "service" => "NSWTopo",
         "image" => true,
@@ -1680,7 +1679,7 @@ render:
         "config" => "/ADS40ImagesConfig.js",
         "ext" => "jpg",
       },
-      "aerial-webm" => {
+      "aerial-best" => {
         "server" => sixmaps,
         "service" => "Best_WebM",
         "image" => true,

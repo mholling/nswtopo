@@ -1005,32 +1005,6 @@ render:
         tileset = downloads.map do |scale, layer_options, type, xpath|
           sleep params["interval"] if params["interval"]
           
-          ################################################################################
-          # temp_dir = File.join(Dir.pwd, "tmp")
-          # temp_path = File.join temp_dir, [ type, scale, *tile_offsets, "svg" ].join(?.)
-          # 
-          # tile_data = case
-          # when File.exists?(temp_path) then File.read(temp_path)
-          # else get_tile(tile_bounds, tile_sizes, options.merge(layer_options))
-          # end
-          # if Dir.exists?(temp_dir) && !File.exists?(temp_path)
-          #   File.write temp_path, tile_data
-          # end
-          # 
-          # tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
-          # tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
-          # 
-          # [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
-          #   tile_data.gsub! regex do |match|
-          #     case $1
-          #     when "Labels", service["mapName"], *layer_names then match
-          #     else match.sub $1, [ label, type, *tile_offsets, $1 ].compact.join(SEGMENT)
-          #     end
-          #   end
-          # end
-          # 
-          # [ REXML::Document.new(tile_data), scale, type, xpath ]
-          ################################################################################
           tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(layer_options)) do |tile_data|
             tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
             tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
@@ -1052,7 +1026,6 @@ render:
           end
           
           [ tile_xml, scale, type, xpath]
-          ################################################################################
         end
         
         [ tileset, tile_offsets ]
@@ -1451,6 +1424,8 @@ render:
     end
   end
   
+  # # Old code for creating KMZ from raster image, to be reinstated eventually...
+  # # 
   # module KMZ
   #   TILE_SIZE = 512
   #   TILE_FORMAT = "gif"
@@ -1820,7 +1795,7 @@ render:
           end
           fonts = svg.elements.collect("//[@font-family]") { |element| element.attributes["font-family"] }.uniq
           if fonts.any?
-            puts "Fonts required for #{filename}"
+            puts "Fonts used in #{filename}"
             fonts.sort.each { |font| puts "  #{font}" }
           end
         end.write(file)
@@ -1882,8 +1857,6 @@ end
 if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
-
-# TODO: figure out why Batik won't render...
 
 # TODO: allow user-selectable contours?
 # TODO: apply "expand" rendering command to fill areas? allow configuration to specify patterns?

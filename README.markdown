@@ -1,11 +1,13 @@
-__[3/5/12: N.B. The NSW topographic map server used by this software has been decommissioned, and maps cannot currently be produced. A replacement server using a different protocol is available, however I will need to write new code to use this server. I will remove this note if/when I finish this work.]__
+__[30/5/12: N.B. This is a new version of the nswtopo program and makes use of different map servers. Users of the old program are advised to re-read the following instructions.]__
 
 Summary
 =======
 
-This software allows you to download and compile high-resolution topographic maps from the NSW geospatial data servers, covering all of NSW and the ACT. The resulting maps include most of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired print resolution (in pixels per inch) and scale (typically 1:25000 or 1:50000). You can obtain the map output as a single composite file, or a multi-layer file containing layers for each topographic feature (e.g. contours, watercourses, roads, etc). The output map is also georeferenced for use with map-viewing or GIS software.
+This software allows you to download and compile high-resolution vector topographic maps from the NSW geospatial data servers, covering much of NSW and the ACT. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) format for use and further editing with vector graphics programs such as Inkscape or Illustrator.
 
 This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
+
+A few limitations currently exist when using the software. Map data is not always available, particularly in populated areas, due to caching performed by the map server. Also, a vegetation underlay, as typically found on printed NSW topographic mapsheets, is not available.
 
 Pre-Requisites
 ==============
@@ -20,7 +22,9 @@ The following open-source packages are required in order to run the script:
 * The [libgeotiff](http://geotiff.osgeo.org) library, for its `geotifcp` command for georeferencing images.
 * (A zip command utility, if you wish to produce KMZ output maps for use with Google Earth.)
 
-If you plan to make further enhancements, manual corrections or additions to your maps, you'll also need a layer-based image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop.
+If you plan to make further enhancements, manual corrections or additions to your maps, you'll also need a vector graphics editing program such as [Inkscape](http://inkscape.org/), or Adobe Illustrator. An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also be useful for creating a custom background canvas for your map.
+
+Finally, a geographic viewing or mapping program such as [Google Earth](http://earth.google.com) is very useful for easily specifying the area you wish to create a map for.
 
 * _Windows_:
   * A complete Ruby 1.9.3 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
@@ -32,7 +36,7 @@ If you plan to make further enhancements, manual corrections or additions to you
   * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software:frameworks#gdal_complete) for GDAL, and the instructions [here](http://www.imagemagick.org/script/binary-releases.php#macosx) for ImageMagick. This may or may not be quicker/easier than installing XCode and MacPorts!
   * Depending on which Xcode version you have, Ruby 1.9.3 may already be available; type `ruby -v` in a terminal window to find this out. Otherwise, you can install Ruby 1.9.3 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/).
   * (Max OS has the `zip` command built in.)
-* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, libgeotiff and zip packages using your distro's package manager (RPM, Aptitude, etc).
+* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, libgeotiff and Inkscape packages using your distro's package manager (RPM, Aptitude, etc).
 
 You can check that the tools are correctly installed by using the following commands:
 
@@ -43,7 +47,7 @@ You can check that the tools are correctly installed by using the following comm
 
 You should receive version or usage information for each tool if it is installed correctly and in your path.
 
-A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. (On small amounts of memory, the software will still run, but the compositing step will cause memory paging to disk and become quite slow.) Make sure you also have plenty of disk space to accommodate the intermediate image files that are generated. Finally, you will need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
+A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. (On small amounts of memory, the software will still run, but the compositing step will cause memory paging to disk and become quite slow.) You will also need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
 
 Usage
 =====
@@ -52,7 +56,9 @@ The software can be downloaded from [github](https://github.com/mholling/nswtopo
 
 You will first need to create a directory for the map you are building. Running the script will result in a large number of image files representing the map layers, so a directory is needed to contain them.
 
-In this directory, create and edit a configuration text file called `config.yml` which will contain the bounds of the area you want mapped. (This format of this file is [YAML](http://en.wikipedia.org/wiki/YAML), though you don't really need to know this.) Specify the map bounds in UTM by providing the UTM zone (54, 55 or 56 for NSW) and minimum and maximum eastings and northings, as follows:
+The simplest way to create a map is to trace out your desired area using Google Earth. Use the 'Polygon' tool to mark out the map area, then save this polygon in KML format as `bounds.kml` in the directory you created for your map. When running the script (see below), your bounds file will be automatically detected and a map produced using the default scale and settings.
+
+Alternatively, create and edit a configuration text file called `config.yml` which will contain the bounds of the area you want mapped. (This format of this file is [YAML](http://en.wikipedia.org/wiki/YAML), though you don't really need to know this.) Specify the map bounds in UTM by providing the UTM zone (54, 55 or 56 for NSW) and minimum and maximum eastings and northings, as follows:
 
     zone: 55
     eastings:
@@ -86,43 +92,29 @@ or,
 
 (Make sure you get your map bounds correct the first time to avoid starting over with the downloads.)
 
-A third way of setting the map bounds is via a `.kml` or `.gpx` file. Use a tool such as Google Earth or OziExplorer to lay out a polygon, track or waypoints marking the area you want mapped, and save it as a `.gpx` or `.kml` file. A file named `bounds.kml` will be detected automatically, or specify the file name explicitly as follows:
+A third way of setting the map bounds is via a `.kml` or `.gpx` file. Use a tool such as Google Earth or OziExplorer to lay out a polygon, track or waypoints marking the area you want mapped, and save it as a `.kml` or `.gpx` file. A file named `bounds.kml` will be detected automatically, or specify the file name explicitly as follows:
 
     bounds: bounds.gpx
 
 If you are using a waypoints file to mark rogaine control locations, you can use the same file to automatically fit your map around the control locations. In this case you should also specify a margin in millimetres (defaults to 15mm) between the outermost controls and edge of the map:
 
-    bounds: controls.gpx
+    bounds: controls.kml
     margin: 15
     
 Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your Ruby binary).
 
-When the script starts it will list the scale of your map (e.g. 1:25000), its rotation, its physical size and resolution (e.g. 380mm x 240mm @ 300 ppi) and its size in megapixels. For a 300 pixel-per-inch image (the default), an A3 map should be about 15 megapixels. An unexpectedly large or small number may indicate an error in your configuration file; similarly, if no topographic layers are downloaded, this probably indicates you've incorrectly specified bounds outside NSW.
+When the script starts it will list the scale of your map (e.g. 1:25000), its rotation and its physical size. The size (in megapixels) and resolution of any associated rasters (e.g. aerial imagery) will also be displayed.
 
-The script will then proceed to download a large number of layers. A progress bar will show for each group of layers. Depending on your connection and the size of your map, an hour or more may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) Any errors received will be displayed and the layer skipped; you can run the script again to retry the skipped layers as they are usually just temporary server errors.
+The script will then proceed to download the topographic data. Depending on your connection and the size of your map, an hour or more may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.)
 
-You can ctrl-c at any point to stop the script; it will pick up where it left off the next time you run it, skipping layers that have already been downloaded. (Conversely, deleting an already-created layer file will cause that file to be recreated when you run the script again.)
+You can ctrl-c at any point to stop the script. Files which have already downloaded will be skipped when you next execute the script. (Note however that the interrupted download will be commenced anew.) Conversely, deleting an already-created file will cause that file to be recreated when you run the script again. Since the main topographic file takes a significant amount of time to download and assemble, it is best not to interrupt it during this download.
 
-A description of each layer is found later in this document.
-
-After all layers have been downloaded, the script will then compile them into a final map image. The default is to create both a PNG and a multi-layered TIFF. (Several output formats are possible - see below). Depending on the specs of your computer and the size of your map, creating a multi-layered TIFF or PSD (photoshop) image may take a long time, particularly if swap memory is hit. Be patient. If you don't plan to do any further manipulation or editing of your map, you need only specify a PNG or PDF as output format in your configuration file, as this will take less time.
-
-Using the Output
-================
-
-You can use the output files in a few different ways. If you just want a quick map, specify your output format as png or pdf only. The program will automatically compile all the data into a single file which you can then print and use.
-
-If you're creating a map for rogaining, you will probably want to build a multi-layered file for further editing using GIMP or Photoshop. In this case, specify `layered.tif` or `psd`, respectively, as your output format. These formats will keep each topographic feature on a separate layer, allowing you to edit them individually. In combination with the aerial layers, which you can turn on and off as underlayers, this allows you to compare the mapped location of topographic features such as roads, dams and cliffs against their position on the aerial imagery, and to manually add, correct or remove such features as needed (e.g. old firetrails that have been changed, are no longer present, or new firetrails that have not yet been mapped).
-
-(Note that the ImageMagick photoshop driver is not particularly good; it does not do any file compression, which can lead to a gigabyte+ file size and very slow performance for large maps. The file will be correctly compressed once you load and save it in Photoshop, however.)
-
-It is also possible to construct your own Photoshop or GIMP document by hand, using the topographic layers as layer masks for color fill or pattern layers representing each feature. The topographic feature layers are colored white-on-black to allow you to do this easily.
-
-You can also use the map in various GIS and mapping software. Specify `tif` as an output format to create a GeoTIFF for use with GIS programs such as GQIS; specify `png` to create a `.map` file for use with OziExplorer; specify `kmz` to create a KMZ file for viewing with Google Earth.
+After all files have been downloaded, the script will then compile them into a final map image in `.svg` format. The map image is easily viewed in a modern web browser such as Chrome or Firefox, or in a vector imaging tool like Inkscape or Illustrator.
 
 Map Configuration
 =================
 
+TODO XXXXXXXX
 By editing `config.yml` you can customise many aspects of your map, including the colour and patterns used for various features and which layers to exclude. If no other configuration is provided, reasonable defaults are used. The customisation options are shown below with their default values. (*It is not necessary to provide these default values in your configuration file.*)
 
 Set the scale and print resolution of the map as follows. 300-400 pixels-per-inch (ppi) is probably optimal for most maps; 300 ppi give a resolution of about 2.1 metres per pixel at 1:25000. Going beyond 400 ppi will not yield any more detail, and will slow the downloads and blow out the megapixel count considerably. (The size of map features mostly scales with ppi but not with the map scale.)

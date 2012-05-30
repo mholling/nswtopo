@@ -206,6 +206,10 @@ render:
     expand: 0.7
   HydroArea:
     expand: 0.5
+  GeneralCulturalPoint:
+    expand: 0.6
+  LS_GeneralCulturalPoint:
+    expand: 0.6
   Forestry:
     opacity: 1
     colour:
@@ -1020,7 +1024,7 @@ render:
           #   tile_data.gsub! regex do |match|
           #     case $1
           #     when "Labels", service["mapName"], *layer_names then match
-          #     else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(SEGMENT)
+          #     else match.sub $1, [ label, type, *tile_offsets, $1 ].compact.join(SEGMENT)
           #     end
           #   end
           # end
@@ -1035,7 +1039,7 @@ render:
               tile_data.gsub! regex do |match|
                 case $1
                 when "Labels", service["mapName"], *layer_names then match
-                else match.sub $1, [ label, type, (scale || "native"), *tile_offsets, $1 ].join(SEGMENT) # TODO: native?
+                else match.sub $1, [ label, type, scale, *tile_offsets, $1 ].compact.join(SEGMENT)
                 end
               end
             end
@@ -1734,13 +1738,11 @@ render:
             "LS_Roads_onbridge" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND NOT "roadontype" IN (1,3)],
             "LS_Roads_onground" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 1],
           },
-          # TODO: move all roads to the 1:9000 set?
-          9000 => %w[TransportFacilityLine GeneralCulturalLine MS_LocalRoads GeneralCulturalPoint LS_Watercourse LS_Hydroline Rural_Property Lot LS_Contour GeneralCulturalArea],
-          nil => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Urban_Areas]
+          9000 => %w[TransportFacilityLine GeneralCulturalLine MS_LocalRoads MS_RoadNameExtent_Labels MS_Roads_Labels MS_Roads MS_Tracks_onground MS_Roads_intunnel GeneralCulturalPoint LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline SS_Watercourse VSS_Watercourse TN_Watercourse VSS_Oceans HydroArea Rural_Property Lot LS_Contour GeneralCulturalArea],
+          nil => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint TransportFacilityPoint MS_Railway AncillaryHydroPoint AncillaryHydroPoint_Bore DLSArea_overwater FuzzyExtentLine Runway DLSArea_underwater Urban_Areas]
         },
         "labels" => {
           15000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Rural_Property MS_Contour Urban_Areas],
-          # GeneralCulturalArea # TODO: labels?
         },
         "equivalences" => {
           "contours" => %w[LS_Contour MS_Contour],
@@ -1881,12 +1883,10 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: option to allow for tiles not to be clipped (e.g. for labels)?
-# TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
-# TODO: allow user-selectable contours
-# TODO: apply "expand" rendering command to point features an fill areas as well as lines?
-# TODO: put long command lines into text file...
-# TODO: allow configuration to specify patterns..?
 # TODO: figure out why Batik won't render...
-# TODO: include hydro areas in contour labels download to avoid getting underwater contour labels?...
+
+# TODO: allow user-selectable contours?
+# TODO: apply "expand" rendering command to fill areas? allow configuration to specify patterns?
+# TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
+# TODO: put long command lines into text file...
 

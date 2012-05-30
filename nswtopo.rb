@@ -622,7 +622,7 @@ render:
   end
   
   module RasterRenderer
-    def render(label, options, map)
+    def render_svg(label, options, map)
       ext = options["ext"] || params["ext"] || "png"
       filename = "#{label}.#{ext}"
       raise BadLayerError.new("raster image #{filename} not found") unless File.exists? filename
@@ -1113,7 +1113,7 @@ render:
     
     include RasterRenderer
     
-    def render(label, options, map, &block)
+    def render_svg(label, options, map, &block)
       return super(label, options, map, &block) unless options["ext"] == "svg"
       
       svg = REXML::Document.new(File.read "#{label}.svg")
@@ -1235,7 +1235,7 @@ render:
       end
     end
     
-    def render(label, options, map)
+    def render_svg(label, options, map)
       ext = options["ext"] || params["ext"] || "png"
       Dir.mktmpdir do |temp_dir|
         resolution = params["resolution"]
@@ -1274,7 +1274,7 @@ render:
     def download(*args)
     end
     
-    def render(label, options, map)
+    def render_svg(label, options, map)
       group = REXML::Element.new("g")
       group.add_attribute("transform", map.svg_transform(1))
       draw(group, options, map) do |coords, projection|
@@ -1772,7 +1772,8 @@ render:
     }
     
     labels = %w[topographic]
-    labels += layers.keys.select { |label| config["include"].any? { |match| label[match] } }
+    labels |= layers.keys.select { |label| config["include"].any? { |match| label[match] } }
+    labels |= %w[canvas] if File.exists? "canvas.png"
     
     (config["overlays"] || {}).each do |filename_or_path, options|
       label = File.split(filename_or_path).last.partition(/\.\w+$/).first
@@ -1782,7 +1783,7 @@ render:
     
     if config["controls"]["file"]
       layers.merge!("controls" => { "server" => control_server})
-      labels << "controls"
+      labels |= %w[controls]
     end
     
     puts "Map details:"
@@ -1807,7 +1808,7 @@ render:
             puts "Rendering #{label}"
             begin
               svg.add_element("g", "id" => label) do |group|
-                options["server"].render(label, options.merge("render" => config["render"]), map) do |element|
+                options["server"].render_svg(label, options.merge("render" => config["render"]), map) do |element|
                   group.elements << element
                 end
               end
@@ -1887,7 +1888,5 @@ end
 # TODO: put long command lines into text file...
 # TODO: allow configuration to specify patterns..?
 # TODO: figure out why Batik won't render...
-# TODO: puts rendering info for declination, grid, controls into config["render"]?
 # TODO: include hydro areas in contour labels download to avoid getting underwater contour labels?...
-# TODO: add canvas automatically if present
 

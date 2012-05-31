@@ -7,7 +7,7 @@ This software allows you to download and compile high-resolution vector topograp
 
 This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
 
-A few limitations currently exist when using the software. Map data is not always available, particularly in populated areas, due to caching performed by the map server. Also, a vegetation underlay, as typically found on printed NSW topographic mapsheets, is not available.
+A few limitations currently exist when using the software. In particular, *map data is not always available, particularly in populated areas*, due to caching performed by the map server. (Your map will be blank, or include blank tiles, if you encounter this limitation.)
 
 Pre-Requisites
 ==============
@@ -47,7 +47,11 @@ You can check that the tools are correctly installed by using the following comm
 
 You should receive version or usage information for each tool if it is installed correctly and in your path.
 
-A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. (On small amounts of memory, the software will still run, but the compositing step will cause memory paging to disk and become quite slow.) You will also need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
+A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. You will also need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
+
+## Fonts
+
+A few point features of the map (camping grounds, picnic areas, mines, towers) use special ESRI fonts, namely 'ESRI Transportation & Civic', 'ESRI Environmental & Icons' and 'ESRI Telecom'. These will be listed if they are used in your map. If you wish them to display correctly (not essential), you need to install these fonts on your system, either by scrounging them from the internet or by installing [ArcGIS Explorer](http://www.esri.com/software/arcgis/explorer/index.html) and then downloading the (fonts expansion pack)[http://webhelp.esri.com/arcgisexplorer/900/en/expansion_packs.htm] (Windows only).
 
 Usage
 =====
@@ -118,7 +122,7 @@ After all files have been downloaded, the script will then compile them into a f
 Map Configuration
 =================
 
-By editing `config.yml` you can customise many aspects of your map, including which additional layers to exclude. If no other configuration is provided, reasonable defaults are used. The customisation options are shown below with their default values. (*It is not necessary to provide these default values in your configuration file.*)
+By editing `config.yml` you can customise many aspects of your map, including which additional layers to include. If no other configuration is provided, reasonable defaults are used. The customisation options are shown below with their default values. (*It is not necessary to provide these default values in your configuration file.*)
 
 Set the scale of the map as follows:
 
@@ -158,8 +162,6 @@ Any or all of the following additional layers can be included in your map by lis
     - declination
     - controls
 
-(You can use `aerial` as a shortcut to download all the aerial imagery layers.)
-
 ## Aerial Imagery
 
 These are orthographic aerial images for the specified map area, derived from Google Maps, Nokia Maps, and the NSW LPI department. Depending on your map location there may be up to four different aerial images available.
@@ -174,6 +176,8 @@ These layers are very useful for confirming the accuracy of the topographic feat
 * `aerial-nokia`: reasonable quality aerial imagery from Nokia Maps; limited to 250 tiles per six hours; georeferencing is not always the best and usually requires some manual nudging for best alignment
 * `aerial-best`: A mosaic of NSW imagery of good quality
 
+(You can download all available aerial imagery by adding the shortcut `aerial` to your include list.)
+
 ## Reference Topo Maps
 
 These layers (`reference-topo-1` and `reference-topo-2`) contain lower-resolution topographic map raster images available from various NSW government mapping sites. They are useful to have as a reference for comparison against the output of this software.
@@ -184,12 +188,15 @@ The vegetation layer in standard NSW printed topo sheets appears to be derived f
 
 This vegetation data is not available from a map server, but the entire 162 MB dataset may be downloaded from [here](http://www.canri.nsw.gov.au/download/download.cfm?File=vegext1.zip) (you will need to provide your name and email address). You need only download this once as the same data is used for any maps you create.
 
-Once you have downloaded the data, unzip the file to a suitable location, locate the file named `hdr.adf` and add its path (relative or absolute) to your configuration file as follows:
+Once you have downloaded the data, unzip the file to a suitable location, locate the file named `hdr.adf` and add its path (relative or absolute) to your configuration file. (You can also modify the default colours for woody and non-woody vegetation, should you wish.)
 
     vegetation:
       path: /Users/Matthew/Downloads/vegext1/export/grid2/vegext1_08v1/hdr.adf
+      colour:
+        woody: "#C2FFC2"
+        non-woody: white
 
-Finally, add `vegetation` to your list of layers to include, and build/rebuild your map to view the resulting vegetation underlay.
+Finally, add `vegetation` to your list of layers to include, and build or rebuild your map to view the resulting vegetation underlay.
 
 ## Canvas
 
@@ -242,11 +249,11 @@ This layer marks magnetic north lines on the map, and is useful for rogaining ma
 
 ## Controls
 
-Drop a control waypoints file (in `.kml` or `.gpx` format) into the directory and layers containing control circles and numbers will be automatically generated. If a waypoint is name 'HH' it will be drawn as a triangle, otherwise a circle will be drawn. If a control has 'W' after its number (e.g. '74W'), or separate waypoints marked 'W1', 'W2' etc are found, those waypoints will be represented as water drops.
+Drop a control waypoints file (in `.kml` or `.gpx` format) into the directory and layers containing control circles and numbers will be automatically generated. If a waypoint is name 'HH' it will be drawn as a triangle, otherwise a circle will be drawn. If a control has 'W' after its number (e.g. '74W'), or separate waypoints marked 'W1', 'W2' etc are found, those waypoints will be represented as water drops. You can modify any of the defaults shown below
 
     controls:
       file: controls.kml      # filename (`.kml` or `.gpx` format) of control waypoint file
-      fontsize: 14            # font size for control numbers
+      fontsize: 14            # font size (in points) for control labels
       diameter: 7.0           # diameter of control circles in millimetres
       thickness: 0.2          # thickness of control circles in millimetres
       colour: "#880088"       # colour of the control markers and labels (as a hex triplet or web colour)
@@ -255,7 +262,21 @@ Drop a control waypoints file (in `.kml` or `.gpx` format) into the directory an
 Overlays
 ========
 
-TODO describe adding polygons and tracks to map using KML files
+You can add overlays to your map for representing areas (polygons) and tracks (paths). For rogaine maps, you can use this feature to mark out-of-bounds areas on your map, as well as to add extra tracks which are not shown on the topographic map.
+
+The simplest way to create overlays is to use Google Earth or equivalent software. Mark out the out-of-bounds area or areas using the polygon tool, then save these areas to a KML file (e.g. `boundaries.kml`). Similarly, trace out additional unmarked tracks using the path tool, and save them as KML (e.g. `tracks.kml`).
+
+In your configuration file, add your overlay files and specify their colour, opacity and/or width, as follows:
+
+    overlays:
+      boundaries.kml:
+        colour: black         # colour out-of-bounds areas in black...
+        opacity: 0.3          # ...with 0.3 opacity to give a nice rendering
+      tracks.kml:
+        colour: red           # mark tracks in red...
+        width: 0.2            # ...with a width of 0.2mm
+
+Build or rebuild your map by running the script to add the overlays.
 
 Suggested Workflow for Rogaining Maps
 =====================================

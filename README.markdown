@@ -51,7 +51,7 @@ A large amount of memory is helpful. I developed the software on a 2Gb machine b
 
 ## Fonts
 
-A few point features of the map (camping grounds, picnic areas, mines, towers) use special ESRI fonts, namely 'ESRI Transportation & Civic', 'ESRI Environmental & Icons' and 'ESRI Telecom'. These will be listed if they are used in your map. If you wish them to display correctly (not essential), you need to install these fonts on your system, either by scrounging them from the internet or by installing [ArcGIS Explorer](http://www.esri.com/software/arcgis/explorer/index.html) and then downloading the (fonts expansion pack)[http://webhelp.esri.com/arcgisexplorer/900/en/expansion_packs.htm] (Windows only).
+A few point features of the map (camping grounds, picnic areas, mines, towers) use special ESRI fonts, namely 'ESRI Transportation & Civic', 'ESRI Environmental & Icons' and 'ESRI Telecom'. These will be listed if they are used in your map. If you wish them to display correctly (not essential), you need to install these fonts on your system, either by scrounging them from the internet or by installing [ArcGIS Explorer](http://www.esri.com/software/arcgis/explorer/index.html) and then downloading the [fonts expansion pack](http://webhelp.esri.com/arcgisexplorer/900/en/expansion_packs.htm) (Windows only).
 
 Usage
 =====
@@ -252,7 +252,7 @@ This layer marks magnetic north lines on the map, and is useful for rogaining ma
 Drop a control waypoints file (in `.kml` or `.gpx` format) into the directory and layers containing control circles and numbers will be automatically generated. If a waypoint is name 'HH' it will be drawn as a triangle, otherwise a circle will be drawn. If a control has 'W' after its number (e.g. '74W'), or separate waypoints marked 'W1', 'W2' etc are found, those waypoints will be represented as water drops. You can modify any of the defaults shown below
 
     controls:
-      file: controls.kml      # filename (`.kml` or `.gpx` format) of control waypoint file
+      file: controls.kml      # filename (.kml or .gpx format) of control waypoint file
       fontsize: 14            # font size (in points) for control labels
       diameter: 7.0           # diameter of control circles in millimetres
       thickness: 0.2          # thickness of control circles in millimetres

@@ -139,7 +139,7 @@ Set the filename for the output map and related files.
 Additional Layers
 =================
 
-Any or all of the following additional layers can be included by listing them in the `include` option in your `config.yml` configuration file. (At the very least, you will want to include `grid` for a normal map or `declination` for a rogaining map. The `relief` layer is also recommended.)
+Any or all of the following additional layers can be included in your map by listing them in the `include` option in your `config.yml` file. (At the very least, you will want to include `grid` for a normal map or `declination` for a rogaining map. The `relief` layer is also recommended.)
 
     include:
     - aerial-lpi-eastcoast
@@ -149,11 +149,14 @@ Any or all of the following additional layers can be included by listing them in
     - aerial-best
     - reference-topo-1
     - reference-topo-2
+    - canvas
+    - vegetation
+    - plantation
     - holdings
     - relief
     - grid
     - declination
-    - canvas
+    - controls
 
 (You can use `aerial` as a shortcut to download all the aerial imagery layers.)
 
@@ -175,9 +178,32 @@ These layers are very useful for confirming the accuracy of the topographic feat
 
 These layers (`reference-topo-1` and `reference-topo-2`) contain lower-resolution topographic map raster images available from various NSW government mapping sites. They are useful to have as a reference for comparison against the output of this software.
 
+## Vegetation
+
+The vegetation layer in standard NSW printed topo sheets appears to be derived from a dataset called *NSW Interim Native Vegetation Extent (2008-v1)* (a.k.a. vegext1 or vegext1_08v1), which is a 25-metre resolution raster representation of NSW, categorised into 'woody' and 'non-woody' vegetation. For our purposes this generally corresponds to forested and open areas on our map.
+
+This vegetation data is not available from a map server, but the entire 162 MB dataset may be downloaded from [here](http://www.canri.nsw.gov.au/download/download.cfm?File=vegext1.zip) (you will need to provide your name and email address). You need only download this once as the same data is used for any maps you create.
+
+Once you have downloaded the data, unzip the file to a suitable location, locate the file named `hdr.adf` and add its path (relative or absolute) to your configuration file as follows:
+
+    vegetation:
+      path: /Users/Matthew/Downloads/vegext1/export/grid2/vegext1_08v1/hdr.adf
+
+Finally, add `vegetation` to your list of layers to include, and build/rebuild your map to view the resulting vegetation underlay.
+
+## Canvas
+
+If you include a PNG image named `canvas.png` in the map directory, it will be automatically detected and used as an underlay for the map. It is intended that this map canvas should be derived from one of the aerial images using an image editing tool such as Photoshop or GIMP, in order to represent vegetation cover. This is useful in case you are not satisfied with the vegetation layer provided above.
+
+Generating your own vegetation layer can be accomplished using the 'color range' selection tool in Photoshop, for example, or other similar selection tools. (Selecting on a single channel, such as green or magenta, may be helpful.) You can also create additional vegetation markings (e.g. for the distinctive, nasty heath that sometimes appears in ACT rogaines) using the aerial imagery.
+
+## Plantations
+
+If you include the `plantation` layer, a representation of pine forest plantations will be added to your map in darker green. The accuracy of this layer is not guaranteed however.
+
 ## Holdings
 
-The `holdings` layer overlays property boundaries and the names of landowners. This information may be of use to rogainers when planning a course. (No information is provided for the ACT.)
+The `holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is provided for the ACT.)
 
 ## Relief
 
@@ -189,7 +215,7 @@ You can specify the azimuthal angle, altitude and terrain exaggeration used to g
       azimuth: 315            # azimuth angle for shaded relief layers (degrees clockwise from North)
       altitude: 45            # angle of illumination from horizon (45 is standard)
       exaggeration: 1         # vertical exaggeration factor
-      opacity: 0.3            # opacity of the shaded relief, determines how subtle the effect is
+      opacity: 0.3            # opacity of the shaded relief; determines how subtle the effect is
 
 ## UTM Grid
 
@@ -225,10 +251,6 @@ Drop a control waypoints file (in `.kml` or `.gpx` format) into the directory an
       thickness: 0.2          # thickness of control circles in millimetres
       colour: "#880088"       # colour of the control markers and labels (as a hex triplet or web colour)
       water-colour: blue      # colour of waterdrop markers
-
-## Canvas
-
-If you include a PNG image named `canvas.png` in the map directory, it will be automatically detected and used as an underlay for the map. It is intended that this map canvas should be derived from an aerial image using an image editing tool such as Photoshop or GIMP. This can be accomplished using the 'color range' selection tool in Photoshop, for example, or other similar selection tools. (If you're feeling adventurous you can even try extracting a vegetation texture from the aerial image to emboss into your vegetation layer, imparting some lift to the map.) You can also create additional vegetation layers (e.g. for the distinctive, nasty heath that sometimes appears in ACT rogaines) using the aerial imagery.
 
 Overlays
 ========

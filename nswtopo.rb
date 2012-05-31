@@ -1267,7 +1267,9 @@ render:
     include EmbeddedRenderer
     
     def embed_image(label, options, map, resolution, dimensions, temp_dir)
-      hdr_path = File.join(params["path"] || ".", "hdr.adf")
+      hdr_path = params["path"]
+      raise BadLayerError.new("no vegetation data file provided (see README)") unless hdr_path
+      hdr_path = File.join(hdr_path, "hdr.adf") if File.directory? hdr_path
       raise BadLayerError.new("could not locate vegetation data file at #{hdr_path}") unless File.exists? hdr_path
       
       clut_path = File.join temp_dir, "clut.png"

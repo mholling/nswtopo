@@ -163,7 +163,20 @@ controls:
   diameter: 7.0
   thickness: 0.2
   water-colour: blue
+vegetation:
+  resolution: 25.0
+  colour:
+    woody: "#C2FFC2"
+    non-woody: white
+  map:
+    1: 0
+    2: 0
+    3: 60
+    4: 100
 render:
+  plantation:
+    opacity: 1
+    colour: "#80D19B"
   pathways:
     expand: 0.5
     colour: 
@@ -212,10 +225,6 @@ render:
     expand: 0.6
   LS_GeneralCulturalPoint:
     expand: 0.6
-  Forestry:
-    opacity: 1
-    colour:
-      "#38A800": "#9FD699"
 ]
   
   module BoundingBox
@@ -1154,7 +1163,37 @@ render:
     end
   end
   
+  module NoDownload
+    def download(*args)
+    end
+  end
+  
+  module EmbeddedRenderer
+    def render_svg(label, options, map)
+      resolution, opacity = params.values_at("resolution", "opacity")
+      transform = "scale(#{resolution / map.scale / 0.0254})"
+      dimensions = map.extents.map { |extent| (extent / resolution).ceil }
+      Dir.mktmpdir do |temp_dir|
+        embed_image(label, options, map, resolution, dimensions, temp_dir) do |image_path|
+          base64 = Base64.encode64(File.read image_path)
+          image = REXML::Element.new("image")
+          image.add_attributes(
+            "opacity" => opacity || 1,
+            "transform" => transform,
+            "width" => dimensions[0],
+            "height" => dimensions[1],
+            "image-rendering" => "optimizeQuality",
+            "xlink:href" => "data:image/png;base64,#{base64}",
+          )
+          yield image
+        end
+      end
+    end
+  end
+  
   class OneEarthDEMRelief < Server
+    include EmbeddedRenderer
+    
     def get_image(label, ext, options, map, temp_dir)
       bounds = Bounds.transform(map.projection, WGS84, map.bounds)
       bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
@@ -1211,44 +1250,53 @@ render:
       end
     end
     
-    def render_svg(label, options, map)
+    def embed_image(label, options, map, resolution, dimensions, temp_dir)
       ext = options["ext"] || params["ext"] || "png"
-      Dir.mktmpdir do |temp_dir|
-        resolution = params["resolution"]
-        transform = "scale(#{resolution / map.scale / 0.0254})"
-        hillshade_path = "#{label}.#{ext}"
-        overlay_path = File.join temp_dir, "overlay.png"
-        render = options["render"]["relief"]
-        highlights = render["highlights"]
-        shade = %Q["#{hillshade_path}" -level 0,65% -negate -alpha Copy -fill black +opaque black]
-        sun = %Q["#{hillshade_path}" -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
-        %x[convert #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
-        base64 = Base64.encode64(File.read overlay_path)
-        dimensions = map.extents.map { |extent| (extent / resolution).ceil }
-        image = REXML::Element.new("image")
-        image.add_attributes(
-          "opacity" => render["opacity"],
-          "transform" => transform,
-          "width" => dimensions[0],
-          "height" => dimensions[1],
-          "image-rendering" => "optimizeQuality",
-          "xlink:href" => "data:image/png;base64,#{base64}",
-        )
-        yield image
-      end
+      hillshade_path = "#{label}.#{ext}"
+      overlay_path = File.join temp_dir, "overlay.png"
+      highlights = params["highlights"]
+      shade = %Q["#{hillshade_path}" -level 0,65% -negate -alpha Copy -fill black +opaque black]
+      sun = %Q["#{hillshade_path}" -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
+      %x[convert #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
+      yield overlay_path
+    end
+  end
+  
+  class VegetationServer < Server
+    include NoDownload
+    include EmbeddedRenderer
+    
+    def embed_image(label, options, map, resolution, dimensions, temp_dir)
+      hdr_path = File.join(params["path"] || ".", "hdr.adf")
+      raise BadLayerError.new("could not locate vegetation data file at #{hdr_path}") unless File.exists? hdr_path
+      
+      clut_path = File.join temp_dir, "clut.png"
+      tif_path = File.join temp_dir, "#{label}.tif"
+      tfw_path = File.join temp_dir, "#{label}.tfw"
+      mask_path = File.join temp_dir, "#{label}-mask.png"
+      png_path = File.join temp_dir, "#{label}.png"
+      
+      clut = params["map"].inject("black") { |string, (level, percent)| "(j==#{level} ? gray(#{percent}%) : #{string})" }
+      %x[convert -size 1x256 canvas:black -fx "#{clut}" "#{clut_path}"]
+      
+      map.write_world_file(tfw_path, resolution)
+      %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
+      
+      %x[gdalwarp -t_srs "#{map.projection}" "#{hdr_path}" "#{tif_path}"]
+      %x[convert -quiet "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
+      woody, nonwoody = params["colour"].values_at("woody", "non-woody")
+      %x[convert -size #{dimensions.join ?x} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
+      yield png_path
     end
   end
   
   class CanvasServer < Server
+    include NoDownload
     include RasterRenderer
-    
-    def download(*args)
-    end
   end
   
   class AnnotationServer < Server
-    def download(*args)
-    end
+    include NoDownload
     
     def render_svg(label, options, map)
       group = REXML::Element.new("g")
@@ -1633,6 +1681,7 @@ render:
     control_server = ControlServer.new(config["controls"])
     grid_server = GridServer.new(config["grid"])
     canvas_server = CanvasServer.new("embed" => config["embed"])
+    vegetation_server = VegetationServer.new(config["vegetation"])
     
     layers = {
       "reference-topo-1" => {
@@ -1690,6 +1739,13 @@ render:
       #   "service" => "LPI_Imagery_Best",
       #   "ext" => "jpg",
       # },
+      "canvas" => {
+        "server" => canvas_server,
+        "ext" => "png",
+      },
+      "vegetation" => {
+        "server" => vegetation_server,
+      },
       "plantation" => {
         "server" => atlas,
         "service" => "Economy_Forestry",
@@ -1697,10 +1753,6 @@ render:
         "layers" => { nil => { "Forestry" => %q[Classification='Plantation forestry'] } },
         "equivalences" => { "plantation" => %w[Forestry] },
         "ext" => "svg",
-      },
-      "canvas" => {
-        "server" => canvas_server,
-        "ext" => "png",
       },
       "topographic" => {
         "server" => sixmaps,
@@ -1774,6 +1826,7 @@ render:
     end
     
     filename = "#{config['name']}.svg"
+    puts "Composing layers to #{filename}:"
     Dir.mktmpdir do |temp_dir|
       svg_path = File.join(temp_dir, filename)
       File.open(svg_path, "w") do |file|
@@ -1781,7 +1834,7 @@ render:
           layers.select do |label, options|
             labels.include? label
           end.each do |label, options|
-            puts "Rendering #{label}"
+            puts "  Rendering #{label}"
             begin
               svg.add_element("g", "id" => label) do |group|
                 options["server"].render_svg(label, options.merge("render" => config["render"]), map) do |element|
@@ -1794,7 +1847,7 @@ render:
           end
           fonts = svg.elements.collect("//[@font-family]") { |element| element.attributes["font-family"] }.uniq
           if fonts.any?
-            puts "Fonts used in #{filename}"
+            puts "Fonts used in #{filename}:"
             fonts.sort.each { |font| puts "  #{font}" }
           end
         end.write(file)
@@ -1859,6 +1912,7 @@ end
 
 # TODO: allow user-selectable contours?
 # TODO: apply "expand" rendering command to fill areas? allow configuration to specify patterns?
+# TODO: refactor options["render"] stuff?
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
 # TODO: put long command lines into text file...
 

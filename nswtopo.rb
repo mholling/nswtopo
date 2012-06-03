@@ -1933,7 +1933,7 @@ if File.identical?(__FILE__, $0)
 end
 
 # TODO: allow user-selectable contours?
-# TODO: apply "expand" rendering command to fill areas? allow configuration to specify patterns?
+# TODO: allow configuration to specify patterns?
 # TODO: refactor options["render"] stuff?
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
 # TODO: put long command lines into text file...

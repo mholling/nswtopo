@@ -20,7 +20,6 @@ The following open-source packages are required in order to run the script:
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data.
 * The [libgeotiff](http://geotiff.osgeo.org) library, for its `geotifcp` command for georeferencing images.
-* (A zip command utility, if you wish to produce KMZ output maps for use with Google Earth.)
 
 If you plan to make further enhancements, manual corrections or additions to your maps, you'll also need a vector graphics editing program such as [Inkscape](http://inkscape.org/), or Adobe Illustrator. An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also be useful for creating a custom background canvas for your map.
 
@@ -30,12 +29,10 @@ Finally, a geographic viewing or mapping program such as [Google Earth](http://e
   * A complete Ruby 1.9.3 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
   * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php#windows) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
   * GDAL and libgeotiff are best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the _FWTools Shell_ to run the `nswtopo.rb` script. (Another distribution containing the required packages is [OSGeo4W](http://trac.osgeo.org/osgeo4w/).)
-  * (If you want to create KMZ files, install [7-Zip](http://www.7-zip.org) and add its location, `C:\Program Files\7-Zip`, to your PATH following [these instructions](http://java.com/en/download/help/path.xml), using a semicolon to separate your addition.)
 * _Mac OS X_:
   * ImageMagick, GDAL and libgeotiff can obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS. You will first need to install Xcode from your OS X disc or via download; follow the instructions on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install libgeotiff gdal` and `sudo port install imagemagick +q8`
   * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software:frameworks#gdal_complete) for GDAL, and the instructions [here](http://www.imagemagick.org/script/binary-releases.php#macosx) for ImageMagick. This may or may not be quicker/easier than installing XCode and MacPorts!
   * Depending on which Xcode version you have, Ruby 1.9.3 may already be available; type `ruby -v` in a terminal window to find this out. Otherwise, you can install Ruby 1.9.3 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/).
-  * (Max OS has the `zip` command built in.)
 * _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, libgeotiff and Inkscape packages using your distro's package manager (RPM, Aptitude, etc).
 
 You can check that the tools are correctly installed by using the following commands:
@@ -47,7 +44,7 @@ You can check that the tools are correctly installed by using the following comm
 
 You should receive version or usage information for each tool if it is installed correctly and in your path.
 
-A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. You will also need a decent internet connection. Most of the topographic map layers won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
+A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. You will also need a decent internet connection. The topographic download won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
 
 ## Fonts
 
@@ -58,13 +55,22 @@ Usage
 
 The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. You only need to download the script itself, `nswtopo.rb`. Download by clicking the 'ZIP' button, or simply copying and pasting the script out of your browser.
 
-You will first need to create a directory for the map you are building. Running the script will result in a number of image files representing various map layers, so a directory is needed to contain them.
+You will first need to create a directory for the map you are building. Running the script will result in a various image files being downloaded, so a directory is needed to contain them.
+
+Most likely, you will also want to create a map configuration file called `config.yml` in order to customise your map. (This format of this file is [YAML](http://en.wikipedia.org/wiki/YAML), though you don't really need to know this.) This is a simple text file and can be edited with Notepad or whatever text editor you use. Save this file in your map directory as `config.yml` (be sure not to use `config.yml.txt` by mistake).
 
 ## Specifying the Map Bounds
 
-The simplest way to create a map is to trace out your desired area using Google Earth. Use the 'Polygon' tool to mark out the map area, then save this polygon in KML format as `bounds.kml` in the directory you created for your map. When running the script (see below), your bounds file will be automatically detected and a map produced using the default scale and settings.
+The simplest way to create a map is to trace out your desired area using Google Earth (or other equivalent mapping program). Use the 'Polygon' tool to mark out the map area, then save this polygon in KML format as `bounds.kml` in the directory you created for your map. When running the script (see below), your bounds file will be automatically detected and a map produced using the default scale and settings. You can also specify the bounds file explicitly in your configuration file:
 
-Alternatively, create and edit a configuration text file called `config.yml` which will contain the bounds of the area you want mapped. (This format of this file is [YAML](http://en.wikipedia.org/wiki/YAML), though you don't really need to know this.) Specify the map bounds in UTM by providing the UTM zone (54, 55 or 56 for NSW) and minimum and maximum eastings and northings, as follows:
+    bounds: bounds.gpx
+
+If you are using a waypoints file to mark rogaine control locations, you can use the same file to automatically fit your map around the control locations. In this case you should also specify a margin in millimetres (defaults to 15mm) between the outermost controls and edge of the map:
+
+    bounds: controls.kml
+    margin: 15
+
+Alternatively, specify the map bounds in UTM by providing the UTM zone (54, 55 or 56 for NSW) and minimum and maximum eastings and northings, as follows:
 
     zone: 55
     eastings:
@@ -83,7 +89,7 @@ or, as latitude/longitude bounds:
     - 149.383789
     - 149.489746
 
-Alternatively, you can specify a single coordinate for the map's centre, and a physical size for the map at the scale you specify (1:25000 by default). The map size should be specified in millimetres. For example:
+Finally, you can specify a single coordinate for the map's centre, and a physical size for the map at the scale you specify (1:25000 by default). The map size should be specified in millimetres. For example:
 
     zone: 55
     easting: 691750
@@ -98,26 +104,19 @@ or,
 
 (Make sure you get your map bounds correct the first time to avoid starting over with the downloads.)
 
-A third way of setting the map bounds is via a `.kml` or `.gpx` file. As described above, use a tool such as Google Earth or OziExplorer to lay out a polygon or waypoints marking the area you want mapped, and save it as a `.kml` or `.gpx` file. A file named `bounds.kml` will be detected automatically, or specify the file name explicitly as follows:
-
-    bounds: bounds.gpx
-
-If you are using a waypoints file to mark rogaine control locations, you can use the same file to automatically fit your map around the control locations. In this case you should also specify a margin in millimetres (defaults to 15mm) between the outermost controls and edge of the map:
-
-    bounds: controls.kml
-    margin: 15
-
 ## Running the Script
 
 Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your Ruby binary).
 
 When the script starts it will list the scale of your map (e.g. 1:25000), its rotation and its physical size. The size (in megapixels) and resolution of any associated rasters (e.g. aerial imagery) will also be displayed.
 
-The script will then proceed to download the topographic data. Depending on your connection and the size of your map, an hour or more may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.)
+The script will then proceed to download the topographic data. Depending on your connection and the size of your map, an hour or more may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) It is best not to interrupt the program while the topographic data is downloading, as you will have to start over.
 
-You can ctrl-c at any point to stop the script. Files which have already downloaded will be skipped when you next execute the script. (Note however that the interrupted download will be commenced anew.) Conversely, deleting an already-created file will cause that file to be recreated when you run the script again. Since the main topographic file takes a significant amount of time to download and assemble, it is best not to interrupt it during this download.
+You can ctrl-c at any point to stop the script. Files which have already downloaded will be skipped when you next execute the script. Conversely, deleting an already-created file will cause that file to be recreated when you run the script again.
 
 After all files have been downloaded, the script will then compile them into a final map image in `.svg` format. The map image is easily viewed in a modern web browser such as Chrome or Firefox, or edited in a vector imaging tool like Inkscape or Illustrator.
+
+You will likely want to tinker with the configuration file to change the appearance of your final map. To rebuild your map after changing the configuration, simply delete `map.svg` (or whatever name you've configured) and run the script again. The map will be recreated from the intermediate files which have been downloaded.
 
 Map Configuration
 =================
@@ -130,7 +129,7 @@ Set the scale of the map as follows:
 
 Set the map rotation angle as an angle between +/- 45 degrees anticlockwise from true north (e.g. for a rotation angle of 20, true north on the map will be 20 degrees to the right of vertical). There is no degradation in quality in a rotated map (although horizontal labels will no longer be horizontal). The special value `magnetic` will cause the map to be aligned with magnetic north.
 
-    rotation: 0               # angle of rotation of map (or `magnetic` to align with magnetic north)
+    rotation: 0               # angle of rotation of map (or 'magnetic' to align with magnetic north)
 
 Another special value for rotation is `auto`, available when the bounds is specified as a `.kml` or `.gpx` file. In this case, a rotation angle will be automatically calculated to minimise the map area. This is useful when mapping an elongated region which lies oblique to the cardinal directions.
 
@@ -138,12 +137,12 @@ Another special value for rotation is `auto`, available when the bounds is speci
 
 Set the filename for the output map and related files.
 
-    name: map                 # filename to use for the final map image(s) and related georeferencing files
+    name: map                 # filename to use for the final map image
 
 Additional Layers
 =================
 
-Any or all of the following additional layers can be included in your map by listing them in the `include` option in your `config.yml` file. (At the very least, you will want to include `grid` for a normal map or `declination` for a rogaining map. The `relief` layer is also recommended.)
+Any or all of the following additional layers can be included in your map by listing them in the `include` option in your `config.yml` file. (At the very least, you will want to include `grid` for a normal map or `declination` for a rogaining map. The `relief` layer is also recommended, and in many cases the `vegetation` layer.)
 
     include:
     - aerial-lpi-eastcoast
@@ -176,11 +175,11 @@ These layers are very useful for confirming the accuracy of the topographic feat
 * `aerial-nokia`: reasonable quality aerial imagery from Nokia Maps; limited to 250 tiles per six hours; georeferencing is not always the best and usually requires some manual nudging for best alignment
 * `aerial-best`: A mosaic of NSW imagery of good quality
 
-(You can download all available aerial imagery by adding the shortcut `aerial` to your include list.)
+(You can download all available aerial imagery simply by adding the shortcut `aerial` to your include list.)
 
 ## Reference Topo Maps
 
-These layers (`reference-topo-1` and `reference-topo-2`) contain lower-resolution topographic map raster images available from various NSW government mapping sites. They are useful to have as a reference for comparison against the output of this software.
+These layers (`reference-topo-1` and `reference-topo-2`, or simply `reference` as shortcut) contain lower-resolution topographic map raster images available from various NSW government mapping sites. They are useful to have as a reference for comparison against the output of this software.
 
 ## Vegetation
 
@@ -193,7 +192,7 @@ Once you have downloaded the data, unzip the file to a suitable location, locate
     vegetation:
       path: /Users/Matthew/Downloads/vegext1/export/grid2/vegext1_08v1/hdr.adf
       colour:
-        woody: "#C2FFC2"
+        woody: "#C2FFC2"      # a light pastel green
         non-woody: white
 
 Finally, add `vegetation` to your list of layers to include, and build or rebuild your map to view the resulting vegetation underlay.
@@ -210,13 +209,13 @@ If you include the `plantation` layer, a representation of pine forest plantatio
 
 ## Holdings
 
-The `holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is provided for the ACT.)
+The `holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is available for the ACT.)
 
 ## Relief
 
-By including the `relief` layer in your map, you can include a pleasing [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for the intuitive understanding of the topography represented in a map. The shaded relief layer is automatically generated from the ASTER digital elevation model.
+By including the `relief` layer in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layer is automatically generated from the ASTER digital elevation model at 45 metre resolution.
 
-You can specify the azimuthal angle, altitude and terrain exaggeration used to generate the shaded relief layer. (The traditional azimuth angle of 315 is set as default, should probably be adhered to.) You can also specify the opacity of the layer to change the aggressiveness of the effect.
+You can specify the azimuthal angle, altitude and terrain exaggeration used to generate the shaded relief layer. (The conventional azimuth angle of 315 is set as default, should probably be left as is.) You can also specify the opacity of the layer to change the aggressiveness of the effect.
   
     relief:
       azimuth: 315            # azimuth angle for shaded relief layers (degrees clockwise from North)
@@ -249,7 +248,7 @@ This layer marks magnetic north lines on the map, and is useful for rogaining ma
 
 ## Controls
 
-Drop a control waypoints file (in `.kml` or `.gpx` format) into the directory and layers containing control circles and numbers will be automatically generated. If a waypoint is name 'HH' it will be drawn as a triangle, otherwise a circle will be drawn. If a control has 'W' after its number (e.g. '74W'), or separate waypoints marked 'W1', 'W2' etc are found, those waypoints will be represented as water drops. You can modify any of the defaults shown below
+Drop a control waypoints file (`controls.kml` or `controls.gpx`) into the directory and a layer containing control circles and numbers will be automatically generated. If a waypoint is name 'HH' it will be drawn as a triangle, otherwise a circle will be drawn. If a control has 'W' after its number (e.g. '74W'), or separate waypoints marked 'W1', 'W2' etc are found, those waypoints will be represented as water drops. You can modify any of the defaults shown below:
 
     controls:
       file: controls.kml      # filename (.kml or .gpx format) of control waypoint file
@@ -266,22 +265,68 @@ You can add overlays to your map for representing areas (polygons) and tracks (p
 
 The simplest way to create overlays is to use Google Earth or equivalent software. Mark out the out-of-bounds area or areas using the polygon tool, then save these areas to a KML file (e.g. `boundaries.kml`). Similarly, trace out additional unmarked tracks using the path tool, and save them as KML (e.g. `tracks.kml`).
 
-In your configuration file, add your overlay files and specify their colour, opacity and/or width, as follows:
+In your configuration file, add your overlay files and specify their colours, opacities and/or widths as follows:
 
     overlays:
       boundaries.kml:
         colour: black         # colour out-of-bounds areas in black...
-        opacity: 0.3          # ...with 0.3 opacity to give a nice rendering
+        opacity: 0.3          # ...with 0.3 opacity to give a nice grayed-out rendering
       tracks.kml:
         colour: red           # mark tracks in red...
         width: 0.2            # ...with a width of 0.2mm
 
-Build or rebuild your map by running the script to add the overlays.
+Build or rebuild your map by running the script to add the overlays. (Advanced users may alter the overlay rendering further using Inkscape, e.g. by adding dashes or dots to tracks or patterns to areas.)
 
 Suggested Workflow for Rogaining Maps
 =====================================
 
-TODO describe how to use aerial photos and reference topos to add unmarked tracks, etc, then re-compile the SVG without them
+Here is a suggested workflow for producing a rogaine map using this software (alter according to your needs and tools):
+
+1.  Set out the expected bounds of your course using the polygon tool in Google Earth, and save as `bounds.kml`.
+
+2.  Select all the topographic, aerial and reference layers, as well as landholdings, using the following configuration:
+
+        name: rogaine
+        bounds: bounds.kml
+        include:
+        - aerial
+        - reference
+        - vegetation
+        - declination
+        - holdings
+        - grid
+
+3.  Run the script to create your preliminary map, `rogaine.svg`.
+
+4.  Use the maps and aerial images to assiste you in setting your rogaine. Ideally, you will carry a GPS with you to record waypoints for all the controls you set.
+
+5.  When you have finalised your control locations, use Google Earth to create a `controls.kml` file containing the control waypoints. This can either be directly from your GPS by uploading the waypoints, or by adding the waypoints manually in Google Earth.
+
+6.  In Google Earth, mark out any boundaries and out-of-bounds areas using the polygon tool, and save them all to a `boundaries.kml` file.
+
+6.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (topographic.svg, rogaine.svg, aerial-*.jpg, reference-*.jpg etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
+
+        name: rogaine
+        bounds: controls.kml    # size the map to contain all the controls ...
+        margin: 15              # ... with a 15mm margin around the outer-most controls
+        rotation: magnetic      # align the map to magnetic north
+        include:
+        - vegetation            # show vegetation layer (or use a canvas)
+        - declination           # show magnetic declination lines
+        - controls              # show controls
+        - relief                # show shaded relief (optional)
+        overlays:
+          boundaries.kml:       # mark out-of-bounds areas
+            colour: black       # (in black)
+            opacity: 0.3        # (only partially opaque)
+
+    If you have trouble fitting your map on one or two A3 sheets, you can either reduce the margin or use the automatic rotation feature (`rotation: auto`) to minimise the map area.
+
+7.  Run the script to re-download your map using the final map bounds. Your map should now show vegetation, magnetic declination lines and the controls and boundaries you have set.
+
+9.  Add any other information you need (title, acknowledgements, logo etc.) to the map using a vector graphics editor (Inkscape, Illustrator). At this point you can make any desired tweaks to topographic features of the map (e.g. contours or watercourses) to more accurately represent what you've found on the ground.
+
+10. Prepare your output file for the printers. It is possible to save directly to a PDF, however I recommend instead exporting your map to a high-resolution raster image (TIFF is traditional). Exporting to a raster lets you ensure the map has rendered correctly. A resolution of 300 dpi would suffice, however there is no harm in going higher (say 600 dpi).
 
 Georeferencing
 ==============
@@ -297,7 +342,7 @@ TODO: How to produce a georeferenced map raster (not yet implemented)
 Customising Topographic Rendering
 =================================
 
-TODO
+TODO: Instructions for changing the default rendering of topographic layers (implemented but not documented yet)
 
 Release History
 ===============
@@ -312,4 +357,4 @@ Release History
   * 9/2/2012: version 0.4.2: added kmz as output format
   * 13/2/2012: version 0.4.3: reworked road/track colours and outlines
   * 7/3/2012: version 0.4.4: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity; added overlay layers from GPX/KML/etc files
-* 30/5/2012: Substantial rewrite to use the new NSW ArcGIS server.
+* 3/6/2012: version 0.5: Substantial rewrite to use the new NSW ArcGIS server

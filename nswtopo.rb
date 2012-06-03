@@ -1932,8 +1932,6 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: use HydroArea to clip relief layer and prevent shadows on water?
-
 # TODO: allow user-selectable contours?
 # TODO: apply "expand" rendering command to fill areas? allow configuration to specify patterns?
 # TODO: refactor options["render"] stuff?

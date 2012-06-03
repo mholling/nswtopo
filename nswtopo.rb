@@ -423,8 +423,6 @@ render:
         @projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{@projection_centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
         @wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{@projection_centre.first}],PARAMETER["Latitude_Of_Origin",0.0],PARAMETER["Scale_Factor",0.9996],UNIT["Meter",1.0]]}
       end
-      # proj_path = File.join(output_dir, "#{map_name}.prj")
-      # File.open(proj_path, "w") { |file| file.puts projection }
       
       @declination = config["declination"]["angle"]
       config["rotation"] = -declination if config["rotation"] == "magnetic"
@@ -634,7 +632,7 @@ render:
   end
   
   module RasterRenderer
-    def render_svg(label, options, map)
+    def render_svg(svg, label, options, map)
       ext = options["ext"] || params["ext"] || "png"
       filename = "#{label}.#{ext}"
       raise BadLayerError.new("raster image #{filename} not found") unless File.exists? filename
@@ -649,15 +647,13 @@ render:
       else
         filename
       end
-      image = REXML::Element.new("image")
-      image.add_attributes(
+      svg.add_element("image",
         "id" => label,
         "transform" => "scale(#{1.0 / map.ppi})",
         "width" => map.dimensions[0],
         "height" => map.dimensions[1],
         "xlink:href" => href,
       )
-      yield image
     end
   end
   
@@ -1098,10 +1094,10 @@ render:
     
     include RasterRenderer
     
-    def render_svg(label, options, map, &block)
-      return super(label, options, map, &block) unless options["ext"] == "svg"
+    def render_svg(svg, label, options, map)
+      return super(svg, label, options, map) unless options["ext"] == "svg"
       
-      svg = REXML::Document.new(File.read "#{label}.svg")
+      source_svg = REXML::Document.new(File.read "#{label}.svg")
       equivalences = options["equivalences"] || {}
       renderings = options["render"].inject({}) do |memo, (layer_or_group, rendering)|
         [ *(equivalences[layer_or_group] || layer_or_group) ].each do |layer|
@@ -1110,15 +1106,15 @@ render:
         end
         memo
       end
-      svg.elements.collect("/svg/g[@id]") do |layer|
+      source_svg.elements.collect("/svg/g[@id]") do |layer|
         [ layer, layer.attributes["id"].split(SEGMENT).last ]
       end.each do |layer, id|
         renderings[id].each do |command, values|
           rerender(layer, command, values)
         end if renderings[id]
       end
-      svg.elements.each("/svg/defs", &block)
-      svg.elements.each("/svg/g[@id]", &block)
+      source_svg.elements.each("/svg/defs") { |defs| svg.elements << defs }
+      source_svg.elements.each("/svg/g[@id]") { |layer| svg.elements << layer }
     end
     
     def get_raster(label, ext, options, map, temp_dir)
@@ -1169,15 +1165,42 @@ render:
   end
   
   module EmbeddedRenderer
-    def render_svg(label, options, map)
+    def clip_paths(svg, label, options)
+      [ *options["clips"] ].map do |layer|
+        svg.elements.collect("g[@id='#{layer}']//path[@fill-rule='evenodd']") { |path| path }
+      end.inject([], &:+).map do |path|
+        transform = path.elements.collect("ancestor-or-self::*[@transform]") do |element|
+          element.attributes["transform"]
+        end.reverse.join " "
+        # # TODO: Ugly, ugly hack to invert each path by surrounding it with a path at +/- infinity...
+        box = "M-1000000 -1000000 L1000000 -1000000 L1000000 100000 L-1000000 1000000 Z"
+        d = "#{box} #{path.attributes['d']}"
+        { "d" => d, "transform" => transform, "clip-rule" => "evenodd" }
+      end.map.with_index do |attributes, index|
+        REXML::Element.new("clipPath").tap do |clippath|
+          clippath.add_attribute("id", "#{label}.clip.#{index}")
+          clippath.add_element("path", attributes)
+        end
+      end
+    end
+    
+    def render_svg(svg, label, options, map)
       resolution, opacity = params.values_at("resolution", "opacity")
       transform = "scale(#{resolution / map.scale / 0.0254})"
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       Dir.mktmpdir do |temp_dir|
-        embed_image(label, options, map, resolution, dimensions, temp_dir) do |image_path|
-          base64 = Base64.encode64(File.read image_path)
-          image = REXML::Element.new("image")
-          image.add_attributes(
+        image_path = embed_image(label, options, map, resolution, dimensions, temp_dir)
+        base64 = Base64.encode64(File.read image_path)
+        svg.add_element("g", "id" => label) do |layer|
+          layer.add_element("defs") do |defs|
+            clip_paths(svg, label, options).each do |clippath|
+              defs.elements << clippath
+            end
+          end.elements.collect("./clipPath") do |clippath|
+            clippath.attributes["id"]
+          end.inject(layer) do |group, clip_id|
+            group.add_element("g", "clip-path" => "url(##{clip_id})")
+          end.add_element("image",
             "opacity" => opacity || 1,
             "transform" => transform,
             "width" => dimensions[0],
@@ -1185,7 +1208,6 @@ render:
             "image-rendering" => "optimizeQuality",
             "xlink:href" => "data:image/png;base64,#{base64}",
           )
-          yield image
         end
       end
     end
@@ -1253,12 +1275,12 @@ render:
     def embed_image(label, options, map, resolution, dimensions, temp_dir)
       ext = options["ext"] || params["ext"] || "png"
       hillshade_path = "#{label}.#{ext}"
-      overlay_path = File.join temp_dir, "overlay.png"
       highlights = params["highlights"]
       shade = %Q["#{hillshade_path}" -level 0,65% -negate -alpha Copy -fill black +opaque black]
       sun = %Q["#{hillshade_path}" -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
-      %x[convert #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
-      yield overlay_path
+      File.join(temp_dir, "overlay.png").tap do |overlay_path|
+        %x[convert #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
+      end
     end
   end
   
@@ -1276,7 +1298,6 @@ render:
       tif_path = File.join temp_dir, "#{label}.tif"
       tfw_path = File.join temp_dir, "#{label}.tfw"
       mask_path = File.join temp_dir, "#{label}-mask.png"
-      png_path = File.join temp_dir, "#{label}.png"
       
       clut = params["map"].inject("black") { |string, (level, percent)| "(j==#{level} ? gray(#{percent}%) : #{string})" }
       %x[convert -size 1x256 canvas:black -fx "#{clut}" "#{clut_path}"]
@@ -1287,8 +1308,10 @@ render:
       %x[gdalwarp -t_srs "#{map.projection}" "#{hdr_path}" "#{tif_path}"]
       %x[convert -quiet "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
       woody, nonwoody = params["colour"].values_at("woody", "non-woody")
-      %x[convert -size #{dimensions.join ?x} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
-      yield png_path
+      
+      File.join(temp_dir, "#{label}.png").tap do |png_path|
+        %x[convert -size #{dimensions.join ?x} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
+      end
     end
   end
   
@@ -1300,16 +1323,15 @@ render:
   class AnnotationServer < Server
     include NoDownload
     
-    def render_svg(label, options, map)
-      group = REXML::Element.new("g")
-      group.add_attribute("transform", map.svg_transform(1))
-      draw(group, options, map) do |coords, projection|
-        easting, northing = coords.reproject(projection, map.projection)
-        [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
-          metres / map.scale / 0.0254
+    def render_svg(svg, label, options, map)
+      svg.add_element("g", "transform" => map.svg_transform(1), "id" => label) do |group|
+        draw(group, options, map) do |coords, projection|
+          easting, northing = coords.reproject(projection, map.projection)
+          [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
+            metres / map.scale / 0.0254
+          end
         end
       end
-      yield group
     end
   end
   
@@ -1791,6 +1813,7 @@ render:
       },
       "relief" => {
         "server" => oneearth_relief,
+        "clips" => %w[topographic.HydroArea topographic.VSS_Oceans],
         "ext" => "png",
       },
       "declination" => {
@@ -1828,8 +1851,8 @@ render:
     end
     
     filename = "#{config['name']}.svg"
-    puts "Composing layers to #{filename}:"
     Dir.mktmpdir do |temp_dir|
+      puts "Compositing layers to #{filename}:"
       svg_path = File.join(temp_dir, filename)
       File.open(svg_path, "w") do |file|
         map.svg do |svg|
@@ -1838,11 +1861,7 @@ render:
           end.each do |label, options|
             puts "  Rendering #{label}"
             begin
-              svg.add_element("g", "id" => label) do |group|
-                options["server"].render_svg(label, options.merge("render" => config["render"]), map) do |element|
-                  group.elements << element
-                end
-              end
+              options["server"].render_svg(svg, label, options.merge("render" => config["render"]), map)
             rescue BadLayerError => e
               puts "Failed to render #{label}: #{e.message}"
             end
@@ -1911,6 +1930,8 @@ end
 if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
+
+# TODO: use HydroArea to clip relief layer and prevent shadows on water?
 
 # TODO: allow user-selectable contours?
 # TODO: apply "expand" rendering command to fill areas? allow configuration to specify patterns?

@@ -485,7 +485,7 @@ render:
     end
     
     def svg(&block)
-      inches = @extents.map { |extent| extent / 0.0254 / @scale }
+      millimetres = @extents.map { |extent| 1000.0 * extent / @scale }
       REXML::Document.new.tap do |xml|
         xml << REXML::XMLDecl.new(1.0, "utf-8")
         attributes = {
@@ -495,20 +495,20 @@ render:
           "xmlns:xlink" => "http://www.w3.org/1999/xlink",
           "xmlns:ev" => "http://www.w3.org/2001/xml-events",
           "xml:space" => "preserve",
-          "width"  => "#{inches[0]}in",
-          "height" => "#{inches[1]}in",
-          "viewBox" => "0 0 #{inches[0]} #{inches[1]}",
-          "enable-background" => "new 0 0 #{inches[0]} #{inches[1]}"
+          "width"  => "#{millimetres[0]}mm",
+          "height" => "#{millimetres[1]}mm",
+          "viewBox" => "0 0 #{millimetres[0]} #{millimetres[1]}",
+          "enable-background" => "new 0 0 #{millimetres[0]} #{millimetres[1]}",
         }
         xml.add_element("svg", attributes, &block)
       end
     end
     
-    def svg_transform(inches_per_unit)
+    def svg_transform(millimetres_per_unit)
       if @rotation.zero?
-        "scale(#{inches_per_unit})"
+        "scale(#{millimetres_per_unit})"
       else
-        w, h = @bounds.map { |bound| (bound.max - bound.min) / 0.0254 / @scale }
+        w, h = @bounds.map { |bound| 1000.0 * (bound.max - bound.min) / @scale }
         t = Math::tan(@rotation * Math::PI / 180.0)
         d = (t * t - 1) * Math::sqrt(t * t + 1)
         if t >= 0
@@ -518,7 +518,7 @@ render:
           x = -(t * (h + w * t) / d).abs
           y = -(t * x).abs
         end
-        "translate(#{x} #{-y}) rotate(#{@rotation}) scale(#{inches_per_unit})"
+        "translate(#{x} #{-y}) rotate(#{@rotation}) scale(#{millimetres_per_unit})"
       end
     end
   end
@@ -649,7 +649,7 @@ render:
       end
       svg.add_element("image",
         "id" => label,
-        "transform" => "scale(#{1.0 / map.ppi})",
+        "transform" => "scale(#{25.4 / map.ppi})",
         "width" => map.dimensions[0],
         "height" => map.dimensions[1],
         "xlink:href" => href,
@@ -965,7 +965,7 @@ render:
       layer_names = service["layers"].map { |layer| layer["name"] }
       
       resolution = options["resolution"] || map.resolution
-      transform = map.svg_transform(resolution / 0.0254 / map.scale)
+      transform = map.svg_transform(1000.0 * resolution / map.scale)
       
       tile_list = tiles(map.bounds, resolution, 3)
       
@@ -1186,7 +1186,7 @@ render:
     
     def render_svg(svg, label, options, map)
       resolution, opacity = params.values_at("resolution", "opacity")
-      transform = "scale(#{resolution / map.scale / 0.0254})"
+      transform = "scale(#{1000.0 * resolution / map.scale})"
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       Dir.mktmpdir do |temp_dir|
         image_path = embed_image(label, options, map, resolution, dimensions, temp_dir)
@@ -1328,7 +1328,7 @@ render:
         draw(group, options, map) do |coords, projection|
           easting, northing = coords.reproject(projection, map.projection)
           [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
-            metres / map.scale / 0.0254
+            1000.0 * metres / map.scale
           end
         end
       end
@@ -1354,7 +1354,7 @@ render:
       end.map do |line|
         "M%f %f L%f %f" % line.flatten
       end.each do |d|
-        group.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"] / 25.4)
+        group.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"])
       end
     end
   end
@@ -1373,7 +1373,8 @@ render:
       label_spacing = params["label-spacing"]
       label_interval = label_spacing * interval
       fontfamily = params["family"]
-      fontsize = params["fontsize"] / 72.0
+      fontsize = 25.4 * params["fontsize"] / 72.0
+      strokewidth = params["width"]
       
       map.bounds.inject(:product).map do |corner|
         GridServer.zone(corner, map.projection)
@@ -1401,7 +1402,7 @@ render:
             end.map do |point|
               point.join(" ")
             end.join(" L").tap do |d|
-              group.add_element("path", "d" => "M#{d}", "stroke-width" => params["width"] / 25.4, "stroke" => params["colour"])
+              group.add_element("path", "d" => "M#{d}", "stroke-width" => strokewidth, "stroke" => params["colour"])
             end
             if line[0] && line[0][index] % label_interval == 0 
               coord = line[0][index]
@@ -1436,10 +1437,10 @@ render:
   class ControlServer < AnnotationServer
     def draw(group, options, map)
       return unless params["file"]
-      radius = params["diameter"] / 25.4 / 2
-      strokewidth = params["thickness"] / 25.4
+      radius = 0.5 * params["diameter"]
+      strokewidth = params["thickness"]
       fontfamily = params["family"]
-      fontsize = params["fontsize"] / 72.0
+      fontsize = 25.4 * params["fontsize"] / 72.0
       
       [ [ /\d{2,3}/, :circle,   params["colour"] ],
         [ /HH/,      :triangle, params["colour"] ],
@@ -1478,7 +1479,7 @@ render:
   
   class OverlayServer < AnnotationServer
     def draw(group, options, map)
-      width = (options["width"] || 0.5) / 25.4
+      width = (options["width"] || 0.5)
       colour = options["colour"] || "black"
       opacity = options["opacity"] || 0.3
       gps = GPS.new(options["path"])

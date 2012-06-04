@@ -360,4 +360,4 @@ Release History
   * 13/2/2012: version 0.4.3: reworked road/track colours and outlines
   * 7/3/2012: version 0.4.4: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity; added overlay layers from GPX/KML/etc files
 * 3/6/2012: version 0.5: Substantial rewrite to use the new NSW ArcGIS server
-  * 4/6/2012: HEAD: added metadata to identify layers correctly to Inkscape
+  * 4/6/2012: 0.5.1: added metadata to identify layers correctly to Inkscape

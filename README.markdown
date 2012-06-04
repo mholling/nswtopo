@@ -161,6 +161,8 @@ Any or all of the following additional layers can be included in your map by lis
     - declination
     - controls
 
+Viewing the map in Inkscape allows you to toggle individual layers on and off. This if helpful, for example, if you wish to view the aerial imagery superimposed against the topographic feature layers for comparison.
+
 ## Aerial Imagery
 
 These are orthographic aerial images for the specified map area, derived from Google Maps, Nokia Maps, and the NSW LPI department. Depending on your map location there may be up to four different aerial images available.
@@ -358,3 +360,4 @@ Release History
   * 13/2/2012: version 0.4.3: reworked road/track colours and outlines
   * 7/3/2012: version 0.4.4: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity; added overlay layers from GPX/KML/etc files
 * 3/6/2012: version 0.5: Substantial rewrite to use the new NSW ArcGIS server
+  * 4/6/2012: HEAD: added metadata to identify layers correctly to Inkscape

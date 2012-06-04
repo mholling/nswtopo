@@ -494,6 +494,7 @@ render:
           "xmlns" => "http://www.w3.org/2000/svg",
           "xmlns:xlink" => "http://www.w3.org/1999/xlink",
           "xmlns:ev" => "http://www.w3.org/2001/xml-events",
+          "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape",
           "xml:space" => "preserve",
           "width"  => "#{millimetres[0]}mm",
           "height" => "#{millimetres[1]}mm",
@@ -501,6 +502,9 @@ render:
           "enable-background" => "new 0 0 #{millimetres[0]} #{millimetres[1]}",
         }
         xml.add_element("svg", attributes, &block)
+        xml.elements.each("/svg/g[@id]") do |layer|
+          layer.elements.empty? ? layer.parent.elements.delete(layer) : layer.add_attribute("inkscape:groupmode", "layer")
+        end
       end
     end
     
@@ -647,13 +651,14 @@ render:
       else
         filename
       end
-      svg.add_element("image",
-        "id" => label,
-        "transform" => "scale(#{25.4 / map.ppi})",
-        "width" => map.dimensions[0],
-        "height" => map.dimensions[1],
-        "xlink:href" => href,
-      )
+      svg.add_element("g", "id" => label) do |group|
+        group.add_element("image",
+          "transform" => "scale(#{25.4 / map.ppi})",
+          "width" => map.dimensions[0],
+          "height" => map.dimensions[1],
+          "xlink:href" => href,
+        )
+      end
     end
   end
   
@@ -1935,6 +1940,7 @@ end
 # TODO: allow user-selectable contours?
 # TODO: allow configuration to specify patterns?
 # TODO: refactor options["render"] stuff?
+# TODO: regroup all <defs> into single <defs>
 # TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
 # TODO: put long command lines into text file...
 

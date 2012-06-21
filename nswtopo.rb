@@ -24,7 +24,7 @@ require 'fileutils'
 require 'rbconfig'
 require 'json'
 require 'base64'
-  
+
 class REXML::Element
   alias_method :unadorned_add_element, :add_element
   def add_element(name, attrs = {})
@@ -1273,7 +1273,7 @@ render:
       %x[gdalwarp -s_srs "#{WGS84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
       
       File.join(temp_dir, "#{label}.#{ext}").tap do |output_path|
-        %x[convert "#{tif_path}" -quiet -type Grayscale -depth 8 "#{output_path}"]
+        %x[convert "#{tif_path}" -channel Red -separate -quiet -depth 8 "#{output_path}"]
       end
     end
     
@@ -1311,7 +1311,7 @@ render:
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
       
       %x[gdalwarp -t_srs "#{map.projection}" "#{hdr_path}" "#{tif_path}"]
-      %x[convert -quiet "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
+      %x[convert -quiet "#{tif_path}" "#{clut_path}" -clut -channel Red -separate "#{mask_path}"]
       woody, nonwoody = params["colour"].values_at("woody", "non-woody")
       
       File.join(temp_dir, "#{label}.png").tap do |png_path|
@@ -1640,27 +1640,31 @@ render:
   # end
   
   def self.run
+    unless %w[bounds.kml bounds.gpx config.yml].any? { |filename| File.exists?(File.join Dir.pwd, filename) }
+      abort "Error: no configuration or bounds file found."
+    end
+    
     default_config = YAML.load(CONFIG)
     %w[controls.kml controls.gpx].select do |filename|
       File.exists? filename
     end.each do |filename|
       default_config["controls"]["file"] ||= filename
     end
-    config_path = "config.yml"
-    bounds_path = %w[bounds.kml bounds.gpx].find { |path| File.exists? path }
-    user_config = begin
-      case
-      when File.exists?(config_path)
-        YAML.load File.read(config_path)
-      when bounds_path
-        { "bounds" => bounds_path }
-      else
-        abort "Error: no configuration or bounds file found."
-      end
-    rescue ArgumentError, SyntaxError => e
-      abort "Error in configuration file: #{e.message}"
+    %w[bounds.kml bounds.gpx].find { |path| File.exists? path }.tap do |bounds_path|
+      default_config["bounds"] = bounds_path if bounds_path
     end
-    config = default_config.deep_merge user_config
+    
+    config = [ File.dirname(File.realdirpath(__FILE__)), Dir.pwd ].uniq.map do |dir|
+      File.join dir, "config.yml"
+    end.select do |config_path|
+      File.exists? config_path
+    end.map do |config_path|
+      begin
+        YAML.load File.read(config_path)
+      rescue ArgumentError, SyntaxError => e
+        abort "Error in configuration file: #{e.message}"
+      end
+    end.inject(default_config, &:deep_merge)
     config["include"] = [ *config["include"] ]
     
     map = Map.new(config)
@@ -1936,6 +1940,8 @@ end
 if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
+
+# TODO: use rsvg-convert to convert to pdf and png outputs!
 
 # TODO: allow user-selectable contours?
 # TODO: allow configuration to specify patterns?

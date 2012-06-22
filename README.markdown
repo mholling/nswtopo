@@ -19,7 +19,6 @@ The following open-source packages are required in order to run the script:
 * The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.3, not 1.8.x.
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data.
-* The [libgeotiff](http://geotiff.osgeo.org) library, for its `geotifcp` command for georeferencing images.
 
 If you plan to make further enhancements, manual corrections or additions to your maps, you'll also need a vector graphics editing program such as [Inkscape](http://inkscape.org/), or Adobe Illustrator. An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also be useful for creating a custom background canvas for your map.
 
@@ -28,19 +27,18 @@ Finally, a geographic viewing or mapping program such as [Google Earth](http://e
 * _Windows_:
   * A complete Ruby 1.9.3 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
   * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php#windows) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
-  * GDAL and libgeotiff are best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the _FWTools Shell_ to run the `nswtopo.rb` script. (Another distribution containing the required packages is [OSGeo4W](http://trac.osgeo.org/osgeo4w/).)
+  * GDAL is best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the _FWTools Shell_ to run the `nswtopo.rb` script. (Another distribution containing the required packages is [OSGeo4W](http://trac.osgeo.org/osgeo4w/).)
 * _Mac OS X_:
-  * ImageMagick, GDAL and libgeotiff can obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS. You will first need to install Xcode from your OS X disc or via download; follow the instructions on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install libgeotiff gdal` and `sudo port install imagemagick +q8`
+  * ImageMagick and GDAL can obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS; follow [these instructions](http://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install gdal` and `sudo port install imagemagick +q8`
   * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software:frameworks#gdal_complete) for GDAL, and the instructions [here](http://www.imagemagick.org/script/binary-releases.php#macosx) for ImageMagick. This may or may not be quicker/easier than installing XCode and MacPorts!
   * Depending on which Xcode version you have, Ruby 1.9.3 may already be available; type `ruby -v` in a terminal window to find this out. Otherwise, you can install Ruby 1.9.3 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/).
-* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, libgeotiff and Inkscape packages using your distro's package manager (RPM, Aptitude, etc).
+* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL and Inkscape packages using your distro's package manager (RPM, Aptitude, etc).
 
 You can check that the tools are correctly installed by using the following commands:
 
     ruby -v
     identify -version
     gdalwarp --version
-    geotifcp
 
 You should receive version or usage information for each tool if it is installed correctly and in your path.
 

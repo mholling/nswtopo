@@ -389,7 +389,7 @@ render:
   
   class Map
     def initialize(config)
-      @scale, @ppi = config.values_at("scale", "ppi")
+      @name, @scale, @ppi = config.values_at("name", "scale", "ppi")
       @resolution = @scale.to_f * 0.0254 / @ppi
       
       bounds_path = %w[bounds.kml bounds.gpx].find { |path| File.exists? path }
@@ -463,11 +463,51 @@ render:
       abort "Error: #{e.message}"
     end
     
-    attr_reader :scale, :projection, :wkt, :bounds, :extents, :dimensions, :rotation, :ppi, :resolution
+    attr_reader :name, :scale, :projection, :wkt, :bounds, :extents, :dimensions, :rotation, :ppi, :resolution
     
     def write_world_file(world_file_path, metres_per_pixel = @resolution)
       topleft = [ @centre, @extents.rotate_by(-@rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
       WorldFile.write(topleft, metres_per_pixel, @rotation, world_file_path)
+    end
+    
+    def write_oziexplorer_map(path, name, image)
+      corners = @extents.map do |extent|
+        [ -0.5 * extent, 0.5 * extent ]
+      end.inject(:product).map do |offsets|
+        [ @centre, offsets.rotate_by(rotation * Math::PI / 180.0) ].transpose.map { |coord, offset| coord + offset }
+      end
+      wgs84_corners = corners.reproject(projection, WGS84).values_at(1,3,2,0)
+      pixel_corners = [ @dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
+      calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
+        dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
+          [ coord.abs.floor, 60 * (coord.abs - coord.abs.floor), coord > 0 ? hemispheres.first : hemispheres.last ]
+        end
+        "Point%02i,xy,%i,%i,in,deg,%i,%f,%c,%i,%f,%c,grid,,,," % [ index+1, pixel_corner, dmh ].flatten
+      end
+      File.open(path, "w") do |file|
+        file << %Q[OziExplorer Map Data File Version 2.2
+#{name}
+#{image}
+1 ,Map Code,
+WGS 84,WGS84,0.0000,0.0000,WGS84
+Reserved 1
+Reserved 2
+Magnetic Variation,,,E
+Map Projection,Transverse Mercator,PolyCal,No,AutoCalOnly,Yes,BSBUseWPX,No
+#{calibration_strings.join ?\n}
+Projection Setup,0.000000000,#{@projection_centre.first},0.999600000,500000.00,10000000.00,,,,,
+Map Feature = MF ; Map Comment = MC     These follow if they exist
+Track File = TF      These follow if they exist
+Moving Map Parameters = MM?    These follow if they exist
+MM0,Yes
+MMPNUM,4
+#{pixel_corners.map.with_index { |pixel_corner, index| "MMPXY,#{index+1},#{pixel_corner.join ?,}" }.join ?\n}
+#{wgs84_corners.map.with_index { |wgs84_corner, index| "MMPLL,#{index+1},#{wgs84_corner.join ?,}" }.join ?\n}
+MM1B,#{@resolution}
+MOP,Map Open Position,0,0
+IWH,Map Image Width/Height,#{@dimensions.join ?,}
+].gsub(/\r\n|\r|\n/, "\r\n")
+      end
     end
     
     def declination
@@ -1501,143 +1541,150 @@ render:
     end
   end
   
-  # # Old code for creating KMZ from raster image, to be reinstated eventually...
-  # # 
-  # module KMZ
-  #   TILE_SIZE = 512
-  #   TILE_FORMAT = "gif"
-  #   
-  #   def self.style
-  #     lambda do |style|
-  #       style.add_element("ListStyle", "id" => "hideChildren") do |list_style|
-  #         list_style.add_element("listItemType") { |type| type.text = "checkHideChildren" }
-  #       end
-  #     end
-  #   end
-  #   
-  #   def self.lat_lon_box(bounds)
-  #     lambda do |box|
-  #       [ %w[west east south north], bounds.flatten ].transpose.each do |limit, value|
-  #         box.add_element(limit) { |lim| lim.text = value }
-  #       end
-  #     end
-  #   end
-  #   
-  #   def self.region(bounds)
-  #     lambda do |region|
-  #       region.add_element("Lod") do |lod|
-  #         lod.add_element("minLodPixels") { |min| min.text = TILE_SIZE / 2 }
-  #         lod.add_element("maxLodPixels") { |max| max.text = -1 }
-  #       end
-  #       region.add_element("LatLonAltBox", &lat_lon_box(bounds))
-  #     end
-  #   end
-  #   
-  #   def self.network_link(bounds, path)
-  #     lambda do |network|
-  #       network.add_element("Region", &region(bounds))
-  #       network.add_element("Link") do |link|
-  #         link.add_element("href") { |href| href.text = path }
-  #         link.add_element("viewRefreshMode") { |mode| mode.text = "onRegion" }
-  #         link.add_element("viewFormat")
-  #       end
-  #     end
-  #   end
-  #   
-  #   def self.build(map_name, bounds, projection, scaling, image_path, kmz_path)
-  #     wgs84_bounds = Bounds.transform(projection, WGS84, bounds)
-  #     degrees_per_pixel = 180.0 * scaling.metres_per_pixel / Math::PI / EARTH_RADIUS
-  #     dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel }
-  #     max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE)
-  #     topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
-  #     
-  #     Dir.mktmpdir do |temp_dir|
-  #       pyramid = 0.upto(max_zoom).map do |zoom|
-  #         resolution = degrees_per_pixel * 2**(max_zoom - zoom)
-  #         degrees_per_tile = resolution * TILE_SIZE
-  #         counts = wgs84_bounds.map { |bound| (bound.reverse.inject(:-) / degrees_per_tile).ceil }
-  #         dimensions = counts.map { |count| count * TILE_SIZE }
-  #         resample = zoom == max_zoom ? "near" : "bilinear"
-  # 
-  #         tfw_path = File.join(temp_dir, "zoom-#{zoom}.tfw")
-  #         tif_path = File.join(temp_dir, "zoom-#{zoom}.tif")
-  #         WorldFile.write(topleft, resolution, 0, tfw_path)
-  #         %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
-  #         %x[gdalwarp -s_srs "#{projection}" -t_srs "#{WGS84}" -r #{resample} -dstalpha "#{image_path}" "#{tif_path}"]
-  # 
-  #         indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
-  #           boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
-  #           [ boundaries[0..-2], boundaries[1..-1] ].transpose.map(&:sort)
-  #         end.map do |tile_bounds|
-  #           tile_bounds.each.with_index.to_a
-  #         end.inject(:product).map(&:transpose).map do |tile_bounds, indices|
-  #           { indices => tile_bounds }
-  #         end.inject({}, &:merge)
-  #         { zoom => indices_bounds }
-  #       end.inject({}, &:merge)
-  #       
-  #       kmz_dir = File.join(temp_dir, map_name)
-  #       Dir.mkdir(kmz_dir)
-  #       
-  #       pyramid.each do |zoom, indices_bounds|
-  #         zoom_dir = File.join(kmz_dir, zoom.to_s)
-  #         Dir.mkdir(zoom_dir)
-  #       
-  #         tif_path = File.join(temp_dir, "zoom-#{zoom}.tif")
-  #         indices_bounds.map do |indices, tile_bounds|
-  #           index_dir = File.join(zoom_dir, indices.first.to_s)
-  #           Dir.mkdir(index_dir) unless Dir.exists?(index_dir)
-  #           tile_kml_path = File.join(index_dir, "#{indices.last}.kml")
-  #           tile_img_path = File.join(index_dir, "#{indices.last}.#{TILE_FORMAT}")
-  #           crops = indices.map { |index| index * TILE_SIZE }
-  #           %x[convert "#{tif_path}" -quiet -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage "#{tile_img_path}"]
-  #           
-  #           xml = REXML::Document.new
-  #           xml << REXML::XMLDecl.new(1.0, "UTF-8")
-  #           xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
-  #             kml.add_element("Document") do |document|
-  #               document.add_element("Style", &style)
-  #               document.add_element("Region", &region(tile_bounds))
-  #               document.add_element("GroundOverlay") do |overlay|
-  #                 overlay.add_element("drawOrder") { |draw_order| draw_order.text = zoom }
-  #                 overlay.add_element("Icon") do |icon|
-  #                   icon.add_element("href") { |href| href.text = "#{indices.last}.#{TILE_FORMAT}" }
-  #                 end
-  #                 overlay.add_element("LatLonBox", &lat_lon_box(tile_bounds))
-  #               end
-  #               if zoom < max_zoom
-  #                 indices.map do |index|
-  #                   [ 2 * index, 2 * index + 1 ]
-  #                 end.inject(:product).select do |subindices|
-  #                   pyramid[zoom + 1][subindices]
-  #                 end.each do |subindices|
-  #                   document.add_element("NetworkLink", &network_link(pyramid[zoom + 1][subindices], "../../#{[ zoom+1, *subindices ].join ?/}.kml"))
-  #                 end
-  #               end
-  #             end
-  #           end
-  #           File.open(tile_kml_path, "w") { |file| file << xml }
-  #         end
-  #       end
-  #       
-  #       xml = REXML::Document.new
-  #       xml << REXML::XMLDecl.new(1.0, "UTF-8")
-  #       xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
-  #         kml.add_element("Document") do |document|
-  #           document.add_element("Name") { |name| name.text = map_name }
-  #           document.add_element("Style", &style)
-  #           document.add_element("NetworkLink", &network_link(pyramid[0][[0,0]], "0/0/0.kml"))
-  #         end
-  #       end
-  #       kml_path = File.join(kmz_dir, "doc.kml")
-  #       File.open(kml_path, "w") { |file| file << xml }
-  #       
-  #       temp_kmz_path = File.join(temp_dir, "#{map_name}.kmz")
-  #       Dir.chdir(kmz_dir) { %x[#{ZIP} -r "#{temp_kmz_path}" *] }
-  #       FileUtils.mv(temp_kmz_path, kmz_path)
-  #     end
-  #   end
-  # end
+  module KMZ
+    TILE_SIZE = 512
+    
+    def self.style
+      lambda do |style|
+        style.add_element("ListStyle", "id" => "hideChildren") do |list_style|
+          list_style.add_element("listItemType") { |type| type.text = "checkHideChildren" }
+        end
+      end
+    end
+    
+    def self.lat_lon_box(bounds)
+      lambda do |box|
+        [ %w[west east south north], bounds.flatten ].transpose.each do |limit, value|
+          box.add_element(limit) { |lim| lim.text = value }
+        end
+      end
+    end
+    
+    def self.region(bounds)
+      lambda do |region|
+        region.add_element("Lod") do |lod|
+          lod.add_element("minLodPixels") { |min| min.text = TILE_SIZE / 2 }
+          lod.add_element("maxLodPixels") { |max| max.text = -1 }
+        end
+        region.add_element("LatLonAltBox", &lat_lon_box(bounds))
+      end
+    end
+    
+    def self.network_link(bounds, path)
+      lambda do |network|
+        network.add_element("Region", &region(bounds))
+        network.add_element("Link") do |link|
+          link.add_element("href") { |href| href.text = path }
+          link.add_element("viewRefreshMode") { |mode| mode.text = "onRegion" }
+          link.add_element("viewFormat")
+        end
+      end
+    end
+    
+    def self.build(map, image_path, kmz_path)
+      wgs84_bounds = Bounds.transform(map.projection, WGS84, map.bounds)
+      degrees_per_pixel = 180.0 * map.resolution / Math::PI / EARTH_RADIUS
+      dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel }
+      max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE)
+      topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
+      
+      Dir.mktmpdir do |temp_dir|
+        temp_dir = File.join Dir.pwd, "tmp"
+        png_path = File.join(temp_dir, "source.png")
+        pgw_path = File.join(temp_dir, "source.pgw")
+        %x[convert "#{image_path}" "#{png_path}"]
+        map.write_world_file(pgw_path)
+        
+        pyramid = 0.upto(max_zoom).map do |zoom|
+          resolution = degrees_per_pixel * 2**(max_zoom - zoom)
+          degrees_per_tile = resolution * TILE_SIZE
+          counts = wgs84_bounds.map { |bound| (bound.reverse.inject(:-) / degrees_per_tile).ceil }
+          dimensions = counts.map { |count| count * TILE_SIZE }
+          
+          tfw_path = File.join(temp_dir, "zoom-#{zoom}.tfw")
+          tif_path = File.join(temp_dir, "zoom-#{zoom}.tif")
+          %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
+          WorldFile.write(topleft, resolution, 0, tfw_path)
+          
+          %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{WGS84}" -r bilinear -dstalpha "#{png_path}" "#{tif_path}"]
+  
+          indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
+            boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
+            [ boundaries[0..-2], boundaries[1..-1] ].transpose.map(&:sort)
+          end.map do |tile_bounds|
+            tile_bounds.each.with_index.to_a
+          end.inject(:product).map(&:transpose).map do |tile_bounds, indices|
+            { indices => tile_bounds }
+          end.inject({}, &:merge)
+          { zoom => indices_bounds }
+        end.inject({}, &:merge)
+        
+        kmz_dir = File.join(temp_dir, map.name)
+        Dir.mkdir(kmz_dir)
+        
+        pyramid.each do |zoom, indices_bounds|
+          zoom_dir = File.join(kmz_dir, zoom.to_s)
+          Dir.mkdir(zoom_dir)
+          
+          tif_path = File.join(temp_dir, "zoom-#{zoom}.tif")
+          indices_bounds.map do |indices, tile_bounds|
+            index_dir = File.join(zoom_dir, indices.first.to_s)
+            Dir.mkdir(index_dir) unless Dir.exists?(index_dir)
+            tile_kml_path = File.join(index_dir, "#{indices.last}.kml")
+            tile_png_name = "#{indices.last}.png"
+            tile_png_path = File.join(index_dir, tile_png_name)
+            crops = indices.map { |index| index * TILE_SIZE }
+            png_options = "PNG32:"
+            # TODO: choose "-type Palette PNG24:" for tile without transparency
+            #          and "PNG32:" for tiles with transparency
+            %x[convert "#{tif_path}" -quiet -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage #{png_options}"#{tile_png_path}"]
+            
+            xml = REXML::Document.new
+            xml << REXML::XMLDecl.new(1.0, "UTF-8")
+            xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
+              kml.add_element("Document") do |document|
+                document.add_element("Style", &style)
+                document.add_element("Region", &region(tile_bounds))
+                document.add_element("GroundOverlay") do |overlay|
+                  overlay.add_element("drawOrder") { |draw_order| draw_order.text = zoom }
+                  overlay.add_element("Icon") do |icon|
+                    icon.add_element("href") { |href| href.text = tile_png_name }
+                  end
+                  overlay.add_element("LatLonBox", &lat_lon_box(tile_bounds))
+                end
+                if zoom < max_zoom
+                  indices.map do |index|
+                    [ 2 * index, 2 * index + 1 ]
+                  end.inject(:product).select do |subindices|
+                    pyramid[zoom + 1][subindices]
+                  end.each do |subindices|
+                    document.add_element("NetworkLink", &network_link(pyramid[zoom + 1][subindices], "../../#{[ zoom+1, *subindices ].join ?/}.kml"))
+                  end
+                end
+              end
+            end
+            File.open(tile_kml_path, "w") { |file| file << xml }
+          end
+        end
+        
+        xml = REXML::Document.new
+        xml << REXML::XMLDecl.new(1.0, "UTF-8")
+        xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
+          kml.add_element("Document") do |document|
+            document.add_element("Name") { |name| name.text = map.name }
+            document.add_element("Style", &style)
+            document.add_element("NetworkLink", &network_link(pyramid[0][[0,0]], "0/0/0.kml"))
+          end
+        end
+        kml_path = File.join(kmz_dir, "doc.kml")
+        File.open(kml_path, "w") { |file| file << xml }
+        
+        temp_kmz_path = File.join(temp_dir, "#{map.name}.kmz")
+        Dir.chdir(kmz_dir) { %x[#{ZIP} -r "#{temp_kmz_path}" *] }
+        FileUtils.mv(temp_kmz_path, kmz_path)
+      end
+    end
+  end
   
   def self.run
     unless %w[bounds.kml bounds.gpx config.yml].any? { |filename| File.exists?(File.join Dir.pwd, filename) }
@@ -1666,6 +1713,7 @@ render:
       end
     end.inject(default_config, &:deep_merge)
     config["include"] = [ *config["include"] ]
+    config["formats"] = [ *config["formats"] ]
     
     map = Map.new(config)
     
@@ -1860,10 +1908,9 @@ render:
       options["server"].download(label, options, map)
     end
     
-    filename = "#{config['name']}.svg"
     Dir.mktmpdir do |temp_dir|
-      puts "Compositing layers to #{filename}:"
-      svg_path = File.join(temp_dir, filename)
+      puts "Compositing layers to #{map.name}.svg:"
+      svg_path = File.join(temp_dir, "#{map.name}.svg")
       File.open(svg_path, "w") do |file|
         map.svg do |svg|
           layers.select do |label, options|
@@ -1878,58 +1925,53 @@ render:
           end
           fonts = svg.elements.collect("//[@font-family]") { |element| element.attributes["font-family"] }.uniq
           if fonts.any?
-            puts "Fonts used in #{filename}:"
+            puts "Fonts used in #{map.name}.svg:"
             fonts.sort.each { |font| puts "  #{font}" }
           end
         end.write(file)
       end
       FileUtils.mv svg_path, Dir.pwd
-    end unless File.exists? filename
+    end unless File.exists? "#{map.name}.svg"
     
-#     
-#     oziexplorer_formats = %w[bmp png gif] & formats
-#     unless oziexplorer_formats.empty?
-#       oziexplorer_path = File.join(output_dir, "#{map_name}.map")
-#       image_file = "#{map_name}.#{oziexplorer_formats.first}"
-#       image_path = File.join(output_dir, image_file)
-#       corners = dimensions.map do |dimension|
-#         [ -0.5 * dimension * scaling.metres_per_pixel, 0.5 * dimension * scaling.metres_per_pixel ]
-#       end.inject(:product).map do |offsets|
-#         [ centre, offsets.rotate_by(rotation * Math::PI / 180.0) ].transpose.map { |coord, offset| coord + offset }
-#       end
-#       wgs84_corners = corners.reproject(projection, WGS84).values_at(1,3,2,0)
-#       pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
-#       calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
-#         dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
-#           [ coord.abs.floor, 60 * (coord.abs - coord.abs.floor), coord > 0 ? hemispheres.first : hemispheres.last ]
-#         end
-#         "Point%02i,xy,%i,%i,in,deg,%i,%f,%c,%i,%f,%c,grid,,,," % [ index+1, pixel_corner, dmh ].flatten
-#       end
-#       File.open(oziexplorer_path, "w") do |file|
-#         file << %Q[OziExplorer Map Data File Version 2.2
-# #{map_name}
-# #{image_file}
-# 1 ,Map Code,
-# WGS 84,WGS84,0.0000,0.0000,WGS84
-# Reserved 1
-# Reserved 2
-# Magnetic Variation,,,E
-# Map Projection,Transverse Mercator,PolyCal,No,AutoCalOnly,Yes,BSBUseWPX,No
-# #{calibration_strings.join ?\n}
-# Projection Setup,0.000000000,#{projection_centre.first},0.999600000,500000.00,10000000.00,,,,,
-# Map Feature = MF ; Map Comment = MC     These follow if they exist
-# Track File = TF      These follow if they exist
-# Moving Map Parameters = MM?    These follow if they exist
-# MM0,Yes
-# MMPNUM,4
-# #{pixel_corners.map.with_index { |pixel_corner, index| "MMPXY,#{index+1},#{pixel_corner.join ?,}" }.join ?\n}
-# #{wgs84_corners.map.with_index { |wgs84_corner, index| "MMPLL,#{index+1},#{wgs84_corner.join ?,}" }.join ?\n}
-# MM1B,#{scaling.metres_per_pixel}
-# MOP,Map Open Position,0,0
-# IWH,Map Image Width/Height,#{dimensions.join ?,}
-# ].gsub(/\r\n|\r|\n/, "\r\n")
-#       end
-#     end
+    formats = config["formats"].map(&:downcase) & %w[png tif gif jpg kmz map prj wld]
+    formats |= %w[png] if formats.include? "map"
+    formats.reject! { |format| File.exists? "#{map.name}.#{format}" }
+    
+    Dir.mktmpdir do |temp_dir|
+      puts "Generating requested output formats:"
+      png_path = File.join temp_dir, "#{map.name}.png"
+      png = (formats & %w[tif gif jpg kmz]).any? ? "png" : nil
+      [ *png, *formats ].uniq.each do |format|
+        puts "  Generating #{map.name}.#{format}"
+        path = File.join temp_dir, "#{map.name}.#{format}"
+        case format
+        when "png"
+          tmp_path = File.join temp_dir, "#{map.name}.temp.png"
+          %x[rsvg-convert -d #{map.ppi} -p #{map.ppi} -w #{map.dimensions.first} -h #{map.dimensions.last} -f png -o "#{tmp_path}" "#{map.name}.svg" ]
+          %x[convert "#{tmp_path}" -units PixelsPerInch -density #{map.ppi} -type TrueColor "#{path}"]
+        when "tif"
+          map.write_world_file("#{path}w")
+          map.write_world_file("#{png_path}w")
+          puts %x[ls -al #{temp_dir}]
+          # TODO: get dpi and units into this tiff somehow?
+          puts %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -co "COMPRESS=LZW" "#{png_path}" "#{path}"]
+        when "map"
+          map.write_oziexplorer_map(path, map.name, "#{map.name}.png")
+        when "prj"
+          File.write(path, map.projection)
+        when "wld"
+          map.write_world_file(path)
+        when "kmz"
+          KMZ.build(map, png_path, path)
+        else
+          %x[convert "#{png_path}" "#{path}"]
+        end
+      end
+      
+      formats.each do |format|
+        FileUtils.mv File.join(temp_dir, "#{map.name}.#{format}"), Dir.pwd
+      end
+    end unless formats.empty?
   end
 end
 
@@ -1941,8 +1983,12 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: use rsvg-convert to convert to pdf and png outputs!
+# TODO: test kmz output with rotation?
+# TODO: figure out best image format to use in kmz?
+# TODO: update README to include librsvg and format information
 
+# TODO: pdf output?
+# TODO: fix missing dpi & units in tiff output
 # TODO: allow user-selectable contours?
 # TODO: allow configuration to specify patterns?
 # TODO: refactor options["render"] stuff?

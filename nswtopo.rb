@@ -1951,9 +1951,8 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         when "tif"
           map.write_world_file("#{path}w")
           map.write_world_file("#{png_path}w")
-          puts %x[ls -al #{temp_dir}]
           # TODO: get dpi and units into this tiff somehow?
-          puts %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -co "COMPRESS=LZW" "#{png_path}" "#{path}"]
+          %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -co "COMPRESS=LZW" "#{png_path}" "#{path}"]
         when "map"
           map.write_oziexplorer_map(path, map.name, "#{map.name}.png")
         when "prj"

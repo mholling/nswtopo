@@ -1662,7 +1662,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
             
             tile_png_path = File.join(index_dir, tile_png_name)
             crops = indices.map { |index| index * TILE_SIZE }
-            %Q[convert "#{tif_path}" -quiet -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage -type PaletteBilevelMatte PNG8:"#{tile_png_path}"]
+            %Q[convert "#{tif_path}" -quiet -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage +dither -type PaletteBilevelMatte PNG8:"#{tile_png_path}"]
           end
         end.flatten.with_progress("Creating tiles:", 2).each { |command| %x[#{command}] }
         
@@ -1946,7 +1946,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         case format
         when "png"
           tmp_path = File.join temp_dir, "#{map.name}.temp.png"
-          %x[rsvg-convert -d #{map.ppi} -p #{map.ppi} -w #{map.dimensions.first} -h #{map.dimensions.last} -f png -o "#{tmp_path}" "#{map.name}.svg" ]
+          %x[rsvg-convert --dpi-x #{map.ppi} --dpi-y #{map.ppi} --width #{map.dimensions.first} --height #{map.dimensions.last} --background-color white --format png --output "#{tmp_path}" "#{map.name}.svg" ]
           %x[convert "#{tmp_path}" -units PixelsPerInch -density #{map.ppi} -type TrueColor "#{path}"]
         when "tif"
           map.write_world_file("#{path}w")
@@ -1982,8 +1982,7 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: test kmz output with rotation?
-# TODO: librsvg not rendering patterns...
+# TODO: librsvg not rendering patterns... (try libsvg, libsvg-cairo, etc.)
 # TODO: update README to include librsvg and format information
 
 # TODO: pdf output?

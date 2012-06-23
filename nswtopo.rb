@@ -1589,7 +1589,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
       
       Dir.mktmpdir do |temp_dir|
-        temp_dir = File.join Dir.pwd, "tmp"
+        # temp_dir = File.join Dir.pwd, "tmp"
         png_path = File.join(temp_dir, "source.png")
         pgw_path = File.join(temp_dir, "source.pgw")
         %x[convert "#{image_path}" "#{png_path}"]
@@ -1634,11 +1634,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
             tile_png_name = "#{indices.last}.png"
             tile_png_path = File.join(index_dir, tile_png_name)
             crops = indices.map { |index| index * TILE_SIZE }
-            png_options = "PNG32:"
-            # TODO: choose "-type Palette PNG24:" for tile without transparency
-            #          and "PNG32:" for tiles with transparency
-            %x[convert "#{tif_path}" -quiet -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage #{png_options}"#{tile_png_path}"]
-            
+            %x[convert "#{tif_path}" -quiet -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage -type PaletteBilevelMatte PNG8:"#{tile_png_path}"]
             xml = REXML::Document.new
             xml << REXML::XMLDecl.new(1.0, "UTF-8")
             xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
@@ -1983,6 +1979,7 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
+# TODO: flatten KMZ loop so we can show progress
 # TODO: test kmz output with rotation?
 # TODO: figure out best image format to use in kmz?
 # TODO: update README to include librsvg and format information

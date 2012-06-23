@@ -48,9 +48,12 @@ end
 Hash.send :include, HashHelpers
 
 module Enumerable
-  def with_progress_interactive(message = nil)
-    puts message if message
-    bars, container, symbol = 70, "  [%s]", ?-
+  def with_progress_interactive(message = nil, indent = 0)
+    bars = 72 - 2 * indent
+    container = "  " * indent + "  [%s]"
+    symbol = ?-
+    
+    puts "  " * indent + message if message
     Enumerator.new do |yielder|
       $stdout << container % (?\s * bars)
       each_with_index do |object, index|
@@ -63,7 +66,7 @@ module Enumerable
     end
   end
   
-  def with_progress_scripted(message = nil)
+  def with_progress_scripted(message = nil, *args)
     puts message if message
     Enumerator.new(self.each)
   end
@@ -1589,13 +1592,11 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
       
       Dir.mktmpdir do |temp_dir|
-        # temp_dir = File.join Dir.pwd, "tmp"
-        png_path = File.join(temp_dir, "source.png")
-        pgw_path = File.join(temp_dir, "source.pgw")
-        %x[convert "#{image_path}" "#{png_path}"]
-        map.write_world_file(pgw_path)
+        source_path = File.join temp_dir, File.basename(image_path)
+        FileUtils.cp image_path, source_path
+        map.write_world_file("#{source_path}w")
         
-        pyramid = 0.upto(max_zoom).map do |zoom|
+        pyramid = (0..max_zoom).to_a.with_progress("Resizing image pyramid:", 2).map do |zoom|
           resolution = degrees_per_pixel * 2**(max_zoom - zoom)
           degrees_per_tile = resolution * TILE_SIZE
           counts = wgs84_bounds.map { |bound| (bound.reverse.inject(:-) / degrees_per_tile).ceil }
@@ -1606,7 +1607,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
           WorldFile.write(topleft, resolution, 0, tfw_path)
           
-          %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{WGS84}" -r bilinear -dstalpha "#{png_path}" "#{tif_path}"]
+          %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{WGS84}" -r bilinear -dstalpha "#{source_path}" "#{tif_path}"]
   
           indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
             boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
@@ -1622,7 +1623,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         kmz_dir = File.join(temp_dir, map.name)
         Dir.mkdir(kmz_dir)
         
-        pyramid.each do |zoom, indices_bounds|
+        pyramid.map do |zoom, indices_bounds|
           zoom_dir = File.join(kmz_dir, zoom.to_s)
           Dir.mkdir(zoom_dir)
           
@@ -1632,9 +1633,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
             Dir.mkdir(index_dir) unless Dir.exists?(index_dir)
             tile_kml_path = File.join(index_dir, "#{indices.last}.kml")
             tile_png_name = "#{indices.last}.png"
-            tile_png_path = File.join(index_dir, tile_png_name)
-            crops = indices.map { |index| index * TILE_SIZE }
-            %x[convert "#{tif_path}" -quiet -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage -type PaletteBilevelMatte PNG8:"#{tile_png_path}"]
+            
             xml = REXML::Document.new
             xml << REXML::XMLDecl.new(1.0, "UTF-8")
             xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
@@ -1660,8 +1659,12 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
               end
             end
             File.open(tile_kml_path, "w") { |file| file << xml }
+            
+            tile_png_path = File.join(index_dir, tile_png_name)
+            crops = indices.map { |index| index * TILE_SIZE }
+            %Q[convert "#{tif_path}" -quiet -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage -type PaletteBilevelMatte PNG8:"#{tile_png_path}"]
           end
-        end
+        end.flatten.with_progress("Creating tiles:", 2).each { |command| %x[#{command}] }
         
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new(1.0, "UTF-8")
@@ -1979,9 +1982,8 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: flatten KMZ loop so we can show progress
 # TODO: test kmz output with rotation?
-# TODO: figure out best image format to use in kmz?
+# TODO: librsvg not rendering patterns...
 # TODO: update README to include librsvg and format information
 
 # TODO: pdf output?

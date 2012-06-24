@@ -32,6 +32,10 @@ class REXML::Element
       yield element if block_given?
     end
   end
+  
+  def delete_self
+    parent.delete_element(self)
+  end
 end
 
 module HashHelpers
@@ -1060,6 +1064,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(layer_options)) do |tile_data|
             tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
             tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
+            tile_data.gsub! "ArialMT", "Arial"
           
             [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
               tile_data.gsub! regex do |match|
@@ -1113,11 +1118,6 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         
         tilesets.with_progress("Assembling: #{label}").each do |tileset, tile_offsets|
           tileset.each do | tile_xml, scale, type, xpath|
-            tile_xml.elements.each("//path[@d='']") { |path| path.parent.delete_element path }
-            while tile_xml.elements["//g[not(*)]"]
-              tile_xml.elements.each("//g[not(*)]") { |group| group.parent.delete_element group }
-            end
-            rerender(tile_xml, "expand", map.scale.to_f / scale) if scale && type == "layers"
             tile_xml.elements.collect(xpath) do |layer|
               [ layer, layer.attributes["id"] ]
             end.select do |layer, id|
@@ -1126,6 +1126,29 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
               tile_transform = "translate(#{tile_offsets.join ' '})"
               clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(SEGMENT)})"
               layers[id].add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
+                layer.elements.each(".//path[@d='']", &:delete_self)
+                while layer.elements[".//g[not(*)]"]
+                  layer.elements.each(".//g[not(*)]", &:delete_self)
+                end
+                case type
+                when "layers"
+                  rerender(layer, "expand", map.scale.to_f / scale) if scale
+                when "labels"
+                  # # TODO??
+                  # layer.elements.each(".//pattern | .//path", &:delete_self)
+                  # fonts_used = layer.elements.collect(".//*[@font-family]") do |element|
+                  #   element.attributes["font-family"].gsub(/[\s\-]/, "")
+                  # end.uniq
+                  # fonts_missing = fonts_used - fonts_present
+                  # layer.elements.each(".//font[./font-face[@font-family]]") do |font|
+                  #   family = font.elements["font-face"].attributes["font-family"].gsub(/[\s\-]/, "")
+                  #   font.delete_self if fonts_missing.include? family
+                  # end
+                  layer.elements.each(".//pattern | .//path | .//font", &:delete_self)
+                  layer.deep_clone.tap do |copy|
+                    copy.elements.each(".//text") { |text| text.add_attribute("stroke", "white") }
+                  end.elements.each { |element| tile << element }
+                end
                 layer.elements.each { |element| tile << element }
               end
             end
@@ -1922,10 +1945,17 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
               puts "Failed to render #{label}: #{e.message}"
             end
           end
-          fonts = svg.elements.collect("//[@font-family]") { |element| element.attributes["font-family"] }.uniq
-          if fonts.any?
-            puts "Fonts used in #{map.name}.svg:"
-            fonts.sort.each { |font| puts "  #{font}" }
+          
+          fonts_needed = svg.elements.collect("//[@font-family]") do |element|
+            element.attributes["font-family"].gsub(/[\s\-]/, "")
+          end.uniq
+          fonts_present = %x[identify -list font].scan(/(family|font):(.*)/i).map(&:last).flatten.map do |family|
+            family.gsub(/[\s\-]/, "")
+          end.uniq
+          fonts_missing = fonts_needed - fonts_present
+          if fonts_missing.any?
+            puts "Your system does not include some fonts used in #{map.name}.svg. (Substitute fonts will be used.)"
+            fonts_missing.sort.each { |family| puts "  #{family}" }
           end
         end.write(file)
       end
@@ -1981,6 +2011,7 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
+# TODO: solve problem with non-existent yet referenced ids in labels group
 # TODO: librsvg not rendering patterns... (try libsvg, libsvg-cairo, etc.)
 # TODO: update README to include librsvg and format information
 

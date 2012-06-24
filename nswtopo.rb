@@ -1064,7 +1064,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(layer_options)) do |tile_data|
             tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
             tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
-            tile_data.gsub! "ArialMT", "Arial"
+            tile_data.gsub! /Arial\s?MT/, "Arial"
           
             [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
               tile_data.gsub! regex do |match|

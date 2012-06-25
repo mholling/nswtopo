@@ -302,14 +302,15 @@ Once the master map file has been created in SVG format, other output formats ma
     - pdf
     - map
     - prj
+    - wkt
     - wld
 
 * `.png`, `.tif`, `.gif` and `.jpg` are all raster image formats. PNG is recommended. The TIFF format includes [GeoTIFF](http://en.wikipedia.org/wiki/GeoTIFF) metadata, and may be used in any GIS software which supports GeoTIFF. JPG is not recommended, as it not optimal for line art and produces ugly artefacts.
 * `.kmz` is a map format used with [Google Earth](http://earth.google.com) and for publishing interactive maps on the web. (This would be useful for publishing rogaine map and NavLight data.)
 * `.pdf` is the well-known document format; map is retained as vector data within the PDF.
-* `.map` is the [OziExplorer](http://www.oziexplorer.com/) map file format (a companion PNG image will also be created).
-* `.prj` gives a simple text file containing the map's projection as a [PROJ.4](http://trac.osgeo.org/proj/) string (as used by the GDAL tools).
-* `.wld` yields a corresponding [ESRI world file](http://en.wikipedia.org/wiki/World_file) for the raster images, and may be used in conjunction with the map projection file to georeference the image.
+* `.map` specifies the [OziExplorer](http://www.oziexplorer.com/) map file format.
+* `.prj` and `.wkt` give simple text files containing the map's projection as a [PROJ.4](http://trac.osgeo.org/proj/) string and in [well-known text](http://en.wikipedia.org/wiki/Well-known_text), respectively.
+* `.wld` yields a corresponding [ESRI world file](http://en.wikipedia.org/wiki/World_file) for the raster images, and may be used in conjunction with a map projection file to georeference the image.
 
 If you make manual edits to the master (SVG) map, you can regenerate any other output formats you have specified simply by deleting those files. Running the script will regenerate them.
 
@@ -391,7 +392,7 @@ If you need your map to be in a UTM projection (aligned to grid north rather tha
 
     utm: true
 
-TODO: How to produce a georeferenced map raster (not yet implemented)
+Two formats of georeferenced output images are available. You can specify `tif` in the formats list to create a GeoTIFF image for the map. GeoTIFFs can be used by many commercial and open-source GIS software (e.g. [QGIS](http://www.qgis.org/), [Grass](http://grass.fbk.eu/)). [OziExplorer](http://www.oziexplorer.com/) `.map` files can also be created by specifying `map` as an output format.
 
 Customising Topographic Rendering
 =================================
@@ -413,4 +414,4 @@ Release History
   * 7/3/2012: version 0.4.4: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity; added overlay layers from GPX/KML/etc files
 * 3/6/2012: version 0.5: Substantial rewrite to use the new NSW ArcGIS server
   * 4/6/2012: 0.5.1: added metadata to identify layers correctly to Inkscape
-  * 25/6/2012: HEAD: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default config.yml file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map
+  * 25/6/2012: HEAD: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default config.yml file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wkt, .wld, .map

@@ -421,6 +421,7 @@ render:
       end
 
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
+      # TODO: generate wkt using gdalsrsinfo?
       if config["utm"]
         zone = GridServer.zone(@projection_centre, WGS84)
         central_meridian = GridServer.central_meridian(zone)
@@ -1993,7 +1994,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       FileUtils.mv tmp_svg_path, svg_path
     end unless File.exists? svg_path
     
-    formats = config["formats"].map(&:downcase) & %w[png tif gif jpg kmz pdf map prj wld]
+    formats = config["formats"].map(&:downcase) & %w[png tif gif jpg kmz pdf map prj wkt wld]
     formats |= %w[png] if formats.include? "map"
     formats.reject! { |format| File.exists? "#{map.name}.#{format}" }
     
@@ -2017,6 +2018,8 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           map.write_oziexplorer_map(path, map.name, "#{map.name}.png")
         when "prj"
           File.write(path, map.projection)
+        when "wkt"
+          File.write(path, %x[gdalsrsinfo -o wkt "#{map.projection}"])
         when "wld"
           map.write_world_file(path)
         when "kmz"
@@ -2041,14 +2044,13 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: update README to include librsvg and format information
 # TODO: check batik rasteriser works correctly
-# TODO: format options for tif (geotiff or not) and pdf (vector or raster)
+# TODO: format options for tif (geotiff or not) and pdf (vector or raster) and prj (proj4, wkt, esri_wkt, etc.)
 # TODO: fix missing dpi & units in geotiff output
 # TODO: make label glow colour and opacity configurable?
 # TODO: put glow on control labels?
-# TODO: add .wkt as format option for well-known text format
 # TODO: rename config.yml as nswtopo.cfg
+# TODO: use 1.0 for Transverse Mercator scale factor instead of 0.9996
 
 # TODO: allow user-selectable contours?
 # TODO: allow configuration to specify patterns?

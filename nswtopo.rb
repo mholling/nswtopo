@@ -425,12 +425,15 @@ render:
       # TODO: generate wkt using gdalsrsinfo?
       if config["utm"]
         zone = GridServer.zone(@projection_centre, WGS84)
-        central_meridian = GridServer.central_meridian(zone)
+        @central_meridian = GridServer.central_meridian(zone)
+        @scale_factor = 0.9996
         @projection = "+proj=utm +zone=#{zone} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-        @wkt = %Q{PROJCS["WGS_1984_UTM_Zone_#{zone}S",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["central_meridian",#{central_meridian}],PARAMETER["Latitude_Of_Origin",0],PARAMETER["Scale_Factor",0.9996],UNIT["Meter",1.0]]}
+        @wkt = %Q{PROJCS["WGS_1984_UTM_Zone_#{zone}S",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["central_meridian",#{@central_meridian}],PARAMETER["Latitude_Of_Origin",0.0],PARAMETER["Scale_Factor",#{@scale_factor}],UNIT["Meter",1.0]]}
       else
-        @projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{@projection_centre.first} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
-        @wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{@projection_centre.first}],PARAMETER["Latitude_Of_Origin",0.0],PARAMETER["Scale_Factor",0.9996],UNIT["Meter",1.0]]}
+        @central_meridian = @projection_centre.first
+        @scale_factor = 1.0
+        @projection = "+proj=tmerc +lat_0=0.0 +lon_0=#{@central_meridian} +k=#{@scale_factor} +x_0=500000.0 +y_0=10000000.0 +ellps=WGS84 +datum=WGS84 +units=m"
+        @wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{@central_meridian}],PARAMETER["Latitude_Of_Origin",0.0],PARAMETER["Scale_Factor",#{@scale_factor}],UNIT["Meter",1.0]]}
       end
       
       @declination = config["declination"]["angle"]
@@ -504,7 +507,7 @@ Reserved 2
 Magnetic Variation,,,E
 Map Projection,Transverse Mercator,PolyCal,No,AutoCalOnly,Yes,BSBUseWPX,No
 #{calibration_strings.join ?\n}
-Projection Setup,0.000000000,#{@projection_centre.first},0.999600000,500000.00,10000000.00,,,,,
+Projection Setup,0.000000000,#{@central_meridian},#{@scale_factor},500000.00,10000000.00,,,,,
 Map Feature = MF ; Map Comment = MC     These follow if they exist
 Track File = TF      These follow if they exist
 Moving Map Parameters = MM?    These follow if they exist
@@ -1411,7 +1414,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   class DeclinationServer < AnnotationServer
     def draw(group, options, map)
       centre = Bounds.transform(map.projection, WGS84, map.bounds).map { |bound| 0.5 * bound.inject(:+) }
-      projection = "+proj=tmerc +lat_0=0.000000000 +lon_0=#{centre[0]} +k=0.999600 +x_0=500000.000 +y_0=10000000.000 +ellps=WGS84 +datum=WGS84 +units=m"
+      projection = "+proj=tmerc +lat_0=0.0 +lon_0=#{centre[0]} +k=1.0 +x_0=500000.0 +y_0=10000000.0 +ellps=WGS84 +datum=WGS84 +units=m"
       spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
       bounds = Bounds.transform(map.projection, projection, map.bounds)
       extents = bounds.map { |bound| bound.max - bound.min }
@@ -2056,13 +2059,9 @@ if File.identical?(__FILE__, $0)
 end
 
 # # pre- version bump:
-
 # TODO: fix missing dpi & units in geotiff output
 # TODO: rename config.yml as nswtopo.cfg
 # TODO: KMZ not working when saved to My Places!
-
-# TODO: use 1.0 for Transverse Mercator scale factor instead of 0.9996
-# TODO: update OziExplorer .map to use @central_meridian (allows for utm projection) (check for other related problems!)
 
 # # later:
 # TODO: make label glow colour and opacity configurable?

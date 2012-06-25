@@ -434,4 +434,4 @@ Release History
   * 7/3/2012: version 0.4.4: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity; added overlay layers from GPX/KML/etc files
 * 3/6/2012: version 0.5: Substantial rewrite to use the new NSW ArcGIS server
   * 4/6/2012: 0.5.1: added metadata to identify layers correctly to Inkscape
-  * 25/6/2012: HEAD: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default config.yml file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map
+  * 25/6/2012: HEAD: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default config.yml file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map; switched from 0.9996 to 1.0 for transverse mercator scale factor;

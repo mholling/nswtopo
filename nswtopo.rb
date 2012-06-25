@@ -1719,12 +1719,13 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         when "png" then %Q[--without-gui --file="#{svg_path}" --export-png="#{path}" --export-width=#{map.dimensions.first} --export-height=#{map.dimensions.last} --export-background="#FFFFFF"]
         end
         %x["#{rasterise}" #{args}]
-      when /batik-rasterizer\.jar/
+      when /batik/
         args = case format
         when "pdf" then %Q[-d "#{path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
         when "png" then %Q[-d "#{path}" -bg 255.255.255.255 -m image/png -w #{map.dimensions.first} -h #{map.dimensions.last} "#{svg_path}"]
         end
-        %x[java -jar "#{rasterise}" #{args}]
+        jar_path = File.join(rasterise, 'batik-rasterizer.jar')
+        %x[java -jar "#{jar_path}" #{args}]
       when /rsvg-convert/
         args = case format
         when "pdf" then %Q[--background-color white --format pdf --output "#{path}" "#{svg_path}"]
@@ -1732,7 +1733,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         end
         %x["#{rasterise}" #{args}]
       else
-        abort("Error: specify either inkscape, batik-rasterizer.jar, or rsvg-convert as your rasterise method (see README).")
+        abort("Error: specify either inkscape or batik as your rasterise method (see README).")
       end
       %x[mogrify -units PixelsPerInch -density #{map.ppi} -type TrueColor "#{path}"] if format == "png"
     end
@@ -2051,6 +2052,7 @@ end
 # TODO: put glow on control labels?
 # TODO: rename config.yml as nswtopo.cfg
 # TODO: use 1.0 for Transverse Mercator scale factor instead of 0.9996
+# TODO: hide Inkscape warnings when rasterising?
 
 # TODO: allow user-selectable contours?
 # TODO: allow configuration to specify patterns?

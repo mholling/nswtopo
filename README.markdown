@@ -24,7 +24,7 @@ The following open-source packages are required in order to run the script:
 
 An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also be useful for creating a custom background canvas for your map.
 
-The [Batik SVG rasterizer](http://xmlgraphics.apache.org/batik/tools/rasterizer.html) can also be used as an alternative to Inkscape for rasterising your map (i.e. converting to an image file format such as PNG or TIF). It gives slightly nicer results, but needs a [Java Runtime Environment](http://java.com/en/download/) to be installed (if you don't already have one).
+The [Batik SVG toolkit](http://xmlgraphics.apache.org/batik/tools/rasterizer.html) can also be used as an alternative to Inkscape for rasterising your map (i.e. converting to an image file format such as PNG or TIF). It gives slightly nicer results, but needs a [Java Runtime Environment](http://java.com/en/download/) to be installed (if you don't already have one).
 
 Finally, a geographic viewing or mapping program such as [Google Earth](http://earth.google.com) or [OziExplorer](http://www.oziexplorer.com/) is very useful for easily specifying the area you wish to create a map for, and for viewing your resulting map in conjunction with GPS data.
 
@@ -312,11 +312,13 @@ Once the master map file has been created in SVG format, other output formats ma
 * `.prj` and `.wkt` give simple text files containing the map's projection as a [PROJ.4](http://trac.osgeo.org/proj/) string and in [well-known text](http://en.wikipedia.org/wiki/Well-known_text), respectively.
 * `.wld` yields a corresponding [ESRI world file](http://en.wikipedia.org/wiki/World_file) for the raster images, and may be used in conjunction with a map projection file to georeference the image.
 
-If you make manual edits to the master (SVG) map, you can regenerate any other output formats you have specified simply by deleting those files. Running the script will regenerate them.
+If you make manual edits to the master (SVG) map, you can regenerate any other output formats you have specified simply by deleting those files. Running the script will regenerate them.\
+
+(When generating images with Inkscape, some warnings may display but these are probably safe to ignore.)
 
 ## Producing Raster Images
 
-To produce your map in PDF or any raster format (PNG, TIFF, GIF, JPG, KMZ), you must have either [Inkscape](http://inkscape.org/) or the [Batik SVG rasterizer](http://xmlgraphics.apache.org/batik/tools/rasterizer.html) installed. Then set your configuration file as follows:
+To produce your map in PDF or any raster format (PNG, TIFF, GIF, JPG, KMZ), you must have either [Inkscape](http://inkscape.org/) or the [Batik SVG toolkit](http://xmlgraphics.apache.org/batik/download.cgi) installed (get the binary distribution). Then set your configuration file as follows:
 
 * To use Inkscape for rasterising:
 
@@ -328,9 +330,9 @@ To produce your map in PDF or any raster format (PNG, TIFF, GIF, JPG, KMZ), you 
 
   (Or the corresponding `C:\Program Files\Inkscape\inkscape.exe` path in Windows.)
 
-* To use the Batik SVG rasteriser, add the path where you've downloaded the `batik-rasterizer.jar` file:
+* To use the Batik SVG rasteriser, specify the path where you've downloaded and unzipped the Batik binary distribution:
 
-        rasterise: /path/to/batik-rasterizer.jar
+        rasterise: /Users/matthew/nswtopo/batik-1.7
 
 Suggested Workflow for Rogaining Maps
 =====================================

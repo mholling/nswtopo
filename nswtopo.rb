@@ -138,6 +138,7 @@ module NSWTopo
   OP = WINDOWS ? '(' : '\('
   CP = WINDOWS ? ')' : '\)'
   ZIP = WINDOWS ? "7z a -tzip" : "zip"
+  DISCARD_STDERR = WINDOWS ? "2>/dev/null" : "2> nul"
   
   CONFIG = %q[---
 name: map
@@ -1718,7 +1719,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         when "pdf" then %Q[--without-gui --file="#{svg_path}" --export-pdf="#{path}"]
         when "png" then %Q[--without-gui --file="#{svg_path}" --export-png="#{path}" --export-width=#{map.dimensions.first} --export-height=#{map.dimensions.last} --export-background="#FFFFFF"]
         end
-        %x["#{rasterise}" #{args}]
+        %x["#{rasterise}" #{args} #{DISCARD_STDERR}]
       when /batik/
         args = case format
         when "pdf" then %Q[-d "#{path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
@@ -1995,32 +1996,41 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       FileUtils.mv tmp_svg_path, svg_path
     end unless File.exists? svg_path
     
-    formats = config["formats"].map(&:downcase) & %w[png tif gif jpg kmz pdf map prj wkt wld]
+    options = config["formats"].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
+    formats = options.keys & %w[png tif gif jpg kmz pdf map prj wld]
     formats |= %w[png] if formats.include? "map"
     formats.reject! { |format| File.exists? "#{map.name}.#{format}" }
     
     Dir.mktmpdir do |temp_dir|
       puts "Generating requested output formats:"
       png_path = File.join temp_dir, "#{map.name}.png"
-      png = (formats & %w[tif gif jpg kmz]).any? ? "png" : nil
-      [ *png, *formats ].uniq.each do |format|
+      extras = []
+      extras |= %w[png] if (formats & %w[tif gif jpg kmz]).any?
+      extras |= %w[png] if formats.include?("pdf") && options["pdf"] == "raster"
+      [ *extras, *formats ].uniq.each do |format|
         item = format != "png" || formats.include?("png") ? "#{map.name}.#{format}" : "intermediate raster"
         puts "  Generating #{item}"
         path = File.join temp_dir, "#{map.name}.#{format}"
         case format
-        when "png", "pdf"
+        when "png"
           Raster.build(config["rasterise"], format, map, svg_path, path)
+        when "pdf"
+          options[format] == "raster" ?
+            %x[convert "#{png_path}" "#{path}"] :
+            Raster.build(config["rasterise"], format, map, svg_path, path)
         when "tif"
-          map.write_world_file("#{path}w")
-          map.write_world_file("#{png_path}w")
-          # TODO: get dpi and units into this tiff somehow?
-          %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -co "COMPRESS=LZW" "#{png_path}" "#{path}"]
+          case options[format]
+          when /geo/
+            [ path, png_path ].each { |img_path| map.write_world_file "#{img_path}w" }
+            %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -co "COMPRESS=LZW" "#{png_path}" "#{path}"]
+            # TODO: get dpi and units into this tiff somehow?
+          else
+            %x[convert -units PixelsPerInch -density #{map.ppi} "#{png_path}" "#{path}"]
+          end
         when "map"
           map.write_oziexplorer_map(path, map.name, "#{map.name}.png")
         when "prj"
-          File.write(path, map.projection)
-        when "wkt"
-          File.write(path, %x[gdalsrsinfo -o wkt "#{map.projection}"])
+          File.write(path, %x[gdalsrsinfo -o #{options[format] || 'proj4'} "#{map.projection}"])
         when "wld"
           map.write_world_file(path)
         when "kmz"
@@ -2045,15 +2055,18 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: check batik rasteriser works correctly
-# TODO: format options for tif (geotiff or not) and pdf (vector or raster) and prj (proj4, wkt, esri_wkt, etc.)
+# # pre- version bump:
+
 # TODO: fix missing dpi & units in geotiff output
+# TODO: rename config.yml as nswtopo.cfg
+# TODO: KMZ not working when saved to My Places!
+
+# TODO: use 1.0 for Transverse Mercator scale factor instead of 0.9996
+# TODO: update OziExplorer .map to use @central_meridian (allows for utm projection) (check for other related problems!)
+
+# # later:
 # TODO: make label glow colour and opacity configurable?
 # TODO: put glow on control labels?
-# TODO: rename config.yml as nswtopo.cfg
-# TODO: use 1.0 for Transverse Mercator scale factor instead of 0.9996
-# TODO: hide Inkscape warnings when rasterising?
-
 # TODO: allow user-selectable contours?
 # TODO: allow configuration to specify patterns?
 # TODO: refactor options["render"] stuff?

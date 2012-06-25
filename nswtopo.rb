@@ -1146,7 +1146,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
                   # end
                   layer.elements.each(".//pattern | .//path | .//font", &:delete_self)
                   layer.deep_clone.tap do |copy|
-                    copy.elements.each(".//text") { |text| text.add_attribute("stroke", "white") }
+                    copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
                   end.elements.each { |element| tile << element }
                 end
                 layer.elements.each { |element| tile << element }
@@ -1508,6 +1508,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   class ControlServer < AnnotationServer
     def draw(group, options, map)
       return unless params["file"]
+      gps = GPS.new(File.join Dir.pwd, params["file"])
       radius = 0.5 * params["diameter"]
       strokewidth = params["thickness"]
       fontfamily = params["family"]
@@ -1517,7 +1518,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         [ /HH/,      :triangle, params["colour"] ],
         [ /W/,       :water,    params["water-colour"] ],
       ].each do |selector, type, colour|
-        GPS.new(params["file"]).waypoints.map do |waypoint, name|
+        gps.waypoints.map do |waypoint, name|
           [ yield(waypoint, WGS84), name[selector] ]
         end.select do |point, label|
           label
@@ -1705,6 +1706,34 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         Dir.chdir(kmz_dir) { %x[#{ZIP} -r "#{temp_kmz_path}" *] }
         FileUtils.mv(temp_kmz_path, kmz_path)
       end
+    end
+  end
+  
+  module Raster
+    def self.build(rasterise, format, map, svg_path, path)
+      case rasterise
+      when /inkscape/i
+        args = case format
+        when "pdf" then %Q[--without-gui --file="#{svg_path}" --export-pdf="#{path}"]
+        when "png" then %Q[--without-gui --file="#{svg_path}" --export-png="#{path}" --export-width=#{map.dimensions.first} --export-height=#{map.dimensions.last} --export-background="#FFFFFF"]
+        end
+        %x["#{rasterise}" #{args}]
+      when /batik-rasterizer\.jar/
+        args = case format
+        when "pdf" then %Q[-d "#{path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
+        when "png" then %Q[-d "#{path}" -bg 255.255.255.255 -m image/png -w #{map.dimensions.first} -h #{map.dimensions.last} "#{svg_path}"]
+        end
+        %x[java -jar "#{rasterise}" #{args}]
+      when /rsvg-convert/
+        args = case format
+        when "pdf" then %Q[--background-color white --format pdf --output "#{path}" "#{svg_path}"]
+        when "png" then %Q[--background-color white --format png --output "#{path}" --width #{map.dimensions.first} --height #{map.dimensions.last} "#{svg_path}"]
+        end
+        %x["#{rasterise}" #{args}]
+      else
+        abort("Error: specify either inkscape, batik-rasterizer.jar, or rsvg-convert as your rasterise method (see README).")
+      end
+      %x[mogrify -units PixelsPerInch -density #{map.ppi} -type TrueColor "#{path}"] if format == "png"
     end
   end
   
@@ -1930,10 +1959,12 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       options["server"].download(label, options, map)
     end
     
+    svg_name = "#{map.name}.svg"
+    svg_path = File.join Dir.pwd, svg_name
     Dir.mktmpdir do |temp_dir|
-      puts "Compositing layers to #{map.name}.svg:"
-      svg_path = File.join(temp_dir, "#{map.name}.svg")
-      File.open(svg_path, "w") do |file|
+      puts "Compositing layers to #{svg_name}:"
+      tmp_svg_path = File.join(temp_dir, svg_name)
+      File.open(tmp_svg_path, "w") do |file|
         map.svg do |svg|
           layers.select do |label, options|
             labels.include? label
@@ -1954,15 +1985,15 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           end.uniq
           fonts_missing = fonts_needed - fonts_present
           if fonts_missing.any?
-            puts "Your system does not include some fonts used in #{map.name}.svg. (Substitute fonts will be used.)"
+            puts "Your system does not include some fonts used in #{svg_name}. (Substitute fonts will be used.)"
             fonts_missing.sort.each { |family| puts "  #{family}" }
           end
         end.write(file)
       end
-      FileUtils.mv svg_path, Dir.pwd
-    end unless File.exists? "#{map.name}.svg"
+      FileUtils.mv tmp_svg_path, svg_path
+    end unless File.exists? svg_path
     
-    formats = config["formats"].map(&:downcase) & %w[png tif gif jpg kmz map prj wld]
+    formats = config["formats"].map(&:downcase) & %w[png tif gif jpg kmz pdf map prj wld]
     formats |= %w[png] if formats.include? "map"
     formats.reject! { |format| File.exists? "#{map.name}.#{format}" }
     
@@ -1971,13 +2002,12 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       png_path = File.join temp_dir, "#{map.name}.png"
       png = (formats & %w[tif gif jpg kmz]).any? ? "png" : nil
       [ *png, *formats ].uniq.each do |format|
-        puts "  Generating #{map.name}.#{format}"
+        item = format != "png" || formats.include?("png") ? "#{map.name}.#{format}" : "intermediate raster"
+        puts "  Generating #{item}"
         path = File.join temp_dir, "#{map.name}.#{format}"
         case format
-        when "png"
-          tmp_path = File.join temp_dir, "#{map.name}.temp.png"
-          %x[rsvg-convert --dpi-x #{map.ppi} --dpi-y #{map.ppi} --width #{map.dimensions.first} --height #{map.dimensions.last} --background-color white --format png --output "#{tmp_path}" "#{map.name}.svg" ]
-          %x[convert "#{tmp_path}" -units PixelsPerInch -density #{map.ppi} -type TrueColor "#{path}"]
+        when "png", "pdf"
+          Raster.build(config["rasterise"], format, map, svg_path, path)
         when "tif"
           map.write_world_file("#{path}w")
           map.write_world_file("#{png_path}w")
@@ -2011,16 +2041,17 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: solve problem with non-existent yet referenced ids in labels group
-# TODO: librsvg not rendering patterns... (try libsvg, libsvg-cairo, etc.)
 # TODO: update README to include librsvg and format information
+# TODO: check batik rasteriser works correctly
+# TODO: format options for tif (geotiff or not) and pdf (vector or raster)
+# TODO: fix missing dpi & units in geotiff output
+# TODO: make label glow colour and opacity configurable?
+# TODO: put glow on control labels?
+# TODO: add .wkt as format option for well-known text format
+# TODO: rename config.yml as nswtopo.cfg
 
-# TODO: pdf output?
-# TODO: fix missing dpi & units in tiff output
 # TODO: allow user-selectable contours?
 # TODO: allow configuration to specify patterns?
 # TODO: refactor options["render"] stuff?
 # TODO: regroup all <defs> into single <defs>
-# TODO: rendering final SVG back to PNG/GeoTIFF with georeferencing
-# TODO: put long command lines into text file...
 

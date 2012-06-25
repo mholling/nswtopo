@@ -3,7 +3,7 @@ __[30/5/12: N.B. This is a new version of the nswtopo program and makes use of d
 Summary
 =======
 
-This software allows you to download and compile high-resolution vector topographic maps from the NSW geospatial data servers, covering much of NSW and the ACT. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) format for use and further editing with vector graphics programs such as Inkscape or Illustrator.
+This software allows you to download and compile high-resolution vector topographic maps from the NSW geospatial data servers, covering much of NSW and the ACT. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. Other map formats including raster, KMZ and GeoTIFF can also be produced.
 
 This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
 
@@ -12,27 +12,34 @@ A few limitations currently exist when using the software. In particular, *map d
 Pre-Requisites
 ==============
 
-The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac, has also been tested on Windows and Ubuntu Linux.
+The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac but has also been tested on Windows and Ubuntu Linux.
 
 The following open-source packages are required in order to run the script:
 
 * The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.3, not 1.8.x.
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data.
+* [Inkscape](http://inkscape.org/) (a vector graphics editing program), if you wish to make manual edits or additions to your map, or to create secondary raster formats such as PNG, TIFF or KMZ.
+* A zip command utility, if you wish to produce KMZ maps.
 
-If you plan to make further enhancements, manual corrections or additions to your maps, you'll also need a vector graphics editing program such as [Inkscape](http://inkscape.org/), or Adobe Illustrator. An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also be useful for creating a custom background canvas for your map.
+An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also be useful for creating a custom background canvas for your map.
 
-Finally, a geographic viewing or mapping program such as [Google Earth](http://earth.google.com) is very useful for easily specifying the area you wish to create a map for.
+The [Batik SVG rasterizer](http://xmlgraphics.apache.org/batik/tools/rasterizer.html) can also be used as an alternative to Inkscape for rasterising your map (i.e. converting to an image file format such as PNG or TIF). It gives slightly nicer results, but needs a [Java Runtime Environment](http://java.com/en/download/) to be installed (if you don't already have one).
+
+Finally, a geographic viewing or mapping program such as [Google Earth](http://earth.google.com) or [OziExplorer](http://www.oziexplorer.com/) is very useful for easily specifying the area you wish to create a map for, and for viewing your resulting map in conjunction with GPS data.
 
 * _Windows_:
   * A complete Ruby 1.9.3 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
   * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php#windows) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
   * GDAL is best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the _FWTools Shell_ to run the `nswtopo.rb` script. (Another distribution containing the required packages is [OSGeo4W](http://trac.osgeo.org/osgeo4w/).)
+  * Download and install [Inkscape](http://inkscape.org/download/).
+  * (If you want to create KMZ maps, install [7-Zip](http://www.7-zip.org) and add its location, `C:\Program Files\7-Zip`, to your PATH following [these instructions](http://java.com/en/download/help/path.xml), using a semicolon to separate your addition.)
 * _Mac OS X_:
   * ImageMagick and GDAL can obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS; follow [these instructions](http://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install gdal` and `sudo port install imagemagick +q8`
-  * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software:frameworks#gdal_complete) for GDAL, and the instructions [here](http://www.imagemagick.org/script/binary-releases.php#macosx) for ImageMagick. This may or may not be quicker/easier than installing XCode and MacPorts!
-  * Depending on which Xcode version you have, Ruby 1.9.3 may already be available; type `ruby -v` in a terminal window to find this out. Otherwise, you can install Ruby 1.9.3 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/).
-* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL and Inkscape packages using your distro's package manager (RPM, Aptitude, etc).
+  * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software:frameworks#gdal_complete) for GDAL, and the instructions [here](http://www.imagemagick.org/script/binary-releases.php#macosx) for ImageMagick. (This may or may not be quicker/easier than installing XCode and MacPorts!)
+  * Type `ruby -v` in a terminal window to see whether a version 1.9.3 or greater Ruby already exists. If not, you can install Ruby 1.9.3 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/). (If you are using MacPorts, `sudo port install ruby19 +nosuffix` should also work.)
+  * Download and install Inkscape [here](http://inkscape.org/download/), or install it using MacPorts: `sudo port install inkscape`
+* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, Inkscape and zip packages using your distro's package manager (RPM, Aptitude, etc).
 
 You can check that the tools are correctly installed by using the following commands:
 
@@ -46,7 +53,11 @@ A large amount of memory is helpful. I developed the software on a 2Gb machine b
 
 ## Fonts
 
-A few point features of the map (camping grounds, picnic areas, mines, towers) use special ESRI fonts, namely 'ESRI Transportation & Civic', 'ESRI Environmental & Icons' and 'ESRI Telecom'. These will be listed if they are used in your map. If you wish them to display correctly (not essential), you need to install these fonts on your system, either by scrounging them from the internet or by installing [ArcGIS Explorer](http://www.esri.com/software/arcgis/explorer/index.html) and then downloading the [fonts expansion pack](http://webhelp.esri.com/arcgisexplorer/900/en/expansion_packs.htm) (Windows only).
+A few point features of the map (camping grounds, picnic areas, mines, towers) use special ESRI fonts, namely 'ESRI Transportation & Civic', 'ESRI Environmental & Icons' and 'ESRI Telecom'. Some Microsoft fonts (e.g. Cambria) may also be used. These fonts will be listed if they are used in your map but missing from your system.
+
+If you wish the fonts to display correctly (nice, but not essential), you need to obtain and install these fonts on your system, either by scrounging them from the internet, or as follows:
+* obtain the ESRI fonts by installing [ArcGIS Explorer](http://www.esri.com/software/arcgis/explorer/index.html) and then downloading the [fonts expansion pack](http://webhelp.esri.com/arcgisexplorer/900/en/expansion_packs.htm) (Windows only).
+* obtain the Microsoft fonts by having Microsoft products on your PC (ick). (Mac users can download the Microsoft Office trial, without installing it, and [extract the fonts](http://www.askdavetaylor.com/fix_missing_calibri_cambria_font_errors_iworks_numbers_pages.html).)
 
 Usage
 =====
@@ -277,12 +288,55 @@ In your configuration file, add your overlay files and specify their colours, op
 
 Build or rebuild your map by running the script to add the overlays. (Advanced users may alter the overlay rendering further using Inkscape, e.g. by adding dashes or dots to tracks or patterns to areas.)
 
+Output Formats
+==============
+
+Once the master map file has been created in SVG format, other output formats may be created by specifying their file extensions from among the following in your configuration file:
+
+    formats:
+    - png
+    - tif
+    - gif
+    - jpg
+    - kmz
+    - pdf
+    - map
+    - prj
+    - wld
+
+* `.png`, `.tif`, `.gif` and `.jpg` are all raster image formats. PNG is recommended. The TIFF format includes [GeoTIFF](http://en.wikipedia.org/wiki/GeoTIFF) metadata, and may be used in any GIS software which supports GeoTIFF. JPG is not recommended, as it not optimal for line art and produces ugly artefacts.
+* `.kmz` is a map format used with [Google Earth](http://earth.google.com) and for publishing interactive maps on the web. (This would be useful for publishing rogaine map and NavLight data.)
+* `.pdf` is the well-known document format; map is retained as vector data within the PDF.
+* `.map` is the [OziExplorer](http://www.oziexplorer.com/) map file format (a companion PNG image will also be created).
+* `.prj` gives a simple text file containing the map's projection as a [PROJ.4](http://trac.osgeo.org/proj/) string (as used by the GDAL tools).
+* `.wld` yields a corresponding [ESRI world file](http://en.wikipedia.org/wiki/World_file) for the raster images, and may be used in conjunction with the map projection file to georeference the image.
+
+If you make manual edits to the master (SVG) map, you can regenerate any other output formats you have specified simply by deleting those files. Running the script will regenerate them.
+
+## Producing Raster Images
+
+To produce your map in PDF or any raster format (PNG, TIFF, GIF, JPG, KMZ), you must have either [Inkscape](http://inkscape.org/) or the [Batik SVG rasterizer](http://xmlgraphics.apache.org/batik/tools/rasterizer.html) installed. Then set your configuration file as follows:
+
+* To use Inkscape for rasterising:
+
+        rasterise: inkscape
+
+  If your command line does not recognise the `inkscape` command, you may need to specify the full path. e.g. for the Mac:
+
+        rasterise: /Applications/Inkscape.app/Contents/Resources/bin/inkscape
+
+  (Or the corresponding `C:\Program Files\Inkscape\inkscape.exe` path in Windows.)
+
+* To use the Batik SVG rasteriser, add the path where you've downloaded the `batik-rasterizer.jar` file:
+
+        rasterise: /path/to/batik-rasterizer.jar
+
 Suggested Workflow for Rogaining Maps
 =====================================
 
 Here is a suggested workflow for producing a rogaine map using this software (alter according to your needs and tools):
 
-1.  Set out the expected bounds of your course using the polygon tool in Google Earth, and save as `bounds.kml`.
+1.  Set out the expected bounds of your course using the polygon tool in Google Earth, and save as `bounds.kml`. (Set the style to partially transparent to make this easier.)
 
 2.  Select all the topographic, aerial and reference layers, as well as landholdings, using the following configuration:
 
@@ -298,13 +352,13 @@ Here is a suggested workflow for producing a rogaine map using this software (al
 
 3.  Run the script to create your preliminary map, `rogaine.svg`.
 
-4.  Use the maps and aerial images to assiste you in setting your rogaine. Ideally, you will carry a GPS with you to record waypoints for all the controls you set.
+4.  Use the maps and aerial images to assist you in setting your rogaine. Ideally, you will carry a GPS with you to record waypoints for all the controls you set.
 
 5.  When you have finalised your control locations, use Google Earth to create a `controls.kml` file containing the control waypoints. This can either be directly from your GPS by uploading the waypoints, or by adding the waypoints manually in Google Earth.
 
 6.  In Google Earth, mark out any boundaries and out-of-bounds areas using the polygon tool, and save them all to a `boundaries.kml` file.
 
-6.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (topographic.svg, rogaine.svg, aerial-*.jpg, reference-*.jpg etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
+6.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (topographic.svg, rogaine.svg, aerial-\*.jpg, reference-\*.jpg etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
 
         name: rogaine
         bounds: controls.kml    # size the map to contain all the controls ...
@@ -359,4 +413,4 @@ Release History
   * 7/3/2012: version 0.4.4: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity; added overlay layers from GPX/KML/etc files
 * 3/6/2012: version 0.5: Substantial rewrite to use the new NSW ArcGIS server
   * 4/6/2012: 0.5.1: added metadata to identify layers correctly to Inkscape
-  * 21/6/2012: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default config.yml file stored in nswtopo.rb location
+  * 25/6/2012: HEAD: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default config.yml file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map

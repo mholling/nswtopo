@@ -24,7 +24,7 @@ The following open-source packages are required in order to run the script:
 
 An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also be useful for creating a custom background canvas for your map.
 
-The [Batik SVG toolkit](http://xmlgraphics.apache.org/batik/tools/rasterizer.html) can also be used as an alternative to Inkscape for rasterising your map (i.e. converting to an image file format such as PNG or TIF). It gives slightly nicer results, but needs a [Java Runtime Environment](http://java.com/en/download/) to be installed (if you don't already have one).
+The [Batik SVG toolkit](http://xmlgraphics.apache.org/batik/tools/rasterizer.html) can also be used as an alternative to Inkscape for rasterising your map (i.e. converting to an image file format such as PNG or TIF). It is recommended as it gives better results, but needs a [Java Runtime Environment](http://java.com/en/download/). (Your PC may already have Java; if not, installation is straightforward.)
 
 Finally, a geographic viewing or mapping program such as [Google Earth](http://earth.google.com) or [OziExplorer](http://www.oziexplorer.com/) is very useful for easily specifying the area you wish to create a map for, and for viewing your resulting map in conjunction with GPS data.
 
@@ -66,7 +66,7 @@ The software can be downloaded from [github](https://github.com/mholling/nswtopo
 
 You will first need to create a directory for the map you are building. Running the script will result in a various image files being downloaded, so a directory is needed to contain them.
 
-Most likely, you will also want to create a map configuration file called `config.yml` in order to customise your map. (This format of this file is [YAML](http://en.wikipedia.org/wiki/YAML), though you don't really need to know this.) This is a simple text file and can be edited with Notepad or whatever text editor you use. Save this file in your map directory as `config.yml` (be sure not to use `config.yml.txt` by mistake).
+Most likely, you will also want to create a map configuration file called `nswtopo.cfg` in order to customise your map. (This format of this file is [YAML](http://en.wikipedia.org/wiki/YAML), though you don't really need to know this.) This is a simple text file and can be edited with Notepad or whatever text editor you use. Save this file in your map directory as `nswtopo.cfg` (be sure not to use `nswtopo.cfg.txt` by mistake).
 
 ## Specifying the Map Bounds
 
@@ -130,7 +130,7 @@ You will likely want to tinker with the configuration file to change the appeara
 Map Configuration
 =================
 
-By editing `config.yml` you can customise many aspects of your map, including which additional layers to include. If no other configuration is provided, reasonable defaults are used. The customisation options are shown below with their default values. (*It is not necessary to provide these default values in your configuration file.*)
+By editing `nswtopo.cfg` you can customise many aspects of your map, including which additional layers to include. If no other configuration is provided, reasonable defaults are used. The customisation options are shown below with their default values. (*It is not necessary to provide these default values in your configuration file.*)
 
 Set the scale of the map as follows:
 
@@ -151,7 +151,7 @@ Set the filename for the output map and related files.
 Additional Layers
 =================
 
-Any or all of the following additional layers can be included in your map by listing them in the `include` option in your `config.yml` file. (At the very least, you will want to include `grid` for a normal map or `declination` for a rogaining map. The `relief` layer is also recommended, and in many cases the `vegetation` layer.)
+Any or all of the following additional layers can be included in your map by listing them in the `include` option in your `nswtopo.cfg` file. (At the very least, you will want to include `grid` for a normal map or `declination` for a rogaining map. The `relief` layer is also recommended, and in many cases the `vegetation` layer.)
 
     include:
     - aerial-lpi-eastcoast
@@ -295,9 +295,9 @@ Once the master map file has been created in SVG format, other output formats ma
 
     formats:
     - png
-    - tif
     - gif
     - jpg
+    - tif
     - kmz
     - pdf
     - map
@@ -306,26 +306,22 @@ Once the master map file has been created in SVG format, other output formats ma
 
 These file extensions produce the following file formats:
 
-* `png`, `tif`, `gif` and `jpg` are all raster image formats. PNG is recommended. TIFF is commonly required by print shops. JPG is not recommended, as it not optimal for line art and produces ugly artefacts.
+* `png`, `gif` and `jpg` are common raster image formats. PNG is recommended. JPG is not recommended, as it not suited to line art and produces ugly artefacts.
+* `tif` yields a TIFF image, a raster format commonly required by print shops. Additional [GeoTIFF](http://en.wikipedia.org/wiki/GeoTIFF) metadata is also included in the image, allowing it to be used in any GIS software which supports GeoTIFF.
 * `kmz` is a map format used with [Google Earth](http://earth.google.com) and for publishing interactive maps on the web. (This would be useful for publishing rogaine map and NavLight data.)
-* `pdf` is the well-known document format; the map is retained as vector data within the PDF.
+* `pdf` is the well-known document format.
 * `map` specifies the [OziExplorer](http://www.oziexplorer.com/) map file format.
 * `prj` gives a simple text file containing the map's projection as a [PROJ.4](http://trac.osgeo.org/proj/) string
 * `wld` yields a corresponding [ESRI world file](http://en.wikipedia.org/wiki/World_file) for the map raster, and may be used in conjunction with the projection file to georeference the image.
 
 Some of the above formats can have options associated with them, as follows:
 
-* The TIFF output can optionally include [GeoTIFF](http://en.wikipedia.org/wiki/GeoTIFF) metadata, allowing it to be used in any GIS software which supports GeoTIFF:
-
-        formats:
-        - tif: geotiff
- 
 * By default, the PDF format maintains the map data in vector form. By specifying `pdf: raster` you can instead embed the map in the PDF as a raster image:
 
         formats:
         - pdf: raster
 
-  (This option can increase the PDF file size, but has the benefit of a guaranteeing the map's final appearance; it should be considered if the map is being sent to a print shop.)
+  (This option can increase the PDF file size, but has the benefit of a guaranteeing the map's final appearance; it should be considered if the map is being sent as PDF to a print shop.)
 
 * Projection formats other than PROJ.4 are available. Any of the [format options listed here](http://www.gdal.org/gdalsrsinfo.html) may be specified; for example, the projection may be desired in [well-known text](http://en.wikipedia.org/wiki/Well-known_text) format:
 
@@ -336,7 +332,7 @@ Some of the above formats can have options associated with them, as follows:
 
 ## Producing Raster Images
 
-To produce your map in PDF or any raster format (PNG, TIFF, GIF, JPG, KMZ), you must have either [Inkscape](http://inkscape.org/) or the [Batik SVG toolkit](http://xmlgraphics.apache.org/batik/download.cgi) installed (get the binary distribution). Then set your configuration file as follows:
+To produce your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ), you must install either [Inkscape](http://inkscape.org/) or the [Batik SVG toolkit](http://xmlgraphics.apache.org/batik/download.cgi) (get the binary distribution). Then set your configuration file as follows:
 
 * To use Inkscape for rasterising:
 
@@ -351,6 +347,8 @@ To produce your map in PDF or any raster format (PNG, TIFF, GIF, JPG, KMZ), you 
 * To use the Batik SVG rasteriser, specify the path where you've downloaded and unzipped the Batik binary distribution:
 
         rasterise: /Users/matthew/nswtopo/batik-1.7
+
+If possible, the use of Batik is recommended as it produces nicer results. In particular, it scales up the low-resolution vegetation and shaded-relief layers to produce nice, smooth variations. (On the other hand, Inkscape renders large, blocky pixels when rendering the vegetation and shaded-relief layers. This looks somewhat strange and could suggest more accuracy in the vegetation layer than in fact exists. Inkscape also renders some area elements incorrectly.)
 
 Suggested Workflow for Rogaining Maps
 =====================================
@@ -412,7 +410,7 @@ If you need your map to be in a UTM projection (aligned to grid north rather tha
 
     utm: true
 
-Two formats of georeferenced output images are available. You can specify `tif` in the formats list to create a GeoTIFF image for the map. GeoTIFFs can be used by many commercial and open-source GIS software (e.g. [QGIS](http://www.qgis.org/), [Grass](http://grass.fbk.eu/)). [OziExplorer](http://www.oziexplorer.com/) `.map` files can also be created by specifying `map` as an output format.
+Several formats of georeferenced output image are available. You can specify `tif` in the formats list to create a GeoTIFF image for the map. GeoTIFFs can be used by many commercial and open-source GIS software (e.g. [QGIS](http://www.qgis.org/), [Grass](http://grass.fbk.eu/)). [OziExplorer](http://www.oziexplorer.com/) map files can also be created by specifying `map` as an output format. Finally, `kmz` will produces a KMZ file suitable for use with Google Earth.
 
 Customising Topographic Rendering
 =================================
@@ -434,4 +432,4 @@ Release History
   * 7/3/2012: version 0.4.4: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity; added overlay layers from GPX/KML/etc files
 * 3/6/2012: version 0.5: Substantial rewrite to use the new NSW ArcGIS server
   * 4/6/2012: 0.5.1: added metadata to identify layers correctly to Inkscape
-  * 25/6/2012: HEAD: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default config.yml file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map; switched from 0.9996 to 1.0 for transverse mercator scale factor;
+  * 25/6/2012: HEAD: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default nswtopo.cfg file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map; switched from 0.9996 to 1.0 for transverse mercator scale factor; changed config.yml to nswtopo.cfg

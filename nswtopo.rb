@@ -138,7 +138,7 @@ module NSWTopo
   OP = WINDOWS ? '(' : '\('
   CP = WINDOWS ? ')' : '\)'
   ZIP = WINDOWS ? "7z a -tzip" : "zip"
-  DISCARD_STDERR = WINDOWS ? "2>/dev/null" : "2> nul"
+  DISCARD_STDERR = WINDOWS ? "2> nul" : "2>/dev/null"
   
   CONFIG = %q[---
 name: map
@@ -1131,10 +1131,6 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
               tile_transform = "translate(#{tile_offsets.join ' '})"
               clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(SEGMENT)})"
               layers[id].add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
-                layer.elements.each(".//path[@d='']", &:delete_self)
-                while layer.elements[".//g[not(*)]"]
-                  layer.elements.each(".//g[not(*)]", &:delete_self)
-                end
                 case type
                 when "layers"
                   rerender(layer, "expand", map.scale.to_f / scale) if scale
@@ -1159,6 +1155,11 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
             end
           end
         end
+      end
+      
+      xml.elements.each("//path[@d='']", &:delete_self)
+      while xml.elements["//g[not(*)]"]
+        xml.elements.each("//g[not(*)]", &:delete_self)
       end
       
       File.join(temp_dir, "#{label}.svg").tap do |mosaic_path|
@@ -1744,8 +1745,12 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   end
   
   def self.run
-    unless %w[bounds.kml bounds.gpx config.yml].any? { |filename| File.exists?(File.join Dir.pwd, filename) }
-      abort "Error: no configuration or bounds file found."
+    unless File.exists?(File.join Dir.pwd, "nswtopo.cfg")
+      if File.exists?(File.join Dir.pwd, "bounds.kml")
+        puts "No nswtopo.cfg configuration file found. Using bounds.kml as map bounds."
+      else
+        abort "Error: could not find any configuration file (nswtopo.cfg) or bounds file (bounds.kml)."
+      end
     end
     
     default_config = YAML.load(CONFIG)
@@ -1759,7 +1764,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     end
     
     config = [ File.dirname(File.realdirpath(__FILE__)), Dir.pwd ].uniq.map do |dir|
-      File.join dir, "config.yml"
+      File.join dir, "nswtopo.cfg"
     end.select do |config_path|
       File.exists? config_path
     end.map do |config_path|
@@ -1955,6 +1960,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     end
     
     puts "Map details:"
+    puts "  name: #{map.name}"
     puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
     puts "  scale: 1:%i" % map.scale
     puts "  rotation: %.1f degrees" % map.rotation
@@ -2019,17 +2025,11 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           Raster.build(config["rasterise"], format, map, svg_path, path)
         when "pdf"
           options[format] == "raster" ?
-            %x[convert "#{png_path}" "#{path}"] :
+            %x[convert -units PixelsPerInch -density #{map.ppi} "#{png_path}" "#{path}"] :
             Raster.build(config["rasterise"], format, map, svg_path, path)
         when "tif"
-          case options[format]
-          when /geo/
-            [ path, png_path ].each { |img_path| map.write_world_file "#{img_path}w" }
-            %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -co "COMPRESS=LZW" "#{png_path}" "#{path}"]
-            # TODO: get dpi and units into this tiff somehow?
-          else
-            %x[convert -units PixelsPerInch -density #{map.ppi} "#{png_path}" "#{path}"]
-          end
+          map.write_world_file "#{png_path}w"
+          %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo TIFFTAG_XRESOLUTION=#{map.ppi} -mo TIFFTAG_YRESOLUTION=#{map.ppi} "#{png_path}" "#{path}"]
         when "map"
           map.write_oziexplorer_map(path, map.name, "#{map.name}.png")
         when "prj"
@@ -2059,15 +2059,15 @@ if File.identical?(__FILE__, $0)
 end
 
 # # pre- version bump:
-# TODO: fix missing dpi & units in geotiff output
-# TODO: rename config.yml as nswtopo.cfg
 # TODO: KMZ not working when saved to My Places!
 
 # # later:
+# TODO: rework projetions as a class (using gdalsrsinfo, etc.)
+# TODO: add separate ppi option for reduced-resolution KMZ output? (necessary?)
 # TODO: make label glow colour and opacity configurable?
+# TODO: remap airstrip label (plane) colour?
 # TODO: put glow on control labels?
 # TODO: allow user-selectable contours?
 # TODO: allow configuration to specify patterns?
 # TODO: refactor options["render"] stuff?
-# TODO: regroup all <defs> into single <defs>
-
+# TODO: regroup all <defs> into single <defs>?

@@ -132,8 +132,7 @@ end
 
 module NSWTopo
   EARTH_RADIUS = 6378137.0
-  WGS84 = "EPSG:4326"
-
+  
   WINDOWS = !RbConfig::CONFIG["host_os"][/mswin|mingw/].nil?
   OP = WINDOWS ? '(' : '\('
   CP = WINDOWS ? ')' : '\)'
@@ -395,6 +394,42 @@ render:
     end
   end
   
+  class Projection
+    def initialize(string)
+      @string = string
+    end
+    
+    %w[proj4 wkt wkt_simple wkt_noct wkt_esri mapinfo xml].map do |format|
+      [ format, "@#{format}" ]
+    end.map do |format, variable|
+      define_method format do
+        instance_variable_get(variable) || begin
+          instance_variable_set variable, %x[gdalsrsinfo -o #{format} "#{@string}"].split(/['\r\n]+/).map(&:strip).join("")
+        end
+      end
+    end
+    
+    alias_method :to_s, :proj4
+    
+    %w[central_meridian scale_factor].each do |parameter|
+      define_method parameter do
+        /PARAMETER\["#{parameter}",([\d\.]+)\]/.match(wkt) { |match| match[1].to_f }
+      end
+    end
+    
+    def self.utm(zone, south = true)
+      new("+proj=utm +zone=#{zone}#{' +south' if south} +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+    end
+    
+    def self.wgs84
+      new("EPSG:4326")
+    end
+    
+    def self.transverse_mercator(central_meridian, scale_factor)
+      new("+proj=tmerc +lat_0=0.0 +lon_0=#{central_meridian} +k=#{scale_factor} +x_0=500000.0 +y_0=10000000.0 +ellps=WGS84 +datum=WGS84 +units=m")
+    end
+  end
+  
   class Map
     def initialize(config)
       @name, @scale, @ppi = config.values_at("name", "scale", "ppi")
@@ -403,11 +438,13 @@ render:
       bounds_path = %w[bounds.kml bounds.gpx].find { |path| File.exists? path }
       wgs84_points = case
       when config["zone"] && config["eastings"] && config["northings"]
-        config.values_at("eastings", "northings").inject(:product).reproject("+proj=utm +zone=#{config["zone"]} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs", WGS84)
+        utm = Projection.utm(config["zone"])
+        config.values_at("eastings", "northings").inject(:product).reproject(utm, Projection.wgs84)
       when config["longitudes"] && config["latitudes"]
         config.values_at("longitudes", "latitudes").inject(:product)
       when config["size"] && config["zone"] && config["easting"] && config["northing"]
-        [ config.values_at("easting", "northing").reproject("+proj=utm +zone=#{config["zone"]} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs", WGS84) ]
+        utm = Projection.utm(config["zone"])
+        [ config.values_at("easting", "northing").reproject(utm, Projection.wgs84) ]
       when config["size"] && config["longitude"] && config["latitude"]
         [ config.values_at("longitude", "latitude") ]
       when config["bounds"] || bounds_path
@@ -422,19 +459,9 @@ render:
       end
 
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
-      # TODO: generate wkt using gdalsrsinfo?
-      if config["utm"]
-        zone = GridServer.zone(@projection_centre, WGS84)
-        @central_meridian = GridServer.central_meridian(zone)
-        @scale_factor = 0.9996
-        @projection = "+proj=utm +zone=#{zone} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-        @wkt = %Q{PROJCS["WGS_1984_UTM_Zone_#{zone}S",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["central_meridian",#{@central_meridian}],PARAMETER["Latitude_Of_Origin",0.0],PARAMETER["Scale_Factor",#{@scale_factor}],UNIT["Meter",1.0]]}
-      else
-        @central_meridian = @projection_centre.first
-        @scale_factor = 1.0
-        @projection = "+proj=tmerc +lat_0=0.0 +lon_0=#{@central_meridian} +k=#{@scale_factor} +x_0=500000.0 +y_0=10000000.0 +ellps=WGS84 +datum=WGS84 +units=m"
-        @wkt = %Q{PROJCS["",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.017453292519943295]],PROJECTION["Transverse_Mercator"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",#{@central_meridian}],PARAMETER["Latitude_Of_Origin",0.0],PARAMETER["Scale_Factor",#{@scale_factor}],UNIT["Meter",1.0]]}
-      end
+      @projection = config["utm"] ?
+        Projection.utm(GridServer.zone(@projection_centre, Projection.wgs84)) :
+        Projection.transverse_mercator(@projection_centre.first, 1.0)
       
       @declination = config["declination"]["angle"]
       config["rotation"] = -declination if config["rotation"] == "magnetic"
@@ -446,10 +473,10 @@ render:
         @rotation = config["rotation"]
         abort("Error: cannot specify map size and auto-rotation together") if @rotation == "auto"
         abort "Error: map rotation must be between +/-45 degrees" unless @rotation.abs <= 45
-        @centre = @projection_centre.reproject(WGS84, @projection)
+        @centre = @projection_centre.reproject(Projection.wgs84, @projection)
       else
         puts "Calculating map bounds..."
-        bounding_points = wgs84_points.reproject(WGS84, projection)
+        bounding_points = wgs84_points.reproject(Projection.wgs84, @projection)
         if config["rotation"] == "auto"
           @centre, @extents, @rotation = BoundingBox.minimum_bounding_box(bounding_points)
           @rotation *= 180.0 / Math::PI
@@ -475,7 +502,7 @@ render:
       abort "Error: #{e.message}"
     end
     
-    attr_reader :name, :scale, :projection, :wkt, :bounds, :extents, :dimensions, :rotation, :ppi, :resolution
+    attr_reader :name, :scale, :projection, :bounds, :extents, :dimensions, :rotation, :ppi, :resolution
     
     def write_world_file(world_file_path, metres_per_pixel = @resolution)
       topleft = [ @centre, @extents.rotate_by(-@rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
@@ -488,7 +515,7 @@ render:
       end.inject(:product).map do |offsets|
         [ @centre, offsets.rotate_by(rotation * Math::PI / 180.0) ].transpose.map { |coord, offset| coord + offset }
       end
-      wgs84_corners = corners.reproject(projection, WGS84).values_at(1,3,2,0)
+      wgs84_corners = corners.reproject(@projection, Projection.wgs84).values_at(1,3,2,0)
       pixel_corners = [ @dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
       calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
         dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
@@ -507,7 +534,7 @@ Reserved 2
 Magnetic Variation,,,E
 Map Projection,Transverse Mercator,PolyCal,No,AutoCalOnly,Yes,BSBUseWPX,No
 #{calibration_strings.join ?\n}
-Projection Setup,0.000000000,#{@central_meridian},#{@scale_factor},500000.00,10000000.00,,,,,
+Projection Setup,0.000000000,#{projection.central_meridian},#{projection.scale_factor},500000.00,10000000.00,,,,,
 Map Feature = MF ; Map Comment = MC     These follow if they exist
 Track File = TF      These follow if they exist
 Moving Map Parameters = MM?    These follow if they exist
@@ -735,7 +762,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
         map.write_world_file(tfw_path)
         resample = params["resample"] || "cubic"
-        projection = params["projection"]
+        projection = Projection.new(params["projection"])
         %x[gdalwarp -s_srs "#{projection}" -t_srs "#{map.projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
       end
       
@@ -752,7 +779,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       crops = params["crops"] || [ [ 0, 0 ], [ 0, 0 ] ]
     
       cropped_tile_sizes = [ tile_sizes, crops ].transpose.map { |tile_size, crop| tile_size - crop.inject(:+) }
-      projection = params["projection"]
+      projection = Projection.new(params["projection"])
       bounds = Bounds.transform(map.projection, projection, map.bounds)
       extents = bounds.map { |bound| bound.max - bound.min }
       origins = bounds.transpose.first
@@ -781,7 +808,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           [ origin + index * tile_size * resolution, origin + (index + 1) * tile_size * resolution ]
         end
   
-        longitude, latitude = centre.reproject(projection, WGS84)
+        longitude, latitude = centre.reproject(projection, Projection.wgs84)
   
         attributes = [ "longitude", "latitude", "zoom", "format", "hsize", "vsize", "name" ]
         values     = [  longitude,   latitude,   zoom,   format,      *tile_sizes,   name  ]
@@ -808,7 +835,8 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   
   class LPIOrthoServer < TiledServer
     def tiles(options, map, temp_dir)
-      bounds = Bounds.transform(map.projection, params["projection"], map.bounds)
+      projection = Projection.new(params["projection"])
+      bounds = Bounds.transform(map.projection, projection, map.bounds)
       images_regions = case
       when options["image"]
         { options["image"] => options["region"] }
@@ -1054,7 +1082,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
             { "layers" => "show:#{ids.join(?,)}", "layerDefs" => strings.join(?;) }
           when true
             { }
-          end.merge("dpi" => (scale || map.scale) * 0.0254 / resolution, "wkt" => map.wkt, "format" => "svg")
+          end.merge("dpi" => (scale || map.scale) * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "svg")
           xpath = type == "layers" ?
             "/svg//g[@id!='Labels' and not(.//g[@id])]" :
             "/svg//g[@id='Labels']"
@@ -1197,7 +1225,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     def get_raster(label, ext, options, map, temp_dir)
       scale = options["scale"] || map.scale
       resolution = options["resolution"] || map.resolution
-      layer_options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.wkt, "format" => "png32" }
+      layer_options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "png32" }
       
       dataset = tiles(map.bounds, resolution).with_progress("Downloading: #{label}").with_index.map do |(tile_bounds, tile_sizes, tile_offsets), tile_index|
         sleep params["interval"] if params["interval"]
@@ -1294,7 +1322,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     include EmbeddedRenderer
     
     def get_image(label, ext, options, map, temp_dir)
-      bounds = Bounds.transform(map.projection, WGS84, map.bounds)
+      bounds = Bounds.transform(map.projection, Projection.wgs84, map.bounds)
       bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
       counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
       resolution = params["resolution"]
@@ -1310,7 +1338,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         query = {
           "request" => "GetMap",
           "layers" => "gdem",
-          "srs" => WGS84,
+          "srs" => "EPSG:4326",
           "width" => 300,
           "height" => 300,
           "format" => "image/png",
@@ -1342,7 +1370,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       exaggeration = params["exaggeration"]
       %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{ppi} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
       %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
-      %x[gdalwarp -s_srs "#{WGS84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
+      %x[gdalwarp -s_srs "#{Projection.wgs84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
       
       File.join(temp_dir, "#{label}.#{ext}").tap do |output_path|
         %x[convert "#{tif_path}" -channel Red -separate -quiet -depth 8 "#{output_path}"]
@@ -1414,8 +1442,8 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   
   class DeclinationServer < AnnotationServer
     def draw(group, options, map)
-      centre = Bounds.transform(map.projection, WGS84, map.bounds).map { |bound| 0.5 * bound.inject(:+) }
-      projection = "+proj=tmerc +lat_0=0.0 +lon_0=#{centre[0]} +k=1.0 +x_0=500000.0 +y_0=10000000.0 +ellps=WGS84 +datum=WGS84 +units=m"
+      centre = Bounds.transform(map.projection, Projection.wgs84, map.bounds).map { |bound| 0.5 * bound.inject(:+) }
+      projection = Projection.transverse_mercator(centre.first, 1.0)
       spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
       bounds = Bounds.transform(map.projection, projection, map.bounds)
       extents = bounds.map { |bound| bound.max - bound.min }
@@ -1438,13 +1466,9 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   
   class GridServer < AnnotationServer
     def self.zone(coords, projection)
-      (coords.reproject(projection, WGS84).first / 6).floor + 31
+      (coords.reproject(projection, Projection.wgs84).first / 6).floor + 31
     end
     
-    def self.central_meridian(zone)
-      (zone - 31) * 6 + 3
-    end
-  
     def draw(group, options, map)
       interval = params["interval"]
       label_spacing = params["label-spacing"]
@@ -1458,7 +1482,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       end.inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
       end.each do |zone|
-        projection = "+proj=utm +zone=#{zone} +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+        projection = Projection.utm(zone)
         eastings, northings = Bounds.transform(map.projection, projection, map.bounds).map do |bound|
           (bound[0] / interval).floor .. (bound[1] / interval).ceil
         end.map do |counts|
@@ -1525,7 +1549,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         [ /W/,       :water,    params["water-colour"] ],
       ].each do |selector, type, colour|
         gps.waypoints.map do |waypoint, name|
-          [ yield(waypoint, WGS84), name[selector] ]
+          [ yield(waypoint, Projection.wgs84), name[selector] ]
         end.select do |point, label|
           label
         end.each do |point, label|
@@ -1565,7 +1589,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         [ :areas, "polygon", { "fill" => colour, "stroke" => "none" } ]
       ].each do |feature, element, attributes|
         gps.send(feature).each do |list, name|
-          points = list.map { |coords| yield(coords, WGS84).join ?, }.join " "
+          points = list.map { |coords| yield(coords, Projection.wgs84).join ?, }.join " "
           group.add_element(element, attributes.merge("points" => points, "opacity" => opacity))
         end
       end
@@ -1615,7 +1639,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     end
     
     def self.build(map, image_path, kmz_path)
-      wgs84_bounds = Bounds.transform(map.projection, WGS84, map.bounds)
+      wgs84_bounds = Bounds.transform(map.projection, Projection.wgs84, map.bounds)
       degrees_per_pixel = 180.0 * map.resolution / Math::PI / EARTH_RADIUS
       dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel }
       max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE)
@@ -1637,7 +1661,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
           WorldFile.write(topleft, resolution, 0, tfw_path)
           
-          %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{WGS84}" -r bilinear -dstalpha "#{source_path}" "#{tif_path}"]
+          %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{Projection.wgs84}" -r bilinear -dstalpha "#{source_path}" "#{tif_path}"]
   
           indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
             boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
@@ -2033,7 +2057,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         when "map"
           map.write_oziexplorer_map(path, map.name, "#{map.name}.png")
         when "prj"
-          File.write(path, %x[gdalsrsinfo -o #{options[format] || 'proj4'} "#{map.projection}"])
+          File.write(path, map.projection.send(options[format] || "proj4"))
         when "wld"
           map.write_world_file(path)
         when "kmz"
@@ -2062,7 +2086,7 @@ end
 # TODO: KMZ not working when saved to My Places!
 
 # # later:
-# TODO: rework projetions as a class (using gdalsrsinfo, etc.)
+# TODO: reimplement reproject in Projection class
 # TODO: add separate ppi option for reduced-resolution KMZ output? (necessary?)
 # TODO: make label glow colour and opacity configurable?
 # TODO: remap airstrip label (plane) colour?

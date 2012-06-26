@@ -121,13 +121,6 @@ class Array
   def proj(other)
     dot(other) / other.norm
   end
-
-  def reproject(source_projection, target_projection)
-    case first
-    when Array then map { |point| point.reproject(source_projection, target_projection) }
-    else %x[echo #{join(' ')} | gdaltransform -s_srs "#{source_projection}" -t_srs "#{target_projection}"].split(" ")[0..1].map(&:to_f)
-    end
-  end
 end
 
 module NSWTopo
@@ -428,6 +421,17 @@ render:
     def self.transverse_mercator(central_meridian, scale_factor)
       new("+proj=tmerc +lat_0=0.0 +lon_0=#{central_meridian} +k=#{scale_factor} +x_0=500000.0 +y_0=10000000.0 +ellps=WGS84 +datum=WGS84 +units=m")
     end
+    
+    def reproject_to(target, point_or_points)
+      case point_or_points.first
+      when Array then point_or_points.map { |point| reproject_to(target, point) }
+      else %x[echo #{point_or_points.join(' ')} | gdaltransform -s_srs "#{self}" -t_srs "#{target}"].split(" ")[0..1].map(&:to_f)
+      end
+    end
+    
+    def reproject_to_wgs84(point_or_points)
+      reproject_to Projection.wgs84, point_or_points
+    end
   end
   
   class Map
@@ -439,12 +443,12 @@ render:
       wgs84_points = case
       when config["zone"] && config["eastings"] && config["northings"]
         utm = Projection.utm(config["zone"])
-        config.values_at("eastings", "northings").inject(:product).reproject(utm, Projection.wgs84)
+        utm.reproject_to_wgs84 config.values_at("eastings", "northings").inject(:product)
       when config["longitudes"] && config["latitudes"]
         config.values_at("longitudes", "latitudes").inject(:product)
       when config["size"] && config["zone"] && config["easting"] && config["northing"]
         utm = Projection.utm(config["zone"])
-        [ config.values_at("easting", "northing").reproject(utm, Projection.wgs84) ]
+        [ utm.reproject_to_wgs84(config.values_at("easting", "northing")) ]
       when config["size"] && config["longitude"] && config["latitude"]
         [ config.values_at("longitude", "latitude") ]
       when config["bounds"] || bounds_path
@@ -473,10 +477,10 @@ render:
         @rotation = config["rotation"]
         abort("Error: cannot specify map size and auto-rotation together") if @rotation == "auto"
         abort "Error: map rotation must be between +/-45 degrees" unless @rotation.abs <= 45
-        @centre = @projection_centre.reproject(Projection.wgs84, @projection)
+        @centre = Projection.wgs84.reproject_to(@projection, @projection_centre)
       else
         puts "Calculating map bounds..."
-        bounding_points = wgs84_points.reproject(Projection.wgs84, @projection)
+        bounding_points = Projection.wgs84.reproject_to(@projection, wgs84_points)
         if config["rotation"] == "auto"
           @centre, @extents, @rotation = BoundingBox.minimum_bounding_box(bounding_points)
           @rotation *= 180.0 / Math::PI
@@ -515,7 +519,7 @@ render:
       end.inject(:product).map do |offsets|
         [ @centre, offsets.rotate_by(rotation * Math::PI / 180.0) ].transpose.map { |coord, offset| coord + offset }
       end
-      wgs84_corners = corners.reproject(@projection, Projection.wgs84).values_at(1,3,2,0)
+      wgs84_corners = @projection.reproject_to_wgs84(corners).values_at(1,3,2,0)
       pixel_corners = [ @dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
       calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
         dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
@@ -659,7 +663,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   
   module Bounds
     def self.transform(source_projection, target_projection, bounds)
-      bounds.inject(:product).reproject(source_projection, target_projection).transpose.map { |coords| [ coords.min, coords.max ] }
+      source_projection.reproject_to(target_projection, bounds.inject(:product)).transpose.map { |coords| [ coords.min, coords.max ] }
     end
 
     def self.intersect?(bounds1, bounds2)
@@ -808,7 +812,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           [ origin + index * tile_size * resolution, origin + (index + 1) * tile_size * resolution ]
         end
   
-        longitude, latitude = centre.reproject(projection, Projection.wgs84)
+        longitude, latitude = projection.reproject_to_wgs84(centre)
   
         attributes = [ "longitude", "latitude", "zoom", "format", "hsize", "vsize", "name" ]
         values     = [  longitude,   latitude,   zoom,   format,      *tile_sizes,   name  ]
@@ -1431,7 +1435,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     def render_svg(svg, label, options, map)
       svg.add_element("g", "transform" => map.svg_transform(1), "id" => label) do |group|
         draw(group, options, map) do |coords, projection|
-          easting, northing = coords.reproject(projection, map.projection)
+          easting, northing = projection.reproject_to(map.projection, coords)
           [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
             1000.0 * metres / map.scale
           end
@@ -1466,7 +1470,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   
   class GridServer < AnnotationServer
     def self.zone(coords, projection)
-      (coords.reproject(projection, Projection.wgs84).first / 6).floor + 31
+      (projection.reproject_to_wgs84(coords).first / 6).floor + 31
     end
     
     def draw(group, options, map)
@@ -2053,7 +2057,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
             Raster.build(config["rasterise"], format, map, svg_path, path)
         when "tif"
           map.write_world_file "#{png_path}w"
-          %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo TIFFTAG_XRESOLUTION=#{map.ppi} -mo TIFFTAG_YRESOLUTION=#{map.ppi} "#{png_path}" "#{path}"]
+          %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{map.ppi}" -mo "TIFFTAG_YRESOLUTION=#{map.ppi}" "#{png_path}" "#{path}"]
         when "map"
           map.write_oziexplorer_map(path, map.name, "#{map.name}.png")
         when "prj"
@@ -2082,12 +2086,10 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# # pre- version bump:
-# TODO: KMZ not working when saved to My Places!
-
 # # later:
-# TODO: reimplement reproject in Projection class
 # TODO: add separate ppi option for reduced-resolution KMZ output? (necessary?)
+# TODO: add fly-to location in KMZ
+# TODO: render rasters via pdf first then convert with imagamagick?
 # TODO: make label glow colour and opacity configurable?
 # TODO: remap airstrip label (plane) colour?
 # TODO: put glow on control labels?

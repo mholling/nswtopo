@@ -424,13 +424,17 @@ render:
     
     def reproject_to(target, point_or_points)
       case point_or_points.first
-      when Array then point_or_points.map { |point| reproject_to(target, point) }
+      when Array then point_or_points.map { |point| reproject_to target, point }
       else %x[echo #{point_or_points.join(' ')} | gdaltransform -s_srs "#{self}" -t_srs "#{target}"].split(" ")[0..1].map(&:to_f)
       end
     end
     
     def reproject_to_wgs84(point_or_points)
       reproject_to Projection.wgs84, point_or_points
+    end
+    
+    def transform_bounds_to(target, bounds)
+      reproject_to(target, bounds.inject(&:product)).transpose.map { |coords| [ coords.min, coords.max ] }
     end
   end
   
@@ -507,6 +511,14 @@ render:
     end
     
     attr_reader :name, :scale, :projection, :bounds, :extents, :dimensions, :rotation, :ppi, :resolution
+    
+    def transform_bounds_to(target_projection)
+      @projection.transform_bounds_to target_projection, bounds
+    end
+    
+    def wgs84_bounds
+      transform_bounds_to Projection.wgs84
+    end
     
     def write_world_file(world_file_path, metres_per_pixel = @resolution)
       topleft = [ @centre, @extents.rotate_by(-@rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
@@ -661,18 +673,6 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     end
   end
   
-  module Bounds
-    def self.transform(source_projection, target_projection, bounds)
-      source_projection.reproject_to(target_projection, bounds.inject(:product)).transpose.map { |coords| [ coords.min, coords.max ] }
-    end
-
-    def self.intersect?(bounds1, bounds2)
-      [ bounds1, bounds2 ].transpose.map do |bound1, bound2|
-        bound1.max > bound2.min && bound1.min < bound2.max
-      end.inject(:&)
-    end
-  end
-  
   # class Colour
   #   def initialize(hex)
   #     r, g, b = rgb = hex.scan(/\h\h/).map(&:hex)
@@ -784,7 +784,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     
       cropped_tile_sizes = [ tile_sizes, crops ].transpose.map { |tile_size, crop| tile_size - crop.inject(:+) }
       projection = Projection.new(params["projection"])
-      bounds = Bounds.transform(map.projection, projection, map.bounds)
+      bounds = map.transform_bounds_to(projection)
       extents = bounds.map { |bound| bound.max - bound.min }
       origins = bounds.transpose.first
       
@@ -840,7 +840,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   class LPIOrthoServer < TiledServer
     def tiles(options, map, temp_dir)
       projection = Projection.new(params["projection"])
-      bounds = Bounds.transform(map.projection, projection, map.bounds)
+      bounds = map.transform_bounds_to(projection)
       images_regions = case
       when options["image"]
         { options["image"] => options["region"] }
@@ -876,7 +876,9 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           { image => { "sizes" => sizes, "bounds" => layer_bounds, "resolutions" => resolutions, "regions" => images_regions[image] } }
         end.inject({}, &:merge)
       end.select do |image, attributes|
-        Bounds.intersect? bounds, attributes["bounds"]
+        [ bounds, attributes["bounds"] ].transpose.map do |bound1, bound2|
+          bound1.max > bound2.min && bound1.min < bound2.max
+        end.inject(:&)
       end
     
       if images_attributes.empty?
@@ -1326,7 +1328,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     include EmbeddedRenderer
     
     def get_image(label, ext, options, map, temp_dir)
-      bounds = Bounds.transform(map.projection, Projection.wgs84, map.bounds)
+      bounds = map.wgs84_bounds
       bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
       counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
       resolution = params["resolution"]
@@ -1446,10 +1448,10 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   
   class DeclinationServer < AnnotationServer
     def draw(group, options, map)
-      centre = Bounds.transform(map.projection, Projection.wgs84, map.bounds).map { |bound| 0.5 * bound.inject(:+) }
+      centre = map.wgs84_bounds.map { |bound| 0.5 * bound.inject(:+) }
       projection = Projection.transverse_mercator(centre.first, 1.0)
       spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
-      bounds = Bounds.transform(map.projection, projection, map.bounds)
+      bounds = map.transform_bounds_to(projection)
       extents = bounds.map { |bound| bound.max - bound.min }
       longitudinal_extent = extents[0] + extents[1] * Math::tan(map.declination * Math::PI / 180.0)
       0.upto(longitudinal_extent / spacing).map do |count|
@@ -1487,7 +1489,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         [ *range, zone ].min .. [ *range, zone ].max
       end.each do |zone|
         projection = Projection.utm(zone)
-        eastings, northings = Bounds.transform(map.projection, projection, map.bounds).map do |bound|
+        eastings, northings = map.transform_bounds_to(projection).map do |bound|
           (bound[0] / interval).floor .. (bound[1] / interval).ceil
         end.map do |counts|
           counts.map { |count| count * interval }
@@ -1643,7 +1645,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     end
     
     def self.build(map, image_path, kmz_path)
-      wgs84_bounds = Bounds.transform(map.projection, Projection.wgs84, map.bounds)
+      wgs84_bounds = map.wgs84_bounds
       degrees_per_pixel = 180.0 * map.resolution / Math::PI / EARTH_RADIUS
       dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel }
       max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE)

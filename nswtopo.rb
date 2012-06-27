@@ -2099,8 +2099,6 @@ end
 
 # # later:
 # TODO: add separate ppi option for reduced-resolution KMZ output? (necessary?)
-# TODO: add fly-to location in KMZ
-# TODO: render rasters via pdf first then convert with imagamagick?
 # TODO: make label glow colour and opacity configurable?
 # TODO: remap airstrip label (plane) colour?
 # TODO: put glow on control labels?

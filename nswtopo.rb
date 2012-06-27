@@ -510,7 +510,7 @@ render:
       abort "Error: #{e.message}"
     end
     
-    attr_reader :name, :scale, :projection, :bounds, :extents, :dimensions, :rotation, :ppi, :resolution
+    attr_reader :name, :scale, :projection, :bounds, :centre, :extents, :dimensions, :rotation, :ppi, :resolution
     
     def transform_bounds_to(target_projection)
       @projection.transform_bounds_to target_projection, bounds
@@ -1606,6 +1606,8 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   
   module KMZ
     TILE_SIZE = 512
+    TILT = 40 * Math::PI / 180.0
+    FOV = 30 * Math::PI / 180.0
     
     def self.style
       lambda do |style|
@@ -1730,6 +1732,13 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         xml << REXML::XMLDecl.new(1.0, "UTF-8")
         xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
           kml.add_element("Document") do |document|
+            document.add_element("LookAt") do |look_at|
+              range_x = map.extents.first / 2.0 / Math::tan(FOV) / Math::cos(TILT)
+              range_y = map.extents.last / Math::cos(FOV - TILT) / 2 / (Math::tan(FOV - TILT) + Math::sin(TILT))
+              names_values = [ %w[longitude latitude], map.projection.reproject_to_wgs84(map.centre) ].transpose
+              names_values << [ "tilt", TILT * 180.0 / Math::PI ] << [ "range", 1.2 * [ range_x, range_y ].max ] << [ "heading", -map.rotation ]
+              names_values.each { |name, value| look_at.add_element(name) { |element| element.text = value } }
+            end
             document.add_element("Name") { |name| name.text = map.name }
             document.add_element("Style", &style)
             document.add_element("NetworkLink", &network_link(pyramid[0][[0,0]], "0/0/0.kml"))

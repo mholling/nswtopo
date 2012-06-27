@@ -440,8 +440,7 @@ render:
   
   class Map
     def initialize(config)
-      @name, @scale, @ppi = config.values_at("name", "scale", "ppi")
-      @resolution = @scale.to_f * 0.0254 / @ppi
+      @name, @scale = config.values_at("name", "scale")
       
       bounds_path = %w[bounds.kml bounds.gpx].find { |path| File.exists? path }
       wgs84_points = case
@@ -505,12 +504,11 @@ render:
 
       enlarged_extents = [ @extents[0] * Math::cos(@rotation * Math::PI / 180.0) + @extents[1] * Math::sin(@rotation * Math::PI / 180.0).abs, @extents[0] * Math::sin(@rotation * Math::PI / 180.0).abs + @extents[1] * Math::cos(@rotation * Math::PI / 180.0) ]
       @bounds = [ @centre, enlarged_extents ].transpose.map { |coord, extent| [ coord - 0.5 * extent, coord + 0.5 * extent ] }
-      @dimensions = @extents.map { |extent| (extent / @resolution).ceil }
     rescue BadGpxKmlFile => e
       abort "Error: #{e.message}"
     end
     
-    attr_reader :name, :scale, :projection, :bounds, :centre, :extents, :dimensions, :rotation, :ppi, :resolution
+    attr_reader :name, :scale, :projection, :bounds, :centre, :extents, :rotation
     
     def transform_bounds_to(target_projection)
       @projection.transform_bounds_to target_projection, bounds
@@ -520,19 +518,28 @@ render:
       transform_bounds_to Projection.wgs84
     end
     
-    def write_world_file(world_file_path, metres_per_pixel = @resolution)
-      topleft = [ @centre, @extents.rotate_by(-@rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
-      WorldFile.write(topleft, metres_per_pixel, @rotation, world_file_path)
+    def resolution_at(ppi)
+      @scale * 0.0254 / ppi
     end
     
-    def write_oziexplorer_map(path, name, image)
+    def dimensions_at(ppi)
+      @extents.map { |extent| (ppi * extent / @scale / 0.0254).ceil }
+    end
+    
+    def write_world_file(path, resolution)
+      topleft = [ @centre, @extents.rotate_by(-@rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
+      WorldFile.write topleft, resolution, @rotation, path
+    end
+    
+    def write_oziexplorer_map(path, name, image, ppi)
+      dimensions = dimensions_at(ppi)
       corners = @extents.map do |extent|
         [ -0.5 * extent, 0.5 * extent ]
       end.inject(:product).map do |offsets|
         [ @centre, offsets.rotate_by(rotation * Math::PI / 180.0) ].transpose.map { |coord, offset| coord + offset }
       end
       wgs84_corners = @projection.reproject_to_wgs84(corners).values_at(1,3,2,0)
-      pixel_corners = [ @dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
+      pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
       calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
         dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
           [ coord.abs.floor, 60 * (coord.abs - coord.abs.floor), coord > 0 ? hemispheres.first : hemispheres.last ]
@@ -558,9 +565,9 @@ MM0,Yes
 MMPNUM,4
 #{pixel_corners.map.with_index { |pixel_corner, index| "MMPXY,#{index+1},#{pixel_corner.join ?,}" }.join ?\n}
 #{wgs84_corners.map.with_index { |wgs84_corner, index| "MMPLL,#{index+1},#{wgs84_corner.join ?,}" }.join ?\n}
-MM1B,#{@resolution}
+MM1B,#{resolution_at ppi}
 MOP,Map Open Position,0,0
-IWH,Map Image Width/Height,#{@dimensions.join ?,}
+IWH,Map Image Width/Height,#{dimensions.join ?,}
 ].gsub(/\r\n|\r|\n/, "\r\n")
       end
     end
@@ -734,11 +741,12 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       else
         filename
       end
+      dimensions = map.dimensions_at(300) # TODO: resolution!
       svg.add_element("g", "id" => label) do |group|
         group.add_element("image",
-          "transform" => "scale(#{25.4 / map.ppi})",
-          "width" => map.dimensions[0],
-          "height" => map.dimensions[1],
+          "transform" => "scale(#{25.4 / 300})", # TODO: resolution!
+          "width" => dimensions[0],
+          "height" => dimensions[1],
           "xlink:href" => href,
         )
       end
@@ -750,21 +758,23 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     
     def get_image(label, ext, options, map, temp_dir)
       puts "Downloading: #{label}"
+      
       tile_paths = tiles(options, map, temp_dir).map do |tile_bounds, resolution, tile_path|
         topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
         WorldFile.write(topleft, resolution, 0, "#{tile_path}w")
         %Q["#{tile_path}"]
       end
-    
+      
       puts "Assembling: #{label}"
       tif_path = File.join(temp_dir, "#{label}.tif")
       tfw_path = File.join(temp_dir, "#{label}.tfw")
       vrt_path = File.join(temp_dir, "#{label}.vrt")
   
-      %x[convert -size #{map.dimensions.join ?x} -units PixelsPerInch -density #{map.ppi} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
+      dimensions = map.dimensions_at(300) # TODO: resolution!
+      %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{300} canvas:black -type TrueColor -depth 8 "#{tif_path}"] # TODO: resolution!
       unless tile_paths.empty?
         %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
-        map.write_world_file(tfw_path)
+        map.write_world_file(tfw_path, map.resolution_at(300)) # TODO: resolution!
         resample = params["resample"] || "cubic"
         projection = Projection.new(params["projection"])
         %x[gdalwarp -s_srs "#{projection}" -t_srs "#{map.projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
@@ -788,7 +798,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       extents = bounds.map { |bound| bound.max - bound.min }
       origins = bounds.transpose.first
       
-      zoom, resolution, counts = (Math::log2(Math::PI * EARTH_RADIUS / map.resolution) - 7).ceil.downto(1).map do |zoom|
+      zoom, resolution, counts = (Math::log2(Math::PI * EARTH_RADIUS / map.resolution_at(300)) - 7).ceil.downto(1).map do |zoom| # TODO: resolution!
         resolution = Math::PI * EARTH_RADIUS / 2 ** (zoom + 7)
         counts = [ extents, cropped_tile_sizes ].transpose.map { |extent, tile_size| (extent / resolution / tile_size).ceil }
         [ zoom, resolution, counts ]
@@ -798,7 +808,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     
       format = options["format"]
       name = options["name"]
-  
+      
       puts "(Downloading #{counts.inject(:*)} tiles)"
       counts.map { |count| (0...count).to_a }.inject(:product).with_progress.map do |indices|
         sleep params["interval"]
@@ -831,7 +841,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           non_blank_fraction = %x[convert "#{tile_path}" -fill white +opaque black -format "%[fx:mean]" info:].to_f
           break if non_blank_fraction > 0.995
         end
-  
+        
         [ bounds, resolution, tile_path ]
       end
     end
@@ -887,7 +897,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         tile_size = otdf ? 256 : params["tile_size"]
         format = images_attributes.one? ? { "type" => "jpg", "quality" => 90 } : { "type" => "png", "transparent" => true }
         images_attributes.map do |image, attributes|
-          zoom = [ Math::log2(map.resolution / attributes["resolutions"].first).floor, 0 ].max
+          zoom = [ Math::log2(map.resolution_at(300) / attributes["resolutions"].first).floor, 0 ].max # TODO: resolution!
           resolutions = attributes["resolutions"].map { |resolution| resolution * 2**zoom }
           [ bounds, attributes["bounds"], attributes["sizes"], resolutions ].transpose.map do |bound, layer_bound, size, resolution|
             layer_extent = layer_bound.reverse.inject(:-)
@@ -1055,7 +1065,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       layer_order = service["layers"].reverse.map.with_index { |layer, index| { layer["name"] => index } }.inject({}, &:merge)
       layer_names = service["layers"].map { |layer| layer["name"] }
       
-      resolution = options["resolution"] || map.resolution
+      resolution = options["resolution"] || map.resolution_at(300) # TODO: resolution!
       transform = map.svg_transform(1000.0 * resolution / map.scale)
       
       tile_list = tiles(map.bounds, resolution, 3)
@@ -1230,7 +1240,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     
     def get_raster(label, ext, options, map, temp_dir)
       scale = options["scale"] || map.scale
-      resolution = options["resolution"] || map.resolution
+      resolution = options["resolution"] || map.resolution_at(300) # TODO: resolution!
       layer_options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "png32" }
       
       dataset = tiles(map.bounds, resolution).with_progress("Downloading: #{label}").with_index.map do |(tile_bounds, tile_sizes, tile_offsets), tile_index|
@@ -1245,12 +1255,13 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       puts "Assembling: #{label}"
       
       File.join(temp_dir, "#{label}.#{ext}").tap do |mosaic_path|
+        dimensions = map.dimensions_at(300) # TODO: resolution!
         if map.rotation.zero?
           sequence = dataset.map do |_, tile_sizes, tile_offsets, tile_path|
             %Q[#{OP} "#{tile_path}" +repage -repage +#{tile_offsets[0]}+#{tile_offsets[1]} #{CP}]
           end.join " "
-          resize = (options["resolution"] || options["scale"]) ? "-resize #{map.dimensions.join ?x}!" : ""
-          %x[convert -units PixelsPerInch #{sequence} -compose Copy -layers mosaic -density #{map.ppi} #{resize} "#{mosaic_path}"]
+          resize = (options["resolution"] || options["scale"]) ? "-resize #{dimensions.join ?x}!" : ""
+          %x[convert -units PixelsPerInch #{sequence} -compose Copy -layers mosaic -density #{300} #{resize} "#{mosaic_path}"] # TODO: resolution!
         else
           tile_paths = dataset.map do |tile_bounds, _, _, tile_path|
             topleft = [ tile_bounds.first.first, tile_bounds.last.last ]
@@ -1261,8 +1272,8 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           tif_path = File.join(temp_dir, "#{label}.tif")
           tfw_path = File.join(temp_dir, "#{label}.tfw")
           %x[gdalbuildvrt "#{vrt_path}" #{tile_paths}]
-          %x[convert -size #{map.dimensions.join ?x} -units PixelsPerInch -density #{map.ppi} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
-          map.write_world_file(tfw_path)
+          %x[convert -size #{dimensions.join ?x} -units PixelsPerInch -density #{300} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"] # TODO: resolution!
+          map.write_world_file(tfw_path, map.resolution_at(300)) # TODO: resolution!
           %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -dstalpha -r cubic "#{vrt_path}" "#{tif_path}"]
           %x[convert "#{tif_path}" -quiet "#{mosaic_path}"]
         end
@@ -1276,6 +1287,10 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   end
   
   module EmbeddedRenderer
+    def resolution
+      params["resolution"]
+    end
+    
     def clip_paths(svg, label, options)
       [ *options["clips"] ].map do |layer|
         svg.elements.collect("g[@id='#{layer}']//path[@fill-rule='evenodd']") { |path| path }
@@ -1296,11 +1311,10 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     end
     
     def render_svg(svg, label, options, map)
-      resolution, opacity = params.values_at("resolution", "opacity")
       transform = "scale(#{1000.0 * resolution / map.scale})"
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       Dir.mktmpdir do |temp_dir|
-        image_path = embed_image(label, options, map, resolution, dimensions, temp_dir)
+        image_path = embed_image(label, options, map, dimensions, temp_dir)
         base64 = Base64.encode64(File.read image_path)
         svg.add_element("g", "id" => label) do |layer|
           layer.add_element("defs") do |defs|
@@ -1312,7 +1326,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
           end.inject(layer) do |group, clip_id|
             group.add_element("g", "clip-path" => "url(##{clip_id})")
           end.add_element("image",
-            "opacity" => opacity || 1,
+            "opacity" => params["opacity"] || 1,
             "transform" => transform,
             "width" => dimensions[0],
             "height" => dimensions[1],
@@ -1331,7 +1345,6 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       bounds = map.wgs84_bounds
       bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
       counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
-      resolution = params["resolution"]
       units_per_pixel = 0.125 / 300
   
       puts "Downloading: #{label}"
@@ -1383,7 +1396,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       end
     end
     
-    def embed_image(label, options, map, resolution, dimensions, temp_dir)
+    def embed_image(label, options, map, dimensions, temp_dir)
       ext = options["ext"] || params["ext"] || "png"
       hillshade_path = "#{label}.#{ext}"
       highlights = params["highlights"]
@@ -1399,7 +1412,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     include NoDownload
     include EmbeddedRenderer
     
-    def embed_image(label, options, map, resolution, dimensions, temp_dir)
+    def embed_image(label, options, map, dimensions, temp_dir)
       hdr_path = params["path"]
       raise BadLayerError.new("no vegetation data file provided (see README)") unless hdr_path
       hdr_path = File.join(hdr_path, "hdr.adf") if File.directory? hdr_path
@@ -1646,17 +1659,17 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
       end
     end
     
-    def self.build(map, image_path, kmz_path)
+    def self.build(map, ppi, image_path, kmz_path)
       wgs84_bounds = map.wgs84_bounds
-      degrees_per_pixel = 180.0 * map.resolution / Math::PI / EARTH_RADIUS
-      dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel }
+      degrees_per_pixel = 180.0 * map.resolution_at(ppi) / Math::PI / EARTH_RADIUS
+      dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel } # TODO: dimensions? resikytuib
       max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE)
       topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
       
       Dir.mktmpdir do |temp_dir|
         source_path = File.join temp_dir, File.basename(image_path)
         FileUtils.cp image_path, source_path
-        map.write_world_file("#{source_path}w")
+        map.write_world_file "#{source_path}w", map.resolution_at(ppi)
         
         pyramid = (0..max_zoom).to_a.with_progress("Resizing image pyramid:", 2).map do |zoom|
           resolution = degrees_per_pixel * 2**(max_zoom - zoom)
@@ -1755,31 +1768,37 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
   end
   
   module Raster
-    def self.build(rasterise, format, map, svg_path, path)
+    def self.build(rasterise, map, ppi, svg_path, path)
+      dimensions = map.dimensions_at(ppi)
       case rasterise
       when /inkscape/i
-        args = case format
-        when "pdf" then %Q[--without-gui --file="#{svg_path}" --export-pdf="#{path}"]
-        when "png" then %Q[--without-gui --file="#{svg_path}" --export-png="#{path}" --export-width=#{map.dimensions.first} --export-height=#{map.dimensions.last} --export-background="#FFFFFF"]
-        end
-        %x["#{rasterise}" #{args} #{DISCARD_STDERR}]
+        %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-png="#{path}" --export-width=#{dimensions.first} --export-height=#{dimensions.last} --export-background="#FFFFFF" #{DISCARD_STDERR}]
       when /batik/
-        args = case format
-        when "pdf" then %Q[-d "#{path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
-        when "png" then %Q[-d "#{path}" -bg 255.255.255.255 -m image/png -w #{map.dimensions.first} -h #{map.dimensions.last} "#{svg_path}"]
-        end
+        args = %Q[-d "#{path}" -bg 255.255.255.255 -m image/png -w #{dimensions.first} -h #{dimensions.last} "#{svg_path}"]
         jar_path = File.join(rasterise, 'batik-rasterizer.jar')
         %x[java -jar "#{jar_path}" #{args}]
       when /rsvg-convert/
-        args = case format
-        when "pdf" then %Q[--background-color white --format pdf --output "#{path}" "#{svg_path}"]
-        when "png" then %Q[--background-color white --format png --output "#{path}" --width #{map.dimensions.first} --height #{map.dimensions.last} "#{svg_path}"]
-        end
-        %x["#{rasterise}" #{args}]
+        %x["#{rasterise}" --background-color white --format png --output "#{path}" --width #{dimensions.first} --height #{dimensions.last} "#{svg_path}"]
       else
         abort("Error: specify either inkscape or batik as your rasterise method (see README).")
       end
-      %x[mogrify -units PixelsPerInch -density #{map.ppi} -type TrueColor "#{path}"] if format == "png"
+      %x[mogrify -units PixelsPerInch -density #{ppi} -type TrueColor "#{path}"]
+    end
+  end
+  
+  class Pdf
+    def self.build(rasterise, map, svg_path, path)
+      case rasterise
+      when /inkscape/i
+        %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-pdf="#{path}" #{DISCARD_STDERR}]
+      when /batik/
+        jar_path = File.join(rasterise, 'batik-rasterizer.jar')
+        %x[java -jar "#{jar_path}" -d "#{path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
+      when /rsvg-convert/
+        %x["#{rasterise}" --background-color white --format pdf --output "#{path}" "#{svg_path}"]
+      else
+        abort("Error: specify either inkscape or batik as your rasterise method (see README).")
+      end
     end
   end
   
@@ -1813,6 +1832,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
         abort "Error in configuration file: #{e.message}"
       end
     end.inject(default_config, &:deep_merge)
+    
     config["include"] = [ *config["include"] ]
     config["formats"] = [ *config["formats"] ]
     
@@ -2003,7 +2023,7 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
     puts "  scale: 1:%i" % map.scale
     puts "  rotation: %.1f degrees" % map.rotation
-    puts "  rasters: %i x %i (%.1fMpx) @ %i ppi" % [ *map.dimensions, 0.000001 * map.dimensions.inject(:*), map.ppi ]
+    puts "  extent: %.1fkm x %.1fkm" % map.extents.map { |extent| 0.001 * extent }
     
     labels.recover(InternetError, ServerError).each do |label|
       options = layers[label]
@@ -2045,47 +2065,51 @@ IWH,Map Image Width/Height,#{@dimensions.join ?,}
     end unless File.exists? svg_path
     
     options = config["formats"].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
-    formats = options.keys & %w[png tif gif jpg kmz pdf map prj wld]
-    formats |= %w[png] if formats.include? "map"
-    formats.reject! { |format| File.exists? "#{map.name}.#{format}" }
+    options["png"] ||= nil if options.include? "map"
+    (options.keys & %w[png tif gif jpg]).select do |format|
+      options[format] ||= config["ppi"]
+      options["#{format[0]}#{format[2]}w"] = options[format] if options.include? "prj"
+    end
     
     Dir.mktmpdir do |temp_dir|
       puts "Generating requested output formats:"
-      png_path = File.join temp_dir, "#{map.name}.png"
-      extras = []
-      extras |= %w[png] if (formats & %w[tif gif jpg kmz]).any?
-      extras |= %w[png] if formats.include?("pdf") && options["pdf"] == "raster"
-      [ *extras, *formats ].uniq.each do |format|
-        item = format != "png" || formats.include?("png") ? "#{map.name}.#{format}" : "intermediate raster"
-        puts "  Generating #{item}"
-        path = File.join temp_dir, "#{map.name}.#{format}"
-        case format
-        when "png"
-          Raster.build(config["rasterise"], format, map, svg_path, path)
-        when "pdf"
-          options[format] == "raster" ?
-            %x[convert -units PixelsPerInch -density #{map.ppi} "#{png_path}" "#{path}"] :
-            Raster.build(config["rasterise"], format, map, svg_path, path)
-        when "tif"
-          map.write_world_file "#{png_path}w"
-          %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{map.ppi}" -mo "TIFFTAG_YRESOLUTION=#{map.ppi}" "#{png_path}" "#{path}"]
-        when "map"
-          map.write_oziexplorer_map(path, map.name, "#{map.name}.png")
-        when "prj"
-          File.write(path, map.projection.send(options[format] || "proj4"))
-        when "wld"
-          map.write_world_file(path)
-        when "kmz"
-          KMZ.build(map, png_path, path)
-        else
-          %x[convert "#{png_path}" "#{path}"]
+      (options.keys & %w[png tif gif jpg kmz pdf pgw tfw gfw jgw map prj]).reject do |format|
+        File.exists? "#{map.name}.#{format}"
+      end.group_by do |format|
+        options[format]
+      end.each do |ppi, formats|
+        raster_path = File.join temp_dir, "raster.#{ppi}.png"
+        if (formats & %w[png tif gif jpg kmz]).any? || (ppi && formats.include?("pdf"))
+          dimensions = map.dimensions_at(ppi)
+          puts "  Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
+          Raster.build config["rasterise"], map, ppi, svg_path, raster_path
+        end
+        formats.each do |format|
+          puts "  Generating #{map.name}.#{format}"
+          path = File.join temp_dir, "#{map.name}.#{format}"
+          case format
+          when "png"
+            FileUtils.cp(raster_path, path)
+          when "tif"
+            map.write_world_file "#{raster_path}w", map.resolution_at(ppi)
+            %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" "#{raster_path}" "#{path}"]
+          when "gif", "jpg"
+            %x[convert "#{raster_path}" "#{path}"]
+          when "kmz"
+            KMZ.build map, ppi, raster_path, path
+          when "pdf"
+            ppi ? %x[convert "#{raster_path}" "#{path}"] : Pdf.build(config["rasterise"], map, svg_path, path)
+          when "pgw", "tfw", "gfw", "jgw"
+            map.write_world_file path, map.resolution_at(ppi)
+          when "map"
+            map.write_oziexplorer_map path, map.name, "#{map.name}.png", options["png"]
+          when "prj"
+            File.write(path, map.projection.send(options["prj"] || :proj4))
+          end
+          FileUtils.mv path, Dir.pwd
         end
       end
-      
-      formats.each do |format|
-        FileUtils.mv File.join(temp_dir, "#{map.name}.#{format}"), Dir.pwd
-      end
-    end unless formats.empty?
+    end unless options.empty?
   end
 end
 
@@ -2097,8 +2121,14 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
+# TODO: check CanvasServer
+# TODO: check ArcGIS raster layers!
+# TODO: output world files!
+# TODO: specify download rasters by their resolution instead of their ppi.
+#       with the default being scale * 0.0254 / 300 (corresponding to 300ppi)
+# TODO: change minimum view zoom on KMZ so it doesn't disappear!
+
 # # later:
-# TODO: add separate ppi option for reduced-resolution KMZ output? (necessary?)
 # TODO: make label glow colour and opacity configurable?
 # TODO: remap airstrip label (plane) colour?
 # TODO: put glow on control labels?

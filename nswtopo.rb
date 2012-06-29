@@ -769,7 +769,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       transform = "scale(#{1000.0 * resolution / map.scale})"
       opacity = options["opacity"] || params["opacity"] || 1
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
-      svg.add_element("g", "id" => label) do |layer|
+      svg.add_element("g", "id" => label, "style" => "opacity:#{opacity}") do |layer|
         layer.add_element("defs") do |defs|
           clip_paths(svg, label, options).each do |clippath|
             defs.elements << clippath
@@ -779,7 +779,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.inject(layer) do |group, clip_id|
           group.add_element("g", "clip-path" => "url(##{clip_id})")
         end.add_element("image",
-          "opacity" => opacity,
           "transform" => transform,
           "width" => dimensions[0],
           "height" => dimensions[1],
@@ -1059,7 +1058,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def rerender(element, command, values)
       xpaths = case command
       when "opacity"
-        "./@opacity"
+        "self::/@style"
       when "expand"
         %w[stroke-width stroke-dasharray stroke-miterlimit font-size].map { |name| ".//[@#{name}]/@#{name}" }
       when "stretch"
@@ -1078,7 +1077,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         REXML::XPath.each(element, xpath) do |attribute|
           attribute.normalized = case command
           when "opacity"
-            values.to_s
+            "opacity:#{values}"
           when "expand", "stretch"
             attribute.value.split(/,\s*/).map(&:to_f).map { |size| size * values }.join(", ")
           when "colour"
@@ -1271,7 +1270,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.map do |name, opacity|
           { name => svg.add_element("g",
             "id" => [ label, name ].join(SEGMENT),
-            "opacity" => opacity,
+            "style" => "opacity:#{opacity}",
             "transform" => transform,
             "color-interpolation" => "linearRGB",
           )}
@@ -1435,7 +1434,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include NoDownload
     
     def render_svg(svg, label, options, map)
-      svg.add_element("g", "transform" => map.svg_transform(1), "id" => label) do |group|
+      opacity = options["opacity"] || params["opacity"] || 1
+      svg.add_element("g", "transform" => map.svg_transform(1), "id" => label, "style" => "opacity:#{opacity}") do |group|
         draw(group, options, map) do |coords, projection|
           easting, northing = projection.reproject_to(map.projection, coords)
           [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
@@ -1587,16 +1587,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class OverlayServer < AnnotationServer
     def draw(group, options, map)
-      width = (options["width"] || 0.5)
-      colour = options["colour"] || "black"
-      opacity = options["opacity"] || 0.3
+      width = options["width"] || params["width"]
+      colour = options["colour"] || params["colour"]
       gps = GPS.new(options["path"])
       [ [ :tracks, "polyline", { "fill" => "none", "stroke" => colour, "stroke-width" => width } ],
         [ :areas, "polygon", { "fill" => colour, "stroke" => "none" } ]
       ].each do |feature, element, attributes|
         gps.send(feature).each do |list, name|
           points = list.map { |coords| yield(coords, Projection.wgs84).join ?, }.join " "
-          group.add_element(element, attributes.merge("points" => points, "opacity" => opacity))
+          group.add_element(element, attributes.merge("points" => points))
         end
       end
     rescue BadGpxKmlFile => e
@@ -1868,6 +1867,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     grid_server = GridServer.new(config["grid"])
     canvas_server = CanvasServer.new
     vegetation_server = VegetationServer.new(config["vegetation"])
+    overlay_server = OverlayServer.new("width" => 0.5, "colour" => "black", "opacity" => 0.3)
     
     layers = {
       "reference-topo-2" => {
@@ -1997,12 +1997,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     (config["overlays"] || {}).each do |filename_or_path, options|
       label = File.split(filename_or_path).last.partition(/\.\w+$/).first
-      layers.merge! label => (options || {}).merge("server" => OverlayServer.new, "path" => filename_or_path)
+      layers.merge! label => (options || {}).merge("server" => overlay_server, "path" => filename_or_path)
       includes << label
     end
     
     if config["controls"]["file"]
-      layers.merge! "controls" => { "server" => control_server}
+      layers.merge! "controls" => { "server" => control_server }
       includes << "controls"
     end
     
@@ -2061,7 +2061,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     formats = config["formats"].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["png"] ||= nil if formats.include? "map"
-    (formats.keys & %w[png tif gif jpg]).select do |format|
+    (formats.keys & %w[png tif gif jpg kmz]).select do |format|
       formats[format] ||= config["ppi"]
       formats["#{format[0]}#{format[2]}w"] = formats[format] if formats.include? "prj"
     end
@@ -2118,7 +2118,6 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: put layer opacities in consistent location, use style="opacity:0.2" for use with inkscape
 # TODO: split shaded-relief into sun and shade layers for individual adjustment
 
 # # later:

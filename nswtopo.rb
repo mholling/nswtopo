@@ -726,7 +726,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   module RasterRenderer
-    def default_resolution(label, option, map)
+    def default_resolution(label, options, map)
       params["resolution"] || map.scale / 12500.0
     end
     
@@ -1423,6 +1423,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class CanvasServer < Server
     include NoDownload
     include RasterRenderer
+    
+    def default_resolution(label, options, map)
+      canvas_path = File.join Dir.pwd, "#{label}.png"
+      raise BadLayerError.new("#{label}.png not found") unless File.exists? canvas_path
+      map.scale * 0.01 / %x[convert "#{canvas_path}" -units PixelsPerCentimeter -format "%[resolution.x]" info:].to_f
+    end
   end
   
   class AnnotationServer < Server
@@ -1864,13 +1870,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     vegetation_server = VegetationServer.new(config["vegetation"])
     
     layers = {
-      "reference-topo-1" => {
-        "server" => lpi_ortho,
-        "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw",
-        "otdf" => true,
-        "ext" => "png",
-        "resolution" => 4.0,
-      },
       "reference-topo-2" => {
         "server" => sixmaps,
         "service" => "NSWTopo",
@@ -1878,6 +1877,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "ext" => "png",
         "resolution" => 2.0,
         "background" => "white",
+      },
+      "reference-topo-1" => {
+        "server" => lpi_ortho,
+        "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw",
+        "otdf" => true,
+        "ext" => "png",
+        "resolution" => 4.0,
       },
       "aerial-lpi-eastcoast" => {
         "server" => lpi_ortho,
@@ -1925,12 +1931,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       #   "service" => "LPI_Imagery_Best",
       #   "ext" => "jpg",
       # },
+      "vegetation" => {
+        "server" => vegetation_server,
+      },
       "canvas" => {
         "server" => canvas_server,
         "ext" => "png",
-      },
-      "vegetation" => {
-        "server" => vegetation_server,
       },
       "plantation" => {
         "server" => atlas,
@@ -1966,17 +1972,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "labels" => %w[Labels],
         },
       },
+      "relief" => {
+        "server" => oneearth_relief,
+        "clips" => %w[topographic.HydroArea topographic.VSS_Oceans],
+        "ext" => "png",
+      },
       "holdings" => {
         "server" => sixmaps,
         "service" => "LHPA",
         "ext" => "svg",
         "layers" => %w[Holdings],
         "labels" => %w[Holdings],
-      },
-      "relief" => {
-        "server" => oneearth_relief,
-        "clips" => %w[topographic.HydroArea topographic.VSS_Oceans],
-        "ext" => "png",
       },
       "declination" => {
         "server" => declination_server,
@@ -1986,22 +1992,26 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       },
     }
     
-    includes = (%w[topographic] + config["include"]).map { |label_or_hash| [ *label_or_hash ].flatten }
-    layers.each do |label, options|
-      includes.each { |match, resolution| options.merge!("resolution" => resolution) if label[match] && resolution }
-    end
-    labels = layers.keys.select { |label| includes.any? { |match, _| label[match] } }
+    includes = %w[topographic]
+    includes << "canvas" if File.exists? "canvas.png"
     
     (config["overlays"] || {}).each do |filename_or_path, options|
       label = File.split(filename_or_path).last.partition(/\.\w+$/).first
       layers.merge! label => (options || {}).merge("server" => OverlayServer.new, "path" => filename_or_path)
-      labels << label
+      includes << label
     end
     
     if config["controls"]["file"]
       layers.merge! "controls" => { "server" => control_server}
-      labels << "controls"
+      includes << "controls"
     end
+    
+    includes += config["include"]
+    includes.map! { |label_or_hash| [ *label_or_hash ].flatten }
+    layers.each do |label, options|
+      includes.each { |match, resolution| options.merge!("resolution" => resolution) if label[match] && resolution }
+    end
+    labels = layers.keys.select { |label| includes.any? { |match, _| label[match] } }
     
     puts "Map details:"
     puts "  name: #{map.name}"
@@ -2108,7 +2118,6 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: reinstate CanvasServer
 # TODO: put layer opacities in consistent location, use style="opacity:0.2" for use with inkscape
 # TODO: split shaded-relief into sun and shade layers for individual adjustment
 

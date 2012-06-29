@@ -201,6 +201,7 @@ render:
   labels: 
     colour: 
       "#A87000": "#000000"
+      "#FAFAFA": "#444444"
   water:
     opacity: 1
     colour:
@@ -227,8 +228,8 @@ render:
     expand: 0.6
   holdings:
     colour:
-      "#B0A100": red
-      "#948800": red
+      "#B0A100": "#FF0000"
+      "#948800": "#FF0000"
 ]
   
   module BoundingBox
@@ -2121,7 +2122,6 @@ end
 # # later:
 # TODO: remove linked images from PDF output?
 # TODO: make label glow colour and opacity configurable?
-# TODO: remap airstrip label (plane) colour?
 # TODO: put glow on control labels?
 # TODO: allow user-selectable contours?
 # TODO: allow configuration to specify patterns?

@@ -225,6 +225,10 @@ render:
     expand: 0.6
   LS_GeneralCulturalPoint:
     expand: 0.6
+  holdings:
+    colour:
+      "#B0A100": red
+      "#948800": red
 ]
   
   module BoundingBox
@@ -738,13 +742,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
     end
     
-    def href(label, options, *args)
-      ext = options["ext"] || params["ext"] || "png"
-      "#{label}.#{ext}".tap do |filename|
-        raise BadLayerError.new("raster image #{filename} not found") unless File.exists? filename
-      end
-    end
-    
     def clip_paths(svg, label, options)
       [ *options["clips"] ].map do |layer|
         svg.elements.collect("g[@id='#{layer}']//path[@fill-rule='evenodd']") { |path| path }
@@ -769,6 +766,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       transform = "scale(#{1000.0 * resolution / map.scale})"
       opacity = options["opacity"] || params["opacity"] || 1
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
+      
+      href = if respond_to? :embed_image
+        base64 = Dir.mktmpdir do |temp_dir|
+          image_path = embed_image(label, options, map, dimensions, resolution, temp_dir)
+          Base64.encode64(File.read image_path)
+        end
+        "data:image/png;base64,#{base64}"
+      else
+        ext = options["ext"] || params["ext"] || "png"
+        "#{label}.#{ext}".tap do |filename|
+          raise BadLayerError.new("raster image #{filename} not found") unless File.exists? filename
+        end
+      end
+      
       svg.add_element("g", "id" => label, "style" => "opacity:#{opacity}") do |layer|
         layer.add_element("defs") do |defs|
           clip_paths(svg, label, options).each do |clippath|
@@ -783,22 +794,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "width" => dimensions[0],
           "height" => dimensions[1],
           "image-rendering" => "optimizeQuality",
-          "xlink:href" => href(label, options, map, dimensions, resolution),
+          "xlink:href" => href,
         )
         layer.elements.each("./defs[not(*)]", &:delete_self)
       end
-    end
-  end
-  
-  module EmbeddedRenderer
-    include RasterRenderer
-    
-    def href(label, options, map, dimensions, resolution)
-      base64 = Dir.mktmpdir do |temp_dir|
-        image_path = embed_image(label, options, map, dimensions, resolution, temp_dir)
-        Base64.encode64(File.read image_path)
-      end
-      "data:image/png;base64,#{base64}"
     end
   end
   
@@ -1321,7 +1320,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class OneEarthDEMRelief < Server
-    include EmbeddedRenderer
+    include RasterRenderer
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
       bounds = map.wgs84_bounds
@@ -1389,7 +1388,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class VegetationServer < Server
-    include EmbeddedRenderer
+    include RasterRenderer
     include NoDownload
     
     def embed_image(label, options, map, dimensions, resolution, temp_dir)
@@ -1983,6 +1982,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "ext" => "svg",
         "layers" => %w[Holdings],
         "labels" => %w[Holdings],
+        "equivalences" => { "holdings" => %w[Holdings Labels]}
       },
       "declination" => {
         "server" => declination_server,

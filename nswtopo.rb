@@ -1623,10 +1623,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def self.region(bounds)
+    def self.region(bounds, topmost = false)
       lambda do |region|
         region.add_element("Lod") do |lod|
-          lod.add_element("minLodPixels") { |min| min.text = TILE_SIZE / 2 }
+          lod.add_element("minLodPixels") { |min| min.text = topmost ? 0 : TILE_SIZE / 2 }
           lod.add_element("maxLodPixels") { |max| max.text = -1 }
         end
         region.add_element("LatLonAltBox", &lat_lon_box(bounds))
@@ -1699,7 +1699,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
               kml.add_element("Document") do |document|
                 document.add_element("Style", &style)
-                document.add_element("Region", &region(tile_bounds))
+                document.add_element("Region", &region(tile_bounds, true))
                 document.add_element("GroundOverlay") do |overlay|
                   overlay.add_element("drawOrder") { |draw_order| draw_order.text = zoom }
                   overlay.add_element("Icon") do |icon|
@@ -2118,10 +2118,8 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: split shaded-relief into sun and shade layers for individual adjustment
-
 # # later:
-# TODO: change minimum view zoom on KMZ so it doesn't disappear!
+# TODO: remove linked images from PDF output?
 # TODO: make label glow colour and opacity configurable?
 # TODO: remap airstrip label (plane) colour?
 # TODO: put glow on control labels?

@@ -176,17 +176,22 @@ Viewing the map in Inkscape allows you to toggle individual layers on and off. T
 
 These are orthographic aerial images for the specified map area, derived from Google Maps, Nokia Maps, and the NSW LPI department. Depending on your map location there may be up to four different aerial images available.
 
-These layers are very useful for confirming the accuracy of the topographic features. For example, you may be able to manually add firetrails, new dams, etc, which are missing from the NSW map layers, on the basis of what you can see in the aerial imagery. Since the images are correctly georeferenced, this is achieved simply by tracing out the extra information on the appropriate layer while viewing the aerial imagery underneath.
+These layers are very useful for confirming the accuracy of the topographic features. For example, you may be able to manually add firetrails, new dams, etc, which are missing from the NSW map layers, on the basis of what you can see in the aerial imagery. Since the images are correctly georeferenced, this is achieved simply by tracing out the extra information on the appropriate layer while viewing the aerial imagery underneath. (Another excellent use for these aerial imagery layers is to produce your own vegetation layer for a rogaine map. This is described below in the "canvas" section.)
 
-(The other excellent use for these aerial imagery layers is to produce your own vegetation layer for a rogaine map. This is described below in the "canvas" section.)
-
-* `aerial-lpi-ads40`: the best, most recent high resolution imagery available from the NSW LPI; available for many but not all areas of interest
+* `aerial-lpi-ads40`: the best, most recent high resolution imagery available from the NSW LPI; available for many but not all areas of interest 
 * `aerial-lpi-eastcoast`: medium resolution imagery for most of the 25k topographic coverage; quite old film imagery (from the 90s?)
 * `aerial-google`: generally good quality, recent aerial imagery from Google Maps; limited to 250 tiles per six hour period
 * `aerial-nokia`: reasonable quality aerial imagery from Nokia Maps; limited to 250 tiles per six hours; georeferencing is not always the best and usually requires some manual nudging for best alignment
 * `aerial-best`: A mosaic of NSW imagery of good quality
 
-(You can download all available aerial imagery simply by adding the shortcut `aerial` to your include list.)
+Each of these images download at a default resolution, typically 2.0 metres per pixel. (This indicates that one pixel in the image represents two metres on the ground.) You can override the default by specifying a different resolution for the image:
+
+    include:
+    - aerial-lpi-ads40: 0.5
+
+Depending on the native resolution of the dataset, you may or may not obtain better imagery by specifying a better resolution. `aerial-lpi-ads40` has a native resolution of 0.5 m/px where it is available, and can yield very detailed imagery. However, for a map of reasonable size, the image produced at this resolution can be extremely large (easily 100+ megapixels)!
+
+If you wish to just download all the aerial images at their default resolutions, simply specify the shortcut `aerial` in your your include list.
 
 ## Reference Topo Maps
 
@@ -291,7 +296,7 @@ Build or rebuild your map by running the script to add the overlays. (Advanced u
 Output Formats
 ==============
 
-Once the master map file has been created in SVG format, other output formats may be created by specifying their file extensions from among the following in your configuration file:
+Once your master map file has been created in SVG format, you can create other output formats by specifying their file extensions from among the following in your configuration file:
 
     formats:
     - png
@@ -302,33 +307,37 @@ Once the master map file has been created in SVG format, other output formats ma
     - pdf
     - map
     - prj
-    - wld
 
 These file extensions produce the following file formats:
 
 * `png`, `gif` and `jpg` are common raster image formats. PNG is recommended. JPG is not recommended, as it not suited to line art and produces ugly artefacts.
 * `tif` yields a TIFF image, a raster format commonly required by print shops. Additional [GeoTIFF](http://en.wikipedia.org/wiki/GeoTIFF) metadata is also included in the image, allowing it to be used in any GIS software which supports GeoTIFF.
-* `kmz` is a map format used with [Google Earth](http://earth.google.com) and for publishing interactive maps on the web. (This would be useful for publishing rogaine map and NavLight data.)
-* `pdf` is the well-known document format.
-* `map` specifies the [OziExplorer](http://www.oziexplorer.com/) map file format.
-* `prj` gives a simple text file containing the map's projection as a [PROJ.4](http://trac.osgeo.org/proj/) string
-* `wld` yields a corresponding [ESRI world file](http://en.wikipedia.org/wiki/World_file) for the map raster, and may be used in conjunction with the projection file to georeference the image.
+* `kmz` is a map format used with [Google Earth](http://earth.google.com) and for publishing interactive maps on the web. (This would be useful for publishing a rogaine map with NavLight data.)
+* `pdf` is the well-known document format. Map data will be preserved in vector form within the PDF.
+* `map` specifies the [OziExplorer](http://www.oziexplorer.com/) map file format (using the PNG image as the companion raster).
+* `prj` produces a simple text file containing the map's projection as a [PROJ.4](http://trac.osgeo.org/proj/) string.
 
-Some of the above formats can have options associated with them, as follows:
+If you make manual edits to the master SVG map, you can regenerate any other output formats you have specified simply by deleting those files, then running the script again to recreate them.
 
-* By default, the PDF format maintains the map data in vector form. By specifying `pdf: raster` you can instead embed the map in the PDF as a raster image:
+The raster image formats (PNG, GIF, JPG, TIFF and KMZ) will render at 300 pixels-per-inch (ppi) resolution by default. You can easily override this default however. For example, say a high-resolution, 600-ppi TIFF is desired for printing, and a more modest 200-ppi KMZ for publishing on the web:
 
-        formats:
-        - pdf: raster
+    formats:
+    - tif: 600
+    - kmz: 200
 
-  (This option can increase the PDF file size, but has the benefit of a guaranteeing the map's final appearance; it should be considered if the map is being sent as PDF to a print shop.)
+You can also specify an output resolution for the PDF format, in which case the PDF will render as an embedded raster image (instead of vector data):
 
-* Projection formats other than PROJ.4 are available. Any of the [format options listed here](http://www.gdal.org/gdalsrsinfo.html) may be specified; for example, the projection may be desired in [well-known text](http://en.wikipedia.org/wiki/Well-known_text) format:
+    formats:
+    - pdf: 600
 
-        formats:
-        - prj: wkt
+(This option will likely produce a larger PDF file, but guarantees the map's final appearance; it should be considered if the map is being sent as PDF to a print shop.)
 
-(Note that if if you make manual edits to the master SVG map, you can regenerate any other output formats you have specified simply by deleting those files, then running the script again to regenerate them.)
+Finally, projection formats other than PROJ.4 are available. Any of the [format options listed here](http://www.gdal.org/gdalsrsinfo.html) may be specified; for example, the projection may be desired in [well-known text](http://en.wikipedia.org/wiki/Well-known_text) format:
+
+    formats:
+    - prj: wkt
+
+If you select `prj` as an output, a corresponding [ESRI world file](http://en.wikipedia.org/wiki/World_file) will be produced for each raster image. The world file may be used in conjunction with the projection file to georeference the image. (World file extensions for PNG, GIF, JPG and TIFF are `.pgw`, `.gfw`, `.jgw` and `.tfw`, respectively.)
 
 ## Producing Raster Images
 

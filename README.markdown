@@ -1,5 +1,3 @@
-__[30/5/12: N.B. This is a new version of the nswtopo program and makes use of different map servers. Users of the old program are advised to re-read the following instructions.]__
-
 Summary
 =======
 
@@ -178,18 +176,18 @@ These are orthographic aerial images for the specified map area, derived from Go
 
 These layers are very useful for confirming the accuracy of the topographic features. For example, you may be able to manually add firetrails, new dams, etc, which are missing from the NSW map layers, on the basis of what you can see in the aerial imagery. Since the images are correctly georeferenced, this is achieved simply by tracing out the extra information on the appropriate layer while viewing the aerial imagery underneath. (Another excellent use for these aerial imagery layers is to produce your own vegetation layer for a rogaine map. This is described below in the "canvas" section.)
 
-* `aerial-lpi-ads40`: the best, most recent high resolution imagery available from the NSW LPI; available for many but not all areas of interest 
+* `aerial-best`: A mosaic of the best NSW LPI imagery
+* `aerial-lpi-ads40`: Recent, high resolution imagery available from the NSW LPI; available for many but not all areas of interest 
 * `aerial-lpi-eastcoast`: medium resolution imagery for most of the 25k topographic coverage; quite old film imagery (from the 90s?)
 * `aerial-google`: generally good quality, recent aerial imagery from Google Maps; limited to 250 tiles per six hour period
-* `aerial-nokia`: reasonable quality aerial imagery from Nokia Maps; limited to 250 tiles per six hours; georeferencing is not always the best and usually requires some manual nudging for best alignment
-* `aerial-best`: A mosaic of NSW imagery of good quality
+* `aerial-nokia`: reasonable quality aerial imagery from Nokia Maps; limited to 250 tiles per six hours; georeferencing is not always the best
 
-Each of these images download at a default resolution, typically 2.0 metres per pixel. (This indicates that one pixel in the image represents two metres on the ground.) You can override the default by specifying a different resolution for the image:
+Each of these images downloads at a default resolution, typically 2.0 metres per pixel. (This indicates that one pixel in the image represents two metres on the ground.) You can override the default by specifying a different resolution for the image:
 
     include:
-    - aerial-lpi-ads40: 0.5
+    - aerial-best: 0.5
 
-Depending on the native resolution of the dataset, you may or may not obtain better imagery by specifying a better resolution. `aerial-lpi-ads40` has a native resolution of 0.5 m/px where it is available, and can yield very detailed imagery. However, for a map of reasonable size, the image produced at this resolution can be extremely large (easily 100+ megapixels)!
+Depending on the native resolution of the dataset, you may or may not obtain a more detailed image by specifying a better resolution. A lot of the `aerial-best` imagery has a native resolution of 0.5 m/px, and can yield very a very detailed image. However, for a map of reasonable size, the image produced at this resolution can be extremely large (easily 100+ megapixels)!
 
 If you wish to just download all the aerial images at their default resolutions, simply specify the shortcut `aerial` in your your include list.
 
@@ -240,6 +238,11 @@ You can specify the azimuthal angle, altitude and terrain exaggeration used to g
       altitude: 45            # angle of illumination from horizon (45 is standard)
       exaggeration: 1         # vertical exaggeration factor
       opacity: 0.3            # opacity of the shaded relief; determines how subtle the effect is
+
+The shaded relief is derived from low-resolution (45 metres per pixel) elevation data, and is embedded directly into the map at that resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. If you are using Inkscape and are unhappy with this appearance, you can instead download the relief layer at a higher resolution - say, 10.0 metres per pixel. (The compromise here is a significant increase in the SVG file size)
+
+    relief:
+      resolution: 10.0
 
 ## UTM Grid
 
@@ -443,4 +446,4 @@ Release History
   * 7/3/2012: version 0.4.4: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity; added overlay layers from GPX/KML/etc files
 * 3/6/2012: version 0.5: Substantial rewrite to use the new NSW ArcGIS server
   * 4/6/2012: 0.5.1: added metadata to identify layers correctly to Inkscape
-  * 25/6/2012: HEAD: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default nswtopo.cfg file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map; switched from 0.9996 to 1.0 for transverse mercator scale factor; changed config.yml to nswtopo.cfg
+  * 30/6/2012: 0.6: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default nswtopo.cfg file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map; added rendering using Inkscape or Batik; switched from 0.9996 to 1.0 for transverse mercator scale factor; changed config.yml to nswtopo.cfg; added configurations for individual output raster dpis and input raster resolutions

@@ -1918,13 +1918,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "server" => lpi_ortho,
         "config" => "/ADS40ImagesConfig.js",
         "ext" => "jpg",
-        "resolution" => 1.0,
       },
       "aerial-best" => {
         "server" => sixmaps,
         "service" => "Best_WebM",
         "image" => true,
         "ext" => "jpg",
+        "resolution" => 1.0,
       },
       # "aerial-best" => {
       #   "server" => sixmaps,

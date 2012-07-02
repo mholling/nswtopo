@@ -52,19 +52,34 @@ end
 Hash.send :include, HashHelpers
 
 module Enumerable
-  def with_progress_interactive(message = nil, indent = 0)
-    bars = 72 - 2 * indent
-    container = "  " * indent + "  [%s]"
+  def with_progress_interactive(message = nil, indent = 0, timed = true)
+    bars = 65 - 2 * indent
+    container = "  " * indent + "  [%s]%s"
     symbol = ?-
     
     puts "  " * indent + message if message
     Enumerator.new do |yielder|
-      $stdout << container % (?\s * bars)
-      each_with_index do |object, index|
+      $stdout << container % [ (?\s * bars), "" ]
+      each_with_index.inject([ Time.now ]) do |times, (object, index)|
         yielder << object
+        times << Time.now
+        
         filled = (index + 1) * bars / length
-        content = (symbol * filled) << (?\s * (bars - filled))
-        $stdout << "\r" << container % content
+        progress_bar = (symbol * filled) << (?\s * (bars - filled))
+        
+        elapsed = times.last - times.first
+        remaining = length * elapsed / (times.length - 1) - elapsed
+        timer = case
+        when !timed then ""
+        when times.length < 6 then ""
+        when elapsed + remaining < 60 then ""
+        when remaining < 60   then " -%is" % remaining
+        when remaining < 3600 then " -%im" % (remaining / 60)
+        else " -%ih%02im" % [ remaining / 3600, (remaining % 3600) / 60 ]
+        end
+        
+        $stdout << "\r" << container % [ progress_bar, timer ]
+        times
       end
       puts
     end
@@ -1654,7 +1669,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         FileUtils.cp image_path, source_path
         map.write_world_file "#{source_path}w", map.resolution_at(ppi)
         
-        pyramid = (0..max_zoom).to_a.with_progress("Resizing image pyramid:", 2).map do |zoom|
+        pyramid = (0..max_zoom).to_a.with_progress("Resizing image pyramid:", 2, false).map do |zoom|
           resolution = degrees_per_pixel * 2**(max_zoom - zoom)
           degrees_per_tile = resolution * TILE_SIZE
           counts = wgs84_bounds.map { |bound| (bound.reverse.inject(:-) / degrees_per_tile).ceil }

@@ -54,8 +54,7 @@ Hash.send :include, HashHelpers
 module Enumerable
   def with_progress_interactive(message = nil, indent = 0, timed = true)
     bars = 65 - 2 * indent
-    container = "  " * indent + "  [%s]%s"
-    symbol = ?-
+    container = "  " * indent + "  [%s]%-5s"
     
     puts "  " * indent + message if message
     Enumerator.new do |yielder|
@@ -65,7 +64,7 @@ module Enumerable
         times << Time.now
         
         filled = (index + 1) * bars / length
-        progress_bar = (symbol * filled) << (?\s * (bars - filled))
+        progress_bar = (?- * filled) << (?\s * (bars - filled))
         
         elapsed = times.last - times.first
         remaining = length * elapsed / (times.length - 1) - elapsed
@@ -81,6 +80,8 @@ module Enumerable
         $stdout << "\r" << container % [ progress_bar, timer ]
         times
       end
+      
+      $stdout << "\r" << container % [ (?- * bars), "" ]
       puts
     end
   end

@@ -1398,21 +1398,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       hdr_path = File.join(hdr_path, "hdr.adf") if File.directory? hdr_path
       raise BadLayerError.new("could not locate vegetation data file at #{hdr_path}") unless File.exists? hdr_path
       
-      clut_path = File.join temp_dir, "clut.png"
       tif_path = File.join temp_dir, "#{label}.tif"
       tfw_path = File.join temp_dir, "#{label}.tfw"
       mask_path = File.join temp_dir, "#{label}-mask.png"
       
-      clut = params["map"].inject("black") { |fx_string, (level, percent)| "(j==#{level} ? gray(#{percent}%) : #{fx_string})" }
-      %x[convert -size 1x256 canvas:black -fx "#{clut}" "#{clut_path}"]
-      
       map.write_world_file(tfw_path, resolution)
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
-      
       %x[gdalwarp -t_srs "#{map.projection}" "#{hdr_path}" "#{tif_path}"]
-      %x[convert -quiet "#{tif_path}" "#{clut_path}" -clut -channel Red -separate "#{mask_path}"]
-      woody, nonwoody = params["colour"].values_at("woody", "non-woody")
       
+      fx = params["map"].inject(0.0) { |memo, (index, percent)| %Q[255*r==#{index} ? #{0.01 * percent} : (#{memo})] }
+      %x[convert -quiet "#{tif_path}" -channel Red -fx "#{fx}" -separate "#{mask_path}"]
+      
+      woody, nonwoody = params["colour"].values_at("woody", "non-woody")
       File.join(temp_dir, "#{label}.png").tap do |png_path|
         %x[convert -size #{dimensions.join ?x} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
       end

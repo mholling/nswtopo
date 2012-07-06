@@ -51,10 +51,16 @@ module HashHelpers
 end
 Hash.send :include, HashHelpers
 
+class Array
+  def median
+    sort[length / 2]
+  end
+end
+
 module Enumerable
   def with_progress_interactive(message = nil, indent = 0, timed = true)
     bars = 65 - 2 * indent
-    container = "  " * indent + "  [%s]%-5s"
+    container = "  " * indent + "  [%s]%-7s"
     
     puts "  " * indent + message if message
     Enumerator.new do |yielder|
@@ -66,13 +72,15 @@ module Enumerable
         filled = (index + 1) * bars / length
         progress_bar = (?- * filled) << (?\s * (bars - filled))
         
+        median = [ times[1..-1], times[0..-2] ].transpose.map { |interval| interval.inject(&:-) }.median
         elapsed = times.last - times.first
-        remaining = length * elapsed / (times.length - 1) - elapsed
+        remaining = (length + 1 - times.length) * median
         timer = case
         when !timed then ""
         when times.length < 6 then ""
         when elapsed + remaining < 60 then ""
         when remaining < 60   then " -%is" % remaining
+        when remaining < 600  then " -%im%02is" % [ (remaining / 60), remaining % 60 ]
         when remaining < 3600 then " -%im" % (remaining / 60)
         else " -%ih%02im" % [ remaining / 3600, (remaining % 3600) / 60 ]
         end
@@ -741,7 +749,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def download(label, options, map)
       ext = options["ext"] || params["ext"] || "png"
       Dir.mktmpdir do |temp_dir|
-        FileUtils.mv get_image(label, ext, options, map, temp_dir), Dir.pwd
+        FileUtils.cp get_image(label, ext, options, map, temp_dir), Dir.pwd
       end unless File.exist?("#{label}.#{ext}")
     end
   end
@@ -1761,21 +1769,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         
         temp_kmz_path = File.join(temp_dir, "#{map.name}.kmz")
         Dir.chdir(kmz_dir) { %x[#{ZIP} -r "#{temp_kmz_path}" *] }
-        FileUtils.mv(temp_kmz_path, kmz_path)
+        FileUtils.cp temp_kmz_path, kmz_path
       end
     end
   end
   
   module Raster
-    def self.build(rasterise, map, ppi, svg_path, path)
+    def self.build(config, map, ppi, svg_path, path)
       dimensions = map.dimensions_at(ppi)
+      rasterise = config["rasterise"]
       case rasterise
       when /inkscape/i
         %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-png="#{path}" --export-width=#{dimensions.first} --export-height=#{dimensions.last} --export-background="#FFFFFF" #{DISCARD_STDERR}]
       when /batik/
         args = %Q[-d "#{path}" -bg 255.255.255.255 -m image/png -w #{dimensions.first} -h #{dimensions.last} "#{svg_path}"]
         jar_path = File.join(rasterise, 'batik-rasterizer.jar')
-        %x[java -jar "#{jar_path}" #{args}]
+        java = config["java"] || "java"
+        %x[#{java} -jar "#{jar_path}" #{args}]
       when /rsvg-convert/
         %x["#{rasterise}" --background-color white --format png --output "#{path}" --width #{dimensions.first} --height #{dimensions.last} "#{svg_path}"]
       else
@@ -1786,13 +1796,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class Pdf
-    def self.build(rasterise, map, svg_path, path)
+    def self.build(config, map, svg_path, path)
+      rasterise = config["rasterise"]
       case rasterise
       when /inkscape/i
         %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-pdf="#{path}" #{DISCARD_STDERR}]
       when /batik/
         jar_path = File.join(rasterise, 'batik-rasterizer.jar')
-        %x[java -jar "#{jar_path}" -d "#{path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
+        java = config["java"] || "java"
+        %x[#{java} -jar "#{jar_path}" -d "#{path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
       when /rsvg-convert/
         %x["#{rasterise}" --background-color white --format pdf --output "#{path}" "#{svg_path}"]
       else
@@ -2058,7 +2070,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
           
           fonts_needed = svg.elements.collect("//[@font-family]") do |element|
-            element.attributes["font-family"].gsub(/[\s\-]/, "")
+            element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")
           end.uniq
           fonts_present = %x[identify -list font].scan(/(family|font):(.*)/i).map(&:last).flatten.map do |family|
             family.gsub(/[\s\-]/, "")
@@ -2070,7 +2082,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end.write(file)
       end
-      FileUtils.mv tmp_svg_path, svg_path
+      FileUtils.cp tmp_svg_path, svg_path
     end unless File.exists? svg_path
     
     formats = config["formats"].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
@@ -2093,14 +2105,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         if (group & %w[png tif gif jpg kmz]).any? || (ppi && group.include?("pdf"))
           dimensions = map.dimensions_at(ppi)
           puts "  Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
-          Raster.build config["rasterise"], map, ppi, svg_path, raster_path
+          Raster.build config, map, ppi, svg_path, raster_path
         end
         group.each do |format|
           puts "  Generating #{map.name}.#{format}"
           path = File.join temp_dir, "#{map.name}.#{format}"
           case format
           when "png"
-            FileUtils.cp(raster_path, path)
+            FileUtils.cp raster_path, path
           when "tif"
             map.write_world_file "#{raster_path}w", map.resolution_at(ppi)
             %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" "#{raster_path}" "#{path}"]
@@ -2109,7 +2121,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "kmz"
             KMZ.build map, ppi, raster_path, path
           when "pdf"
-            ppi ? %x[convert "#{raster_path}" "#{path}"] : Pdf.build(config["rasterise"], map, svg_path, path)
+            ppi ? %x[convert "#{raster_path}" "#{path}"] : Pdf.build(config, map, svg_path, path)
           when "pgw", "tfw", "gfw", "jgw"
             map.write_world_file path, map.resolution_at(ppi)
           when "map"
@@ -2117,7 +2129,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "prj"
             File.write(path, map.projection.send(formats["prj"] || :proj4))
           end
-          FileUtils.mv path, Dir.pwd
+          FileUtils.cp path, Dir.pwd
         end
       end
     end unless outstanding.empty?

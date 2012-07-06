@@ -1,4 +1,4 @@
-Summary (Version 0.6)
+Summary (Version 0.6.1)
 =====================
 
 This software allows you to download and compile high-resolution vector topographic maps from the NSW geospatial data servers, covering much of NSW and the ACT. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. Other map formats including raster, KMZ and GeoTIFF can also be produced.
@@ -364,6 +364,10 @@ To produce your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ), you 
 
 If possible, the use of Batik is recommended as it produces nicer results. In particular, it scales up the low-resolution vegetation and shaded-relief layers to produce nice, smooth variations. (On the other hand, Inkscape renders large, blocky pixels when rendering the vegetation and shaded-relief layers. This looks somewhat strange and could suggest more accuracy in the vegetation layer than in fact exists. Inkscape also renders some area elements incorrectly.)
 
+If you are building a large map and encounter an `OutOfMemory` error, this means that Batik needs more more memory while rendering the map. You can fix this by adding your own [memory flags](http://docs.oracle.com/javase/6/docs/technotes/tools/solaris/java.html) to the java call. For example, to use 2Gb (2048Mb) of memory (the largest my java installation would allow), specify the following in your configuration file:
+
+    java: java -Xmx2048M
+
 Suggested Workflow for Rogaining Maps
 =====================================
 
@@ -445,5 +449,6 @@ Release History
   * 13/2/2012: version 0.4.3: reworked road/track colours and outlines
   * 7/3/2012: version 0.4.4: fixed bug in OziExplorer .map files created by non-windows OS; added layer opacity; added overlay layers from GPX/KML/etc files
 * 3/6/2012: version 0.5: Substantial rewrite to use the new NSW ArcGIS server
-  * 4/6/2012: 0.5.1: added metadata to identify layers correctly to Inkscape
-* 30/6/2012: 0.6: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default nswtopo.cfg file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map; added rendering using Inkscape or Batik; switched from 0.9996 to 1.0 for transverse mercator scale factor; changed config.yml to nswtopo.cfg; added configurations for individual output raster dpis and input raster resolutions
+  * 4/6/2012: version 0.5.1: added metadata to identify layers correctly to Inkscape
+* 30/6/2012: version 0.6: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default nswtopo.cfg file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map; added rendering using Inkscape or Batik; switched from 0.9996 to 1.0 for transverse mercator scale factor; changed config.yml to nswtopo.cfg; added configurations for individual output raster dpis and input raster resolutions
+  * 5/6/12: version 0.6.1: fixed vegetation rendering bug on linux; added time remaining estimations; bugfixes; added fix for java OutOfMemory error when using Batik

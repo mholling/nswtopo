@@ -16,7 +16,7 @@ The following open-source packages are required in order to run the script:
 
 * The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.3, not 1.8.x.
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
-* The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data.
+* The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. Version 1.9.x (January 2012) or later is needed.
 * [Inkscape](http://inkscape.org/) (a vector graphics editing program), if you wish to make manual edits or additions to your map, or to create secondary raster formats such as PNG, TIFF or KMZ.
 * A zip command utility, if you wish to produce KMZ maps.
 
@@ -29,7 +29,7 @@ Finally, a geographic viewing or mapping program such as [Google Earth](http://e
 * _Windows_:
   * A complete Ruby 1.9.3 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
   * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php#windows) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
-  * GDAL is best obtained in Windows by installing [FWTools](http://fwtools.maptools.org). After installation, use the _FWTools Shell_ to run the `nswtopo.rb` script. (Another distribution containing the required packages is [OSGeo4W](http://trac.osgeo.org/osgeo4w/).)
+  * Install the GDAL utilities using the [OSGeo4W](http://trac.osgeo.org/osgeo4w/) installer. Only pkg-gdal needs to be selected during the installation. (Other ways of obtaining Windows GDAL utilities are listed [here](http://trac.osgeo.org/gdal/wiki/DownloadingGdalBinaries#Windows), however not all of them include GDAL 1.9.x or above, including FWTools which was formerly recommended.) Make sure the GDAL executables have been added to your PATH by testing a GDAL command (e.g. `gdalinfo --version`) in your command line.
   * Download and install [Inkscape](http://inkscape.org/download/).
   * (If you want to create KMZ maps, install [7-Zip](http://www.7-zip.org) and add its location, `C:\Program Files\7-Zip`, to your PATH following [these instructions](http://java.com/en/download/help/path.xml), using a semicolon to separate your addition.)
 * _Mac OS X_:

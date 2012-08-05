@@ -444,7 +444,7 @@ render:
     end
     
     def self.wgs84
-      new("EPSG:4326")
+      new("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
     end
     
     def self.transverse_mercator(central_meridian, scale_factor)
@@ -1867,11 +1867,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       "host" => "lite.maps.nsw.gov.au",
       "tile_size" => 1024,
       "interval" => 1.0,
-      "projection" => "EPSG:3308",
+      "projection" => "+proj=lcc +lat_1=-30.75 +lat_2=-35.75 +lat_0=-33.25 +lon_0=147 +x_0=9300000 +y_0=4500000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs", # EPSG:3308, NSW Lambert
     )
     nokia_maps = TiledMapServer.new(
       "uri" => "http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot",
-      "projection" => "EPSG:3857",
+      "projection" => "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs", # EPSG:3857, web mercator
       "tile_sizes" => [ 1024, 1024 ],
       "interval" => 1.2,
       "crops" => [ [ 0, 0 ], [ 26, 0 ] ],
@@ -1880,7 +1880,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     )
     google_maps = TiledMapServer.new(
       "uri" => "http://maps.googleapis.com/maps/api/staticmap?zoom=${zoom}&size=${hsize}x${vsize}&scale=1&format=${format}&maptype=${name}&sensor=false&center=${latitude},${longitude}",
-      "projection" => "EPSG:3857",
+      "projection" => "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs", # EPSG:3857, web mercator
       "tile_sizes" => [ 640, 640 ],
       "interval" => 1.2,
       "crops" => [ [ 0, 0 ], [ 30, 0 ] ],

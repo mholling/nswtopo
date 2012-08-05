@@ -1,5 +1,5 @@
-Summary (Version 0.6.1)
-=====================
+Summary (Version 0.6.2)
+=======================
 
 This software allows you to download and compile high-resolution vector topographic maps from the NSW geospatial data servers, covering much of NSW and the ACT. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. Other map formats including raster, KMZ and GeoTIFF can also be produced.
 
@@ -453,3 +453,5 @@ Release History
   * 4/6/2012: version 0.5.1: added metadata to identify layers correctly to Inkscape
 * 30/6/2012: version 0.6: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default nswtopo.cfg file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map; added rendering using Inkscape or Batik; switched from 0.9996 to 1.0 for transverse mercator scale factor; changed config.yml to nswtopo.cfg; added configurations for individual output raster dpis and input raster resolutions
   * 5/6/12: version 0.6.1: fixed vegetation rendering bug on linux; added time remaining estimations; bugfixes; added fix for java OutOfMemory error when using Batik
+  * 5/8/12: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
+  

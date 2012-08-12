@@ -1,3 +1,5 @@
+*NOTE: This software is currently (as of 12/8/2012) not working due to a server-side change in the map layer configuration. I will rewrite the map recipe for this new configuration and remove this warning when I am done.*
+
 Summary (Version 0.6.2)
 =======================
 

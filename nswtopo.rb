@@ -210,13 +210,10 @@ render:
     colour: 
       "#D6CAB6": "#805100"
       "#D6B781": "#805100"
-  tracks:
-    expand: 0.6
-    colour:
-      "#9C9C9C": "#363636"
   roads:
     expand: 0.6
     colour:
+      "#A39D93": "#363636"
       "#9C9C9C": "#363636"
   cadastre:
     expand: 0.5
@@ -230,26 +227,30 @@ render:
     opacity: 1
     colour:
       "#73A1E6": "#4985DF"
-  LS_Hydroline:
+  Creek_Named:
     expand: 0.3
-  LS_Watercourse:
+  Creek_Unnamed:
     expand: 0.3
-  MS_Hydroline:
+  Stream_Named:
     expand: 0.5
-  MS_Watercourse:
+  Stream_Unnamed:
     expand: 0.5
-  SS_Watercourse:
+  Stream_Main:
     expand: 0.7
-  VSS_Watercourse:
+  River_Main:
     expand: 0.7
-  TN_Watercourse:
+  River_Major:
     expand: 0.7
   HydroArea:
     expand: 0.5
-  GeneralCulturalPoint:
+  PointOfInterest:
     expand: 0.6
-  LS_GeneralCulturalPoint:
+  Tourism_Minor:
     expand: 0.6
+  Gates_Grids:
+    expand: 0.5
+  Beacon_Tower:
+    expand: 0.5
   holdings:
     colour:
       "#B0A100": "#FF0000"
@@ -1977,24 +1978,119 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "resolution" => 0.55,
         "ext" => "svg",
         "layers" => {
-          4500 => {
-            "LS_Roads_onbridge" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND NOT "roadontype" IN (1,3)],
-            "LS_Roads_onground" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 1],
-          },
-          9000 => %w[TransportFacilityLine GeneralCulturalLine MS_LocalRoads MS_RoadNameExtent_Labels MS_Roads_Labels MS_Roads MS_Tracks_onground MS_Roads_intunnel GeneralCulturalPoint LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline SS_Watercourse VSS_Watercourse TN_Watercourse VSS_Oceans HydroArea Rural_Property Lot LS_Contour GeneralCulturalArea],
-          nil => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint TransportFacilityPoint MS_Railway AncillaryHydroPoint AncillaryHydroPoint_Bore DLSArea_overwater FuzzyExtentLine Runway DLSArea_underwater Urban_Areas]
+          # # TODO: pathways in new server configuration (12/8/12) are currently missing...
+          # 4500 => {
+          #   "Roads_onbridge_LS" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 2],
+          #   "Roads_onground_LS" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 1],
+          # },
+          9000 => %w[
+            Roads_Urban_MS
+            Roads_intunnel_MS
+            Bridge_Ford_Names
+            Gates_Grids
+            Dwellings_Buildings
+            Building_Large
+            Homestead_Tourism_Major
+            Lot
+            Contour_10m
+            Beacon_Tower
+            Wharfs_Ramps
+            Damwall_Racetrack
+            StockDams
+            Creek_Named
+            Creek_Unnamed
+            Stream_Unnamed
+            Stream_Named
+            Stream_Main
+            River_Main
+            River_Major
+            HydroArea
+            Oceans_Bays
+          ],
+          nil => %w[
+            PlacePoint_LS
+            Caves_Pinnacles
+            Ridge_Beach
+            Waterfalls_springs
+            Swamps_LSI
+            Cliffs_Reefs_Mangroves
+            CliffTop_Levee
+            PointOfInterest
+            Tourism_Minor
+            Railway_MS
+            Railway_intunnel_MS
+            Runway
+            Airport_Station
+            State_Border
+          ],
         },
         "labels" => {
-          15000 => %w[LS_PlacePoint LS_GeneralCulturalPoint PointOfInterest DLSPoint DLSLine MS_BuildingComplexPoint GeneralCulturalPoint MS_RoadNameExtent_Labels MS_Roads_Labels TransportFacilityPoint MS_Railway MS_Roads MS_LocalRoads MS_Tracks_onground MS_Roads_intunnel AncillaryHydroPoint AncillaryHydroPoint_Bore TransportFacilityLine GeneralCulturalLine DLSArea_overwater FuzzyExtentLine Runway VSS_Oceans HydroArea LS_Watercourse LS_Hydroline MS_Watercourse MS_Hydroline DLSArea_underwater SS_Watercourse VSS_Watercourse TN_Watercourse Rural_Property MS_Contour Urban_Areas],
+          15000 => %w[
+            Roads_Urban_MS
+            Roads_intunnel_MS
+            Homestead_Tourism_Major
+            Contour_20m
+            Beacon_Tower
+            Wharfs_Ramps
+            Damwall_Racetrack
+            StockDams
+            Creek_Named
+            Creek_Unnamed
+            Stream_Names
+            Stream_Unnamed
+            Stream_Named
+            Stream_Main
+            River_Main
+            River_Major
+            HydroArea
+            Oceans_Bays
+            PlacePoint_LS
+            Caves_Pinnacles
+            Ridge_Beach
+            Waterfalls_springs
+            Swamps_LSI
+            Cliffs_Reefs_Mangroves
+            CliffTop_Levee
+            PointOfInterest
+            Tourism_Minor
+            Railway_MS
+            Railway_intunnel_MS
+            Runway
+            Airport_Station
+            State_Border
+          ]
         },
         "equivalences" => {
-          "contours" => %w[LS_Contour MS_Contour],
-          "water" => %w[TN_Watercourse VSS_Watercourse SS_Watercourse MS_Hydroline MS_Watercourse LS_Hydroline LS_Watercourse VSS_Oceans HydroArea],
-          "pathways" => %w[LS_Roads_onground LS_Roads_onbridge],
-          "tracks" => %w[MS_Tracks_onground],
-          "roads" => %w[MS_Roads MS_LocalRoads MS_Roads_intunnel],
-          "cadastre" => %w[Rural_Property Lot],
-          "labels" => %w[Labels],
+          "contours" => %w[
+            Contour_10m
+            Contour_20m
+          ],
+          "water" => %w[
+            StockDams
+            Creek_Named
+            Creek_Unnamed
+            Stream_Unnamed
+            Stream_Named
+            Stream_Main
+            River_Main
+            River_Major
+            HydroArea
+            Oceans_Bays
+          ],
+          "pathways" => %w[
+            Roads_onground_LS
+            Roads_onbridge_LS
+          ],
+          "roads" => %w[
+            Roads_Urban_MS
+            Roads_intunnel_MS
+          ],
+          "cadastre" => %w[
+            Lot
+          ],
+          "labels" => %w[
+            Labels
+          ],
         },
       },
       "relief" => {
@@ -2152,3 +2248,4 @@ end
 # TODO: allow configuration to specify patterns?
 # TODO: refactor options["render"] stuff?
 # TODO: regroup all <defs> into single <defs>?
+# TODO: add Relative_Height to topographic layers?

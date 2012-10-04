@@ -488,9 +488,10 @@ render:
         config["bounds"] ||= bounds_path
         gps = GPS.new(config["bounds"])
         polygon = gps.areas.first
+        track = gps.tracks.first
         waypoints = gps.waypoints.to_a
-        config["margin"] = 0 unless waypoints.any?
-        polygon ? polygon.first : waypoints.transpose.first
+        config["margin"] = 0 unless (waypoints.any? || track)
+        polygon ? polygon.first : track ? track.first : waypoints.transpose.first
       else
         abort "Error: map extent must be provided as a bounds file, zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
       end
@@ -1250,6 +1251,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
             tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
             tile_data.gsub! /Arial\s?MT/, "Arial"
+            tile_data.gsub! "ESRISDS1.951", %Q['ESRI SDS 1.95 1']
           
             [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
               tile_data.gsub! regex do |match|
@@ -1745,7 +1747,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             
             tile_png_path = File.join(index_dir, tile_png_name)
             crops = indices.map { |index| index * TILE_SIZE }
-            %Q[convert "#{tif_path}" -quiet -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage +dither -type PaletteBilevelMatte PNG8:"#{tile_png_path}"]
+            %Q[convert "#{tif_path}" -quiet +repage -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage +dither -type PaletteBilevelMatte PNG8:"#{tile_png_path}"]
           end
         end.flatten.with_progress("Creating tiles:", 2).each { |command| %x[#{command}] }
         
@@ -1851,6 +1853,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     map = Map.new(config)
     
     sixmaps = ArcGIS.new(
+      "host" => "maps.six.nsw.gov.au",
+      "folder" => "sixmaps",
+      "tile_sizes" => [ 2048, 2048 ],
+      "interval" => 0.1,
+    )
+    sixmapsq = ArcGIS.new(
       "host" => "mapsq.six.nsw.gov.au",
       "folder" => "sixmaps",
       "tile_sizes" => [ 2048, 2048 ],
@@ -1897,7 +1905,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     layers = {
       "reference-topo-2" => {
-        "server" => sixmaps,
+        "server" => sixmapsq,
         "service" => "NSWTopo",
         "image" => true,
         "ext" => "png",
@@ -1973,7 +1981,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "ext" => "svg",
       },
       "topographic" => {
-        "server" => sixmaps,
+        "server" => sixmapsq,
         "service" => "LPIMap",
         "resolution" => 0.55,
         "ext" => "svg",
@@ -1992,6 +2000,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             Building_Large
             Homestead_Tourism_Major
             Lot
+            Property
             Contour_10m
             Beacon_Tower
             Wharfs_Ramps
@@ -2087,6 +2096,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           ],
           "cadastre" => %w[
             Lot
+            Property
           ],
           "labels" => %w[
             Labels
@@ -2239,6 +2249,8 @@ end
 if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
+
+# TODO: fix issue with batik rendering relief with purple lines
 
 # # later:
 # TODO: remove linked images from PDF output?

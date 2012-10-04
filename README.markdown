@@ -78,6 +78,8 @@ If you are using a waypoints file to mark rogaine control locations, you can use
     bounds: controls.kml
     margin: 15
 
+(Using a track to specify the bounds will also work, and a 15mm margin will again be used by default.)
+
 Alternatively, specify the map bounds in UTM by providing the UTM zone (54, 55 or 56 for NSW) and minimum and maximum eastings and northings, as follows:
 
     zone: 55
@@ -454,4 +456,4 @@ Release History
 * 30/6/2012: version 0.6: fixed bug with shaded-relief and vegetation layers on some versions of ImageMagick; added option for default nswtopo.cfg file stored in nswtopo.rb location; improved SVG topographic labels layer; added other output formats: .png, .tif, .kmz, .pdf, .prj, .wld, .map; added rendering using Inkscape or Batik; switched from 0.9996 to 1.0 for transverse mercator scale factor; changed config.yml to nswtopo.cfg; added configurations for individual output raster dpis and input raster resolutions
   * 5/6/12: version 0.6.1: fixed vegetation rendering bug on linux; added time remaining estimations; bugfixes; added fix for java OutOfMemory error when using Batik
   * 5/8/12: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
-  
+  * 4/10/12: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer

@@ -436,7 +436,84 @@ Several formats of georeferenced output image are available. You can specify `ti
 Customising Topographic Rendering
 =================================
 
-TODO: Instructions for changing the default rendering of topographic layers (implemented but not documented yet)
+You can control how the raw topographic data (`topographic.svg`) is rendered into you final map. This allows you to change the colour, size and opacity of individual layers. The default rendering was chosen to give a reasonable map with emphasis on contours, and changes to rendering may not be needed.
+
+To change rendering of a feature, open `topographic.svg` and identify the name of the topographic layer (e.g. `Gates_Grids`, `Contour_10m`) containing the feature. (The following labels for groups of related layers are also available: contours, water, pathways, roads, cadastre, labels).
+
+Next, add a `render:` section to your `nswtopo.cfg` file. For each layer which you wish to modify, specify one or more of `opacity`, `expand` and `colour` values to change the opacity, scaling and colour, respectively, of the features in that layer. Colours should be specified as hex triplets (e.g. `"#FF0000"` for red). Use a [colour picker](http://www.google.com/search?q=color+picker) to choose your desired colour and get its hex triplet. `opacity` should be a value between 0.0 and 1.0. The `expand` value should specify how much the feature's size is reduced (expand < 1.0) or enlarged (expand > 1.0) compared to the raw map.
+
+The following shows the default renderings and illustrates the format to be used. Any renderings you specify in your `nswtopo.cfg` will override these defaults. Note that `colour` may specify a single colour for the whole layer (e.g. the cadastre layer below), or a mapping of specific colours to new colours (e.g. the labels layer below). (The latter is useful if the original layer contains more than one colour; you will need to identify the colours to be changed using Inkscape.)
+
+    render:
+      plantation:
+        opacity: 1
+        colour: "#80D19B"
+      pathways:
+        expand: 0.5
+        colour: 
+          "#A39D93": "#363636"
+      contours:
+        expand: 0.7
+        colour: 
+          "#D6CAB6": "#805100"
+          "#D6B781": "#805100"
+      roads:
+        expand: 0.6
+        colour:
+          "#A39D93": "#363636"
+          "#9C9C9C": "#363636"
+      cadastre:
+        expand: 0.5
+        opacity: 0.5
+        colour: "#777777"
+      labels: 
+        colour: 
+          "#A87000": "#000000"
+          "#FAFAFA": "#444444"
+      water:
+        opacity: 1
+        colour:
+          "#73A1E6": "#4985DF"
+      Creek_Named:
+        expand: 0.3
+      Creek_Unnamed:
+        expand: 0.3
+      Stream_Named:
+        expand: 0.5
+      Stream_Unnamed:
+        expand: 0.5
+      Stream_Main:
+        expand: 0.7
+      River_Main:
+        expand: 0.7
+      River_Major:
+        expand: 0.7
+      HydroArea:
+        expand: 0.5
+      PointOfInterest:
+        expand: 0.6
+      Tourism_Minor:
+        expand: 0.6
+      Gates_Grids:
+        expand: 0.5
+      Beacon_Tower:
+        expand: 0.5
+      holdings:
+        colour:
+          "#B0A100": "#FF0000"
+          "#948800": "#FF0000"
+
+As an example, to make the contours black, the roads thinner and the cadastre lines thicker and darker, add the following to your map configuration file:
+
+    render:
+      contours:
+        colour: "#000000"
+      roads:
+        expand: 0.4
+      cadastre:
+        opacity: 1.0
+        expand: 0.8
+        colour: "#202020"
 
 Release History
 ===============

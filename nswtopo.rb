@@ -193,10 +193,17 @@ vegetation:
     woody: "#C2FFC2"
     non-woody: white
   map:
+    0: 0
     1: 0
     2: 0
-    3: 60
-    4: 100
+    3: 0
+    4: 0
+    5: 0
+    6: 60
+    7: 60
+    8: 100
+    9: 100
+    10: 100
 render:
   plantation:
     opacity: 1

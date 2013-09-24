@@ -201,14 +201,14 @@ These layers (`reference-topo-s1`, `reference-topo-s2` and `reference-topo-curre
 
 ## Vegetation
 
-The vegetation layer in standard NSW printed topo sheets appears to be derived from a dataset called *NSW Interim Native Vegetation Extent (2008-v1)* (a.k.a. vegext1 or vegext1_08v1), which is a 25-metre resolution raster representation of NSW, categorised into 'woody' and 'non-woody' vegetation. For our purposes this generally corresponds to forested and open areas on our map.
+The vegetation layer in standard NSW printed topo sheets appears to be derived from a dataset called *NSW Interim Native Vegetation Extent (2008-v2)*, which is a 25-metre resolution raster representation of NSW, categorised into 'woody' and 'non-woody' vegetation. For our purposes this generally corresponds to forested and open areas on our map.
 
-This vegetation data is not available from a map server, but the entire 162 MB dataset may be downloaded from [here](http://www.canri.nsw.gov.au/download/download.cfm?File=vegext1.zip) (you will need to provide your name and email address). You need only download this once as the same data is used for any maps you create.
+This vegetation data is not available from a map server, but the entire 162 MB dataset may be downloaded from [here](http://mapdata.environment.nsw.gov.au/geonetwork/srv/en/metadata.show?id=246) (you will need to provide your name and email address). You need only download this once as the same data is used for any maps you create.
 
 Once you have downloaded the data, unzip the file to a suitable location, locate the file named `hdr.adf` and add its path (relative or absolute) to your configuration file. (You can also modify the default colours for woody and non-woody vegetation, should you wish.)
 
     vegetation:
-      path: /Users/Matthew/Downloads/vegext1/export/grid2/vegext1_08v1/hdr.adf
+      path: /Users/matthew/nswtopo/NSWInterimNativeVegetationExtentV2_2008/Data/nswintext08/hdr.adf
       colour:
         woody: "#C2FFC2"      # a light pastel green
         non-woody: white
@@ -535,4 +535,4 @@ Release History
   * 5/6/12: version 0.6.1: fixed vegetation rendering bug on linux; added time remaining estimations; bugfixes; added fix for java OutOfMemory error when using Batik
   * 5/8/12: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
   * 4/10/12: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer
-  * 24/9/13: HEAD: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers.
+  * 24/9/13: HEAD: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.

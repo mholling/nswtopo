@@ -1987,11 +1987,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "resolution" => 0.55,
         "ext" => "svg",
         "layers" => {
-          # # TODO: pathways in new server configuration (12/8/12) are currently missing...
-          # 4500 => {
-          #   "Roads_onbridge_LS" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 2],
-          #   "Roads_onground_LS" => %q["functionhierarchy" = 9 AND "classsubtype" = 6 AND "roadontype" = 1],
-          # },
+          4500 => {
+            "Roads_onbridge_LS" => %q["functionhierarchy" = 9 AND "roadontype" = 2],
+            "Roads_onground_LS" => %q["functionhierarchy" = 9 AND "roadontype" = 1],
+          },
           9000 => %w[
             Roads_Urban_MS
             Roads_intunnel_MS

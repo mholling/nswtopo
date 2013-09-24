@@ -1858,12 +1858,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       "tile_sizes" => [ 2048, 2048 ],
       "interval" => 0.1,
     )
-    sixmapsq = ArcGIS.new(
-      "host" => "mapsq.six.nsw.gov.au",
-      "folder" => "sixmaps",
-      "tile_sizes" => [ 2048, 2048 ],
-      "interval" => 0.1,
-    )
+    # sixmapsq = ArcGIS.new(
+    #   "host" => "mapsq.six.nsw.gov.au",
+    #   "folder" => "sixmaps",
+    #   "tile_sizes" => [ 2048, 2048 ],
+    #   "interval" => 0.1,
+    # )
     atlas = ArcGIS.new(
       "host" => "atlas.nsw.gov.au",
       "instance" => "arcgis1",
@@ -1903,15 +1903,21 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     overlay_server = OverlayServer.new("width" => 0.5, "colour" => "black", "opacity" => 0.3)
     
     layers = {
-      "reference-topo-2" => {
-        "server" => sixmapsq,
-        "service" => "NSWTopo",
-        "image" => true,
+      "reference-topo-current" => {
+        "server" => sixmaps,
+        "service" => "LPITopoMap",
         "ext" => "png",
         "resolution" => 2.0,
         "background" => "white",
       },
-      "reference-topo-1" => {
+      "reference-topo-s1" => {
+        "server" => sixmaps,
+        "service" => "LPITopoMap_S1",
+        "ext" => "png",
+        "resolution" => 2.0,
+        "background" => "white",
+      },
+      "reference-topo-s2" => {
         "server" => lpi_ortho,
         "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw",
         "otdf" => true,
@@ -1982,7 +1988,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "ext" => "svg",
       },
       "topographic" => {
-        "server" => sixmapsq,
+        "server" => sixmaps,
         "service" => "LPIMap",
         "resolution" => 0.55,
         "ext" => "svg",

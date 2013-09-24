@@ -160,8 +160,9 @@ Any or all of the following additional layers can be included in your map by lis
     - aerial-google
     - aerial-nokia
     - aerial-best
-    - reference-topo-1
-    - reference-topo-2
+    - reference-topo-s1
+    - reference-topo-s2
+    - reference-topo-current
     - canvas
     - vegetation
     - plantation
@@ -196,7 +197,7 @@ If you wish to just download all the aerial images at their default resolutions,
 
 ## Reference Topo Maps
 
-These layers (`reference-topo-1` and `reference-topo-2`, or simply `reference` as shortcut) contain lower-resolution topographic map raster images available from various NSW government mapping sites. They are useful to have as a reference for comparison against the output of this software.
+These layers (`reference-topo-s1`, `reference-topo-s2` and `reference-topo-current`, or simply `reference` as shortcut) contain lower-resolution topographic map raster images at various points in time (oldest, older and current, respectively). They are useful to have as a reference for comparison against the output of this software.
 
 ## Vegetation
 
@@ -398,7 +399,7 @@ Here is a suggested workflow for producing a rogaine map using this software (al
 
 6.  In Google Earth, mark out any boundaries and out-of-bounds areas using the polygon tool, and save them all to a `boundaries.kml` file.
 
-6.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (topographic.svg, rogaine.svg, aerial-\*.jpg, reference-\*.jpg etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
+6.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (topographic.svg, rogaine.svg, aerial-\*.jpg, reference-\*.png etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
 
         name: rogaine
         bounds: controls.kml    # size the map to contain all the controls ...
@@ -534,4 +535,4 @@ Release History
   * 5/6/12: version 0.6.1: fixed vegetation rendering bug on linux; added time remaining estimations; bugfixes; added fix for java OutOfMemory error when using Batik
   * 5/8/12: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
   * 4/10/12: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer
-  * 24/9/13: HEAD: fixed aerial-best, paths and holdings layers.
+  * 24/9/13: HEAD: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers.

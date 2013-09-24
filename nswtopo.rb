@@ -1953,18 +1953,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "config" => "/ADS40ImagesConfig.js",
         "ext" => "jpg",
       },
+      # "aerial-best" => {
+      #   "server" => sixmaps,
+      #   "service" => "Best_WebM",
+      #   "image" => true,
+      #   "ext" => "jpg",
+      #   "resolution" => 1.0,
+      # },
       "aerial-best" => {
         "server" => sixmaps,
-        "service" => "Best_WebM",
-        "image" => true,
+        "service" => "LPI_Imagery_Best",
         "ext" => "jpg",
         "resolution" => 1.0,
       },
-      # "aerial-best" => {
-      #   "server" => sixmaps,
-      #   "service" => "LPI_Imagery_Best",
-      #   "ext" => "jpg",
-      # },
       "vegetation" => {
         "server" => vegetation_server,
       },

@@ -1867,7 +1867,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     atlas = ArcGIS.new(
       "host" => "atlas.nsw.gov.au",
       "instance" => "arcgis1",
-      "folder" => "atlas",
       "cookie" => "http://atlas.nsw.gov.au/",
       "tile_sizes" => [ 2048, 2048 ],
       "interval" => 0.1,
@@ -1975,6 +1974,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       },
       "plantation" => {
         "server" => atlas,
+        "folder" => "atlas",
         "service" => "Economy_Forestry",
         "resolution" => 0.55,
         "layers" => { nil => { "Forestry" => %q[Classification='Plantation forestry'] } },
@@ -2108,9 +2108,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "clips" => %w[topographic.HydroArea topographic.VSS_Oceans],
         "ext" => "png",
       },
+      # "holdings" => {
+      #   "server" => sixmaps,
+      #   "service" => "LHPA",
+      #   "ext" => "svg",
+      #   "layers" => %w[Holdings],
+      #   "labels" => %w[Holdings],
+      #   "equivalences" => { "holdings" => %w[Holdings Labels]}
+      # },
       "holdings" => {
-        "server" => sixmaps,
-        "service" => "LHPA",
+        "server" => atlas,
+        "folder" => "sixmaps",
+        "service" => "_LHPA",
         "ext" => "svg",
         "layers" => %w[Holdings],
         "labels" => %w[Holdings],

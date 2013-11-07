@@ -2118,7 +2118,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       },
       "relief" => {
         "server" => oneearth_relief,
-        "clips" => %w[topographic.HydroArea topographic.VSS_Oceans],
+        "clips" => %w[topographic.HydroArea topographic.Oceans_Bays],
         "ext" => "png",
       },
       # "holdings" => {

@@ -148,6 +148,8 @@ class Array
 end
 
 module NSWTopo
+  SEGMENT = ?.
+  
   EARTH_RADIUS = 6378137.0
   
   WINDOWS = !RbConfig::CONFIG["host_os"][/mswin|mingw/].nil?
@@ -624,7 +626,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def svg(&block)
+    def xml
       millimetres = @extents.map { |extent| 1000.0 * extent / @scale }
       REXML::Document.new.tap do |xml|
         xml << REXML::XMLDecl.new(1.0, "utf-8")
@@ -641,10 +643,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "viewBox" => "0 0 #{millimetres[0]} #{millimetres[1]}",
           "enable-background" => "new 0 0 #{millimetres[0]} #{millimetres[1]}",
         }
-        xml.add_element("svg", attributes, &block)
-        xml.elements.each("/svg/g[@id]") do |layer|
-          layer.elements.empty? ? layer.parent.elements.delete(layer) : layer.add_attribute("inkscape:groupmode", "layer")
-        end
+        xml.add_element("svg", attributes)
       end
     end
     
@@ -761,6 +760,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         FileUtils.cp get_image(label, ext, options, map, temp_dir), Dir.pwd
       end unless File.exist?("#{label}.#{ext}")
     end
+    
+    # TODO: use Server#source method to determine whether download needs to be done?
+    # (Then we might be able to remove NoDownload module)
+    def source(label, options)
+      ext = options["ext"] || params["ext"] || "png"
+      File.join(Dir.pwd, "#{label}.#{ext}")
+    end
   end
   
   module RasterRenderer
@@ -789,7 +795,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         { "d" => d, "transform" => transform, "clip-rule" => "evenodd" }
       end.map.with_index do |attributes, index|
         REXML::Element.new("clipPath").tap do |clippath|
-          clippath.add_attribute("id", "#{label}.clip.#{index}")
+          clippath.add_attribute("id", [ label, "clip", index ].join(SEGMENT))
           clippath.add_element("path", attributes)
         end
       end
@@ -814,8 +820,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      svg.add_element("g", "id" => label, "style" => "opacity:#{opacity}") do |layer|
-        layer.add_element("defs") do |defs|
+      svg.elements["g[@id='#{label}']"] = REXML::Element.new("g").tap do |layer|
+        layer.add_attributes "id" => label, "style" => "opacity:#{opacity}"
+        layer.add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
           clip_paths(svg, label, options).each do |clippath|
             defs.elements << clippath
           end
@@ -1018,8 +1025,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class ArcGIS < Server
-    SEGMENT = ?.
-    
     def tiles(bounds, resolution, margin = 0)
       cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - margin }
       dimensions = bounds.map { |bound| ((bound.max - bound.min) / resolution).ceil }
@@ -1155,8 +1160,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           rerender(layer, command, values)
         end if renderings[id]
       end
-      source_svg.elements.each("/svg/defs") { |defs| svg.elements << defs }
-      source_svg.elements.each("/svg/g[@id]") { |layer| svg.elements << layer }
+      %w[defs g].each do |tag|
+        source_svg.elements.each("/svg/#{tag}[@id]") do |element|
+          id = element.attributes["id"]
+          svg.elements["/svg/#{tag}[@id='#{id}']"] = element
+        end
+      end
     end
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
@@ -1282,55 +1291,53 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ tileset, tile_offsets ]
       end
       
-      xml = map.svg do |svg|
-        svg.add_element("defs") do |defs|
-          tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
-            defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
-              clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
-            end
+      xml = map.xml
+      xml.elements["/svg"].add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
+        tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
+          defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
+            clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
           end
         end
-        
-        layers = tilesets.find(lambda { [ [ ] ] }) do |tileset, _|
-          tileset.all? { |tile_xml, _, _, xpath| tile_xml.elements[xpath] }
-        end.first.map do |tile_xml, _, _, xpath|
+      end
+      
+      layers = tilesets.find(lambda { [ [ ] ] }) do |tileset, _|
+        tileset.all? { |tile_xml, _, _, xpath| tile_xml.elements[xpath] }
+      end.first.map do |tile_xml, _, _, xpath|
+        tile_xml.elements.collect(xpath) do |layer|
+          name = layer.attributes["id"]
+          opacity = layer.parent.attributes["opacity"] || 1
+          [ name, opacity ]
+        end
+      end.inject([], &:+).uniq(&:first).sort_by do |name, _|
+        layer_order[name] || layer_order.length
+      end.map do |name, opacity|
+        { name => xml.elements["/svg"].add_element("g",
+          "id" => [ label, name ].join(SEGMENT),
+          "style" => "opacity:#{opacity}",
+          "transform" => transform,
+        )}
+      end.inject({}, &:merge)
+      
+      tilesets.with_progress("Assembling: #{label}").each do |tileset, tile_offsets|
+        tileset.each do | tile_xml, scale, type, xpath|
           tile_xml.elements.collect(xpath) do |layer|
-            name = layer.attributes["id"]
-            opacity = layer.parent.attributes["opacity"] || 1
-            [ name, opacity ]
-          end
-        end.inject([], &:+).uniq(&:first).sort_by do |name, _|
-          layer_order[name] || layer_order.length
-        end.map do |name, opacity|
-          { name => svg.add_element("g",
-            "id" => [ label, name ].join(SEGMENT),
-            "style" => "opacity:#{opacity}",
-            "transform" => transform,
-            "color-interpolation" => "linearRGB",
-          )}
-        end.inject({}, &:merge)
-        
-        tilesets.with_progress("Assembling: #{label}").each do |tileset, tile_offsets|
-          tileset.each do | tile_xml, scale, type, xpath|
-            tile_xml.elements.collect(xpath) do |layer|
-              [ layer, layer.attributes["id"] ]
-            end.select do |layer, id|
-              layers[id]
-            end.each do |layer, id|
-              tile_transform = "translate(#{tile_offsets.join ' '})"
-              clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(SEGMENT)})"
-              layers[id].add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
-                case type
-                when "layers"
-                  rerender(layer, "expand", map.scale.to_f / scale) if scale
-                when "labels"
-                  layer.elements.each(".//pattern | .//path | .//font", &:delete_self)
-                  layer.deep_clone.tap do |copy|
-                    copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
-                  end.elements.each { |element| tile << element }
-                end
-                layer.elements.each { |element| tile << element }
+            [ layer, layer.attributes["id"] ]
+          end.select do |layer, id|
+            layers[id]
+          end.each do |layer, id|
+            tile_transform = "translate(#{tile_offsets.join ' '})"
+            clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(SEGMENT)})"
+            layers[id].add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
+              case type
+              when "layers"
+                rerender(layer, "expand", map.scale.to_f / scale) if scale
+              when "labels"
+                layer.elements.each(".//pattern | .//path | .//font", &:delete_self)
+                layer.deep_clone.tap do |copy|
+                  copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
+                end.elements.each { |element| tile << element }
               end
+              layer.elements.each { |element| tile << element }
             end
           end
         end
@@ -1426,12 +1433,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include RasterRenderer
     include NoDownload
     
+    def hdr_path
+      path = params["path"]
+      raise BadLayerError.new("no vegetation data file provided (see README)") unless path
+      path = File.join(path, "hdr.adf") if File.directory? path
+      raise BadLayerError.new("could not locate vegetation data file at #{path}") unless File.exists? path
+      path
+    end
+    
     def embed_image(label, options, map, dimensions, resolution, temp_dir)
-      hdr_path = params["path"]
-      raise BadLayerError.new("no vegetation data file provided (see README)") unless hdr_path
-      hdr_path = File.join(hdr_path, "hdr.adf") if File.directory? hdr_path
-      raise BadLayerError.new("could not locate vegetation data file at #{hdr_path}") unless File.exists? hdr_path
-      
       tif_path = File.join temp_dir, "#{label}.tif"
       tfw_path = File.join temp_dir, "#{label}.tfw"
       mask_path = File.join temp_dir, "#{label}-mask.png"
@@ -1448,6 +1458,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x[convert -size #{dimensions.join ?x} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
       end
     end
+    
+    def source(label, options)
+      hdr_path
+    end
   end
   
   class CanvasServer < Server
@@ -1459,6 +1473,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       raise BadLayerError.new("#{label}.png not found") unless File.exists? canvas_path
       map.scale * 0.01 / %x[convert "#{canvas_path}" -units PixelsPerCentimeter -format "%[resolution.x]" info:].to_f
     end
+    
+    def source(label, options)
+      File.join Dir.pwd, "#{label}.png"
+    end
   end
   
   class AnnotationServer < Server
@@ -1466,8 +1484,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def render_svg(svg, label, options, map)
       opacity = options["opacity"] || params["opacity"] || 1
-      svg.add_element("g", "transform" => map.svg_transform(1), "id" => label, "style" => "opacity:#{opacity}") do |group|
-        draw(group, options, map) do |coords, projection|
+      svg.elements["g[@id='#{label}']"] = REXML::Element.new("g").tap do |layer|
+        layer.add_attributes "transform" => map.svg_transform(1), "id" => label, "style" => "opacity:#{opacity}"
+        draw(layer, options, map) do |coords, projection|
           easting, northing = projection.reproject_to(map.projection, coords)
           [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
             1000.0 * metres / map.scale
@@ -1498,6 +1517,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.each do |d|
         group.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"])
       end
+    end
+    
+    def source(label, options)
+      nil
     end
   end
   
@@ -1570,6 +1593,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
     end
+    
+    def source(label, options)
+      nil
+    end
   end
   
   class ControlServer < AnnotationServer
@@ -1614,6 +1641,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     rescue BadGpxKmlFile => e
       raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
     end
+    
+    def source(label, options)
+      params["file"]
+    end
   end
   
   class OverlayServer < AnnotationServer
@@ -1631,6 +1662,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     rescue BadGpxKmlFile => e
       raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
+    end
+    
+    def source(label, options)
+      options["path"]
     end
   end
   
@@ -2181,37 +2216,52 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     svg_name = "#{map.name}.svg"
     svg_path = File.join Dir.pwd, svg_name
+    
+    updates = layers.select do |label, options|
+      labels.include? label
+    end.reject do |label, options|
+      FileUtils.uptodate? svg_path, [ *options["server"].source(label, options) ]
+    end
+    
     Dir.mktmpdir do |temp_dir|
       puts "Compositing layers to #{svg_name}:"
       tmp_svg_path = File.join(temp_dir, svg_name)
       File.open(tmp_svg_path, "w") do |file|
-        map.svg do |svg|
-          layers.select do |label, options|
-            labels.include? label
-          end.each do |label, options|
-            puts "  Rendering #{label}"
-            begin
-              options["server"].render_svg(svg, label, options.merge("render" => config["render"]), map)
-            rescue BadLayerError => e
-              puts "Failed to render #{label}: #{e.message}"
-            end
+        xml = File.exists?(svg_path) ? REXML::Document.new(File.read svg_path) : map.xml
+        svg = xml.elements["/svg"]
+        
+        updates.each do |label, options|
+          puts "  Rendering #{label}"
+          begin
+            options["server"].render_svg(svg, label, options.merge("render" => config["render"]), map)
+          rescue BadLayerError => e
+            puts "Failed to render #{label}: #{e.message}"
           end
-          
-          fonts_needed = svg.elements.collect("//[@font-family]") do |element|
-            element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")
-          end.uniq
-          fonts_present = %x[identify -list font].scan(/(family|font):(.*)/i).map(&:last).flatten.map do |family|
-            family.gsub(/[\s\-]/, "")
-          end.uniq
-          fonts_missing = fonts_needed - fonts_present
-          if fonts_missing.any?
-            puts "Your system does not include some fonts used in #{svg_name}. (Substitute fonts will be used.)"
-            fonts_missing.sort.each { |family| puts "  #{family}" }
-          end
-        end.write(file)
+        end
+        
+        xml.elements.each("/svg/g[@id]") do |layer|
+          layer.elements.empty? ? layer.parent.elements.delete(layer) : layer.add_attribute("inkscape:groupmode", "layer")
+        end
+        
+        fonts_needed = xml.elements.collect("//[@font-family]") do |element|
+          element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")
+        end.uniq
+        fonts_present = %x[identify -list font].scan(/(family|font):(.*)/i).map(&:last).flatten.map do |family|
+          family.gsub(/[\s\-]/, "")
+        end.uniq
+        fonts_missing = fonts_needed - fonts_present
+        if fonts_missing.any?
+          puts "Your system does not include some fonts used in #{svg_name}. (Substitute fonts will be used.)"
+          fonts_missing.sort.each { |family| puts "  #{family}" }
+        end
+        
+        xml.write(file)
       end
       FileUtils.cp tmp_svg_path, svg_path
-    end unless File.exists? svg_path
+    end if updates.any?
+    
+    # TODO: insert newly-added layers in correct order?
+    # TODO: delete layers?? (no...)
     
     formats = config["formats"].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["png"] ||= nil if formats.include? "map"

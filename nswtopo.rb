@@ -2221,7 +2221,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     svg_path = File.join Dir.pwd, svg_name
     xml = File.exists?(svg_path) ? REXML::Document.new(File.read svg_path) : map.xml
     
-    # TODO: account for empty layer when determining updateable layers
     updates = sources.reject do |label, options|
       xml.elements["/svg/g[@id='#{label}']"] && FileUtils.uptodate?(svg_path, [ *options["server"].path(label, options) ])
     end
@@ -2255,9 +2254,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
         
         xml.elements.each("/svg//g[@id]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
-        while xml.elements["//g[not(*)]"]
-          xml.elements.each("//g[not(*)]", &:delete_self)
-        end
         
         fonts_needed = xml.elements.collect("//[@font-family]") do |element|
           element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")

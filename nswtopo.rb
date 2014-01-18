@@ -421,7 +421,7 @@ render:
       when @xml.elements["/kml"] then class << self; include KML; end
       else raise BadGpxKmlFile.new(path)
       end
-    rescue REXML::ParseException
+    rescue REXML::ParseException, Errno::ENOENT
       raise BadGpxKmlFile.new(path)
     end
   end
@@ -507,7 +507,7 @@ render:
 
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
       @projection = config["utm"] ?
-        Projection.utm(GridServer.zone(@projection_centre, Projection.wgs84)) :
+        Projection.utm(GridSource.zone(@projection_centre, Projection.wgs84)) :
         Projection.transverse_mercator(@projection_centre.first, 1.0)
       
       @declination = config["declination"]["angle"]
@@ -545,7 +545,7 @@ render:
       enlarged_extents = [ @extents[0] * Math::cos(@rotation * Math::PI / 180.0) + @extents[1] * Math::sin(@rotation * Math::PI / 180.0).abs, @extents[0] * Math::sin(@rotation * Math::PI / 180.0).abs + @extents[1] * Math::cos(@rotation * Math::PI / 180.0) ]
       @bounds = [ @centre, enlarged_extents ].transpose.map { |coord, extent| [ coord - 0.5 * extent, coord + 0.5 * extent ] }
     rescue BadGpxKmlFile => e
-      abort "Error: #{e.message}"
+      abort "Error: invalid bounds file #{e.message}"
     end
     
     attr_reader :name, :scale, :projection, :bounds, :centre, :extents, :rotation
@@ -747,25 +747,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   #   end
   # end
   
-  class Server
+  class Source
     def initialize(params = {})
       @params = params
     end
   
     attr_reader :params
     
+    def path(label, options)
+      ext = options["ext"] || params["ext"] || "png"
+      File.join Dir.pwd, "#{label}.#{ext}"
+    end
+    
     def download(label, options, map)
       ext = options["ext"] || params["ext"] || "png"
       Dir.mktmpdir do |temp_dir|
-        FileUtils.cp get_image(label, ext, options, map, temp_dir), Dir.pwd
-      end unless File.exist?("#{label}.#{ext}")
-    end
-    
-    # TODO: use Server#source method to determine whether download needs to be done?
-    # (Then we might be able to remove NoDownload module)
-    def source(label, options)
-      ext = options["ext"] || params["ext"] || "png"
-      File.join(Dir.pwd, "#{label}.#{ext}")
+        FileUtils.cp get_source(label, ext, options, map, temp_dir), path(label, options)
+      end
     end
   end
   
@@ -774,7 +772,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       params["resolution"] || map.scale / 12500.0
     end
     
-    def get_image(label, ext, options, map, temp_dir)
+    def get_source(label, ext, options, map, temp_dir)
       resolution = options["resolution"] || default_resolution(label, options, map)
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       pixels = dimensions.inject(:*) > 500000 ? " (%.1fMpx)" % (0.000001 * dimensions.inject(:*)) : nil
@@ -782,9 +780,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
     end
     
-    def clip_paths(svg, label, options)
-      [ *options["clips"] ].map do |layer|
-        svg.elements.collect("g[@id='#{layer}']//path[@fill-rule='evenodd']") { |path| path }
+    def clip_paths(layer, label, options)
+      [ *options["clips"] ].map do |sublayer|
+        layer.elements.collect("./g[@id='#{sublayer}']//path[@fill-rule='evenodd']") { |path| path }
       end.inject([], &:+).map do |path|
         transform = path.elements.collect("ancestor-or-self::*[@transform]") do |element|
           element.attributes["transform"]
@@ -801,7 +799,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def render_svg(svg, label, options, map)
+    def render_svg(layer, label, options, map)
       resolution = options["resolution"] || default_resolution(label, options, map)
       transform = "scale(#{1000.0 * resolution / map.scale})"
       opacity = options["opacity"] || params["opacity"] || 1
@@ -814,35 +812,32 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
         "data:image/png;base64,#{base64}"
       else
-        ext = options["ext"] || params["ext"] || "png"
-        "#{label}.#{ext}".tap do |filename|
-          raise BadLayerError.new("raster image #{filename} not found") unless File.exists? filename
+        path(label, options).tap do |raster_path|
+          raise BadLayerError.new("#{label} raster image not found at #{raster_path}") unless File.exists? raster_path
         end
       end
       
-      svg.elements["g[@id='#{label}']"] = REXML::Element.new("g").tap do |layer|
-        layer.add_attributes "id" => label, "style" => "opacity:#{opacity}"
-        layer.add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
-          clip_paths(svg, label, options).each do |clippath|
-            defs.elements << clippath
-          end
-        end.elements.collect("./clipPath") do |clippath|
-          clippath.attributes["id"]
-        end.inject(layer) do |group, clip_id|
-          group.add_element("g", "clip-path" => "url(##{clip_id})")
-        end.add_element("image",
-          "transform" => transform,
-          "width" => dimensions[0],
-          "height" => dimensions[1],
-          "image-rendering" => "optimizeQuality",
-          "xlink:href" => href,
-        )
-        layer.elements.each("./defs[not(*)]", &:delete_self)
-      end
+      layer.add_attributes "style" => "opacity:#{opacity}"
+      layer.add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
+        clip_paths(layer, label, options).each do |clippath|
+          defs.elements << clippath
+        end
+      end.elements.collect("./clipPath") do |clippath|
+        clippath.attributes["id"]
+      end.inject(layer) do |group, clip_id|
+        group.add_element("g", "clip-path" => "url(##{clip_id})")
+      end.add_element("image",
+        "transform" => transform,
+        "width" => dimensions[0],
+        "height" => dimensions[1],
+        "image-rendering" => "optimizeQuality",
+        "xlink:href" => href,
+      )
+      layer.elements.each("./defs[not(*)]", &:delete_self)
     end
   end
   
-  class TiledServer < Server
+  class TiledServer < Source
     include RasterRenderer
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
@@ -1024,7 +1019,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class ArcGIS < Server
+  class ArcGIS < Source
     def tiles(bounds, resolution, margin = 0)
       cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - margin }
       dimensions = bounds.map { |bound| ((bound.max - bound.min) / resolution).ceil }
@@ -1132,7 +1127,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     include RasterRenderer
     
-    def get_image(label, ext, options, map, temp_dir)
+    def get_source(label, ext, options, map, temp_dir)
       if params["cookie"] && !params["headers"]
         cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
         params["headers"] = { "Cookie" => cookie }
@@ -1141,8 +1136,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       ext == "svg" ? get_vector(label, ext, options, map, temp_dir) : super(label, ext, options, map, temp_dir)
     end
     
-    def render_svg(svg, label, options, map)
-      return super(svg, label, options, map) unless options["ext"] == "svg"
+    def render_svg(layer, label, options, map)
+      return super(layer, label, options, map) unless options["ext"] == "svg"
       
       source_svg = REXML::Document.new(File.read "#{label}.svg")
       equivalences = options["equivalences"] || {}
@@ -1160,12 +1155,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           rerender(layer, command, values)
         end if renderings[id]
       end
-      %w[defs g].each do |tag|
-        source_svg.elements.each("/svg/#{tag}[@id]") do |element|
-          id = element.attributes["id"]
-          svg.elements["/svg/#{tag}[@id='#{id}']"] = element
-        end
-      end
+      
+      source_svg.elements.each("/svg/defs") { |defs| layer.elements << defs }
+      source_svg.elements.each("/svg/g[@id]") { |sublayer| layer.elements << sublayer }
     end
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
@@ -1347,6 +1339,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       while xml.elements["//g[not(*)]"]
         xml.elements.each("//g[not(*)]", &:delete_self)
       end
+      xml.elements["//defs"].delete_self unless xml.elements["//g"]
       
       File.join(temp_dir, "#{label}.svg").tap do |mosaic_path|
         File.open(mosaic_path, "w") { |file| xml.write file }
@@ -1357,11 +1350,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   module NoDownload
-    def download(*args)
+    def download(label, options, map)
+      raise BadLayerError.new("#{label} file not found at #{path(label, options)}")
     end
   end
   
-  class OneEarthDEMRelief < Server
+  class OneEarthDEMRelief < Source
     include RasterRenderer
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
@@ -1418,8 +1412,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def embed_image(label, options, map, dimensions, resolution, temp_dir)
-      ext = options["ext"] || params["ext"] || "png"
-      hillshade_path = "#{label}.#{ext}"
+      hillshade_path = path(label, options)
+      raise BadLayerError.new("hillshade image not found at #{hillshade_path}") unless File.exists? hillshade_path
       highlights = params["highlights"]
       shade = %Q["#{hillshade_path}" -level 0,65% -negate -alpha Copy -fill black +opaque black]
       sun = %Q["#{hillshade_path}" -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
@@ -1429,19 +1423,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class VegetationServer < Server
+  class VegetationSource < Source
     include RasterRenderer
     include NoDownload
     
-    def hdr_path
-      path = params["path"]
-      raise BadLayerError.new("no vegetation data file provided (see README)") unless path
-      path = File.join(path, "hdr.adf") if File.directory? path
-      raise BadLayerError.new("could not locate vegetation data file at #{path}") unless File.exists? path
-      path
+    def path(label, options)
+      File.directory?(params["path"].to_s) ? File.join(params["path"], "hdr.adf") : params["path"]
     end
     
     def embed_image(label, options, map, dimensions, resolution, temp_dir)
+      hdr_path = path(label, options)
       tif_path = File.join temp_dir, "#{label}.tif"
       tfw_path = File.join temp_dir, "#{label}.tfw"
       mask_path = File.join temp_dir, "#{label}-mask.png"
@@ -1449,6 +1440,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       map.write_world_file(tfw_path, resolution)
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
       %x[gdalwarp -t_srs "#{map.projection}" "#{hdr_path}" "#{tif_path}"]
+      raise BadLayerError.new("invalid vegetation file at #{hdr_path}") unless $?.success?
       
       fx = params["map"].inject(0.0) { |memo, (index, percent)| %Q[255*r==#{index} ? #{0.01 * percent} : (#{memo})] }
       %x[convert -quiet "#{tif_path}" -channel Red -fx "#{fx}" -separate "#{mask_path}"]
@@ -1458,45 +1450,45 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x[convert -size #{dimensions.join ?x} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
       end
     end
-    
-    def source(label, options)
-      hdr_path
-    end
   end
   
-  class CanvasServer < Server
-    include NoDownload
+  class CanvasSource < Source
     include RasterRenderer
+    include NoDownload
     
     def default_resolution(label, options, map)
-      canvas_path = File.join Dir.pwd, "#{label}.png"
-      raise BadLayerError.new("#{label}.png not found") unless File.exists? canvas_path
-      map.scale * 0.01 / %x[convert "#{canvas_path}" -units PixelsPerCentimeter -format "%[resolution.x]" info:].to_f
+      canvas_path = path(label, options)
+      raise BadLayerError.new("canvas image not found at #{canvas_path}") unless File.exists? canvas_path
+      pixels_per_centimeter = %x[convert "#{canvas_path}" -units PixelsPerCentimeter -format "%[resolution.x]" info:]
+      raise BadLayerError.new("bad canvas image at #{canvas_path}") unless $?.success?
+      map.scale * 0.01 / pixels_per_centimeter.to_f
     end
     
-    def source(label, options)
+    def path(label, options)
       File.join Dir.pwd, "#{label}.png"
     end
   end
   
-  class AnnotationServer < Server
+  class AnnotationSource < Source
     include NoDownload
     
-    def render_svg(svg, label, options, map)
+    def render_svg(layer, label, options, map)
       opacity = options["opacity"] || params["opacity"] || 1
-      svg.elements["g[@id='#{label}']"] = REXML::Element.new("g").tap do |layer|
-        layer.add_attributes "transform" => map.svg_transform(1), "id" => label, "style" => "opacity:#{opacity}"
-        draw(layer, options, map) do |coords, projection|
-          easting, northing = projection.reproject_to(map.projection, coords)
-          [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
-            1000.0 * metres / map.scale
-          end
+      layer.add_attributes "transform" => map.svg_transform(1), "style" => "opacity:#{opacity}"
+      draw(layer, options, map) do |coords, projection|
+        easting, northing = projection.reproject_to(map.projection, coords)
+        [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
+          1000.0 * metres / map.scale
         end
       end
     end
   end
   
-  class DeclinationServer < AnnotationServer
+  class DeclinationSource < AnnotationSource
+    def path(label, options)
+      nil
+    end
+    
     def draw(group, options, map)
       centre = map.wgs84_bounds.map { |bound| 0.5 * bound.inject(:+) }
       projection = Projection.transverse_mercator(centre.first, 1.0)
@@ -1518,13 +1510,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         group.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"])
       end
     end
-    
-    def source(label, options)
-      nil
-    end
   end
   
-  class GridServer < AnnotationServer
+  class GridSource < AnnotationSource
+    def path(label, options)
+      nil
+    end
+    
     def self.zone(coords, projection)
       (projection.reproject_to_wgs84(coords).first / 6).floor + 31
     end
@@ -1538,7 +1530,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       strokewidth = params["width"]
       
       map.bounds.inject(:product).map do |corner|
-        GridServer.zone(corner, map.projection)
+        GridSource.zone(corner, map.projection)
       end.inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
       end.each do |zone|
@@ -1552,7 +1544,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           northings.reverse.map do |northing|
             [ easting, northing ]
           end.map do |coords|
-            [ GridServer.zone(coords, projection) == zone, coords ]
+            [ GridSource.zone(coords, projection) == zone, coords ]
           end
         end
         [ grid, grid.transpose ].each.with_index do |gridlines, index|
@@ -1593,16 +1585,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
     end
-    
-    def source(label, options)
-      nil
-    end
   end
   
-  class ControlServer < AnnotationServer
+  class ControlSource < AnnotationSource
+    def path(label, options)
+      params["file"]
+    end
+    
     def draw(group, options, map)
-      return unless params["file"]
-      gps = GPS.new(File.join Dir.pwd, params["file"])
+      gps = GPS.new(params["file"])
       radius = 0.5 * params["diameter"]
       strokewidth = params["thickness"]
       fontfamily = params["family"]
@@ -1641,13 +1632,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     rescue BadGpxKmlFile => e
       raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
     end
-    
-    def source(label, options)
-      params["file"]
-    end
   end
   
-  class OverlayServer < AnnotationServer
+  class OverlaySource < AnnotationSource
+    def path(label, options)
+      options["path"]
+    end
+    
     def draw(group, options, map)
       width = options["width"] || params["width"]
       colour = options["colour"] || params["colour"]
@@ -1662,10 +1653,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     rescue BadGpxKmlFile => e
       raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
-    end
-    
-    def source(label, options)
-      options["path"]
     end
   end
   
@@ -1937,14 +1924,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       "tile_limit" => 250,
     )
     oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
-    declination_server = DeclinationServer.new(config["declination"])
-    control_server = ControlServer.new(config["controls"])
-    grid_server = GridServer.new(config["grid"])
-    canvas_server = CanvasServer.new
-    vegetation_server = VegetationServer.new(config["vegetation"])
-    overlay_server = OverlayServer.new("width" => 0.5, "colour" => "black", "opacity" => 0.3)
+    declination_source = DeclinationSource.new(config["declination"])
+    control_source = ControlSource.new(config["controls"])
+    grid_source = GridSource.new(config["grid"])
+    canvas_source = CanvasSource.new
+    vegetation_source = VegetationSource.new(config["vegetation"])
+    overlay_source = OverlaySource.new("width" => 0.5, "colour" => "black", "opacity" => 0.3)
     
-    layers = {
+    sources = {
       "reference-topo-current" => {
         "server" => sixmaps,
         "service" => "LPITopoMap",
@@ -2014,10 +2001,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "resolution" => 1.0,
       },
       "vegetation" => {
-        "server" => vegetation_server,
+        "server" => vegetation_source,
       },
       "canvas" => {
-        "server" => canvas_server,
+        "server" => canvas_source,
         "ext" => "png",
       },
       "plantation" => {
@@ -2174,10 +2161,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "equivalences" => { "holdings" => %w[Holdings Labels]}
       },
       "declination" => {
-        "server" => declination_server,
+        "server" => declination_source,
       },
       "grid" => {
-        "server" => grid_server,
+        "server" => grid_source,
       },
     }
     
@@ -2186,21 +2173,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     (config["overlays"] || {}).each do |filename_or_path, options|
       label = File.split(filename_or_path).last.partition(/\.\w+$/).first
-      layers.merge! label => (options || {}).merge("server" => overlay_server, "path" => filename_or_path)
+      sources.merge! label => (options || {}).merge("server" => overlay_source, "path" => filename_or_path)
       includes << label
     end
     
     if config["controls"]["file"]
-      layers.merge! "controls" => { "server" => control_server }
+      sources.merge! "controls" => { "server" => control_source }
       includes << "controls"
     end
     
     includes += config["include"]
     includes.map! { |label_or_hash| [ *label_or_hash ].flatten }
-    layers.each do |label, options|
+    sources.each do |label, options|
       includes.each { |match, resolution| options.merge!("resolution" => resolution) if label[match] && resolution }
     end
-    labels = layers.keys.select { |label| includes.any? { |match, _| label[match] } }
+    
+    labels = sources.keys
+    sources.select! { |label, options| includes.any? { |match, _| label[match] } }
     
     puts "Map details:"
     puts "  name: #{map.name}"
@@ -2209,38 +2198,54 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     puts "  rotation: %.1f degrees" % map.rotation
     puts "  extent: %.1fkm x %.1fkm" % map.extents.map { |extent| 0.001 * extent }
     
-    labels.recover(InternetError, ServerError, BadLayerError).each do |label|
-      options = layers[label]
+    sources.map do |label, options|
+      [ label, options, options["server"].path(label, options) ] # TODO: needed? remove Source#download?
+    end.select do |label, options, path|
+      path && !File.exists?(path)
+    end.recover(InternetError, ServerError, BadLayerError).each do |label, options, path|
       options["server"].download(label, options, map)
     end
     
     svg_name = "#{map.name}.svg"
     svg_path = File.join Dir.pwd, svg_name
+    xml = File.exists?(svg_path) ? REXML::Document.new(File.read svg_path) : map.xml
     
-    updates = layers.select do |label, options|
-      labels.include? label
-    end.reject do |label, options|
-      FileUtils.uptodate? svg_path, [ *options["server"].source(label, options) ]
+    # TODO: account for empty layer when determining updateable layers
+    updates = sources.reject do |label, options|
+      xml.elements["/svg/g[@id='#{label}']"] && FileUtils.uptodate?(svg_path, [ *options["server"].path(label, options) ])
     end
     
     Dir.mktmpdir do |temp_dir|
       puts "Compositing layers to #{svg_name}:"
       tmp_svg_path = File.join(temp_dir, svg_name)
       File.open(tmp_svg_path, "w") do |file|
-        xml = File.exists?(svg_path) ? REXML::Document.new(File.read svg_path) : map.xml
-        svg = xml.elements["/svg"]
-        
         updates.each do |label, options|
           puts "  Rendering #{label}"
           begin
-            options["server"].render_svg(svg, label, options.merge("render" => config["render"]), map)
+            layer = xml.elements["/svg/g[@id='#{label}']"]
+            if layer
+              layer.elements.each(&:delete_self)
+            else
+              layer = REXML::Element.new("g")
+              layer.add_attributes "id" => label
+              before, after = labels.inject([[]]) do |memo, candidate|
+                candidate == label ? memo << [] : memo.last << candidate
+                memo
+              end
+              neighbour = xml.elements.collect("/svg/g[@id]") do |sibling|
+                sibling if after.include? sibling.attributes["id"]
+              end.compact.first
+              neighbour ? xml.elements["/svg"].insert_before(neighbour, layer) : xml.elements["/svg"].add_element(layer)
+            end
+            options["server"].render_svg(layer, label, options.merge("render" => config["render"]), map)
           rescue BadLayerError => e
             puts "Failed to render #{label}: #{e.message}"
           end
         end
         
-        xml.elements.each("/svg/g[@id]") do |layer|
-          layer.elements.empty? ? layer.parent.elements.delete(layer) : layer.add_attribute("inkscape:groupmode", "layer")
+        xml.elements.each("/svg//g[@id]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
+        while xml.elements["//g[not(*)]"]
+          xml.elements.each("//g[not(*)]", &:delete_self)
         end
         
         fonts_needed = xml.elements.collect("//[@font-family]") do |element|
@@ -2259,9 +2264,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       FileUtils.cp tmp_svg_path, svg_path
     end if updates.any?
-    
-    # TODO: insert newly-added layers in correct order?
-    # TODO: delete layers?? (no...)
     
     formats = config["formats"].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["png"] ||= nil if formats.include? "map"
@@ -2323,6 +2325,10 @@ if File.identical?(__FILE__, $0)
 end
 
 # TODO: fix issue with batik rendering relief with purple lines
+# TODO: ability to exclude topographic layer? other layers to delete from composite?
+# TODO: retest relief layer clipping
+# TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
+# TODO: update README!
 
 # # later:
 # TODO: remove linked images from PDF output?
@@ -2331,5 +2337,4 @@ end
 # TODO: allow user-selectable contours?
 # TODO: allow configuration to specify patterns?
 # TODO: refactor options["render"] stuff?
-# TODO: regroup all <defs> into single <defs>?
 # TODO: add Relative_Height to topographic layers?

@@ -235,6 +235,8 @@ The `holdings` layer overlays property boundaries and the names of landowners. T
 
 ## Relief
 
+** N.B. As of 18 January 2014, the relief layer is unavailable! **
+
 By including the `relief` layer in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layer is automatically generated from the ASTER digital elevation model at 45 metre resolution.
 
 You can specify the azimuthal angle, altitude and terrain exaggeration used to generate the shaded relief layer. (The conventional azimuth angle of 315 is set as default, should probably be left as is.) You can also specify the opacity of the layer to change the aggressiveness of the effect.
@@ -303,6 +305,15 @@ In your configuration file, add your overlay files and specify their colours, op
         width: 0.2            # ...with a width of 0.2mm
 
 Build or rebuild your map by running the script to add the overlays. (Advanced users may alter the overlay rendering further using Inkscape, e.g. by adding dashes or dots to tracks or patterns to areas.)
+
+Updating Your Map
+=================
+
+You can add or update layers in an existing map without deleting the map. This allows you to preserve any editing you may have done in your map while adding or updating other layers.
+
+To add a new layer, add its name to the `include:` list in your configuration file (Or add a new overlay or controls file). Run the script to render the new layer into your existing map. If a download is required (e.g. when adding an aerial imagery layer), the download will also occur.
+
+You can also update an existing layer. This will happen automatically when you run the script. Updates are detected by comparing the timestamps for the map and layer files. For example, if you make changes to an overlay or control KML file, its timestamp will then be newer than the map's. Simply the script again to re-render the changed overlay layer in your map. (No need to delete and rebuild the whole map.)
 
 Output Formats
 ==============
@@ -401,7 +412,7 @@ Here is a suggested workflow for producing a rogaine map using this software (al
 
 6.  In Google Earth, mark out any boundaries and out-of-bounds areas using the polygon tool, and save them all to a `boundaries.kml` file.
 
-6.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (topographic.svg, rogaine.svg, aerial-\*.jpg, reference-\*.png etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
+7.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (topographic.svg, rogaine.svg, aerial-\*.jpg, reference-\*.png etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
 
         name: rogaine
         bounds: controls.kml    # size the map to contain all the controls ...
@@ -411,7 +422,6 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         - vegetation            # show vegetation layer (or use a canvas)
         - declination           # show magnetic declination lines
         - controls              # show controls
-        - relief                # show shaded relief (optional)
         overlays:
           boundaries.kml:       # mark out-of-bounds areas
             colour: black       # (in black)
@@ -419,9 +429,9 @@ Here is a suggested workflow for producing a rogaine map using this software (al
 
     If you have trouble fitting your map on one or two A3 sheets, you can either reduce the margin or use the automatic rotation feature (`rotation: auto`) to minimise the map area.
 
-7.  Run the script to re-download your map using the final map bounds. Your map should now show vegetation, magnetic declination lines and the controls and boundaries you have set.
+8.  Run the script to re-download your map using the final map bounds. Your map should now show vegetation, magnetic declination lines and the controls and boundaries you have set.
 
-9.  Add any other information you need (title, acknowledgements, logo etc.) to the map using a vector graphics editor (Inkscape, Illustrator). At this point you can make any desired tweaks to topographic features of the map (e.g. contours or watercourses) to more accurately represent what you've found on the ground.
+9.  In a separate layer, add any other information you need (title, acknowledgements, logo etc.) to the map using a vector graphics editor (Inkscape, Illustrator). At this point you can make any desired tweaks to topographic features of the map (e.g. contours or watercourses) to more accurately represent what you've found on the ground.
 
 10. Prepare your output file for the printers. It is possible to save directly to a PDF, however I recommend instead exporting your map to a high-resolution raster image (TIFF is traditional). Exporting to a raster lets you ensure the map has rendered correctly. A resolution of 300 dpi would suffice, however there is no harm in going higher (say 600 dpi).
 
@@ -538,3 +548,4 @@ Release History
   * 5/8/12: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
   * 4/10/12: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer
   * 25/9/13: version 0.6.4: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.
+  * 18/1/14: HEAD: added in-place updating of composite map svg.

@@ -235,7 +235,7 @@ The `holdings` layer overlays property boundaries and the names of landowners. T
 
 ## Relief
 
-** N.B. As of January 2014, the relief layer is unavailable! (Providing elevation data manually still works however.) **
+**N.B. As of January 2014, the relief layer is unavailable! (Providing elevation data manually still works however.)**
 
 By including the `relief` layer in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layer is automatically generated from the ASTER digital elevation model at 45 metre resolution.
 
@@ -319,7 +319,7 @@ Updating Your Map
 
 You can add or update layers in an existing map without deleting the map. This allows you to preserve any editing you may have done in your map while adding or updating other layers.
 
-To add a new layer, add its name to the `include:` list in your configuration file (Or add a new overlay or controls file). Run the script to render the new layer into your existing map. If a download is required (e.g. when adding an aerial imagery layer), the download will also occur.
+To add a new layer, add its name to the `include:` list in your configuration file (or add a new overlay or controls file). Run the script to render the new layer into your existing map. If a download is required (e.g. when adding an aerial imagery layer), the download will also occur.
 
 You can also update an existing layer. This will happen automatically when you run the script. Updates are detected by comparing the timestamps for the map and layer files. For example, if you make changes to an overlay or control KML file, its timestamp will then be newer than the map's. Simply the script again to re-render the changed overlay layer in your map. (No need to delete and rebuild the whole map.)
 

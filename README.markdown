@@ -235,7 +235,7 @@ The `holdings` layer overlays property boundaries and the names of landowners. T
 
 ## Relief
 
-** N.B. As of 18 January 2014, the relief layer is unavailable! **
+** N.B. As of January 2014, the relief layer is unavailable! (Providing elevation data manually still works however.) **
 
 By including the `relief` layer in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layer is automatically generated from the ASTER digital elevation model at 45 metre resolution.
 
@@ -251,6 +251,14 @@ The shaded relief is derived from low-resolution (45 metres per pixel) elevation
 
     relief:
       resolution: 10.0
+
+You can also provide your own elevation data (DEM: Digital Elevation Model). This should take the form of a GeoTIFF file, specifed as follows:
+
+    relief:
+      path: /path/to/my/dem.tif  # path or filename for the GeoTIFF
+      resolution: 30             # render the relief data at 30 metres/pixel
+
+I recommend [ASTER Global Digital Elevation Map](http://asterweb.jpl.nasa.gov/gdem.asp) for elevation data at 30 metres per pixel. You can download ASTER data for your area of interest [here](http://gdex.cr.usgs.gov/gdex/); create an account, select _ASTER Global DEM V2_, mark your area of interest on the map and click the download icon.
 
 ## UTM Grid
 
@@ -548,4 +556,4 @@ Release History
   * 5/8/12: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
   * 4/10/12: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer
   * 25/9/13: version 0.6.4: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.
-  * 18/1/14: HEAD: added in-place updating of composite map svg.
+  * 18/1/14: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer.

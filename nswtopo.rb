@@ -782,7 +782,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def clip_paths(layer, label, options)
       [ *options["clips"] ].map do |sublayer|
-        layer.elements.collect("./g[@id='#{sublayer}']//path[@fill-rule='evenodd']") { |path| path }
+        layer.parent.elements.collect("//g[@id='#{sublayer}']//path[@fill-rule='evenodd']") { |path| path }
       end.inject([], &:+).map do |path|
         transform = path.elements.collect("ancestor-or-self::*[@transform]") do |element|
           element.attributes["transform"]
@@ -1355,45 +1355,55 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class OneEarthDEMRelief < Source
+  class ReliefSource < Source
     include RasterRenderer
     
-    def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      bounds = map.wgs84_bounds
-      bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
-      counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
-      units_per_pixel = 0.125 / 300
+    def get_source(label, ext, options, map, temp_dir)
+      resolution = options["resolution"] || default_resolution(label, options, map)
+      dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       
-      tile_paths = [ counts, bounds ].transpose.map do |count, bound|
-        boundaries = (0..count).map { |index| bound.first + index * 0.125 }
-        [ boundaries[0..-2], boundaries[1..-1] ].transpose
-      end.inject(:product).with_progress.map.with_index do |tile_bounds, index|
-        tile_path = File.join temp_dir, "tile.#{index}.png"
-        bbox = tile_bounds.transpose.map { |corner| corner.join ?, }.join ?,
-        query = {
-          "request" => "GetMap",
-          "layers" => "gdem",
-          "srs" => "EPSG:4326",
-          "width" => 300,
-          "height" => 300,
-          "format" => "image/png",
-          "styles" => "short_int",
-          "bbox" => bbox
-        }.to_query
-        uri = URI::HTTP.build :host => "onearth.jpl.nasa.gov", :path => "/wms.cgi", :query => URI.escape(query)
-  
-        HTTP.get(uri) do |response|
-          File.open(tile_path, "wb") { |file| file << response.body }
-          WorldFile.write [ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, 0, "#{tile_path}w"
-          sleep params["interval"]
+      dem_path = if params["path"]
+        params["path"]
+      else
+        pixels = dimensions.inject(:*) > 500000 ? " (%.1fMpx)" % (0.000001 * dimensions.inject(:*)) : nil
+        puts "Downloading: %#{label}"
+        bounds = map.wgs84_bounds
+        bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
+        counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
+        units_per_pixel = 0.125 / 300
+        
+        tile_paths = [ counts, bounds ].transpose.map do |count, bound|
+          boundaries = (0..count).map { |index| bound.first + index * 0.125 }
+          [ boundaries[0..-2], boundaries[1..-1] ].transpose
+        end.inject(:product).with_progress.map.with_index do |tile_bounds, index|
+          tile_path = File.join temp_dir, "tile.#{index}.png"
+          bbox = tile_bounds.transpose.map { |corner| corner.join ?, }.join ?,
+          query = {
+            "request" => "GetMap",
+            "layers" => "gdem",
+            "srs" => "EPSG:4326",
+            "width" => 300,
+            "height" => 300,
+            "format" => "image/png",
+            "styles" => "short_int",
+            "bbox" => bbox
+          }.to_query
+          uri = URI::HTTP.build :host => "onearth.jpl.nasa.gov", :path => "/wms.cgi", :query => URI.escape(query)
+    
+          HTTP.get(uri) do |response|
+            File.open(tile_path, "wb") { |file| file << response.body }
+            WorldFile.write [ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, 0, "#{tile_path}w"
+            sleep params["interval"]
+          end
+          %Q["#{tile_path}"]
         end
-        %Q["#{tile_path}"]
+    
+        File.join(temp_dir, "dem.vrt").tap do |vrt_path|
+          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
+        end
       end
-  
-      vrt_path = File.join(temp_dir, "dem.vrt")
-      %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
       
-      puts "Calculating: #{label}"
+      puts "Calculating: %s, %ix%i%s @ %.1f m/px" % [ label, *dimensions, pixels, resolution]
       relief_path = File.join temp_dir, "#{label}-small.tif"
       tif_path = File.join temp_dir, "#{label}.tif"
       tfw_path = File.join temp_dir, "#{label}.tfw"
@@ -1403,7 +1413,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       azimuth = params["azimuth"]
       exaggeration = params["exaggeration"]
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
-      %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{vrt_path}" "#{relief_path}" -q]
+      %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" -q]
+      raise BadLayerError.new("invalid elevation data") unless $?.success?
       %x[gdalwarp -s_srs "#{Projection.wgs84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
       
       File.join(temp_dir, "#{label}.#{ext}").tap do |output_path|
@@ -1923,7 +1934,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       "crops" => [ [ 0, 0 ], [ 30, 0 ] ],
       "tile_limit" => 250,
     )
-    oneearth_relief = OneEarthDEMRelief.new({ "interval" => 0.3 }.merge config["relief"])
+    relief_source = ReliefSource.new({ "interval" => 0.3 }.merge config["relief"])
     declination_source = DeclinationSource.new(config["declination"])
     control_source = ControlSource.new(config["controls"])
     grid_source = GridSource.new(config["grid"])
@@ -2139,7 +2150,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         },
       },
       "relief" => {
-        "server" => oneearth_relief,
+        "server" => relief_source,
         "clips" => %w[topographic.HydroArea topographic.Oceans_Bays],
         "ext" => "png",
       },
@@ -2326,9 +2337,8 @@ end
 
 # TODO: fix issue with batik rendering relief with purple lines
 # TODO: ability to exclude topographic layer? other layers to delete from composite?
-# TODO: retest relief layer clipping
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
-# TODO: update README!
+# TODO: remake output formats when svg is remade
 
 # # later:
 # TODO: remove linked images from PDF output?

@@ -2284,7 +2284,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     outstanding = (formats.keys & %w[png tif gif jpg kmz pdf pgw tfw gfw jgw map prj]).reject do |format|
-      File.exists? "#{map.name}.#{format}"
+      FileUtils.uptodate? "#{map.name}.#{format}", [ svg_path ]
     end
     
     Dir.mktmpdir do |temp_dir|
@@ -2338,7 +2338,6 @@ end
 # TODO: fix issue with batik rendering relief with purple lines
 # TODO: ability to exclude topographic layer? other layers to delete from composite?
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
-# TODO: remake output formats when svg is remade
 
 # # later:
 # TODO: remove linked images from PDF output?

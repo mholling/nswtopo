@@ -347,7 +347,7 @@ These file extensions produce the following file formats:
 * `map` specifies the [OziExplorer](http://www.oziexplorer.com/) map file format (using the PNG image as the companion raster).
 * `prj` produces a simple text file containing the map's projection as a [PROJ.4](http://trac.osgeo.org/proj/) string.
 
-If you make manual edits to the master SVG map, you can regenerate any other output formats you have specified simply by deleting those files, then running the script again to recreate them.
+If you update or make manual edits to the master SVG map, running the script again will cause the output formats to be recreated from the updated map.
 
 The raster image formats (PNG, GIF, JPG, TIFF and KMZ) will render at 300 pixels-per-inch (ppi) resolution by default. You can easily override this default however. For example, say a high-resolution, 600-ppi TIFF is desired for printing, and a more modest 200-ppi KMZ for publishing on the web:
 

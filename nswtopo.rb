@@ -768,15 +768,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   module RasterRenderer
-    def default_resolution(label, options, map)
-      params["resolution"] || map.scale / 12500.0
+    def resolution_for(label, options, map)
+      options["resolution"] || params["resolution"] || map.scale / 12500.0
     end
     
     def get_source(label, ext, options, map, temp_dir)
-      resolution = options["resolution"] || default_resolution(label, options, map)
+      resolution = resolution_for label, options, map
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       pixels = dimensions.inject(:*) > 500000 ? " (%.1fMpx)" % (0.000001 * dimensions.inject(:*)) : nil
-      puts "Downloading: %s, %ix%i%s @ %.1f m/px" % [ label, *dimensions, pixels, resolution]
+      puts "Creating: %s, %ix%i%s @ %.1f m/px" % [ label, *dimensions, pixels, resolution]
       get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
     end
     
@@ -800,14 +800,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def render_svg(layer, label, options, map)
-      resolution = options["resolution"] || default_resolution(label, options, map)
+      resolution = resolution_for label, options, map
       transform = "scale(#{1000.0 * resolution / map.scale})"
       opacity = options["opacity"] || params["opacity"] || 1
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       
       href = if respond_to? :embed_image
         base64 = Dir.mktmpdir do |temp_dir|
-          image_path = embed_image(label, options, map, dimensions, resolution, temp_dir)
+          image_path = embed_image(label, options, temp_dir)
           Base64.encode64(File.read image_path)
         end
         "data:image/png;base64,#{base64}"
@@ -847,7 +847,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %Q["#{tile_path}"]
       end
       
-      puts "Assembling: #{label}"
       tif_path = File.join(temp_dir, "#{label}.tif")
       tfw_path = File.join(temp_dir, "#{label}.tfw")
       vrt_path = File.join(temp_dir, "#{label}.vrt")
@@ -1173,8 +1172,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ tile_bounds, tile_sizes, tile_offsets, tile_path ]
       end
       
-      puts "Assembling: #{label}"
-      
       File.join(temp_dir, "#{label}.#{ext}").tap do |mosaic_path|
         density = 0.01 * map.scale / resolution
         alpha = options["background"] ? %Q[-background "#{options['background']}" -alpha Remove] : nil
@@ -1211,7 +1208,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       layer_order = service["layers"].reverse.map.with_index { |layer, index| { layer["name"] => index } }.inject({}, &:merge)
       layer_names = service["layers"].map { |layer| layer["name"] }
       
-      resolution = options["resolution"] || default_resolution(label, options, map)
+      resolution = resolution_for label, options, map
       transform = map.svg_transform(1000.0 * resolution / map.scale)
       tile_list = tiles(map.bounds, resolution, 3) # TODO: margin of 3 means what?
       
@@ -1358,15 +1355,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class ReliefSource < Source
     include RasterRenderer
     
-    def get_source(label, ext, options, map, temp_dir)
-      resolution = options["resolution"] || default_resolution(label, options, map)
-      dimensions = map.extents.map { |extent| (extent / resolution).ceil }
-      
+    def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
       dem_path = if params["path"]
         params["path"]
       else
-        pixels = dimensions.inject(:*) > 500000 ? " (%.1fMpx)" % (0.000001 * dimensions.inject(:*)) : nil
-        puts "Downloading: %#{label}"
         bounds = map.wgs84_bounds
         bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
         counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
@@ -1402,8 +1394,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
         end
       end
+      raise BadLayerError.new("elevation data not found at #{dem_path}") unless File.exists? dem_path
       
-      puts "Calculating: %s, %ix%i%s @ %.1f m/px" % [ label, *dimensions, pixels, resolution]
       relief_path = File.join temp_dir, "#{label}-small.tif"
       tif_path = File.join temp_dir, "#{label}.tif"
       tfw_path = File.join temp_dir, "#{label}.tfw"
@@ -1422,7 +1414,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def embed_image(label, options, map, dimensions, resolution, temp_dir)
+    def embed_image(label, options, temp_dir)
       hillshade_path = path(label, options)
       raise BadLayerError.new("hillshade image not found at #{hillshade_path}") unless File.exists? hillshade_path
       highlights = params["highlights"]
@@ -1436,14 +1428,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class VegetationSource < Source
     include RasterRenderer
-    include NoDownload
     
-    def path(label, options)
-      File.directory?(params["path"].to_s) ? File.join(params["path"], "hdr.adf") : params["path"]
-    end
-    
-    def embed_image(label, options, map, dimensions, resolution, temp_dir)
-      hdr_path = path(label, options)
+    def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
+      hdr_path = File.directory?(params["path"].to_s) ? File.join(params["path"], "hdr.adf") : params["path"]
+      raise BadLayerError.new(params["path"] ? "vegetation file not found at #{hdr_path}" : "vegetation path not specified") unless File.exists? hdr_path
+      # TODO test ^
+      
       tif_path = File.join temp_dir, "#{label}.tif"
       tfw_path = File.join temp_dir, "#{label}.tfw"
       mask_path = File.join temp_dir, "#{label}-mask.png"
@@ -1461,13 +1451,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x[convert -size #{dimensions.join ?x} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
       end
     end
+    
+    def embed_image(label, options, temp_dir)
+      path(label, options)
+    end
   end
   
   class CanvasSource < Source
     include RasterRenderer
     include NoDownload
     
-    def default_resolution(label, options, map)
+    def resolution_for(label, options, map)
+      return options["resolution"] if options["resolution"]
       canvas_path = path(label, options)
       raise BadLayerError.new("canvas image not found at #{canvas_path}") unless File.exists? canvas_path
       pixels_per_centimeter = %x[convert "#{canvas_path}" -units PixelsPerCentimeter -format "%[resolution.x]" info:]

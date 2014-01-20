@@ -17,7 +17,7 @@ The following open-source packages are required in order to run the script:
 * The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.3, not 1.8.x.
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. Version 1.9.x (January 2012) or later is needed.
-* [Inkscape](http://inkscape.org/) (a vector graphics editing program), if you wish to make manual edits or additions to your map, or to create secondary raster formats such as PNG, TIFF or KMZ.
+* [Inkscape](http://inkscape.org/) (a vector graphics editing program), if you wish to make manual edits or additions to your map.
 * A zip command utility, if you wish to produce KMZ maps.
 
 An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also be useful for creating a custom background canvas for your map.
@@ -52,9 +52,9 @@ A large amount of memory is helpful. I developed the software on a 2Gb machine b
 
 ## Fonts
 
-A few point features of the map (camping grounds, picnic areas, mines, towers) use special ESRI fonts, namely 'ESRI Transportation & Civic', 'ESRI Environmental & Icons' and 'ESRI Telecom'. Some Microsoft fonts (e.g. Cambria) may also be used. These fonts will be listed if they are used in your map but missing from your system.
+A few point features of the map (camping grounds, picnic areas, mines, towers) use special ESRI fonts, namely 'ESRI Transportation & Civic', 'ESRI Environmental & Icons', 'ESRI Telecom' and others. Some Microsoft fonts (e.g. Cambria) may also be used. These fonts are embedded in the SVG map and should display correctly. However Inkscape does not support embedded fonts and will not render them correctly if they are not installed on your system. This is only relevant if you are using Inkscape to rasterise your final map. Any fonts which are not installed in your system will be listed by the script.
 
-If you wish the fonts to display correctly (nice, but not essential), you need to obtain and install these fonts on your system, either by scrounging them from the internet, or as follows:
+If you wish the missing fonts to display correctly in Inkscape, you need to obtain and install them on your system, either by scrounging them from the internet, or as follows:
 * obtain the ESRI fonts by installing [ArcGIS Explorer](http://www.esri.com/software/arcgis/explorer/index.html) and then downloading the [fonts expansion pack](http://webhelp.esri.com/arcgisexplorer/900/en/expansion_packs.htm) (Windows only).
 * obtain the Microsoft fonts by having Microsoft products on your PC (ick). (Mac users can download the Microsoft Office trial, without installing it, and [extract the fonts](http://www.askdavetaylor.com/fix_missing_calibri_cambria_font_errors_iworks_numbers_pages.html).)
 
@@ -252,13 +252,15 @@ The shaded relief is derived from low-resolution (45 metres per pixel) elevation
     relief:
       resolution: 10.0
 
+The shaded relief layer for your map is stored as an intermediate file, `relief.png`. You can process this image using Photoshop or GIMP to improve the appearance of the relief and eliminate any artifacts. For example, in Photoshop, application of the median filter followed by a surface blur can improve the appearance of the shaded relief. If you edit the relief layer in this way, re-run the script to incorporate the changes into your map.
+
 You can also provide your own elevation data (DEM: Digital Elevation Model). This should take the form of a GeoTIFF file, specifed as follows:
 
     relief:
       path: /path/to/my/dem.tif  # path or filename for the GeoTIFF
       resolution: 30             # render the relief data at 30 metres/pixel
 
-I recommend [ASTER Global Digital Elevation Map](http://asterweb.jpl.nasa.gov/gdem.asp) for elevation data at 30 metres per pixel. You can download ASTER data for your area of interest [here](http://gdex.cr.usgs.gov/gdex/); create an account, select _ASTER Global DEM V2_, mark your area of interest on the map and click the download icon.
+I recommend [ASTER Global Digital Elevation Map](http://asterweb.jpl.nasa.gov/gdem.asp) for elevation data at 30 metres per pixel (although actual resolution is less). You can download ASTER data for your area of interest [here](http://gdex.cr.usgs.gov/gdex/); create an account, select _ASTER Global DEM V2_, mark your area of interest on the map and click the download icon.
 
 ## UTM Grid
 
@@ -371,7 +373,11 @@ If you select `prj` as an output, a corresponding [ESRI world file](http://en.wi
 
 ## Producing Raster Images
 
-To produce your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ), you must install either [Inkscape](http://inkscape.org/) or the [Batik SVG toolkit](http://xmlgraphics.apache.org/batik/download.cgi) (get the binary distribution). Then set your configuration file as follows:
+There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). If you're using a Mac, no extra software is required. Otherwise, you must install either [Inkscape](http://inkscape.org/) or the [Batik SVG toolkit](http://xmlgraphics.apache.org/batik/download.cgi) (get the binary distribution). Then set your configuration file as follows:
+
+* For best results on a Mac, set the following option to rasterise using built-in software:
+
+        rasterise: qlmanage
 
 * To use Inkscape for rasterising:
 
@@ -387,11 +393,9 @@ To produce your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ), you 
 
         rasterise: /Users/matthew/nswtopo/batik-1.7
 
-If possible, the use of Batik is recommended as it produces nicer results. In particular, it scales up the low-resolution vegetation and shaded-relief layers to produce nice, smooth variations. (On the other hand, Inkscape renders large, blocky pixels when rendering the vegetation and shaded-relief layers. This looks somewhat strange and could suggest more accuracy in the vegetation layer than in fact exists. Inkscape also renders some area elements incorrectly.)
+  If you are building a large map and encounter an `OutOfMemory` error, this means that Batik needs more more memory while rendering the map. You can fix this by adding your own [memory flags](http://docs.oracle.com/javase/6/docs/technotes/tools/solaris/java.html) to the java call. For example, to use 2Gb (2048Mb) of memory (the largest my java installation would allow), specify the following in your configuration file:
 
-If you are building a large map and encounter an `OutOfMemory` error, this means that Batik needs more more memory while rendering the map. You can fix this by adding your own [memory flags](http://docs.oracle.com/javase/6/docs/technotes/tools/solaris/java.html) to the java call. For example, to use 2Gb (2048Mb) of memory (the largest my java installation would allow), specify the following in your configuration file:
-
-    java: java -Xmx2048M
+        java: java -Xmx2048M
 
 Suggested Workflow for Rogaining Maps
 =====================================
@@ -556,4 +560,4 @@ Release History
   * 5/8/12: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
   * 4/10/12: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer
   * 25/9/13: version 0.6.4: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.
-  * 19/1/14: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer.
+  * 20/1/14: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage option for rasterising on Mac.

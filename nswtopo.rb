@@ -670,6 +670,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   ServerError = Class.new(Exception)
   BadGpxKmlFile = Class.new(Exception)
   BadLayerError = Class.new(Exception)
+  NoVectorPDF = Class.new(Exception)
   
   module RetryOn
     def retry_on(*exceptions)
@@ -1826,8 +1827,21 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x[#{java} -jar "#{jar_path}" #{args}]
       when /rsvg-convert/
         %x["#{rasterise}" --background-color white --format png --output "#{path}" --width #{dimensions.first} --height #{dimensions.last} "#{svg_path}"]
+      when "qlmanage"
+        Dir.mktmpdir do |temp_dir|
+          square_svg_path = File.join temp_dir, "square.svg"
+          square_png_path = File.join temp_dir, "square.svg.png"
+          xml = REXML::Document.new(File.read svg_path)
+          millimetres = map.extents.map { |extent| 1000.0 * extent / map.scale }
+          xml.elements["/svg"].attributes["width"] = "#{millimetres.max}mm"
+          xml.elements["/svg"].attributes["height"] = "#{millimetres.max}mm"
+          xml.elements["/svg"].attributes["viewBox"] = "0 0 #{millimetres.max} #{millimetres.max}"
+          File.open(square_svg_path, "w") { |file| xml.write file }
+          %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
+          %x[convert "#{square_png_path}" -crop #{dimensions.join ?x}+0+0 +repage "#{path}"]
+        end
       else
-        abort("Error: specify either inkscape or batik as your rasterise method (see README).")
+        abort("Error: specify either inkscape, qlmanage or batik as your rasterise method (see README).")
       end
       %x[mogrify -units PixelsPerInch -density #{ppi} -type TrueColor "#{path}"]
     end
@@ -1845,6 +1859,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x[#{java} -jar "#{jar_path}" -d "#{path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
       when /rsvg-convert/
         %x["#{rasterise}" --background-color white --format pdf --output "#{path}" "#{svg_path}"]
+      when "qlmanage"
+        raise NoVectorPDF.new("Can't generate a vector PDF with qlmanage. Specify a ppi for the PDF or use batik/inkscape. (See README.)")
       else
         abort("Error: specify either inkscape or batik as your rasterise method (see README).")
       end
@@ -2258,7 +2274,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.uniq
         fonts_missing = fonts_needed - fonts_present
         if fonts_missing.any?
-          puts "Your system does not include some fonts used in #{svg_name}. (Substitute fonts will be used.)"
+          puts "Your system does not include some fonts used in #{svg_name}. (Inkscape will not render these fonts correctly.)"
           fonts_missing.sort.each { |family| puts "  #{family}" }
         end
         
@@ -2290,28 +2306,32 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           Raster.build config, map, ppi, svg_path, raster_path
         end
         group.each do |format|
-          puts "  Generating #{map.name}.#{format}"
-          path = File.join temp_dir, "#{map.name}.#{format}"
-          case format
-          when "png"
-            FileUtils.cp raster_path, path
-          when "tif"
-            map.write_world_file "#{raster_path}w", map.resolution_at(ppi)
-            %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" "#{raster_path}" "#{path}"]
-          when "gif", "jpg"
-            %x[convert "#{raster_path}" "#{path}"]
-          when "kmz"
-            KMZ.build map, ppi, raster_path, path
-          when "pdf"
-            ppi ? %x[convert "#{raster_path}" "#{path}"] : Pdf.build(config, map, svg_path, path)
-          when "pgw", "tfw", "gfw", "jgw"
-            map.write_world_file path, map.resolution_at(ppi)
-          when "map"
-            map.write_oziexplorer_map path, map.name, "#{map.name}.png", formats["png"]
-          when "prj"
-            File.write(path, map.projection.send(formats["prj"] || :proj4))
+          begin
+            puts "  Generating #{map.name}.#{format}"
+            path = File.join temp_dir, "#{map.name}.#{format}"
+            case format
+            when "png"
+              FileUtils.cp raster_path, path
+            when "tif"
+              map.write_world_file "#{raster_path}w", map.resolution_at(ppi)
+              %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" "#{raster_path}" "#{path}"]
+            when "gif", "jpg"
+              %x[convert "#{raster_path}" "#{path}"]
+            when "kmz"
+              KMZ.build map, ppi, raster_path, path
+            when "pdf"
+              ppi ? %x[convert "#{raster_path}" "#{path}"] : Pdf.build(config, map, svg_path, path)
+            when "pgw", "tfw", "gfw", "jgw"
+              map.write_world_file path, map.resolution_at(ppi)
+            when "map"
+              map.write_oziexplorer_map path, map.name, "#{map.name}.png", formats["png"]
+            when "prj"
+              File.write(path, map.projection.send(formats["prj"] || :proj4))
+            end
+            FileUtils.cp path, Dir.pwd
+          rescue NoVectorPDF => e
+            puts "Error: #{e.message}"
           end
-          FileUtils.cp path, Dir.pwd
         end
       end
     end unless outstanding.empty?

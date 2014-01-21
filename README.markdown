@@ -22,7 +22,7 @@ The following open-source packages are required in order to run the script:
 
 An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also be useful for creating a custom background canvas for your map.
 
-The [Batik SVG toolkit](http://xmlgraphics.apache.org/batik/tools/rasterizer.html) can also be used as an alternative to Inkscape for rasterising your map (i.e. converting to an image file format such as PNG or TIF). It is recommended as it gives better results, but needs a [Java Runtime Environment](http://java.com/en/download/). (Your PC may already have Java; if not, installation is straightforward.)
+For printing, it is best to produce a [raster](http://en.wikipedia.org/wiki/Raster_graphics) image (e.g. PNG, TIFF) of your map to ensure it is printed correctly. While you can use Inkscape to produce a raster, I recommend [PhantomJS](http://phantomjs.org/) as a better alternative. [Download](http://phantomjs.org/download.html) and unzip the software in your map folder or home directory.
 
 Finally, a geographic viewing or mapping program such as [Google Earth](http://earth.google.com) or [OziExplorer](http://www.oziexplorer.com/) is very useful for easily specifying the area you wish to create a map for, and for viewing your resulting map in conjunction with GPS data.
 
@@ -373,29 +373,25 @@ If you select `prj` as an output, a corresponding [ESRI world file](http://en.wi
 
 ## Producing Raster Images
 
-There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). If you're using a Mac, no extra software is required. Otherwise, you must install either [Inkscape](http://inkscape.org/) or the [Batik SVG toolkit](http://xmlgraphics.apache.org/batik/download.cgi) (get the binary distribution). Then set your configuration file as follows:
+There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). If you're using a Mac, no extra software is required. Otherwise, you must install either [PhantomJS](http://phantomjs.org/download.html) or [Inkscape](http://inkscape.org/). (PhantomJS is recommended for best results.) Then set your configuration file as follows:
 
 * For best results on a Mac, set the following option to rasterise using built-in software:
 
         rasterise: qlmanage
 
+* To use PhantomJS for rasterising, specify the path of the PhantomJS binary you downloaded. e.g. for Windows:
+
+        rasterise: C:/Users/Matthew/phantomjs-1.9.2-windows/phantomjs.exe
+
 * To use Inkscape for rasterising:
 
         rasterise: inkscape
 
-  If your command line does not recognise the `inkscape` command, you may need to specify the full path. e.g. for the Mac:
+  If your command line does not recognise the `inkscape` command, you may need to specify the full path. e.g. for Mac:
 
         rasterise: /Applications/Inkscape.app/Contents/Resources/bin/inkscape
 
-  (Or the corresponding `C:\Program Files\Inkscape\inkscape.exe` path in Windows.)
-
-* To use the Batik SVG rasteriser, specify the path where you've downloaded and unzipped the Batik binary distribution:
-
-        rasterise: /Users/matthew/nswtopo/batik-1.7
-
-  If you are building a large map and encounter an `OutOfMemory` error, this means that Batik needs more more memory while rendering the map. You can fix this by adding your own [memory flags](http://docs.oracle.com/javase/6/docs/technotes/tools/solaris/java.html) to the java call. For example, to use 2Gb (2048Mb) of memory (the largest my java installation would allow), specify the following in your configuration file:
-
-        java: java -Xmx2048M
+  (Or the corresponding `C:/Program Files/Inkscape/inkscape.exe` path in Windows.)
 
 Suggested Workflow for Rogaining Maps
 =====================================

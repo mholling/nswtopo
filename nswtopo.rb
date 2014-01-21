@@ -563,7 +563,7 @@ render:
     end
     
     def dimensions_at(ppi)
-      @extents.map { |extent| (ppi * extent / @scale / 0.0254).ceil }
+      @extents.map { |extent| (ppi * extent / @scale / 0.0254).floor }
     end
     
     def write_world_file(path, resolution)
@@ -1814,53 +1814,87 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   module Raster
-    def self.build(config, map, ppi, svg_path, path)
+    def self.build(config, map, ppi, svg_path, temp_dir, png_path)
       dimensions = map.dimensions_at(ppi)
       rasterise = config["rasterise"]
       case rasterise
       when /inkscape/i
-        %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-png="#{path}" --export-width=#{dimensions.first} --export-height=#{dimensions.last} --export-background="#FFFFFF" #{DISCARD_STDERR}]
+        %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-png="#{png_path}" --export-width=#{dimensions.first} --export-height=#{dimensions.last} --export-background="#FFFFFF" #{DISCARD_STDERR}]
       when /batik/
-        args = %Q[-d "#{path}" -bg 255.255.255.255 -m image/png -w #{dimensions.first} -h #{dimensions.last} "#{svg_path}"]
+        args = %Q[-d "#{png_path}" -bg 255.255.255.255 -m image/png -w #{dimensions.first} -h #{dimensions.last} "#{svg_path}"]
         jar_path = File.join(rasterise, 'batik-rasterizer.jar')
         java = config["java"] || "java"
         %x[#{java} -jar "#{jar_path}" #{args}]
       when /rsvg-convert/
-        %x["#{rasterise}" --background-color white --format png --output "#{path}" --width #{dimensions.first} --height #{dimensions.last} "#{svg_path}"]
+        %x["#{rasterise}" --background-color white --format png --output "#{png_path}" --width #{dimensions.first} --height #{dimensions.last} "#{svg_path}"]
       when "qlmanage"
-        Dir.mktmpdir do |temp_dir|
-          square_svg_path = File.join temp_dir, "square.svg"
-          square_png_path = File.join temp_dir, "square.svg.png"
-          xml = REXML::Document.new(File.read svg_path)
-          millimetres = map.extents.map { |extent| 1000.0 * extent / map.scale }
-          xml.elements["/svg"].attributes["width"] = "#{millimetres.max}mm"
-          xml.elements["/svg"].attributes["height"] = "#{millimetres.max}mm"
-          xml.elements["/svg"].attributes["viewBox"] = "0 0 #{millimetres.max} #{millimetres.max}"
-          File.open(square_svg_path, "w") { |file| xml.write file }
-          %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
-          %x[convert "#{square_png_path}" -crop #{dimensions.join ?x}+0+0 +repage "#{path}"]
-        end
+        square_svg_path = File.join temp_dir, "square.svg"
+        square_png_path = File.join temp_dir, "square.svg.png"
+        xml = REXML::Document.new(File.read svg_path)
+        millimetres = map.extents.map { |extent| 1000.0 * extent / map.scale }
+        xml.elements["/svg"].attributes["width"] = "#{millimetres.max}mm"
+        xml.elements["/svg"].attributes["height"] = "#{millimetres.max}mm"
+        xml.elements["/svg"].attributes["viewBox"] = "0 0 #{millimetres.max} #{millimetres.max}"
+        File.open(square_svg_path, "w") { |file| xml.write file }
+        %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
+        %x[convert "#{square_png_path}" -crop #{dimensions.join ?x}+0+0 +repage "#{png_path}"]
+      when /phantomjs/i
+        js_path = File.join temp_dir, "rasterise.js"
+        File.write js_path, %Q[
+          var page = require('webpage').create();
+          var sys = require('system');
+          page.zoomFactor = parseFloat(sys.args[1]);
+          page.viewportSize = { width: 1, height: 1 };
+          page.open('#{svg_path}', function(status) {
+              window.setTimeout(function() {
+                  page.render('#{png_path}');
+                  phantom.exit();
+              }, 2000);
+          });
+        ]
+        %x["#{rasterise}" "#{js_path}" 1.0]
+        test_dimensions = %x[identify -format "%w,%h" "#{png_path}"].split(?,).map(&:to_f)
+        index = dimensions[0] > dimensions[1] ? 0 : 1
+        screen_ppi = (test_dimensions[index] * ppi / dimensions[index]).round
+        zoom = ppi.to_f / screen_ppi
+        %x["#{rasterise}" "#{js_path}" #{zoom}]
       else
-        abort("Error: specify either inkscape, qlmanage or batik as your rasterise method (see README).")
+        abort("Error: specify either phantomjs, inkscape or qlmanage as your rasterise method (see README).")
       end
-      %x[mogrify -units PixelsPerInch -density #{ppi} -type TrueColor "#{path}"]
+      %x[mogrify -units PixelsPerInch -density #{ppi} -type TrueColor "#{png_path}"]
     end
   end
   
-  class Pdf
-    def self.build(config, map, svg_path, path)
+  module PDF
+    def self.build(config, map, svg_path, temp_dir, pdf_path)
       rasterise = config["rasterise"]
       case rasterise
       when /inkscape/i
-        %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-pdf="#{path}" #{DISCARD_STDERR}]
+        %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-pdf="#{pdf_path}" #{DISCARD_STDERR}]
       when /batik/
         jar_path = File.join(rasterise, 'batik-rasterizer.jar')
         java = config["java"] || "java"
-        %x[#{java} -jar "#{jar_path}" -d "#{path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
+        %x[#{java} -jar "#{jar_path}" -d "#{pdf_path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
       when /rsvg-convert/
-        %x["#{rasterise}" --background-color white --format pdf --output "#{path}" "#{svg_path}"]
+        %x["#{rasterise}" --background-color white --format pdf --output "#{pdf_path}" "#{svg_path}"]
       when "qlmanage"
-        raise NoVectorPDF.new("Can't generate a vector PDF with qlmanage. Specify a ppi for the PDF or use batik/inkscape. (See README.)")
+        raise NoVectorPDF.new("qlmanage")
+      when /phantomjs/
+        xml = REXML::Document.new(File.read svg_path)
+        width, height = %w[width height].map { |name| xml.elements["/svg"].attributes[name] }
+        js_path = File.join temp_dir, "makepdf.js"
+        File.write js_path, %Q[
+          var page = require('webpage').create();
+          var sys = require('system');
+          page.paperSize = { width: '#{width}', height: '#{height}' };
+          page.open('#{svg_path}', function(status) {
+              window.setTimeout(function() {
+                  page.render('#{pdf_path}');
+                  phantom.exit();
+              }, 2000);
+          });
+        ]
+        %x["#{rasterise}" "#{js_path}"]
       else
         abort("Error: specify either inkscape or batik as your rasterise method (see README).")
       end
@@ -2284,8 +2318,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end if updates.any?
     
     formats = config["formats"].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
+    formats["prj"] = %w[wkt_all proj4 wkt wkt_simple wkt_noct wkt_esri mapinfo xml].delete(formats["prj"]) || "proj4" if formats.include? "prj"
     formats["png"] ||= nil if formats.include? "map"
-    (formats.keys & %w[png tif gif jpg kmz]).select do |format|
+    (formats.keys & %w[png tif gif jpg kmz]).each do |format|
       formats[format] ||= config["ppi"]
       formats["#{format[0]}#{format[2]}w"] = formats[format] if formats.include? "prj"
     end
@@ -2299,11 +2334,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       outstanding.group_by do |format|
         formats[format]
       end.each do |ppi, group|
-        raster_path = File.join temp_dir, "raster.#{ppi}.png"
+        raster_path = File.join temp_dir, "#{map.name}.#{ppi}.png"
         if (group & %w[png tif gif jpg kmz]).any? || (ppi && group.include?("pdf"))
           dimensions = map.dimensions_at(ppi)
           puts "  Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
-          Raster.build config, map, ppi, svg_path, raster_path
+          Raster.build config, map, ppi, svg_path, temp_dir, raster_path
         end
         group.each do |format|
           begin
@@ -2320,17 +2355,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when "kmz"
               KMZ.build map, ppi, raster_path, path
             when "pdf"
-              ppi ? %x[convert "#{raster_path}" "#{path}"] : Pdf.build(config, map, svg_path, path)
+              ppi ? %x[convert "#{raster_path}" "#{path}"] : PDF.build(config, map, svg_path, temp_dir, path)
             when "pgw", "tfw", "gfw", "jgw"
               map.write_world_file path, map.resolution_at(ppi)
             when "map"
               map.write_oziexplorer_map path, map.name, "#{map.name}.png", formats["png"]
             when "prj"
-              File.write(path, map.projection.send(formats["prj"] || :proj4))
+              File.write path, map.projection.send(formats["prj"])
             end
             FileUtils.cp path, Dir.pwd
           rescue NoVectorPDF => e
-            puts "Error: #{e.message}"
+            puts "Error: can't generate vector PDF with #{e.message}. Specify a ppi for the PDF or use inkscape/batik. (See README.)"
           end
         end
       end

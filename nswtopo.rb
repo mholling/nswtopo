@@ -1431,9 +1431,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include RasterRenderer
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      hdr_path = File.directory?(params["path"].to_s) ? File.join(params["path"], "hdr.adf") : params["path"]
-      raise BadLayerError.new(params["path"] ? "vegetation file not found at #{hdr_path}" : "vegetation path not specified") unless File.exists? hdr_path
-      # TODO test ^
+      hdr_path = File.directory?(params["path"].to_s) ? File.join(params["path"], "hdr.adf") : params["path"].to_s
+      raise BadLayerError.new(params["path"] ? "vegetation data file not found at #{hdr_path}" : "path not specified for vegetation data file") unless File.exists? hdr_path
       
       tif_path = File.join temp_dir, "#{label}.tif"
       tfw_path = File.join temp_dir, "#{label}.tfw"
@@ -1454,7 +1453,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def embed_image(label, options, temp_dir)
-      path(label, options)
+      path(label, options).tap do |vegetation_path|
+        raise BadLayerError.new("vegetation raster image not found at #{vegetation_path}") unless File.exists? vegetation_path
+      end
     end
   end
   
@@ -2381,7 +2382,6 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: fix issue with batik rendering relief with purple lines
 # TODO: ability to exclude topographic layer? other layers to delete from composite?
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 
@@ -2393,3 +2393,4 @@ end
 # TODO: allow configuration to specify patterns?
 # TODO: refactor options["render"] stuff?
 # TODO: add Relative_Height to topographic layers?
+# TODO: find source for electricity transmission lines

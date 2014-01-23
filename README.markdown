@@ -235,9 +235,7 @@ The `holdings` layer overlays property boundaries and the names of landowners. T
 
 ## Relief
 
-**N.B. As of January 2014, the relief layer is unavailable! (Providing elevation data manually still works however.)**
-
-By including the `relief` layer in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layer is automatically generated from the ASTER digital elevation model at 45 metre resolution.
+By including the `relief` layer in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layer is automatically generated from the [SRTM](http://en.wikipedia.org/wiki/Shuttle_Radar_Topography_Mission) digital elevation model, available online.
 
 You can specify the azimuthal angle, altitude and terrain exaggeration used to generate the shaded relief layer. (The conventional azimuth angle of 315 is set as default, should probably be left as is.) You can also specify the opacity of the layer to change the aggressiveness of the effect.
   
@@ -247,20 +245,19 @@ You can specify the azimuthal angle, altitude and terrain exaggeration used to g
       exaggeration: 1         # vertical exaggeration factor
       opacity: 0.3            # opacity of the shaded relief; determines how subtle the effect is
 
-The shaded relief is derived from low-resolution (45 metres per pixel) elevation data, and is embedded directly into the map at that resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. If you are using Inkscape and are unhappy with this appearance, you can instead download the relief layer at a higher resolution - say, 10.0 metres per pixel. (The compromise here is a significant increase in the SVG file size)
+The shaded relief is derived from low-resolution (90 metres per pixel) SRTM elevation data, and is embedded directly into the map at a default of 45 metre/pixel resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. This is not an issue unless you also use Inkscape to rasterise your map. (PhantomJS is a better option for this; see below.)
+
+You can also provide your own elevation data from a _DEM_ (Digital Elevation Model). This allows you to obtain higher-resolution data for a better shaded relief depiction. DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows:
 
     relief:
-      resolution: 10.0
-
-The shaded relief layer for your map is stored as an intermediate file, `relief.png`. You can process this image using Photoshop or GIMP to improve the appearance of the relief and eliminate any artifacts. For example, in Photoshop, application of the median filter followed by a surface blur can improve the appearance of the shaded relief. If you edit the relief layer in this way, re-run the script to incorporate the changes into your map.
-
-You can also provide your own elevation data (DEM: Digital Elevation Model). This should take the form of a GeoTIFF file, specifed as follows:
-
-    relief:
-      path: /path/to/my/dem.tif  # path or filename for the GeoTIFF
+      path: /path/to/my/dem.tif  # path for the GeoTIFF or hdr.adf file
       resolution: 30             # render the relief data at 30 metres/pixel
 
-I recommend [ASTER Global Digital Elevation Map](http://asterweb.jpl.nasa.gov/gdem.asp) for elevation data at 30 metres per pixel (although actual resolution is less). You can download ASTER data for your area of interest [here](http://gdex.cr.usgs.gov/gdex/); create an account, select _ASTER Global DEM V2_, mark your area of interest on the map and click the download icon.
+The best elevation data is probably 30 metre resolution SRTM data, available from Geoscience Australia. Create an account at the [NEDF Portal](http://nedf.ga.gov.au/geoportal) and log in. Go to the search page and select your area of interest on the (very-slow-loading) map. From the search results, order the _1sSRTM 2008 DEMs ESRI GRID 1sx1s Mosaic_ (be sure to select the _mosaic_ option). Preparation of the download might take a few days, but more likely 10-20 minutes. You will be emailed a download URL; download and unzip the data file and specify its path in your configuration. Set a resolution of 30.0 or better to fully utilise the detail in this data.
+
+Data at 30m resolution is also available from the [ASTER Global Digital Elevation Map](http://asterweb.jpl.nasa.gov/gdem.asp). (Although actual resolution is probably less, and the data does seem quite noisy.) You can download ASTER data for your area of interest [here](http://gdex.cr.usgs.gov/gdex/); create an account, select _ASTER Global DEM V2_, mark your area of interest on the map and click the download icon to obtain a geoTIFF file.
+
+All sources of elevation data will include some noise which produces artifacts in the shaded relief image. You can smooth out these artifacts and improve the appearance with some judicious image filtering. To do this, open the intermediate relief image, `relief.png`, in Photoshop or GIMP. A recommended process is to apply a _median filter_, (_Median Filter_ in Photoshop, _Despeckle_ in GIMP), followed by a bilateral filter (_Surface Blur_ in Photoshop, _Selective Gaussian Blur_ in GIMP); find settings which work best for you. After editing the relief layer in this way, save it and re-run the script to incorporate the changes into your map.
 
 ## UTM Grid
 
@@ -556,4 +553,4 @@ Release History
   * 5/8/12: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
   * 4/10/12: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer
   * 25/9/13: version 0.6.4: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.
-  * 21/1/14: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage option for rasterising on Mac; added PhantomJS option for rasterising.
+  * 23/1/14: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage and PhantomJS options for rasterising; added online source for 90m SRTM elevation data.

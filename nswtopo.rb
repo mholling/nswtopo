@@ -1360,32 +1360,35 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       dem_path = if params["path"]
         params["path"]
       else
-        bounds = map.wgs84_bounds
-        bounds = bounds.map { |bound| [ ((bound.first - 0.01) / 0.125).floor * 0.125, ((bound.last + 0.01) / 0.125).ceil * 0.125 ] }
-        counts = bounds.map { |bound| ((bound.max - bound.min) / 0.125).ceil }
-        units_per_pixel = 0.125 / 300
-        
-        tile_paths = [ counts, bounds ].transpose.map do |count, bound|
-          boundaries = (0..count).map { |index| bound.first + index * 0.125 }
+        tile_sizes = params["tile_sizes"]
+        degrees_per_pixel = 3.0 / 3600
+        bounds = map.wgs84_bounds.map do |bound|
+          [ (bound.first / degrees_per_pixel).floor * degrees_per_pixel, (bound.last / degrees_per_pixel).ceil * degrees_per_pixel ]
+        end
+        counts = [ bounds, tile_sizes ].transpose.map do |bound, tile_size|
+          ((bound.max - bound.min) / degrees_per_pixel / tile_size).ceil
+        end
+        tile_paths = [ counts, bounds, tile_sizes ].transpose.map do |count, bound, tile_size|
+          boundaries = (0..count).map { |index| bound.first + index * degrees_per_pixel * tile_size }
           [ boundaries[0..-2], boundaries[1..-1] ].transpose
-        end.inject(:product).with_progress.map.with_index do |tile_bounds, index|
-          tile_path = File.join temp_dir, "tile.#{index}.png"
+        end.inject(:product).map.with_index do |tile_bounds, index|
+          tile_path = File.join temp_dir, "tile.#{index}.tif"
           bbox = tile_bounds.transpose.map { |corner| corner.join ?, }.join ?,
           query = {
+            "service" => "WMS",
+            "version" => "1.1.0",
             "request" => "GetMap",
-            "layers" => "gdem",
+            "styles" => "",
             "srs" => "EPSG:4326",
-            "width" => 300,
-            "height" => 300,
-            "format" => "image/png",
-            "styles" => "short_int",
-            "bbox" => bbox
+            "bbox" => bbox,
+            "width" => tile_sizes[0],
+            "height" => tile_sizes[1],
+            "format" => "image/tiff",
+            "layers" => "srtmv4.1_s0_pyramidal_16bits",
           }.to_query
-          uri = URI::HTTP.build :host => "onearth.jpl.nasa.gov", :path => "/wms.cgi", :query => URI.escape(query)
-    
+          uri = URI::HTTP.build :host => "www.webservice-energy.org", :path => "/mapserv/srtm", :query => URI.escape(query)
           HTTP.get(uri) do |response|
             File.open(tile_path, "wb") { |file| file << response.body }
-            WorldFile.write [ tile_bounds.first.min, tile_bounds.last.max ], units_per_pixel, 0, "#{tile_path}w"
             sleep params["interval"]
           end
           %Q["#{tile_path}"]
@@ -1980,7 +1983,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       "crops" => [ [ 0, 0 ], [ 30, 0 ] ],
       "tile_limit" => 250,
     )
-    relief_source = ReliefSource.new({ "interval" => 0.3 }.merge config["relief"])
+    relief_source = ReliefSource.new({
+      "interval" => 0.3,
+      "tile_sizes" => [ 1024, 1024 ],
+    }.merge config["relief"])
     declination_source = DeclinationSource.new(config["declination"])
     control_source = ControlSource.new(config["controls"])
     grid_source = GridSource.new(config["grid"])

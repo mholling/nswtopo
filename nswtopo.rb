@@ -21,6 +21,7 @@ require 'rexml/document'
 require 'tmpdir'
 require 'yaml'
 require 'fileutils'
+require 'pathname'
 require 'rbconfig'
 require 'json'
 require 'base64'
@@ -560,6 +561,10 @@ render:
     
     def resolution_at(ppi)
       @scale * 0.0254 / ppi
+    end
+    
+    def ppi_at(resolution)
+      0.0254 * @scale / resolution
     end
     
     def dimensions_at(ppi)
@@ -1480,6 +1485,40 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
+  class ImportSource < Source
+    include RasterRenderer
+    
+    def resolution_for(label, options, map)
+      import_path = options["path"]
+      Math::sqrt(0.5) * [ [ 0, 0 ], [ 1, 1 ] ].map do |point|
+        %x[echo #{point.join(?\s)} | gdaltransform "#{import_path}" -t_srs "#{map.projection}"].tap do |output|
+          raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
+        end.split(?\s)[0..1].map(&:to_f)
+      end.inject(&:minus).norm
+    end
+    
+    def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
+      import_path = options["path"]
+      source_path = File.join temp_dir, "source.tif"
+      tfw_path = File.join temp_dir, "#{label}.tfw"
+      tif_path = File.join temp_dir, "#{label}.tif"
+      
+      map.write_world_file tfw_path, resolution
+      %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
+      %x[gdal_translate -expand rgba #{import_path} #{source_path}]
+      %x[gdal_translate #{import_path} #{source_path}] unless $?.success?
+      raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
+      %x[gdalwarp -t_srs "#{map.projection}" -r bilinear #{source_path} #{tif_path}]
+      File.join(temp_dir, "#{label}.#{ext}").tap do |raster_path|
+        %x[convert "#{tif_path}" -quiet -units PixelsPerInch -density #{map.ppi_at(resolution)} "#{raster_path}"]
+      end
+    end
+    
+    def path(label, options)
+      File.join Dir.pwd, "#{label}.png"
+    end
+  end
+  
   class AnnotationSource < Source
     include NoDownload
     
@@ -1900,7 +1939,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         ]
         %x["#{rasterise}" "#{js_path}"]
       else
-        abort("Error: specify either inkscape or batik as your rasterise method (see README).")
+        abort("Error: specify either inkscape or phantomjs as your rasterise method (see README).")
       end
     end
   end
@@ -1991,6 +2030,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     control_source = ControlSource.new(config["controls"])
     grid_source = GridSource.new(config["grid"])
     canvas_source = CanvasSource.new
+    import_source = ImportSource.new
     vegetation_source = VegetationSource.new(config["vegetation"])
     overlay_source = OverlaySource.new("width" => 0.5, "colour" => "black", "opacity" => 0.3)
     
@@ -2234,9 +2274,21 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     includes = %w[topographic]
     includes << "canvas" if File.exists? "canvas.png"
     
-    (config["overlays"] || {}).each do |filename_or_path, options|
-      label = File.split(filename_or_path).last.partition(/\.\w+$/).first
-      sources.merge! label => (options || {}).merge("server" => overlay_source, "path" => filename_or_path)
+    (config["import"] || []).reverse.map do |path|
+      [ *path ].flatten
+    end.map do |path, label|
+      [ Pathname.new(path), label ]
+    end.each do |path, label|
+      label ||= path.basename(path.extname).to_s
+      sources = { label => { "server" => import_source, "path" => path.to_s } }.merge sources
+      includes << label
+    end
+    
+    (config["overlays"] || {}).map do |path, options|
+      [ Pathname.new(path), options ]
+    end.each do |path, options|
+      label = path.basename(path.extname).to_s
+      sources.merge! label => (options || {}).merge("server" => overlay_source, "path" => path.to_s)
       includes << label
     end
     
@@ -2372,7 +2424,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
             FileUtils.cp path, Dir.pwd
           rescue NoVectorPDF => e
-            puts "Error: can't generate vector PDF with #{e.message}. Specify a ppi for the PDF or use inkscape/batik. (See README.)"
+            puts "Error: can't generate vector PDF with #{e.message}. Specify a ppi for the PDF or use inkscape. (See README.)"
           end
         end
       end
@@ -2390,6 +2442,8 @@ end
 
 # TODO: ability to exclude topographic layer? other layers to delete from composite?
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
+# TODO: switch to Pathname methods everywhere?
+# TODO: switch to Open3 for shelling out
 
 # # later:
 # TODO: remove linked images from PDF output?

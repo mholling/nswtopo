@@ -313,6 +313,19 @@ In your configuration file, add your overlay files and specify their colours, op
 
 Build or rebuild your map by running the script to add the overlays. (Advanced users may alter the overlay rendering further using Inkscape, e.g. by adding dashes or dots to tracks or patterns to areas.)
 
+Importing Layers
+================
+
+You can also embed other georeferenced image files into your map as layers. Most [GDAL-supported formats](http://www.gdal.org/formats_list.html) should work. For example, if you have some OziExplorer raster maps which you would like to include, add them in your configuration file as follows:
+
+    import:
+    - /Users/matthew/maps/DVD/25k/8626-4S-RULES-POINT.map  # path of a georeferenced image
+    - /Users/matthew/maps/DVD/25k/8626-3N-TANTANGARA.map   # path of another image
+
+Run the script to embed the new map images. A local PNG file will be stored containing the relevant portion of the map. (The original source files should not be stored in the same folder, to avoid accidentally overwriting them.)
+
+The embedded images will be stored as layers at the bottom of the layer stack; they will not be visible if you have included other opaque layers (vegetation, aerial imagery). Use Inkscape to view the layers and/or change their order.
+
 Updating Your Map
 =================
 
@@ -553,4 +566,4 @@ Release History
   * 5/8/12: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
   * 4/10/12: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer
   * 25/9/13: version 0.6.4: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.
-  * 23/1/14: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage and PhantomJS options for rasterising; added online source for 90m SRTM elevation data.
+  * 23/1/27: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage and PhantomJS options for rasterising; added online source for 90m SRTM elevation data; added ability to import georeference raster images.

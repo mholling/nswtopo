@@ -222,6 +222,7 @@ If you obtain the data, unzip it and specify its path and resolution as follows:
     vegetation:
       path: /Users/matthew/nswtopo/SPOT_woody_extent/r422c105.img
       resolution: 5.0
+      embed: false     # optional
 
 Or, if you have multiple tiles of data:
 
@@ -230,8 +231,9 @@ Or, if you have multiple tiles of data:
       - /Users/matthew/nswtopo/SPOT_woody_extent/r422c105.img
       - /Users/matthew/nswtopo/SPOT_woody_extent/r423c105.img
       resolution: 5.0
+      embed: false     # optional
 
-Running the script will create and composite the new vegetation layer in your map.
+Running the script will create and composite the new vegetation layer in your map. By default, the vegetation layer is embedded as data within the SVG, however this can produce a large, unwieldy file when using the 5-metre data. Specify `embed: false` to link the vegetation by reference instead. (The SVG file will no longer be self-contained.)
 
 Since the SPOT5 data is so detailed, you may wish to adjust its contrast to get the best visual effect for your map. (However, there is a trade-off between detail shown in the vegetation and readability of other map features such as contours.) You can do so using Photoshop or GIMP (e.g. by applying the levels adjustment) to adjust the vegetation raster. Alternatively, some control of levels is available from within the script. For example, to increase contrast between lightly and heavily wooded areas:
 

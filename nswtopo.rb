@@ -798,16 +798,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       opacity = options["opacity"] || params["opacity"] || 1
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       
-      href = if respond_to? :embed_image
+      href = if respond_to?(:embed_image) && params["embed"] != false
         base64 = Dir.mktmpdir do |temp_dir|
           image_path = embed_image(label, options, temp_dir)
           Base64.encode64(File.read image_path)
         end
         "data:image/png;base64,#{base64}"
       else
-        path(label, options).tap do |raster_path|
+        Pathname.new(path(label, options)).tap do |raster_path|
           raise BadLayerError.new("#{label} raster image not found at #{raster_path}") unless File.exists? raster_path
-        end
+        end.basename
       end
       
       layer.add_attributes "style" => "opacity:#{opacity}"
@@ -2451,6 +2451,8 @@ end
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Pathname methods everywhere?
 # TODO: switch to Open3 for shelling out
+# TODO: switch grid & declination order
+# TODO: add SVG 1.1 DOCTYPE
 
 # # later:
 # TODO: remove linked images from PDF output?

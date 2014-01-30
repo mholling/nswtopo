@@ -193,20 +193,11 @@ controls:
 vegetation:
   resolution: 25.0
   colour:
-    woody: "#C2FFC2"
+    woody: light green
     non-woody: white
-  map:
-    0: 0
-    1: 0
-    2: 0
-    3: 0
-    4: 0
-    5: 0
-    6: 60
-    7: 60
-    8: 100
-    9: 100
-    10: 100
+  spot5:
+    low: 0
+    high: 80
 render:
   plantation:
     opacity: 1
@@ -1439,24 +1430,43 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include RasterRenderer
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      hdr_path = File.directory?(params["path"].to_s) ? File.join(params["path"], "hdr.adf") : params["path"].to_s
-      raise BadLayerError.new(params["path"] ? "vegetation data file not found at #{hdr_path}" : "path not specified for vegetation data file") unless File.exists? hdr_path
+      source_paths = [ *params["path"] ].tap do |paths|
+        raise BadLayerError.new("no vegetation data file specified") if paths.empty?
+      end.map do |source_path|
+        raise BadLayerError.new("vegetation data file not found at #{source_path}") unless File.exists? source_path
+        %Q["#{source_path}"]
+      end.join ?\s
       
+      vrt_path = File.join temp_dir, "#{label}.vrt"
       tif_path = File.join temp_dir, "#{label}.tif"
       tfw_path = File.join temp_dir, "#{label}.tfw"
+      clut_path = File.join temp_dir, "#{label}-clut.png"
       mask_path = File.join temp_dir, "#{label}-mask.png"
       
+      %x[gdalbuildvrt "#{vrt_path}" #{source_paths}]
       map.write_world_file(tfw_path, resolution)
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
-      %x[gdalwarp -t_srs "#{map.projection}" "#{hdr_path}" "#{tif_path}"]
-      raise BadLayerError.new("invalid vegetation file at #{hdr_path}") unless $?.success?
+      %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]
       
-      fx = params["map"].inject(0.0) { |memo, (index, percent)| %Q[255*r==#{index} ? #{0.01 * percent} : (#{memo})] }
-      %x[convert -quiet "#{tif_path}" -channel Red -fx "#{fx}" -separate "#{mask_path}"]
+      low, high = params["spot5"].values_at("low", "high")
+      fx = [ *(100..200), *(6..10) ].inject(0.0) do |memo, n|
+        "j==#{n} ? %.5f : (#{memo})" % case n
+        # mappings for SPOT5 woody extent and foliage projective cover (FPC) (5-10m) 2011:
+        when 100 then 0.0
+        when 101..200 then n - 100 < low ? 0.0 : n - 100 > high ? 1.0 : (n - 100 - low).to_f / (high - low)
+        # mappings for NSW Interim Native Vegetation Extent (2008-v2):
+        when 6..7 then 0.6
+        when 8..10 then 1.0
+        else 0.0
+        end
+      end
+      %x[convert -size 1x256 canvas:black -fx "#{fx}" "#{clut_path}"]
+      %x[convert "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
       
       woody, nonwoody = params["colour"].values_at("woody", "non-woody")
+      density = 0.01 * map.scale / resolution
       File.join(temp_dir, "#{label}.png").tap do |png_path|
-        %x[convert -size #{dimensions.join ?x} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
+        %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
       end
     end
     
@@ -2444,6 +2454,8 @@ end
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Pathname methods everywhere?
 # TODO: switch to Open3 for shelling out
+# TODO: remove ppi_at (unnecessary)
+# TODO: remove ImageMagick warning "Gray color space not permitted on RGB PNG" during relief compositing
 
 # # later:
 # TODO: remove linked images from PDF output?

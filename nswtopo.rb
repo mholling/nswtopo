@@ -622,6 +622,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       millimetres = @extents.map { |extent| 1000.0 * extent / @scale }
       REXML::Document.new.tap do |xml|
         xml << REXML::XMLDecl.new(1.0, "utf-8")
+        xml << REXML::DocType.new("svg", %Q[PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"])
         attributes = {
           "version" => 1.1,
           "baseProfile" => "full",
@@ -2452,7 +2453,6 @@ end
 # TODO: switch to Pathname methods everywhere?
 # TODO: switch to Open3 for shelling out
 # TODO: switch grid & declination order
-# TODO: add SVG 1.1 DOCTYPE
 
 # # later:
 # TODO: remove linked images from PDF output?

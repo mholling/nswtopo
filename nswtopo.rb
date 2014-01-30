@@ -554,10 +554,6 @@ render:
       @scale * 0.0254 / ppi
     end
     
-    def ppi_at(resolution)
-      0.0254 * @scale / resolution
-    end
-    
     def dimensions_at(ppi)
       @extents.map { |extent| (ppi * extent / @scale / 0.0254).floor }
     end
@@ -1410,7 +1406,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       %x[gdalwarp -s_srs "#{Projection.wgs84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
       
       File.join(temp_dir, "#{label}.#{ext}").tap do |output_path|
-        %x[convert "#{tif_path}" -channel Red -separate -quiet -depth 8 "#{output_path}"]
+        %x[convert "#{tif_path}" -channel Red -separate -quiet -depth 8 -type Grayscale "#{output_path}"]
       end
     end
     
@@ -1418,8 +1414,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       hillshade_path = path(label, options)
       raise BadLayerError.new("hillshade image not found at #{hillshade_path}") unless File.exists? hillshade_path
       highlights = params["highlights"]
-      shade = %Q["#{hillshade_path}" -level 0,65% -negate -alpha Copy -fill black +opaque black]
-      sun = %Q["#{hillshade_path}" -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
+      shade = %Q["#{hillshade_path}" -colorspace RGB -level 0,65% -negate -alpha Copy -fill black +opaque black]
+      sun = %Q["#{hillshade_path}" -colorspace RGB -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
       File.join(temp_dir, "overlay.png").tap do |overlay_path|
         %x[convert #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
       end
@@ -1513,14 +1509,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       tfw_path = File.join temp_dir, "#{label}.tfw"
       tif_path = File.join temp_dir, "#{label}.tif"
       
+      density = 0.01 * map.scale / resolution
       map.write_world_file tfw_path, resolution
-      %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
+      %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 -units PixelsPerCentimeter -density #{density} "#{tif_path}"]
       %x[gdal_translate -expand rgba #{import_path} #{source_path}]
       %x[gdal_translate #{import_path} #{source_path}] unless $?.success?
       raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
       %x[gdalwarp -t_srs "#{map.projection}" -r bilinear #{source_path} #{tif_path}]
       File.join(temp_dir, "#{label}.#{ext}").tap do |raster_path|
-        %x[convert "#{tif_path}" -quiet -units PixelsPerInch -density #{map.ppi_at(resolution)} "#{raster_path}"]
+        %x[convert "#{tif_path}" -quiet "#{raster_path}"]
       end
     end
     
@@ -2454,8 +2451,6 @@ end
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Pathname methods everywhere?
 # TODO: switch to Open3 for shelling out
-# TODO: remove ppi_at (unnecessary)
-# TODO: remove ImageMagick warning "Gray color space not permitted on RGB PNG" during relief compositing
 
 # # later:
 # TODO: remove linked images from PDF output?

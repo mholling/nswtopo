@@ -2271,11 +2271,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "labels" => %w[Holdings],
         "equivalences" => { "holdings" => %w[Holdings Labels]}
       },
-      "declination" => {
-        "server" => declination_source,
-      },
       "grid" => {
         "server" => grid_source,
+      },
+      "declination" => {
+        "server" => declination_source,
       },
     }
     
@@ -2452,7 +2452,6 @@ end
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Pathname methods everywhere?
 # TODO: switch to Open3 for shelling out
-# TODO: switch grid & declination order
 
 # # later:
 # TODO: remove linked images from PDF output?

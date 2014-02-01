@@ -52,9 +52,11 @@ module HashHelpers
 end
 Hash.send :include, HashHelpers
 
-class Array
-  def median
-    sort[length / 2]
+class Dir
+  def self.mktmppath
+    mktmpdir do |path|
+      yield Pathname.new(path)
+    end
   end
 end
 
@@ -117,6 +119,10 @@ module Enumerable
 end
 
 class Array
+  def median
+    sort[length / 2]
+  end
+  
   def rotate_by(angle)
     cos = Math::cos(angle)
     sin = Math::sin(angle)
@@ -336,7 +342,7 @@ render:
 
   module WorldFile
     def self.write(topleft, resolution, angle, path)
-      File.open(path, "w") do |file|
+      path.open("w") do |file|
         file.puts  resolution * Math::cos(angle * Math::PI / 180.0)
         file.puts  resolution * Math::sin(angle * Math::PI / 180.0)
         file.puts  resolution * Math::sin(angle * Math::PI / 180.0)
@@ -407,14 +413,14 @@ render:
     end
 
     def initialize(path)
-      @xml = REXML::Document.new(File.read path)
+      @xml = REXML::Document.new(path.read)
       case
       when @xml.elements["/gpx"] then class << self; include GPX; end
       when @xml.elements["/kml"] then class << self; include KML; end
-      else raise BadGpxKmlFile.new(path)
+      else raise BadGpxKmlFile.new(path.to_s)
       end
     rescue REXML::ParseException, Errno::ENOENT
-      raise BadGpxKmlFile.new(path)
+      raise BadGpxKmlFile.new(path.to_s)
     end
   end
   
@@ -456,7 +462,7 @@ render:
     def reproject_to(target, point_or_points)
       case point_or_points.first
       when Array then point_or_points.map { |point| reproject_to target, point }
-      else %x[echo #{point_or_points.join(' ')} | gdaltransform -s_srs "#{self}" -t_srs "#{target}"].split(" ")[0..1].map(&:to_f)
+      else %x[echo #{point_or_points.join ?\s} | gdaltransform -s_srs "#{self}" -t_srs "#{target}"].split(?\s)[0..1].map(&:to_f)
       end
     end
     
@@ -473,7 +479,6 @@ render:
     def initialize(config)
       @name, @scale = config.values_at("name", "scale")
       
-      bounds_path = %w[bounds.kml bounds.gpx].find { |path| File.exists? path }
       wgs84_points = case
       when config["zone"] && config["eastings"] && config["northings"]
         utm = Projection.utm(config["zone"])
@@ -485,9 +490,9 @@ render:
         [ utm.reproject_to_wgs84(config.values_at("easting", "northing")) ]
       when config["size"] && config["longitude"] && config["latitude"]
         [ config.values_at("longitude", "latitude") ]
-      when config["bounds"] || bounds_path
-        config["bounds"] ||= bounds_path
-        gps = GPS.new(config["bounds"])
+      when config["bounds"]
+        bounds_path = Pathname.new(config["bounds"]).expand_path
+        gps = GPS.new bounds_path
         polygon = gps.areas.first
         track = gps.tracks.first
         waypoints = gps.waypoints.to_a
@@ -496,7 +501,7 @@ render:
       else
         abort "Error: map extent must be provided as a bounds file, zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
       end
-
+      
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
       @projection = config["utm"] ?
         Projection.utm(GridSource.zone(@projection_centre, Projection.wgs84)) :
@@ -504,7 +509,7 @@ render:
       
       @declination = config["declination"]["angle"]
       config["rotation"] = -declination if config["rotation"] == "magnetic"
-
+      
       if config["size"]
         sizes = config["size"].split(/[x,]/).map(&:to_f)
         abort "Error: invalid map size: #{config["size"]}" unless sizes.length == 2 && sizes.all? { |size| size > 0.0 }
@@ -578,7 +583,7 @@ render:
         end
         "Point%02i,xy,%i,%i,in,deg,%i,%f,%c,%i,%f,%c,grid,,,," % [ index+1, pixel_corner, dmh ].flatten
       end
-      File.open(path, "w") do |file|
+      path.open("w") do |file|
         file << %Q[OziExplorer Map Data File Version 2.2
 #{name}
 #{image}
@@ -750,12 +755,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def path(label, options)
       ext = options["ext"] || params["ext"] || "png"
-      File.join Dir.pwd, "#{label}.#{ext}"
+      Pathname.pwd + "#{label}.#{ext}"
     end
     
     def download(label, options, map)
       ext = options["ext"] || params["ext"] || "png"
-      Dir.mktmpdir do |temp_dir|
+      Dir.mktmppath do |temp_dir|
         FileUtils.cp get_source(label, ext, options, map, temp_dir), path(label, options)
       end
     end
@@ -780,7 +785,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.inject([], &:+).map do |path|
         transform = path.elements.collect("ancestor-or-self::*[@transform]") do |element|
           element.attributes["transform"]
-        end.reverse.join " "
+        end.reverse.join ?\s
         # # TODO: Ugly, ugly hack to invert each path by surrounding it with a path at +/- infinity...
         box = "M-1000000 -1000000 L1000000 -1000000 L1000000 100000 L-1000000 1000000 Z"
         d = "#{box} #{path.attributes['d']}"
@@ -800,14 +805,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       
       href = if respond_to?(:embed_image) && params["embed"] != false
-        base64 = Dir.mktmpdir do |temp_dir|
-          image_path = embed_image(label, options, temp_dir)
-          Base64.encode64(File.read image_path)
+        base64 = Dir.mktmppath do |temp_dir|
+          Base64.encode64 embed_image(label, options, temp_dir).read
         end
         "data:image/png;base64,#{base64}"
       else
-        Pathname.new(path(label, options)).tap do |raster_path|
-          raise BadLayerError.new("#{label} raster image not found at #{raster_path}") unless File.exists? raster_path
+        path(label, options).tap do |raster_path|
+          raise BadLayerError.new("#{label} raster image not found at #{raster_path}") unless raster_path.exist?
         end.basename
       end
       
@@ -837,25 +841,25 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
       tile_paths = tiles(options, map, resolution, temp_dir).map do |tile_bounds, tile_resolution, tile_path|
         topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
-        WorldFile.write(topleft, tile_resolution, 0, "#{tile_path}w")
+        WorldFile.write topleft, tile_resolution, 0, Pathname.new("#{tile_path}w")
         %Q["#{tile_path}"]
       end
       
-      tif_path = File.join(temp_dir, "#{label}.tif")
-      tfw_path = File.join(temp_dir, "#{label}.tfw")
-      vrt_path = File.join(temp_dir, "#{label}.vrt")
+      tif_path = temp_dir + "#{label}.tif"
+      tfw_path = temp_dir + "#{label}.tfw"
+      vrt_path = temp_dir + "#{label}.vrt"
       
       density = 0.01 * map.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
       unless tile_paths.empty?
-        %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
+        %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join ?\s}]
         map.write_world_file tfw_path, resolution
         resample = params["resample"] || "cubic"
         projection = Projection.new(params["projection"])
         %x[gdalwarp -s_srs "#{projection}" -t_srs "#{map.projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
       end
       
-      File.join(temp_dir, "#{label}.#{ext}").tap do |output_path|
+      temp_dir.join("#{label}.#{ext}").tap do |output_path|
         %x[convert -quiet "#{tif_path}" "#{output_path}"]
       end
     end
@@ -887,7 +891,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       puts "(Downloading #{counts.inject(:*)} tiles)"
       counts.map { |count| (0...count).to_a }.inject(:product).with_progress.map do |indices|
         sleep params["interval"]
-        tile_path = File.join(temp_dir, "tile.#{indices.join ?.}.png")
+        tile_path = temp_dir + "tile.#{indices.join ?.}.png"
   
         cropped_centre = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
           origin + tile_size * (index + 0.5) * resolution
@@ -910,7 +914,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         retries_on_blank = params["retries_on_blank"] || 0
         (1 + retries_on_blank).times do
           HTTP.get(uri) do |response|
-            File.open(tile_path, "wb") { |file| file << response.body }
+            tile_path.open("wb") { |file| file << response.body }
             %x[mogrify -quiet -crop #{cropped_tile_sizes.join ?x}+#{crops.first.first}+#{crops.last.last} -type TrueColor -depth 8 -format png -define png:color-type=2 "#{tile_path}"]
           end
           non_blank_fraction = %x[convert "#{tile_path}" -fill white +opaque black -format "%[fx:mean]" info:].to_f
@@ -995,7 +999,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end.inject(:+).with_progress.with_index.map do |(query, tile_bounds, resolutions), index|
           uri = URI::HTTP.build :host => params["host"], :path => dll_path, :query => URI.escape(query)
-          tile_path = File.join(temp_dir, "tile.#{index}.#{format["type"]}")
+          tile_path = temp_dir + "tile.#{index}.#{format["type"]}"
           HTTP.get(uri) do |response|
             raise InternetError.new("no data received") if response.content_length.zero?
             begin
@@ -1003,7 +1007,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               raise ServerError.new(xml.elements["//Error"] ? xml.elements["//Error"].text.gsub("\n", " ") : "unexpected response")
             rescue REXML::ParseException
             end
-            File.open(tile_path, "wb") { |file| file << response.body }
+            tile_path.open("wb") { |file| file << response.body }
           end
           sleep params["interval"]
           [ tile_bounds, resolutions.first, tile_path]
@@ -1132,7 +1136,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def render_svg(layer, label, options, map)
       return super(layer, label, options, map) unless options["ext"] == "svg"
       
-      source_svg = REXML::Document.new(File.read "#{label}.svg")
+      source_svg = REXML::Document.new(path(label, options).read)
       equivalences = options["equivalences"] || {}
       renderings = options["render"].inject({}) do |memo, (layer_or_group, rendering)|
         [ *(equivalences[layer_or_group] || layer_or_group) ].each do |layer|
@@ -1159,31 +1163,31 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       dataset = tiles(map.bounds, resolution).with_progress.with_index.map do |(tile_bounds, tile_sizes, tile_offsets), tile_index|
         sleep params["interval"] if params["interval"]
-        tile_path = File.join(temp_dir, "tile.#{tile_index}.png")
-        File.open(tile_path, "wb") do |file|
+        tile_path = temp_dir + "tile.#{tile_index}.png"
+        tile_path.open("wb") do |file|
           file << get_tile(tile_bounds, tile_sizes, options.merge(layer_options))
         end
         [ tile_bounds, tile_sizes, tile_offsets, tile_path ]
       end
       
-      File.join(temp_dir, "#{label}.#{ext}").tap do |mosaic_path|
+      temp_dir.join("#{label}.#{ext}").tap do |mosaic_path|
         density = 0.01 * map.scale / resolution
         alpha = options["background"] ? %Q[-background "#{options['background']}" -alpha Remove] : nil
         if map.rotation.zero?
           sequence = dataset.map do |_, tile_sizes, tile_offsets, tile_path|
             %Q[#{OP} "#{tile_path}" +repage -repage +#{tile_offsets[0]}+#{tile_offsets[1]} #{CP}]
-          end.join " "
+          end.join ?\s
           resize = (options["resolution"] || options["scale"]) ? "-resize #{dimensions.join ?x}!" : "" # TODO: check?
           %x[convert #{sequence} -compose Copy -layers mosaic -units PixelsPerCentimeter -density #{density} #{resize} #{alpha} "#{mosaic_path}"]
         else
           tile_paths = dataset.map do |tile_bounds, _, _, tile_path|
             topleft = [ tile_bounds.first.first, tile_bounds.last.last ]
-            WorldFile.write topleft, resolution, 0, "#{tile_path}w"
+            WorldFile.write topleft, resolution, 0, Pathname.new("#{tile_path}w")
             %Q["#{tile_path}"]
-          end.join " "
-          vrt_path = File.join temp_dir, "#{label}.vrt"
-          tif_path = File.join temp_dir, "#{label}.tif"
-          tfw_path = File.join temp_dir, "#{label}.tfw"
+          end.join ?\s
+          vrt_path = temp_dir + "#{label}.vrt"
+          tif_path = temp_dir + "#{label}.tif"
+          tfw_path = temp_dir + "#{label}.tfw"
           %x[gdalbuildvrt "#{vrt_path}" #{tile_paths}]
           %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
           map.write_world_file tfw_path, resolution
@@ -1224,14 +1228,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             ids = layers.map do |name|
               service["layers"].find { |layer| layer["name"] == name }.fetch("id")
             end
-            { "layers" => "show:#{ids.join(?,)}" }
+            { "layers" => "show:#{ids.join ?,}" }
           when Hash
             ids, strings = layers.map do |name, definition|
               id = service["layers"].find { |layer| layer["name"] == name }.fetch("id")
               string = "#{id}:#{definition}"
               [ id, string ]
             end.transpose
-            { "layers" => "show:#{ids.join(?,)}", "layerDefs" => strings.join(?;) }
+            { "layers" => "show:#{ids.join ?,}", "layerDefs" => strings.join(?;) }
           when true
             { }
           end.merge("dpi" => (scale || map.scale) * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "svg")
@@ -1308,7 +1312,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.select do |layer, id|
             layers[id]
           end.each do |layer, id|
-            tile_transform = "translate(#{tile_offsets.join ' '})"
+            tile_transform = "translate(#{tile_offsets.join ?\s})"
             clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(SEGMENT)})"
             layers[id].add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
               case type
@@ -1332,8 +1336,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       xml.elements["//defs"].delete_self unless xml.elements["//g"]
       
-      File.join(temp_dir, "#{label}.svg").tap do |mosaic_path|
-        File.open(mosaic_path, "w") { |file| xml.write file }
+      temp_dir.join("#{label}.svg").tap do |mosaic_path|
+        File.write mosaic_path, xml
       end
     rescue REXML::ParseException => e
       abort "Bad XML received:\n#{e.message}"
@@ -1351,7 +1355,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
       dem_path = if params["path"]
-        params["path"]
+        Pathname.new(params["path"]).expand_path
       else
         tile_sizes = params["tile_sizes"]
         degrees_per_pixel = 3.0 / 3600
@@ -1365,7 +1369,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           boundaries = (0..count).map { |index| bound.first + index * degrees_per_pixel * tile_size }
           [ boundaries[0..-2], boundaries[1..-1] ].transpose
         end.inject(:product).map.with_index do |tile_bounds, index|
-          tile_path = File.join temp_dir, "tile.#{index}.tif"
+          tile_path = temp_dir + "tile.#{index}.tif"
           bbox = tile_bounds.transpose.map { |corner| corner.join ?, }.join ?,
           query = {
             "service" => "WMS",
@@ -1381,21 +1385,21 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           }.to_query
           uri = URI::HTTP.build :host => "www.webservice-energy.org", :path => "/mapserv/srtm", :query => URI.escape(query)
           HTTP.get(uri) do |response|
-            File.open(tile_path, "wb") { |file| file << response.body }
+            tile_path.open("wb") { |file| file << response.body }
             sleep params["interval"]
           end
           %Q["#{tile_path}"]
         end
     
-        File.join(temp_dir, "dem.vrt").tap do |vrt_path|
-          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join " "}]
+        temp_dir.join("dem.vrt").tap do |vrt_path|
+          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join ?\s}]
         end
       end
-      raise BadLayerError.new("elevation data not found at #{dem_path}") unless File.exists? dem_path
+      raise BadLayerError.new("elevation data not found at #{dem_path}") unless dem_path.exist?
       
-      relief_path = File.join temp_dir, "#{label}-small.tif"
-      tif_path = File.join temp_dir, "#{label}.tif"
-      tfw_path = File.join temp_dir, "#{label}.tfw"
+      relief_path = temp_dir + "#{label}-small.tif"
+      tif_path = temp_dir + "#{label}.tif"
+      tfw_path = temp_dir + "#{label}.tfw"
       map.write_world_file tfw_path, resolution
       density = 0.01 * map.scale / resolution
       altitude = params["altitude"]
@@ -1406,18 +1410,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       raise BadLayerError.new("invalid elevation data") unless $?.success?
       %x[gdalwarp -s_srs "#{Projection.wgs84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
       
-      File.join(temp_dir, "#{label}.#{ext}").tap do |output_path|
+      temp_dir.join("#{label}.#{ext}").tap do |output_path|
         %x[convert "#{tif_path}" -channel Red -separate -quiet -depth 8 -type Grayscale "#{output_path}"]
       end
     end
     
     def embed_image(label, options, temp_dir)
       hillshade_path = path(label, options)
-      raise BadLayerError.new("hillshade image not found at #{hillshade_path}") unless File.exists? hillshade_path
+      raise BadLayerError.new("hillshade image not found at #{hillshade_path}") unless hillshade_path.exist?
       highlights = params["highlights"]
       shade = %Q["#{hillshade_path}" -colorspace RGB -level 0,65% -negate -alpha Copy -fill black +opaque black]
       sun = %Q["#{hillshade_path}" -colorspace RGB -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
-      File.join(temp_dir, "overlay.png").tap do |overlay_path|
+      temp_dir.join("overlay.png").tap do |overlay_path|
         %x[convert #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
       end
     end
@@ -1430,18 +1434,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       source_paths = [ *params["path"] ].tap do |paths|
         raise BadLayerError.new("no vegetation data file specified") if paths.empty?
       end.map do |source_path|
-        raise BadLayerError.new("vegetation data file not found at #{source_path}") unless File.exists? source_path
+        Pathname.new(source_path).expand_path
+      end.map do |source_path|
+        raise BadLayerError.new("vegetation data file not found at #{source_path}") unless source_path.file?
         %Q["#{source_path}"]
       end.join ?\s
       
-      vrt_path = File.join temp_dir, "#{label}.vrt"
-      tif_path = File.join temp_dir, "#{label}.tif"
-      tfw_path = File.join temp_dir, "#{label}.tfw"
-      clut_path = File.join temp_dir, "#{label}-clut.png"
-      mask_path = File.join temp_dir, "#{label}-mask.png"
+      vrt_path = temp_dir + "#{label}.vrt"
+      tif_path = temp_dir + "#{label}.tif"
+      tfw_path = temp_dir + "#{label}.tfw"
+      clut_path = temp_dir + "#{label}-clut.png"
+      mask_path = temp_dir + "#{label}-mask.png"
       
       %x[gdalbuildvrt "#{vrt_path}" #{source_paths}]
-      map.write_world_file(tfw_path, resolution)
+      map.write_world_file tfw_path, resolution
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
       %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]
       
@@ -1462,14 +1468,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       woody, nonwoody = params["colour"].values_at("woody", "non-woody")
       density = 0.01 * map.scale / resolution
-      File.join(temp_dir, "#{label}.png").tap do |png_path|
+      temp_dir.join("#{label}.png").tap do |png_path|
         %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
       end
     end
     
     def embed_image(label, options, temp_dir)
       path(label, options).tap do |vegetation_path|
-        raise BadLayerError.new("vegetation raster image not found at #{vegetation_path}") unless File.exists? vegetation_path
+        raise BadLayerError.new("vegetation raster image not found at #{vegetation_path}") unless vegetation_path.exist?
       end
     end
   end
@@ -1481,14 +1487,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def resolution_for(label, options, map)
       return options["resolution"] if options["resolution"]
       canvas_path = path(label, options)
-      raise BadLayerError.new("canvas image not found at #{canvas_path}") unless File.exists? canvas_path
+      raise BadLayerError.new("canvas image not found at #{canvas_path}") unless canvas_path.exist?
       pixels_per_centimeter = %x[convert "#{canvas_path}" -units PixelsPerCentimeter -format "%[resolution.x]" info:]
       raise BadLayerError.new("bad canvas image at #{canvas_path}") unless $?.success?
       map.scale * 0.01 / pixels_per_centimeter.to_f
     end
     
     def path(label, options)
-      File.join Dir.pwd, "#{label}.png"
+      Pathname.pwd + "#{label}.png"
     end
   end
   
@@ -1496,19 +1502,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include RasterRenderer
     
     def resolution_for(label, options, map)
-      import_path = options["path"]
+      import_path = Pathname.new(options["path"]).expand_path
       Math::sqrt(0.5) * [ [ 0, 0 ], [ 1, 1 ] ].map do |point|
-        %x[echo #{point.join(?\s)} | gdaltransform "#{import_path}" -t_srs "#{map.projection}"].tap do |output|
+        %x[echo #{point.join ?\s} | gdaltransform "#{import_path}" -t_srs "#{map.projection}"].tap do |output|
           raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
         end.split(?\s)[0..1].map(&:to_f)
       end.inject(&:minus).norm
     end
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      import_path = options["path"]
-      source_path = File.join temp_dir, "source.tif"
-      tfw_path = File.join temp_dir, "#{label}.tfw"
-      tif_path = File.join temp_dir, "#{label}.tif"
+      import_path = Pathname.new(options["path"]).expand_path
+      source_path = temp_dir + "source.tif"
+      tfw_path = temp_dir + "#{label}.tfw"
+      tif_path = temp_dir + "#{label}.tif"
       
       density = 0.01 * map.scale / resolution
       map.write_world_file tfw_path, resolution
@@ -1517,13 +1523,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       %x[gdal_translate #{import_path} #{source_path}] unless $?.success?
       raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
       %x[gdalwarp -t_srs "#{map.projection}" -r bilinear #{source_path} #{tif_path}]
-      File.join(temp_dir, "#{label}.#{ext}").tap do |raster_path|
+      temp_dir.join("#{label}.#{ext}").tap do |raster_path|
         %x[convert "#{tif_path}" -quiet "#{raster_path}"]
       end
     end
     
     def path(label, options)
-      File.join Dir.pwd, "#{label}.png"
+      Pathname.pwd + "#{label}.png"
     end
   end
   
@@ -1611,7 +1617,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             line.map do |coords|
               yield coords, projection
             end.map do |point|
-              point.join(" ")
+              point.join ?\s
             end.join(" L").tap do |d|
               group.add_element("path", "d" => "M#{d}", "stroke-width" => strokewidth, "stroke" => params["colour"])
             end
@@ -1625,7 +1631,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   points = segment.map { |coords| yield coords, projection }
                   middle = points.transpose.map { |values| 0.5 * values.inject(:+) }
                   angle = 180.0 * Math::atan2(*points[1].minus(points[0]).reverse) / Math::PI
-                  transform = "translate(#{middle.join ' '}) rotate(#{angle})"
+                  transform = "translate(#{middle.join ?\s}) rotate(#{angle})"
                   [ [ "white", "white" ], [ params["colour"], "none" ] ].each do |fill, stroke|
                     group.add_element("text", "transform" => transform, "dy" => 0.25 * fontsize, "stroke-width" => 0.15 * fontsize, "font-family" => fontfamily, "font-size" => fontsize, "fill" => fill, "stroke" => stroke, "text-anchor" => "middle") do |text|
                       label_segments.each do |digits, percent|
@@ -1647,11 +1653,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class ControlSource < AnnotationSource
     def path(label, options)
-      params["file"]
+      Pathname.new(params["file"]).expand_path
     end
     
     def draw(group, options, map)
-      gps = GPS.new(params["file"])
+      gps = GPS.new Pathname.new(params["file"]).expand_path
       radius = 0.5 * params["diameter"]
       strokewidth = params["thickness"]
       fontfamily = params["family"]
@@ -1666,7 +1672,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.select do |point, label|
           label
         end.each do |point, label|
-          transform = "translate(#{point.join ' '}) rotate(#{-map.rotation})"
+          transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
           group.add_element("g", "transform" => transform) do |rotated|
             case type
             when :circle
@@ -1674,7 +1680,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when :triangle
               points = [ -90, -210, -330 ].map do |angle|
                 [ radius, 0 ].rotate_by(angle * Math::PI / 180.0)
-              end.map { |vertex| vertex.join ?, }.join " "
+              end.map { |vertex| vertex.join ?, }.join ?\s
               rotated.add_element("polygon", "points" => points, "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth)
             when :water
               rotated.add_element("text", "dy" => 0.5 * radius, "font-family" => "Wingdings", "fill" => "none", "stroke" => "blue", "stroke-width" => strokewidth, "text-anchor" => "middle", "font-size" => 2 * radius) do |text|
@@ -1694,18 +1700,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class OverlaySource < AnnotationSource
     def path(label, options)
-      options["path"]
+      Pathname.new(options["path"]).expand_path
     end
     
     def draw(group, options, map)
       width = options["width"] || params["width"]
       colour = options["colour"] || params["colour"]
-      gps = GPS.new(options["path"])
+      gps = GPS.new Pathname.new(options["path"]).expand_path
       [ [ :tracks, "polyline", { "fill" => "none", "stroke" => colour, "stroke-width" => width } ],
         [ :areas, "polygon", { "fill" => colour, "stroke" => "none" } ]
       ].each do |feature, element, attributes|
         gps.send(feature).each do |list, name|
-          points = list.map { |coords| yield(coords, Projection.wgs84).join ?, }.join " "
+          points = list.map { |coords| yield(coords, Projection.wgs84).join ?, }.join ?\s
           group.add_element(element, attributes.merge("points" => points))
         end
       end
@@ -1763,10 +1769,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE)
       topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
       
-      Dir.mktmpdir do |temp_dir|
-        source_path = File.join temp_dir, File.basename(image_path)
+      Dir.mktmppath do |temp_dir|
+        file_name = image_path.basename
+        source_path = temp_dir + file_name
+        worldfile_path = temp_dir + "#{file_name}w"
         FileUtils.cp image_path, source_path
-        map.write_world_file "#{source_path}w", map.resolution_at(ppi)
+        map.write_world_file worldfile_path, map.resolution_at(ppi)
         
         pyramid = (0..max_zoom).to_a.with_progress("Resizing image pyramid:", 2, false).map do |zoom|
           resolution = degrees_per_pixel * 2**(max_zoom - zoom)
@@ -1774,13 +1782,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           counts = wgs84_bounds.map { |bound| (bound.reverse.inject(:-) / degrees_per_tile).ceil }
           dimensions = counts.map { |count| count * TILE_SIZE }
           
-          tfw_path = File.join(temp_dir, "zoom-#{zoom}.tfw")
-          tif_path = File.join(temp_dir, "zoom-#{zoom}.tif")
+          tfw_path = temp_dir + "zoom-#{zoom}.tfw"
+          tif_path = temp_dir + "zoom-#{zoom}.tif"
           %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
-          WorldFile.write(topleft, resolution, 0, tfw_path)
+          WorldFile.write topleft, resolution, 0, tfw_path
           
           %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{Projection.wgs84}" -r bilinear -dstalpha "#{source_path}" "#{tif_path}"]
-  
+          
           indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
             boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
             [ boundaries[0..-2], boundaries[1..-1] ].transpose.map(&:sort)
@@ -1792,18 +1800,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           { zoom => indices_bounds }
         end.inject({}, &:merge)
         
-        kmz_dir = File.join(temp_dir, map.name)
-        Dir.mkdir(kmz_dir)
+        kmz_dir = temp_dir + map.name
+        kmz_dir.mkdir
         
         pyramid.map do |zoom, indices_bounds|
-          zoom_dir = File.join(kmz_dir, zoom.to_s)
-          Dir.mkdir(zoom_dir)
+          zoom_dir = kmz_dir + zoom.to_s
+          zoom_dir.mkdir
           
-          tif_path = File.join(temp_dir, "zoom-#{zoom}.tif")
+          tif_path = temp_dir + "zoom-#{zoom}.tif"
           indices_bounds.map do |indices, tile_bounds|
-            index_dir = File.join(zoom_dir, indices.first.to_s)
-            Dir.mkdir(index_dir) unless Dir.exists?(index_dir)
-            tile_kml_path = File.join(index_dir, "#{indices.last}.kml")
+            index_dir = zoom_dir + indices.first.to_s
+            index_dir.mkdir unless index_dir.exist?
+            tile_kml_path = index_dir + "#{indices.last}.kml"
             tile_png_name = "#{indices.last}.png"
             
             xml = REXML::Document.new
@@ -1830,9 +1838,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
             end
-            File.open(tile_kml_path, "w") { |file| file << xml }
+            File.write tile_kml_path, xml
             
-            tile_png_path = File.join(index_dir, tile_png_name)
+            tile_png_path = index_dir + tile_png_name
             crops = indices.map { |index| index * TILE_SIZE }
             %Q[convert "#{tif_path}" -quiet +repage -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage +dither -type PaletteBilevelMatte PNG8:"#{tile_png_path}"]
           end
@@ -1854,10 +1862,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             document.add_element("NetworkLink", &network_link(pyramid[0][[0,0]], "0/0/0.kml"))
           end
         end
-        kml_path = File.join(kmz_dir, "doc.kml")
-        File.open(kml_path, "w") { |file| file << xml }
+        kml_path = kmz_dir + "doc.kml"
+        File.write kml_path, xml
         
-        temp_kmz_path = File.join(temp_dir, "#{map.name}.kmz")
+        temp_kmz_path = temp_dir + "#{map.name}.kmz"
         Dir.chdir(kmz_dir) { %x[#{ZIP} -r "#{temp_kmz_path}" *] }
         FileUtils.cp temp_kmz_path, kmz_path
       end
@@ -1873,24 +1881,24 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-png="#{png_path}" --export-width=#{dimensions.first} --export-height=#{dimensions.last} --export-background="#FFFFFF" #{DISCARD_STDERR}]
       when /batik/
         args = %Q[-d "#{png_path}" -bg 255.255.255.255 -m image/png -w #{dimensions.first} -h #{dimensions.last} "#{svg_path}"]
-        jar_path = File.join(rasterise, 'batik-rasterizer.jar')
+        jar_path = Pathname.new(rasterise).expand_path + "batik-rasterizer.jar"
         java = config["java"] || "java"
         %x[#{java} -jar "#{jar_path}" #{args}]
       when /rsvg-convert/
         %x["#{rasterise}" --background-color white --format png --output "#{png_path}" --width #{dimensions.first} --height #{dimensions.last} "#{svg_path}"]
       when "qlmanage"
-        square_svg_path = File.join temp_dir, "square.svg"
-        square_png_path = File.join temp_dir, "square.svg.png"
-        xml = REXML::Document.new(File.read svg_path)
+        square_svg_path = temp_dir + "square.svg"
+        square_png_path = temp_dir + "square.svg.png"
+        xml = REXML::Document.new(svg_path.read)
         millimetres = map.extents.map { |extent| 1000.0 * extent / map.scale }
         xml.elements["/svg"].attributes["width"] = "#{millimetres.max}mm"
         xml.elements["/svg"].attributes["height"] = "#{millimetres.max}mm"
         xml.elements["/svg"].attributes["viewBox"] = "0 0 #{millimetres.max} #{millimetres.max}"
-        File.open(square_svg_path, "w") { |file| xml.write file }
+        File.write square_svg_path, xml
         %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
         %x[convert "#{square_png_path}" -crop #{dimensions.join ?x}+0+0 +repage "#{png_path}"]
       when /phantomjs/i
-        js_path = File.join temp_dir, "rasterise.js"
+        js_path = temp_dir + "rasterise.js"
         File.write js_path, %Q[
           var page = require('webpage').create();
           var sys = require('system');
@@ -1923,7 +1931,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       when /inkscape/i
         %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-pdf="#{pdf_path}" #{DISCARD_STDERR}]
       when /batik/
-        jar_path = File.join(rasterise, 'batik-rasterizer.jar')
+        jar_path = Pathname.new(rasterise).expand_path + "batik-rasterizer.jar"
         java = config["java"] || "java"
         %x[#{java} -jar "#{jar_path}" -d "#{pdf_path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
       when /rsvg-convert/
@@ -1931,9 +1939,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       when "qlmanage"
         raise NoVectorPDF.new("qlmanage")
       when /phantomjs/
-        xml = REXML::Document.new(File.read svg_path)
+        xml = REXML::Document.new(svg_path.read)
         width, height = %w[width height].map { |name| xml.elements["/svg"].attributes[name] }
-        js_path = File.join temp_dir, "makepdf.js"
+        js_path = temp_dir + "makepdf.js"
         File.write js_path, %Q[
           var page = require('webpage').create();
           var sys = require('system');
@@ -1953,31 +1961,32 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   def self.run
-    unless File.exists?(File.join Dir.pwd, "nswtopo.cfg")
-      if File.exists?(File.join Dir.pwd, "bounds.kml")
-        puts "No nswtopo.cfg configuration file found. Using bounds.kml as map bounds."
+    default_config = YAML.load(CONFIG)
+    %w[controls.kml controls.gpx].map do |filename|
+      Pathname.pwd + filename
+    end.find(&:exist?).tap do |control_path|
+      default_config["controls"]["file"] = control_path if control_path
+    end
+    
+    %w[bounds.kml bounds.gpx].map do |filename|
+      Pathname.pwd + filename
+    end.find(&:exist?).tap do |bounds_path|
+      default_config["bounds"] = bounds_path if bounds_path
+    end
+    
+    unless Pathname.new("nswtopo.cfg").expand_path.exist?
+      if default_config["bounds"]
+        puts "No nswtopo.cfg configuration file found. Using #{default_config['bounds'].basename} as map bounds."
       else
         abort "Error: could not find any configuration file (nswtopo.cfg) or bounds file (bounds.kml)."
       end
     end
     
-    default_config = YAML.load(CONFIG)
-    %w[controls.kml controls.gpx].select do |filename|
-      File.exists? filename
-    end.each do |filename|
-      default_config["controls"]["file"] ||= filename
-    end
-    %w[bounds.kml bounds.gpx].find { |path| File.exists? path }.tap do |bounds_path|
-      default_config["bounds"] = bounds_path if bounds_path
-    end
-    
-    config = [ File.dirname(File.realdirpath(__FILE__)), Dir.pwd ].uniq.map do |dir|
-      File.join dir, "nswtopo.cfg"
-    end.select do |config_path|
-      File.exists? config_path
-    end.map do |config_path|
+    config = [ Pathname.new(__FILE__).realdirpath.dirname, Pathname.pwd ].map do |dir_path|
+      dir_path + "nswtopo.cfg"
+    end.select(&:exist?).map do |config_path|
       begin
-        YAML.load File.read(config_path)
+        YAML.load config_path.read
       rescue ArgumentError, SyntaxError => e
         abort "Error in configuration file: #{e.message}"
       end
@@ -2280,20 +2289,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     }
     
     includes = %w[topographic]
-    includes << "canvas" if File.exists? "canvas.png"
+    includes << "canvas" if Pathname.new("canvas.png").expand_path.exist?
     
-    (config["import"] || []).reverse.map do |path|
-      [ *path ].flatten
-    end.map do |path, label|
-      [ Pathname.new(path), label ]
+    (config["import"] || []).reverse.map do |file_or_hash|
+      [ *file_or_hash ].flatten
+    end.map do |file_or_path, label|
+      [ Pathname.new(file_or_path).expand_path, label ]
     end.each do |path, label|
       label ||= path.basename(path.extname).to_s
       sources = { label => { "server" => import_source, "path" => path.to_s } }.merge sources
       includes << label
     end
     
-    (config["overlays"] || {}).map do |path, options|
-      [ Pathname.new(path), options ]
+    (config["overlays"] || {}).map do |file_or_path, options|
+      [ Pathname.new(file_or_path).expand_path, options ]
     end.each do |path, options|
       label = path.basename(path.extname).to_s
       sources.merge! label => (options || {}).merge("server" => overlay_source, "path" => path.to_s)
@@ -2324,23 +2333,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     sources.map do |label, options|
       [ label, options, options["server"].path(label, options) ] # TODO: needed? remove Source#download?
     end.select do |label, options, path|
-      path && !File.exists?(path)
+      path && !path.exist?
     end.recover(InternetError, ServerError, BadLayerError).each do |label, options, path|
       options["server"].download(label, options, map)
     end
     
     svg_name = "#{map.name}.svg"
-    svg_path = File.join Dir.pwd, svg_name
-    xml = File.exists?(svg_path) ? REXML::Document.new(File.read svg_path) : map.xml
+    svg_path = Pathname.pwd + svg_name
+    xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
     
     updates = sources.reject do |label, options|
       xml.elements["/svg/g[@id='#{label}']"] && FileUtils.uptodate?(svg_path, [ *options["server"].path(label, options) ])
     end
     
-    Dir.mktmpdir do |temp_dir|
+    Dir.mktmppath do |temp_dir|
       puts "Compositing layers to #{svg_name}:"
-      tmp_svg_path = File.join(temp_dir, svg_name)
-      File.open(tmp_svg_path, "w") do |file|
+      tmp_svg_path = temp_dir + svg_name
+      tmp_svg_path.open("w") do |file|
         updates.each do |label, options|
           puts "  Rendering #{label}"
           begin
@@ -2396,12 +2405,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       FileUtils.uptodate? "#{map.name}.#{format}", [ svg_path ]
     end
     
-    Dir.mktmpdir do |temp_dir|
+    Dir.mktmppath do |temp_dir|
       puts "Generating requested output formats:"
       outstanding.group_by do |format|
         formats[format]
       end.each do |ppi, group|
-        raster_path = File.join temp_dir, "#{map.name}.#{ppi}.png"
+        raster_path = temp_dir + "#{map.name}.#{ppi}.png"
         if (group & %w[png tif gif jpg kmz]).any? || (ppi && group.include?("pdf"))
           dimensions = map.dimensions_at(ppi)
           puts "  Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
@@ -2410,27 +2419,28 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         group.each do |format|
           begin
             puts "  Generating #{map.name}.#{format}"
-            path = File.join temp_dir, "#{map.name}.#{format}"
+            output_path = temp_dir + "#{map.name}.#{format}"
             case format
             when "png"
-              FileUtils.cp raster_path, path
+              FileUtils.cp raster_path, output_path
             when "tif"
-              map.write_world_file "#{raster_path}w", map.resolution_at(ppi)
-              %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" "#{raster_path}" "#{path}"]
+              tfw_path = Pathname.new("#{raster_path}w")
+              map.write_world_file tfw_path, map.resolution_at(ppi)
+              %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" "#{raster_path}" "#{output_path}"]
             when "gif", "jpg"
-              %x[convert "#{raster_path}" "#{path}"]
+              %x[convert "#{raster_path}" "#{output_path}"]
             when "kmz"
-              KMZ.build map, ppi, raster_path, path
+              KMZ.build map, ppi, raster_path, output_path
             when "pdf"
-              ppi ? %x[convert "#{raster_path}" "#{path}"] : PDF.build(config, map, svg_path, temp_dir, path)
+              ppi ? %x[convert "#{raster_path}" "#{output_path}"] : PDF.build(config, map, svg_path, temp_dir, output_path)
             when "pgw", "tfw", "gfw", "jgw"
-              map.write_world_file path, map.resolution_at(ppi)
+              map.write_world_file output_path, map.resolution_at(ppi)
             when "map"
-              map.write_oziexplorer_map path, map.name, "#{map.name}.png", formats["png"]
+              map.write_oziexplorer_map output_path, map.name, "#{map.name}.png", formats["png"]
             when "prj"
-              File.write path, map.projection.send(formats["prj"])
+              File.write output_path, map.projection.send(formats["prj"])
             end
-            FileUtils.cp path, Dir.pwd
+            FileUtils.cp output_path, Dir.pwd
           rescue NoVectorPDF => e
             puts "Error: can't generate vector PDF with #{e.message}. Specify a ppi for the PDF or use inkscape. (See README.)"
           end
@@ -2450,15 +2460,13 @@ end
 
 # TODO: ability to exclude topographic layer? other layers to delete from composite?
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
-# TODO: switch to Pathname methods everywhere?
 # TODO: switch to Open3 for shelling out
 
 # # later:
 # TODO: remove linked images from PDF output?
-# TODO: make label glow colour and opacity configurable?
 # TODO: put glow on control labels?
 # TODO: allow user-selectable contours?
-# TODO: allow configuration to specify patterns?
+# TODO: 50k maps?
 # TODO: refactor options["render"] stuff?
 # TODO: add Relative_Height to topographic layers?
 # TODO: find source for electricity transmission lines

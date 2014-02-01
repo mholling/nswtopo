@@ -1419,8 +1419,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       hillshade_path = path(label, options)
       raise BadLayerError.new("hillshade image not found at #{hillshade_path}") unless hillshade_path.exist?
       highlights = params["highlights"]
-      shade = %Q["#{hillshade_path}" -colorspace RGB -level 0,65% -negate -alpha Copy -fill black +opaque black]
-      sun = %Q["#{hillshade_path}" -colorspace RGB -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
+      shade = %Q["#{hillshade_path}" -colorspace Gray -level 0,65% -negate -alpha Copy -fill black +opaque black]
+      sun = %Q["#{hillshade_path}" -colorspace Gray -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
       temp_dir.join("overlay.png").tap do |overlay_path|
         %x[convert #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
       end

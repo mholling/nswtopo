@@ -563,6 +563,15 @@ render:
       @extents.map { |extent| (ppi * extent / @scale / 0.0254).floor }
     end
     
+    def overlaps?(bounds)
+      axes = [ [ 1, 0 ], [ 0, 1 ] ].map { |axis| axis.rotate_by(@rotation * Math::PI / 180.0) }
+      bounds.inject(&:product).map do |corner|
+        axes.map { |axis| corner.minus(@centre).dot(axis) }
+      end.transpose.zip(@extents).all? do |projections, extent|
+        projections.any? { |projection| projection.abs <= 0.5 * extent }
+      end
+    end
+    
     def write_world_file(path, resolution)
       topleft = [ @centre, @extents.rotate_by(-@rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
       WorldFile.write topleft, resolution, @rotation, path
@@ -1017,10 +1026,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class ArcGIS < Source
-    def tiles(bounds, resolution, margin = 0)
+    def tiles(map, resolution, margin = 0)
       cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - margin }
-      dimensions = bounds.map { |bound| ((bound.max - bound.min) / resolution).ceil }
-      origins = [ bounds.first.min, bounds.last.max ]
+      dimensions = map.bounds.map { |bound| ((bound.max - bound.min) / resolution).ceil }
+      origins = [ map.bounds.first.min, map.bounds.last.max ]
       
       cropped_size_lists = [ dimensions, cropped_tile_sizes ].transpose.map do |dimension, cropped_tile_size|
         [ cropped_tile_size ] * ((dimension - 1) / cropped_tile_size) << 1 + (dimension - 1) % cropped_tile_size
@@ -1041,7 +1050,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         cropped_sizes[0..-2].inject([0]) { |memo, size| memo << memo.last + size }
       end
       
-      [ bound_lists, size_lists, offset_lists ].map { |axes| axes.inject(:product) }.transpose
+      [ bound_lists, size_lists, offset_lists ].map do |axes|
+        axes.inject(:product)
+      end.transpose.select do |bounds, sizes, offsets|
+        map.overlaps? bounds
+      end
     end
     
     def export_uri(options, query)
@@ -1161,7 +1174,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       scale = options["scale"] || map.scale
       layer_options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "png32" }
       
-      dataset = tiles(map.bounds, resolution).with_progress.with_index.map do |(tile_bounds, tile_sizes, tile_offsets), tile_index|
+      dataset = tiles(map, resolution).with_progress.with_index.map do |(tile_bounds, tile_sizes, tile_offsets), tile_index|
         sleep params["interval"] if params["interval"]
         tile_path = temp_dir + "tile.#{tile_index}.png"
         tile_path.open("wb") do |file|
@@ -1208,7 +1221,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       resolution = resolution_for label, options, map
       transform = map.svg_transform(1000.0 * resolution / map.scale)
-      tile_list = tiles(map.bounds, resolution, 3) # TODO: margin of 3 means what?
+      tile_list = tiles(map, resolution, 3) # TODO: margin of 3 means what?
       
       downloads = %w[layers labels].select do |type|
         options[type]

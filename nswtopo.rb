@@ -653,7 +653,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "viewBox" => "0 0 #{millimetres[0]} #{millimetres[1]}",
           "enable-background" => "new 0 0 #{millimetres[0]} #{millimetres[1]}",
         }
-        xml.add_element("svg", attributes)
+        xml.add_element("svg", attributes) do |svg|
+          svg.add_element("rect", "x" => 0, "y" => 0, "width" => millimetres[0], "height" => millimetres[1], "fill" => "white")
+        end
       end
     end
     
@@ -2492,7 +2494,6 @@ end
 # TODO: ability to exclude topographic layer? other layers to delete from composite?
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Open3 for shelling out
-# TODO: add white background in case no underlays or vegetation are used!
 
 # # later:
 # TODO: remove linked images from PDF output?

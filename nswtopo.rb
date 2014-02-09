@@ -171,6 +171,8 @@ scale: 25000
 ppi: 300
 rotation: 0
 margin: 15
+contours:
+  interval: ~
 declination:
   spacing: 1000
   width: 0.1
@@ -217,6 +219,7 @@ render:
     colour: 
       "#D6CAB6": "#805100"
       "#D6B781": "#805100"
+      "#D6C09C": "#805100"
   roads:
     expand: 0.6
     colour:
@@ -364,7 +367,7 @@ render:
           end
         end
       end
-
+      
       def tracks
         Enumerator.new do |yielder|
           @xml.elements.each "/gpx//trk" do |track|
@@ -2188,6 +2191,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             HydroArea
             Oceans_Bays
           ],
+          11000 => %w[Contour_20m],
           nil => %w[
             PlacePoint_LS
             Caves_Pinnacles
@@ -2304,6 +2308,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "server" => declination_source,
       },
     }
+    
+    config["contours"]["interval"].tap do |interval|
+      interval ||= map.scale < 40000 ? 10 : 20
+      abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
+      sources["topographic"]["layers"].each do |scale, layers|
+        [ 10, 20, 50 ].each do |value|
+          layers.delete "Contour_#{value}m" unless value == interval
+        end
+      end.reject! { |scale, layers| layers.empty? }
+    end
     
     includes = %w[topographic]
     includes << "canvas" if Pathname.new("canvas.png").expand_path.exist?
@@ -2478,6 +2492,7 @@ end
 # TODO: ability to exclude topographic layer? other layers to delete from composite?
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Open3 for shelling out
+# TODO: add white background in case no underlays or vegetation are used!
 
 # # later:
 # TODO: remove linked images from PDF output?

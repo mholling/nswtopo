@@ -149,6 +149,11 @@ Set the filename for the output map and related files.
 
     name: map                 # filename to use for the final map image
 
+By default a map's contour interval is chosen according to its scale: 20 metres for 1:40000 or smaller scale or 10 metres otherwise. To override this default and specify a contour interval to use (either 10 or 20):
+
+    contours:
+      interval: 10
+
 Additional Layers
 =================
 
@@ -593,4 +598,4 @@ Release History
   * 5/8/2012: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
   * 4/10/2012: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer
   * 25/9/2013: version 0.6.4: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.
-  * 8/2/2014: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage and PhantomJS options for rasterising; added online source for 90m SRTM elevation data; added ability to import georeference raster images; added SPOT5 vegetation source; for rotated maps, prevent download of tiles which don't fall within map extents.
+  * 8/2/2014: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage and PhantomJS options for rasterising; added online source for 90m SRTM elevation data; added ability to import georeference raster images; added SPOT5 vegetation source; for rotated maps, prevent download of tiles which don't fall within map extents; scaled labels better for small-scale maps; added option to use 20-metre contour intervals.

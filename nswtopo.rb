@@ -1226,14 +1226,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       downloads = %w[layers labels].select do |type|
         options[type]
       end.map do |type|
-        case options[type]
+        scales_layers = case options[type]
         when Hash
-          [ type, options[type] ]
+          case type
+          when "layers" then options[type]
+          when "labels" then options[type].map { |multiplier, layers| [ map.scale * multiplier, layers ] }
+          end
         when String, Array
-          [ type, { options["scale"] => [ *options[type] ] } ]
+          { options["scale"] => [ *options[type] ] }
         when true
-          [ type, { options["scale"] => true } ]
+          { options["scale"] => true }
         end
+        [ type, scales_layers ]
       end.map do |type, scales_layers|
         scales_layers.map do |scale, layers|
           layer_options = case layers
@@ -2202,7 +2206,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           ],
         },
         "labels" => {
-          15000 => %w[
+          0.6 => %w[
             Roads_Urban_MS
             Roads_intunnel_MS
             Homestead_Tourism_Major

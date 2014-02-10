@@ -326,6 +326,17 @@ Drop a control waypoints file (`controls.kml` or `controls.gpx`) into the direct
       colour: "#880088"       # colour of the control markers and labels (as a hex triplet or web colour)
       water-colour: blue      # colour of waterdrop markers
 
+## Excluding Layers
+
+You can remove a layer that you previously included in the map. To do so, list the layers you wish to exclude as follows:
+
+    exclude:
+    - vegetation
+    - aerial-best
+    - relief
+
+Run the script again to remove the layers from the composite SVG map. (The original source files will not be deleted.) Use this option with caution, as any changes you have made to the layer in the SVG file will be lost.
+
 Overlays
 ========
 
@@ -598,4 +609,4 @@ Release History
   * 5/8/2012: version 0.6.2: fixes to restore Windows compatibility and update Windows installation instructions
   * 4/10/2012: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer
   * 25/9/2013: version 0.6.4: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.
-  * 8/2/2014: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage and PhantomJS options for rasterising; added online source for 90m SRTM elevation data; added ability to import georeference raster images; added SPOT5 vegetation source; for rotated maps, prevent download of tiles which don't fall within map extents; scaled labels better for small-scale maps; added option to use 20-metre contour intervals.
+  * 10/2/2014: HEAD: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage and PhantomJS options for rasterising; added online source for 90m SRTM elevation data; added ability to import georeference raster images; added SPOT5 vegetation source; for rotated maps, prevent download of tiles which don't fall within map extents; scaled labels better for small-scale maps; added option to use 20-metre contour intervals; added option to exclude layers from map.

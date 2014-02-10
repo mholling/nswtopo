@@ -2015,6 +2015,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end.inject(default_config, &:deep_merge)
     
     config["include"] = [ *config["include"] ]
+    config["exclude"] = [ *config["exclude"] ]
     config["formats"] = [ *config["formats"] ]
     
     map = Map.new(config)
@@ -2353,8 +2354,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       includes.each { |match, resolution| options.merge!("resolution" => resolution) if label[match] && resolution }
     end
     
+    excludes = config["exclude"]
+    
     labels = sources.keys
     sources.select! { |label, options| includes.any? { |match, _| label[match] } }
+    sources.reject! { |label, options| excludes.any? { |match| label[match] } }
     
     puts "Map details:"
     puts "  name: #{map.name}"
@@ -2374,6 +2378,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     svg_name = "#{map.name}.svg"
     svg_path = Pathname.pwd + svg_name
     xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
+    
+    removals = labels.select do |label|
+      excludes.any? { |match| label[match] }
+    end.select do |label|
+      xml.elements["/svg/g[@id='#{label}']"]
+    end
     
     updates = sources.reject do |label, options|
       xml.elements["/svg/g[@id='#{label}']"] && FileUtils.uptodate?(svg_path, [ *options["server"].path(label, options) ])
@@ -2407,6 +2417,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end
         
+        removals.each do |label|
+          puts "  Removing #{label}"
+          xml.elements.each("/svg//g[@id='#{label}']", &:delete_self)
+        end
+        
         xml.elements.each("/svg//g[@id]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
         
         fonts_needed = xml.elements.collect("//[@font-family]") do |element|
@@ -2424,7 +2439,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         xml.write(file)
       end
       FileUtils.cp tmp_svg_path, svg_path
-    end if updates.any?
+    end if updates.any? || removals.any?
     
     formats = config["formats"].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["prj"] = %w[wkt_all proj4 wkt wkt_simple wkt_noct wkt_esri mapinfo xml].delete(formats["prj"]) || "proj4" if formats.include? "prj"
@@ -2491,7 +2506,6 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: ability to exclude topographic layer? other layers to delete from composite?
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Open3 for shelling out
 

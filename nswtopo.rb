@@ -2512,8 +2512,6 @@ end
 # # later:
 # TODO: remove linked images from PDF output?
 # TODO: put glow on control labels?
-# TODO: allow user-selectable contours?
-# TODO: 50k maps?
 # TODO: refactor options["render"] stuff?
 # TODO: add Relative_Height to topographic layers?
 # TODO: find source for electricity transmission lines

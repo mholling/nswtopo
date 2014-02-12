@@ -497,10 +497,8 @@ render:
         bounds_path = Pathname.new(config["bounds"]).expand_path
         gps = GPS.new bounds_path
         polygon = gps.areas.first
-        track = gps.tracks.first
-        waypoints = gps.waypoints.to_a
-        config["margin"] = 0 unless (waypoints.any? || track)
-        polygon ? polygon.first : track ? track.first : waypoints.transpose.first
+        config["margin"] = 0 unless (gps.waypoints.any? || gps.tracks.any?)
+        polygon ? polygon.first : gps.tracks.any? ? gps.tracks.to_a.transpose.first.inject(&:+) : gps.waypoints.to_a.transpose.first
       else
         abort "Error: map extent must be provided as a bounds file, zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
       end

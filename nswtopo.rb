@@ -1243,6 +1243,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ type, scales_layers ]
       end.map do |type, scales_layers|
         scales_layers.map do |scale, layers|
+          dpi = ((scale || map.scale) * 0.0254 / resolution).ceil
+          scale = dpi * resolution / 0.0254
           layer_options = case layers
           when Array
             ids = layers.map do |name|
@@ -1258,7 +1260,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             { "layers" => "show:#{ids.join ?,}", "layerDefs" => strings.join(?;) }
           when true
             { }
-          end.merge("dpi" => (scale || map.scale) * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "svg")
+          end.merge("dpi" => dpi, "wkt" => map.projection.wkt_esri, "format" => "svg")
           xpath = type == "layers" ?
             "/svg//g[@id!='Labels' and not(.//g[@id])]" :
             "/svg//g[@id='Labels']"

@@ -568,8 +568,8 @@ render:
       axes = [ [ 1, 0 ], [ 0, 1 ] ].map { |axis| axis.rotate_by(@rotation * Math::PI / 180.0) }
       bounds.inject(&:product).map do |corner|
         axes.map { |axis| corner.minus(@centre).dot(axis) }
-      end.transpose.zip(@extents).all? do |projections, extent|
-        projections.any? { |projection| projection.abs <= 0.5 * extent }
+      end.transpose.zip(@extents).none? do |projections, extent|
+        projections.max < -0.5 * extent || projections.min > 0.5 * extent
       end
     end
     
@@ -1265,7 +1265,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           [ scale, layer_options, type, xpath ]
         end
       end.inject(:+)
-          
+      
       tilesets = tile_list.with_progress("Downloading: #{label}").map do |tile_bounds, tile_sizes, tile_offsets|
         tileset = downloads.map do |scale, layer_options, type, xpath|
           sleep params["interval"] if params["interval"]

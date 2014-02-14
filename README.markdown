@@ -514,23 +514,18 @@ You can control how the raw topographic data (`topographic.svg`) is rendered int
 
 To change rendering of a feature, open `topographic.svg` and identify the name of the topographic layer (e.g. `Gates_Grids`, `Contour_10m`) containing the feature. (The following labels for groups of related layers are also available: contours, water, pathways, roads, cadastre, labels).
 
-Next, add a `render:` section to your `nswtopo.cfg` file. For each layer which you wish to modify, specify one or more of `opacity`, `expand` and `colour` values to change the opacity, scaling and colour, respectively, of the features in that layer. Colours should be specified as hex triplets (e.g. `"#FF0000"` for red). Use a [colour picker](http://www.google.com/search?q=color+picker) to choose your desired colour and get its hex triplet. `opacity` should be a value between 0.0 and 1.0. The `expand` value should specify how much the feature's size is reduced (expand < 1.0) or enlarged (expand > 1.0) compared to the raw map.
+Next, add a `topographic:` section to your `nswtopo.cfg` file. For each layer which you wish to modify, specify one or more of `opacity`, `expand` and `colour` values to change the opacity, scaling and colour, respectively, of the features in that layer. Colours should be specified as hex triplets (e.g. `"#FF0000"` for red). Use a [colour picker](http://www.google.com/search?q=color+picker) to choose your desired colour and get its hex triplet. `opacity` should be a value between 0.0 and 1.0. The `expand` value should specify how much the feature's size is reduced (expand < 1.0) or enlarged (expand > 1.0) compared to the raw map.
 
-The following shows the default renderings and illustrates the format to be used. Any renderings you specify in your `nswtopo.cfg` will override these defaults. Note that `colour` may specify a single colour for the whole layer (e.g. the cadastre layer below), or a mapping of specific colours to new colours (e.g. the labels layer below). (The latter is useful if the original layer contains more than one colour; you will need to identify the colours to be changed using Inkscape.)
+The following shows the default renderings and illustrates the format to be used. Any renderings you specify in your `nswtopo.cfg` will override these defaults. Note that `colour` may specify a single colour for the whole layer (e.g. the contour and cadastre layers below), or a mapping of specific colours to new colours (e.g. the labels layer below). The latter is useful if the original layer contains more than one colour; you will need to identify the colours to be changed using Inkscape (or a text editor).
 
-    render:
-      plantation:
-        opacity: 1
-        colour: "#80D19B"
+    topographic:
       pathways:
         expand: 0.5
         colour: 
           "#A39D93": "#363636"
       contours:
         expand: 0.7
-        colour: 
-          "#D6CAB6": "#805100"
-          "#D6B781": "#805100"
+        colour: "#805100"
       roads:
         expand: 0.6
         colour:
@@ -540,7 +535,7 @@ The following shows the default renderings and illustrates the format to be used
         expand: 0.5
         opacity: 0.5
         colour: "#777777"
-      labels: 
+      text: 
         colour: 
           "#A87000": "#000000"
           "#FAFAFA": "#444444"
@@ -572,14 +567,17 @@ The following shows the default renderings and illustrates the format to be used
         expand: 0.5
       Beacon_Tower:
         expand: 0.5
-      holdings:
-        colour:
-          "#B0A100": "#FF0000"
-          "#948800": "#FF0000"
+    plantation:
+      opacity: 1
+      colour: "#80D19B"
+    holdings:
+      colour:
+        "#B0A100": "#FF0000"
+        "#948800": "#FF0000"
 
 As an example, to make the contours black, the roads thinner and the cadastre lines thicker and darker, add the following to your map configuration file:
 
-    render:
+    topographic:
       contours:
         colour: "#000000"
       roads:
@@ -610,4 +608,4 @@ Release History
   * 4/10/2012: version 0.6.3: changed old LPIMAP layer names to new LPIMAP layer names; added the option of specifying a map bound using a track; fixed problem with ESRI SDS 1.95 1 font; fixed bug with KMZ generation; fixed broken cadastre layer; fixed broken holdings layer
   * 25/9/2013: version 0.6.4: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.
 * 10/2/2014: version 0.7: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage and PhantomJS options for rasterising; added online source for 90m SRTM elevation data; added ability to import georeference raster images; added SPOT5 vegetation source; for rotated maps, prevent download of tiles which don't fall within map extents; scaled labels better for small-scale maps; added option to use 20-metre contour intervals; added option to exclude layers from map.
-  * 13/2/2014: HEAD: used all tracks instead of just first when calculating bounds from a GPX/KML file; fixed bug preventing tiny maps from downloading.
+  * 14/2/2014: HEAD: used all tracks instead of just first when calculating bounds from a GPX/KML file; fixed bug preventing tiny maps from downloading.

@@ -213,20 +213,17 @@ vegetation:
   spot5:
     low: 0
     high: 80
-render:
-  plantation:
-    opacity: 1
-    colour: "#80D19B"
+plantation:
+  opacity: 1
+  colour: "#80D19B"
+topographic:
   pathways:
     expand: 0.5
     colour: 
       "#A39D93": "#363636"
   contours:
     expand: 0.7
-    colour: 
-      "#D6CAB6": "#805100"
-      "#D6B781": "#805100"
-      "#D6C09C": "#805100"
+    colour: "#805100"
   roads:
     expand: 0.6
     colour:
@@ -236,7 +233,7 @@ render:
     expand: 0.5
     opacity: 0.5
     colour: "#777777"
-  labels: 
+  text: 
     colour: 
       "#A87000": "#000000"
       "#FAFAFA": "#444444"
@@ -268,10 +265,10 @@ render:
     expand: 0.5
   Beacon_Tower:
     expand: 0.5
-  holdings:
-    colour:
-      "#B0A100": "#FF0000"
-      "#948800": "#FF0000"
+holdings:
+  colour:
+    "#B0A100": "#FF0000"
+    "#948800": "#FF0000"
 ]
   
   module BoundingBox
@@ -1161,19 +1158,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       source_svg = REXML::Document.new(path(label, options).read)
       equivalences = options["equivalences"] || {}
-      renderings = options["render"].inject({}) do |memo, (layer_or_group, rendering)|
-        [ *(equivalences[layer_or_group] || layer_or_group) ].each do |layer|
-          memo[layer] ||= {}
-          memo[layer] = memo[layer].merge(rendering)
-        end
-        memo
-      end
       source_svg.elements.collect("/svg/g[@id]") do |layer|
-        [ layer, layer.attributes["id"].split(SEGMENT).last ]
-      end.each do |layer, id|
-        renderings[id].each do |command, values|
+        name = layer.attributes["id"].split(SEGMENT).last
+        render_sources = equivalences.select do |group, names|
+          names.include? name
+        end.map(&:first) << name
+        render_sources.inject(options) do |memo, key|
+          memo.deep_merge(options[key] || {})
+        end.select do |command, values|
+          %w[opacity expand stretch colour].include? command
+        end.each do |command, values|
           rerender(layer, command, values)
-        end if renderings[id]
+        end
       end
       
       source_svg.elements.each("/svg/defs") { |defs| layer.elements << defs }
@@ -2146,9 +2142,6 @@ plantation:
   layers:
     ~:
       Forestry: Classification='Plantation forestry'
-  equivalences:
-    plantation:
-    - Forestry
   ext: svg
 topographic:
   server: sixmaps
@@ -2258,7 +2251,7 @@ topographic:
     cadastre:
     - Lot
     - Property
-    labels:
+    text:
     - Labels
 relief:
   server: relief
@@ -2275,10 +2268,6 @@ holdings:
   - Holdings
   labels:
   - Holdings
-  equivalences:
-    holdings:
-    - Holdings
-    - Labels
 grid:
   server: grid
 declination:
@@ -2393,7 +2382,7 @@ controls:
               end.compact.first
               neighbour ? xml.elements["/svg"].insert_before(neighbour, layer) : xml.elements["/svg"].add_element(layer)
             end
-            options["server"].render_svg(layer, label, options.merge("render" => config["render"]), map)
+            options["server"].render_svg(layer, label, options, map)
           rescue BadLayerError => e
             puts "Failed to render #{label}: #{e.message}"
           end
@@ -2490,10 +2479,10 @@ end
 
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Open3 for shelling out
+# TODO: move contour interval option into topographic->contours
 
 # # later:
 # TODO: remove linked images from PDF output?
 # TODO: put glow on control labels?
-# TODO: refactor options["render"] stuff?
 # TODO: add Relative_Height to topographic layers?
 # TODO: find source for electricity transmission lines

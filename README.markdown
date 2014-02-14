@@ -151,9 +151,7 @@ Set the filename for the output map and related files.
 
 By default a map's contour interval is chosen according to its scale: 20 metres for 1:40000 or smaller scale or 10 metres otherwise. To override this default and specify a contour interval to use (either 10 or 20):
 
-    topographic:
-      contours:
-        interval: 10
+    contour-interval: 10
 
 Additional Layers
 =================

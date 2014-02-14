@@ -178,9 +178,6 @@ scale: 25000
 ppi: 300
 rotation: 0
 margin: 15
-topographic:
-  contours:
-    interval: ~
 ]
   
   module BoundingBox
@@ -2309,7 +2306,7 @@ controls:
   water-colour: blue
 ]
     
-    config["topographic"]["contours"]["interval"].tap do |interval|
+    config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
       abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
       sources["topographic"]["layers"].each do |scale, layers|

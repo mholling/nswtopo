@@ -1944,6 +1944,13 @@ sixmaps:
   folder: sixmaps
   tile_sizes: [ 2048, 2048 ]
   interval: 0.1
+flex2:
+  class: ArcGIS
+  host: spatialprod.dpi.nsw.gov.au
+  instance: ArcGIS2
+  folder: IndustryViewFLEX2
+  tile_sizes: [ 2048, 2048 ]
+  interval: 0.1
 atlas:
   class: ArcGIS
   host: atlas.nsw.gov.au
@@ -2066,6 +2073,37 @@ plantation:
   ext: svg
   opacity: 1
   colour: "#80D19B"
+alt-contours-10m:
+  server: flex2
+  service: Topography
+  ext: svg
+  layers: 
+    25000:
+      Contour: sourceprogram_code <> 2 AND (elevation % 10 = 0) AND elevation > 0
+  colour: "#805100"
+  expand: 0.28
+alt-contours-20m:
+  server: flex2
+  service: Topography
+  ext: svg
+  layers: 
+    25000:
+      Contour: sourceprogram_code <> 2 AND (elevation % 20 = 0) AND elevation > 0
+  colour: "#805100"
+  expand: 0.28
+alt-contours-index:
+  server: flex2
+  service: Topography
+  ext: svg
+  layers: 
+    25000:
+      Contour: sourceprogram_code <> 2 AND (elevation % 100 = 0) AND elevation > 0
+  labels:
+    0.5:
+      Contour: sourceprogram_code <> 2 AND (elevation % 100 = 0) AND elevation > 0
+  Contour:
+    colour: "#805100"
+    expand: 0.63
 topographic:
   server: sixmaps
   service: LPIMap
@@ -2279,6 +2317,9 @@ controls:
           layers.delete "Contour_#{value}m" unless value == interval
         end
       end.reject! { |scale, layers| layers.empty? }
+      [ 10, 20, 50 ].each do |value|
+        sources.delete "alt-contours-#{value}m" unless value == interval
+      end
     end
     
     includes = %w[topographic]

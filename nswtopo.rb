@@ -178,96 +178,9 @@ scale: 25000
 ppi: 300
 rotation: 0
 margin: 15
-declination:
-  spacing: 1000
-  width: 0.1
-  colour: black
-grid:
-  interval: 1000
-  width: 0.1
-  colour: black
-  label-spacing: 5
-  fontsize: 7.8
-  family: Arial Narrow
-relief:
-  altitude: 45
-  azimuth: 315
-  exaggeration: 2
-  resolution: 45.0
-  opacity: 0.3
-  highlights: 20
-controls:
-  colour: "#880088"
-  family: Arial
-  fontsize: 14
-  diameter: 7.0
-  thickness: 0.2
-  water-colour: blue
-vegetation:
-  resolution: 25.0
-  colour:
-    woody: light green
-    non-woody: white
-  spot5:
-    low: 0
-    high: 80
-plantation:
-  opacity: 1
-  colour: "#80D19B"
 topographic:
-  pathways:
-    expand: 0.5
-    colour: 
-      "#A39D93": "#363636"
   contours:
     interval: ~
-    expand: 0.7
-    colour: "#805100"
-  roads:
-    expand: 0.6
-    colour:
-      "#A39D93": "#363636"
-      "#9C9C9C": "#363636"
-  cadastre:
-    expand: 0.5
-    opacity: 0.5
-    colour: "#777777"
-  text: 
-    colour: 
-      "#A87000": "#000000"
-      "#FAFAFA": "#444444"
-  water:
-    opacity: 1
-    colour:
-      "#73A1E6": "#4985DF"
-  Creek_Named:
-    expand: 0.3
-  Creek_Unnamed:
-    expand: 0.3
-  Stream_Named:
-    expand: 0.5
-  Stream_Unnamed:
-    expand: 0.5
-  Stream_Main:
-    expand: 0.7
-  River_Main:
-    expand: 0.7
-  River_Major:
-    expand: 0.7
-  HydroArea:
-    expand: 0.5
-  PointOfInterest:
-    expand: 0.6
-  Tourism_Minor:
-    expand: 0.6
-  Gates_Grids:
-    expand: 0.5
-  Beacon_Tower:
-    expand: 0.5
-holdings:
-  colour:
-    "#B0A100": "#FF0000"
-    "#948800": "#FF0000"
 ]
   
   module BoundingBox
@@ -511,7 +424,7 @@ holdings:
         Projection.utm(GridSource.zone(@projection_centre, Projection.wgs84)) :
         Projection.transverse_mercator(@projection_centre.first, 1.0)
       
-      @declination = config["declination"]["angle"]
+      @declination = config["declination"]["angle"] if config["declination"]
       config["rotation"] = -declination if config["rotation"] == "magnetic"
       
       if config["size"]
@@ -1989,13 +1902,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     %w[controls.kml controls.gpx].map do |filename|
       Pathname.pwd + filename
     end.find(&:exist?).tap do |control_path|
-      default_config["controls"]["path"] = control_path if control_path
+      default_config["controls"] = { "path" => control_path.to_s } if control_path
     end
     
     %w[bounds.kml bounds.gpx].map do |filename|
       Pathname.pwd + filename
     end.find(&:exist?).tap do |bounds_path|
-      default_config["bounds"] = bounds_path if bounds_path
+      default_config["bounds"] = bounds_path.to_s if bounds_path
     end
     
     unless Pathname.new("nswtopo.cfg").expand_path.exist?
@@ -2130,6 +2043,13 @@ aerial-best:
   resolution: 1.0
 vegetation:
   server: vegetation
+  resolution: 25.0
+  colour:
+    woody: light green
+    non-woody: white
+  spot5:
+    low: 0
+    high: 80
 canvas:
   server: canvas
   ext: png
@@ -2142,6 +2062,8 @@ plantation:
     ~:
       Forestry: Classification='Plantation forestry'
   ext: svg
+  opacity: 1
+  colour: "#80D19B"
 topographic:
   server: sixmaps
   service: LPIMap
@@ -2252,12 +2174,66 @@ topographic:
     - Property
     text:
     - Labels
+  pathways:
+    expand: 0.5
+    colour: 
+      "#A39D93": "#363636"
+  contours:
+    expand: 0.7
+    colour: "#805100"
+  roads:
+    expand: 0.6
+    colour:
+      "#A39D93": "#363636"
+      "#9C9C9C": "#363636"
+  cadastre:
+    expand: 0.5
+    opacity: 0.5
+    colour: "#777777"
+  text: 
+    colour: 
+      "#A87000": "#000000"
+      "#FAFAFA": "#444444"
+  water:
+    opacity: 1
+    colour:
+      "#73A1E6": "#4985DF"
+  Creek_Named:
+    expand: 0.3
+  Creek_Unnamed:
+    expand: 0.3
+  Stream_Named:
+    expand: 0.5
+  Stream_Unnamed:
+    expand: 0.5
+  Stream_Main:
+    expand: 0.7
+  River_Main:
+    expand: 0.7
+  River_Major:
+    expand: 0.7
+  HydroArea:
+    expand: 0.5
+  PointOfInterest:
+    expand: 0.6
+  Tourism_Minor:
+    expand: 0.6
+  Gates_Grids:
+    expand: 0.5
+  Beacon_Tower:
+    expand: 0.5
 relief:
   server: relief
   clips:
   - topographic.HydroArea
   - topographic.Oceans_Bays
   ext: png
+  altitude: 45
+  azimuth: 315
+  exaggeration: 2
+  resolution: 45.0
+  opacity: 0.3
+  highlights: 20
 holdings:
   server: atlas
   folder: sixmaps
@@ -2267,12 +2243,30 @@ holdings:
   - Holdings
   labels:
   - Holdings
+  colour:
+    "#B0A100": "#FF0000"
+    "#948800": "#FF0000"
 grid:
   server: grid
+  interval: 1000
+  width: 0.1
+  colour: black
+  label-spacing: 5
+  fontsize: 7.8
+  family: Arial Narrow
 declination:
   server: declination
+  spacing: 1000
+  width: 0.1
+  colour: black
 controls:
   server: controls
+  colour: "#880088"
+  family: Arial
+  fontsize: 14
+  diameter: 7.0
+  thickness: 0.2
+  water-colour: blue
 ]
     
     config["topographic"]["contours"]["interval"].tap do |interval|

@@ -1134,6 +1134,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           raise ServerError.new(result["error"]["message"]) if result["error"]
         end
       end
+      service["layers"].each { |layer| layer["name"].gsub! ?\s, ?_ }
+      
       layer_order = service["layers"].reverse.map.with_index { |layer, index| { layer["name"] => index } }.inject({}, &:merge)
       layer_names = service["layers"].map { |layer| layer["name"] }
       

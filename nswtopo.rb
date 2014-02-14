@@ -45,6 +45,13 @@ module HashHelpers
       result.merge(key => result[key].is_a?(Hash) && value.is_a?(Hash) ? result[key].deep_merge(value) : value)
     end
   end
+  
+  def deep_merge!(hash)
+    hash.each do |key, value|
+      self[key].is_a?(Hash) && value.is_a?(Hash) ? self[key].deep_merge!(value) : self[key] = value
+    end
+    self
+  end
 
   def to_query
     map { |key, value| "#{key}=#{value}" }.join ?&
@@ -176,11 +183,11 @@ contours:
 declination:
   spacing: 1000
   width: 0.1
-  colour: "#000000"
+  colour: black
 grid:
   interval: 1000
   width: 0.1
-  colour: "#000000"
+  colour: black
   label-spacing: 5
   fontsize: 7.8
   family: Arial Narrow
@@ -1376,8 +1383,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include RasterRenderer
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      dem_path = if params["path"]
-        Pathname.new(params["path"]).expand_path
+      dem_path = if options["path"]
+        Pathname.new(options["path"]).expand_path
       else
         tile_sizes = params["tile_sizes"]
         degrees_per_pixel = 3.0 / 3600
@@ -1424,9 +1431,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       tfw_path = temp_dir + "#{label}.tfw"
       map.write_world_file tfw_path, resolution
       density = 0.01 * map.scale / resolution
-      altitude = params["altitude"]
-      azimuth = params["azimuth"]
-      exaggeration = params["exaggeration"]
+      altitude = options["altitude"]
+      azimuth = options["azimuth"]
+      exaggeration = options["exaggeration"]
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
       %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" -q]
       raise BadLayerError.new("invalid elevation data") unless $?.success?
@@ -1440,7 +1447,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def embed_image(label, options, temp_dir)
       hillshade_path = path(label, options)
       raise BadLayerError.new("hillshade image not found at #{hillshade_path}") unless hillshade_path.exist?
-      highlights = params["highlights"]
+      highlights = options["highlights"]
       shade = %Q["#{hillshade_path}" -colorspace Gray -level 0,65% -negate -alpha Copy -fill black +opaque black]
       sun = %Q["#{hillshade_path}" -colorspace Gray -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
       temp_dir.join("overlay.png").tap do |overlay_path|
@@ -1453,7 +1460,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include RasterRenderer
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      source_paths = [ *params["path"] ].tap do |paths|
+      source_paths = [ *options["path"] ].tap do |paths|
         raise BadLayerError.new("no vegetation data file specified") if paths.empty?
       end.map do |source_path|
         Pathname.new(source_path).expand_path
@@ -1473,7 +1480,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
       %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]
       
-      low, high = params["spot5"].values_at("low", "high")
+      low, high = options["spot5"].values_at("low", "high")
       fx = [ *(100..200), *(6..10) ].inject(0.0) do |memo, n|
         "j==#{n} ? %.5f : (#{memo})" % case n
         # mappings for SPOT5 woody extent and foliage projective cover (FPC) (5-10m) 2011:
@@ -1488,7 +1495,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       %x[convert -size 1x256 canvas:black -fx "#{fx}" "#{clut_path}"]
       %x[convert "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
       
-      woody, nonwoody = params["colour"].values_at("woody", "non-woody")
+      woody, nonwoody = options["colour"].values_at("woody", "non-woody")
       density = 0.01 * map.scale / resolution
       temp_dir.join("#{label}.png").tap do |png_path|
         %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
@@ -1578,7 +1585,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def draw(group, options, map)
       centre = map.wgs84_bounds.map { |bound| 0.5 * bound.inject(:+) }
       projection = Projection.transverse_mercator(centre.first, 1.0)
-      spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
+      spacing = options["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
       bounds = map.transform_bounds_to(projection)
       extents = bounds.map { |bound| bound.max - bound.min }
       longitudinal_extent = extents[0] + extents[1] * Math::tan(map.declination * Math::PI / 180.0)
@@ -1593,7 +1600,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.map do |line|
         "M%f %f L%f %f" % line.flatten
       end.each do |d|
-        group.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"])
+        group.add_element("path", "d" => d, "stroke" => options["colour"], "stroke-width" => options["width"])
       end
     end
   end
@@ -1608,12 +1615,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def draw(group, options, map)
-      interval = params["interval"]
-      label_spacing = params["label-spacing"]
+      interval = options["interval"]
+      label_spacing = options["label-spacing"]
       label_interval = label_spacing * interval
-      fontfamily = params["family"]
-      fontsize = 25.4 * params["fontsize"] / 72.0
-      strokewidth = params["width"]
+      fontfamily = options["family"]
+      fontsize = 25.4 * options["fontsize"] / 72.0
+      strokewidth = options["width"]
       
       map.bounds.inject(:product).map do |corner|
         GridSource.zone(corner, map.projection)
@@ -1641,7 +1648,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.map do |point|
               point.join ?\s
             end.join(" L").tap do |d|
-              group.add_element("path", "d" => "M#{d}", "stroke-width" => strokewidth, "stroke" => params["colour"])
+              group.add_element("path", "d" => "M#{d}", "stroke-width" => strokewidth, "stroke" => options["colour"])
             end
             if line[0] && line[0][index] % label_interval == 0 
               coord = line[0][index]
@@ -1654,7 +1661,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   middle = points.transpose.map { |values| 0.5 * values.inject(:+) }
                   angle = 180.0 * Math::atan2(*points[1].minus(points[0]).reverse) / Math::PI
                   transform = "translate(#{middle.join ?\s}) rotate(#{angle})"
-                  [ [ "white", "white" ], [ params["colour"], "none" ] ].each do |fill, stroke|
+                  [ [ "white", "white" ], [ options["colour"], "none" ] ].each do |fill, stroke|
                     group.add_element("text", "transform" => transform, "dy" => 0.25 * fontsize, "stroke-width" => 0.15 * fontsize, "font-family" => fontfamily, "font-size" => fontsize, "fill" => fill, "stroke" => stroke, "text-anchor" => "middle") do |text|
                       label_segments.each do |digits, percent|
                         text.add_element("tspan", "font-size" => "#{percent}%") do |tspan|
@@ -1675,19 +1682,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class ControlSource < AnnotationSource
     def path(label, options)
-      Pathname.new(params["file"]).expand_path
+      Pathname.new(options["path"]).expand_path
     end
     
     def draw(group, options, map)
-      gps = GPS.new Pathname.new(params["file"]).expand_path
-      radius = 0.5 * params["diameter"]
-      strokewidth = params["thickness"]
-      fontfamily = params["family"]
-      fontsize = 25.4 * params["fontsize"] / 72.0
+      gps = GPS.new Pathname.new(options["path"]).expand_path
+      radius = 0.5 * options["diameter"]
+      strokewidth = options["thickness"]
+      fontfamily = options["family"]
+      fontsize = 25.4 * options["fontsize"] / 72.0
       
-      [ [ /\d{2,3}/, :circle,   params["colour"] ],
-        [ /HH/,      :triangle, params["colour"] ],
-        [ /W/,       :water,    params["water-colour"] ],
+      [ [ /\d{2,3}/, :circle,   options["colour"] ],
+        [ /HH/,      :triangle, options["colour"] ],
+        [ /W/,       :water,    options["water-colour"] ],
       ].each do |selector, type, colour|
         gps.waypoints.map do |waypoint, name|
           [ yield(waypoint, Projection.wgs84), name[selector] ]
@@ -1987,7 +1994,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     %w[controls.kml controls.gpx].map do |filename|
       Pathname.pwd + filename
     end.find(&:exist?).tap do |control_path|
-      default_config["controls"]["file"] = control_path if control_path
+      default_config["controls"]["path"] = control_path if control_path
     end
     
     %w[bounds.kml bounds.gpx].map do |filename|
@@ -2020,297 +2027,265 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     map = Map.new(config)
     
-    sixmaps = ArcGIS.new(
-      "host" => "maps.six.nsw.gov.au",
-      "folder" => "sixmaps",
-      "tile_sizes" => [ 2048, 2048 ],
-      "interval" => 0.1,
-    )
-    # sixmapsq = ArcGIS.new(
-    #   "host" => "mapsq.six.nsw.gov.au",
-    #   "folder" => "sixmaps",
-    #   "tile_sizes" => [ 2048, 2048 ],
-    #   "interval" => 0.1,
-    # )
-    atlas = ArcGIS.new(
-      "host" => "atlas.nsw.gov.au",
-      "instance" => "arcgis1",
-      "cookie" => "http://atlas.nsw.gov.au/",
-      "tile_sizes" => [ 2048, 2048 ],
-      "interval" => 0.1,
-    )
-    lpi_ortho = LPIOrthoServer.new(
-      "host" => "lite.maps.nsw.gov.au",
-      "tile_size" => 1024,
-      "interval" => 1.0,
-      "projection" => "+proj=lcc +lat_1=-30.75 +lat_2=-35.75 +lat_0=-33.25 +lon_0=147 +x_0=9300000 +y_0=4500000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs", # EPSG:3308, NSW Lambert
-    )
-    nokia_maps = TiledMapServer.new(
-      "uri" => "http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot",
-      "projection" => "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs", # EPSG:3857, web mercator
-      "tile_sizes" => [ 1024, 1024 ],
-      "interval" => 1.2,
-      "crops" => [ [ 0, 0 ], [ 26, 0 ] ],
-      "tile_limit" => 250,
-      "retries_on_blank" => 1,
-    )
-    google_maps = TiledMapServer.new(
-      "uri" => "http://maps.googleapis.com/maps/api/staticmap?zoom=${zoom}&size=${hsize}x${vsize}&scale=1&format=${format}&maptype=${name}&sensor=false&center=${latitude},${longitude}",
-      "projection" => "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs", # EPSG:3857, web mercator
-      "tile_sizes" => [ 640, 640 ],
-      "interval" => 1.2,
-      "crops" => [ [ 0, 0 ], [ 30, 0 ] ],
-      "tile_limit" => 250,
-    )
-    relief_source = ReliefSource.new({
-      "interval" => 0.3,
-      "tile_sizes" => [ 1024, 1024 ],
-    }.merge config["relief"])
-    declination_source = DeclinationSource.new(config["declination"])
-    control_source = ControlSource.new(config["controls"])
-    grid_source = GridSource.new(config["grid"])
-    canvas_source = CanvasSource.new
-    import_source = ImportSource.new
-    vegetation_source = VegetationSource.new(config["vegetation"])
-    overlay_source = OverlaySource.new("width" => 0.5, "colour" => "black", "opacity" => 0.3)
+    servers = YAML.load %q[---
+sixmaps:
+  class: ArcGIS
+  host: maps.six.nsw.gov.au
+  folder: sixmaps
+  tile_sizes: [ 2048, 2048 ]
+  interval: 0.1
+atlas:
+  class: ArcGIS
+  host: atlas.nsw.gov.au
+  instance: arcgis1
+  cookie: http://atlas.nsw.gov.au/
+  tile_sizes: [ 2048, 2048 ]
+  interval: 0.1
+lpi_ortho:
+  class: LPIOrthoServer
+  host: lite.maps.nsw.gov.au
+  tile_size: 1024
+  interval: 1.0
+  projection: +proj=lcc +lat_1=-30.75 +lat_2=-35.75 +lat_0=-33.25 +lon_0=147 +x_0=9300000 +y_0=4500000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs
+nokia_maps:
+  class: TiledMapServer
+  uri: http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot
+  projection: +proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs
+  tile_sizes: [ 1024, 1024 ]
+  interval: 1.2
+  crops: [ [ 0, 0 ], [ 26, 0 ] ]
+  tile_limit: 250
+  retries_on_blank: 1
+google_maps:
+  class: TiledMapServer
+  uri: http://maps.googleapis.com/maps/api/staticmap?zoom=${zoom}&size=${hsize}x${vsize}&scale=1&format=${format}&maptype=${name}&sensor=false&center=${latitude},${longitude}
+  projection: +proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs
+  tile_sizes: [ 640, 640 ]
+  interval: 1.2
+  crops: [ [ 0, 0 ], [ 30, 0 ] ]
+  tile_limit: 250
+relief:
+  class: ReliefSource
+  interval: 0.3
+  tile_sizes: [ 1024, 1024 ]
+declination:
+  class: DeclinationSource
+controls:
+  class: ControlSource
+grid:
+  class: GridSource
+canvas:
+  class: CanvasSource
+import:
+  class: ImportSource
+vegetation:
+  class: VegetationSource
+overlay:
+  class: OverlaySource
+  width: 0.5
+  colour: black
+  opacity: 0.3
+]
+    servers = servers.inject({}) do |memo, (name, params)|
+      source = NSWTopo.const_get(params.delete "class").new(params)
+      memo.merge name => source
+    end
     
-    sources = {
-      "reference-topo-current" => {
-        "server" => sixmaps,
-        "service" => "LPITopoMap",
-        "ext" => "png",
-        "resolution" => 2.0,
-        "background" => "white",
-      },
-      "reference-topo-s1" => {
-        "server" => sixmaps,
-        "service" => "LPITopoMap_S1",
-        "ext" => "png",
-        "resolution" => 2.0,
-        "background" => "white",
-      },
-      "reference-topo-s2" => {
-        "server" => lpi_ortho,
-        "image" => "/OTDF_Imagery/NSWTopoS2v2.ecw",
-        "otdf" => true,
-        "ext" => "png",
-        "resolution" => 4.0,
-      },
-      "aerial-lpi-eastcoast" => {
-        "server" => lpi_ortho,
-        "image" => "/Imagery/lr94ortho1m.ecw",
-        "ext" => "jpg",
-      },
-      # "aerial-lpi-sydney" => {
-      #   "server" => lpi_ortho,
-      #   "config" => "/SydneyImagesConfig.js",
-      #   "ext" => "jpg",
-      #   "resolution" => 1.6,
-      # },
-      # "aerial-lpi-towns" => {
-      #   "server" => lpi_ortho,
-      #   "config" => "/NSWRegionalCentresConfig.js",
-      #   "ext" => "jpg",
-      #   "resolution" => 1.6,
-      # },
-      "aerial-google" => {
-        "server" => google_maps,
-        "name" => "satellite",
-        "format" => "jpg",
-        "ext" => "jpg",
-      },
-      "aerial-nokia" => {
-        "server" => nokia_maps,
-        "name" => 1,
-        "format" => 1,
-        "ext" => "jpg",
-      },
-      "aerial-lpi-ads40" => {
-        "server" => lpi_ortho,
-        "config" => "/ADS40ImagesConfig.js",
-        "ext" => "jpg",
-      },
-      # "aerial-best" => {
-      #   "server" => sixmaps,
-      #   "service" => "Best_WebM",
-      #   "image" => true,
-      #   "ext" => "jpg",
-      #   "resolution" => 1.0,
-      # },
-      "aerial-best" => {
-        "server" => sixmaps,
-        "service" => "LPI_Imagery_Best",
-        "ext" => "jpg",
-        "resolution" => 1.0,
-      },
-      "vegetation" => {
-        "server" => vegetation_source,
-      },
-      "canvas" => {
-        "server" => canvas_source,
-        "ext" => "png",
-      },
-      "plantation" => {
-        "server" => atlas,
-        "folder" => "atlas",
-        "service" => "Economy_Forestry",
-        "resolution" => 0.55,
-        "layers" => { nil => { "Forestry" => %q[Classification='Plantation forestry'] } },
-        "equivalences" => { "plantation" => %w[Forestry] },
-        "ext" => "svg",
-      },
-      "topographic" => {
-        "server" => sixmaps,
-        "service" => "LPIMap",
-        "resolution" => 0.55,
-        "ext" => "svg",
-        "layers" => {
-          4500 => {
-            "Roads_onbridge_LS" => %q["functionhierarchy" = 9 AND "roadontype" = 2],
-            "Roads_onground_LS" => %q["functionhierarchy" = 9 AND "roadontype" = 1],
-          },
-          9000 => %w[
-            Roads_Urban_MS
-            Roads_intunnel_MS
-            Bridge_Ford_Names
-            Gates_Grids
-            Dwellings_Buildings
-            Building_Large
-            Homestead_Tourism_Major
-            Lot
-            Property
-            Contour_10m
-            Beacon_Tower
-            Wharfs_Ramps
-            Damwall_Racetrack
-            StockDams
-            Creek_Named
-            Creek_Unnamed
-            Stream_Unnamed
-            Stream_Named
-            Stream_Main
-            River_Main
-            River_Major
-            HydroArea
-            Oceans_Bays
-          ],
-          11000 => %w[Contour_20m],
-          nil => %w[
-            PlacePoint_LS
-            Caves_Pinnacles
-            Ridge_Beach
-            Waterfalls_springs
-            Swamps_LSI
-            Cliffs_Reefs_Mangroves
-            CliffTop_Levee
-            PointOfInterest
-            Tourism_Minor
-            Railway_MS
-            Railway_intunnel_MS
-            Runway
-            Airport_Station
-            State_Border
-          ],
-        },
-        "labels" => {
-          0.6 => %w[
-            Roads_Urban_MS
-            Roads_intunnel_MS
-            Homestead_Tourism_Major
-            Contour_20m
-            Beacon_Tower
-            Wharfs_Ramps
-            Damwall_Racetrack
-            StockDams
-            Creek_Named
-            Creek_Unnamed
-            Stream_Names
-            Stream_Unnamed
-            Stream_Named
-            Stream_Main
-            River_Main
-            River_Major
-            HydroArea
-            Oceans_Bays
-            PlacePoint_LS
-            Caves_Pinnacles
-            Ridge_Beach
-            Waterfalls_springs
-            Swamps_LSI
-            Cliffs_Reefs_Mangroves
-            CliffTop_Levee
-            PointOfInterest
-            Tourism_Minor
-            Railway_MS
-            Railway_intunnel_MS
-            Runway
-            Airport_Station
-            State_Border
-          ]
-        },
-        "equivalences" => {
-          "contours" => %w[
-            Contour_10m
-            Contour_20m
-          ],
-          "water" => %w[
-            StockDams
-            Creek_Named
-            Creek_Unnamed
-            Stream_Unnamed
-            Stream_Named
-            Stream_Main
-            River_Main
-            River_Major
-            HydroArea
-            Oceans_Bays
-          ],
-          "pathways" => %w[
-            Roads_onground_LS
-            Roads_onbridge_LS
-          ],
-          "roads" => %w[
-            Roads_Urban_MS
-            Roads_intunnel_MS
-          ],
-          "cadastre" => %w[
-            Lot
-            Property
-          ],
-          "labels" => %w[
-            Labels
-          ],
-        },
-      },
-      "relief" => {
-        "server" => relief_source,
-        "clips" => %w[topographic.HydroArea topographic.Oceans_Bays],
-        "ext" => "png",
-      },
-      # "holdings" => {
-      #   "server" => sixmaps,
-      #   "service" => "LHPA",
-      #   "ext" => "svg",
-      #   "layers" => %w[Holdings],
-      #   "labels" => %w[Holdings],
-      #   "equivalences" => { "holdings" => %w[Holdings Labels]}
-      # },
-      "holdings" => {
-        "server" => atlas,
-        "folder" => "sixmaps",
-        "service" => "_LHPA",
-        "ext" => "svg",
-        "layers" => %w[Holdings],
-        "labels" => %w[Holdings],
-        "equivalences" => { "holdings" => %w[Holdings Labels]}
-      },
-      "grid" => {
-        "server" => grid_source,
-      },
-      "declination" => {
-        "server" => declination_source,
-      },
-    }
+    sources = YAML.load %q[---
+reference-topo-current:
+  server: sixmaps
+  service: LPITopoMap
+  ext: png
+  resolution: 2.0
+  background: white
+reference-topo-s1:
+  server: sixmaps
+  service: LPITopoMap_S1
+  ext: png
+  resolution: 2.0
+  background: white
+reference-topo-s2:
+  server: lpi_ortho
+  image: /OTDF_Imagery/NSWTopoS2v2.ecw
+  otdf: true
+  ext: png
+  resolution: 4.0
+aerial-lpi-eastcoast:
+  server: lpi_ortho
+  image: /Imagery/lr94ortho1m.ecw
+  ext: jpg
+aerial-google:
+  server: google_maps
+  name: satellite
+  format: jpg
+  ext: jpg
+aerial-nokia:
+  server: nokia_maps
+  name: 1
+  format: 1
+  ext: jpg
+aerial-lpi-ads40:
+  server: lpi_ortho
+  config: /ADS40ImagesConfig.js
+  ext: jpg
+aerial-best:
+  server: sixmaps
+  service: LPI_Imagery_Best
+  ext: jpg
+  resolution: 1.0
+vegetation:
+  server: vegetation
+canvas:
+  server: canvas
+  ext: png
+plantation:
+  server: atlas
+  folder: atlas
+  service: Economy_Forestry
+  resolution: 0.55
+  layers:
+    ~:
+      Forestry: Classification='Plantation forestry'
+  equivalences:
+    plantation:
+    - Forestry
+  ext: svg
+topographic:
+  server: sixmaps
+  service: LPIMap
+  resolution: 0.55
+  ext: svg
+  layers:
+    4500:
+      Roads_onbridge_LS: functionhierarchy = 9 AND roadontype = 2
+      Roads_onground_LS: functionhierarchy = 9 AND roadontype = 1
+    9000:
+    - Roads_Urban_MS
+    - Roads_intunnel_MS
+    - Bridge_Ford_Names
+    - Gates_Grids
+    - Dwellings_Buildings
+    - Building_Large
+    - Homestead_Tourism_Major
+    - Lot
+    - Property
+    - Contour_10m
+    - Beacon_Tower
+    - Wharfs_Ramps
+    - Damwall_Racetrack
+    - StockDams
+    - Creek_Named
+    - Creek_Unnamed
+    - Stream_Unnamed
+    - Stream_Named
+    - Stream_Main
+    - River_Main
+    - River_Major
+    - HydroArea
+    - Oceans_Bays
+    11000:
+    - Contour_20m
+    ~:
+    - PlacePoint_LS
+    - Caves_Pinnacles
+    - Ridge_Beach
+    - Waterfalls_springs
+    - Swamps_LSI
+    - Cliffs_Reefs_Mangroves
+    - CliffTop_Levee
+    - PointOfInterest
+    - Tourism_Minor
+    - Railway_MS
+    - Railway_intunnel_MS
+    - Runway
+    - Airport_Station
+    - State_Border
+  labels:
+    0.6:
+    - Roads_Urban_MS
+    - Roads_intunnel_MS
+    - Homestead_Tourism_Major
+    - Contour_20m
+    - Beacon_Tower
+    - Wharfs_Ramps
+    - Damwall_Racetrack
+    - StockDams
+    - Creek_Named
+    - Creek_Unnamed
+    - Stream_Names
+    - Stream_Unnamed
+    - Stream_Named
+    - Stream_Main
+    - River_Main
+    - River_Major
+    - HydroArea
+    - Oceans_Bays
+    - PlacePoint_LS
+    - Caves_Pinnacles
+    - Ridge_Beach
+    - Waterfalls_springs
+    - Swamps_LSI
+    - Cliffs_Reefs_Mangroves
+    - CliffTop_Levee
+    - PointOfInterest
+    - Tourism_Minor
+    - Railway_MS
+    - Railway_intunnel_MS
+    - Runway
+    - Airport_Station
+    - State_Border
+  equivalences:
+    contours:
+    - Contour_10m
+    - Contour_20m
+    water:
+    - StockDams
+    - Creek_Named
+    - Creek_Unnamed
+    - Stream_Unnamed
+    - Stream_Named
+    - Stream_Main
+    - River_Main
+    - River_Major
+    - HydroArea
+    - Oceans_Bays
+    pathways:
+    - Roads_onground_LS
+    - Roads_onbridge_LS
+    roads:
+    - Roads_Urban_MS
+    - Roads_intunnel_MS
+    cadastre:
+    - Lot
+    - Property
+    labels:
+    - Labels
+relief:
+  server: relief
+  clips:
+  - topographic.HydroArea
+  - topographic.Oceans_Bays
+  ext: png
+holdings:
+  server: atlas
+  folder: sixmaps
+  service: _LHPA
+  ext: svg
+  layers:
+  - Holdings
+  labels:
+  - Holdings
+  equivalences:
+    holdings:
+    - Holdings
+    - Labels
+grid:
+  server: grid
+declination:
+  server: declination
+controls:
+  server: controls
+]
     
     config["contours"]["interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
@@ -2331,7 +2306,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       [ Pathname.new(file_or_path).expand_path, label ]
     end.each do |path, label|
       label ||= path.basename(path.extname).to_s
-      sources = { label => { "server" => import_source, "path" => path.to_s } }.merge sources
+      sources = { label => { "server" => "import", "path" => path.to_s } }.merge sources
       includes << label
     end
     
@@ -2339,13 +2314,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       [ Pathname.new(file_or_path).expand_path, options ]
     end.each do |path, options|
       label = path.basename(path.extname).to_s
-      sources.merge! label => (options || {}).merge("server" => overlay_source, "path" => path.to_s)
+      sources.merge! label => (options || {}).merge("server" => "overlay", "path" => path.to_s)
       includes << label
     end
     
-    if config["controls"]["file"]
-      sources.merge! "controls" => { "server" => control_source }
-      includes << "controls"
+    includes << "controls" if config["controls"]["path"]
+
+    sources.keys.select do |label|
+      config[label]
+    end.each do |label|
+      sources[label].deep_merge! config[label]
+    end
+    
+    sources.each do |label, options|
+      options["server"] = servers[options.delete "server"]
     end
     
     includes += config["include"]
@@ -2368,7 +2350,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     puts "  extent: %.1fkm x %.1fkm" % map.extents.map { |extent| 0.001 * extent }
     
     sources.map do |label, options|
-      [ label, options, options["server"].path(label, options) ] # TODO: needed? remove Source#download?
+      [ label, options, options["server"].path(label, options) ]
     end.select do |label, options, path|
       path && !path.exist?
     end.recover(InternetError, ServerError, BadLayerError).each do |label, options, path|

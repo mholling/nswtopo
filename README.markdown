@@ -319,7 +319,7 @@ This layer marks magnetic north lines on the map, and is useful for rogaining ma
 Drop a control waypoints file (`controls.kml` or `controls.gpx`) into the directory and a layer containing control circles and numbers will be automatically generated. If a waypoint is name 'HH' it will be drawn as a triangle, otherwise a circle will be drawn. If a control has 'W' after its number (e.g. '74W'), or separate waypoints marked 'W1', 'W2' etc are found, those waypoints will be represented as water drops. You can modify any of the defaults shown below:
 
     controls:
-      file: controls.kml      # filename (.kml or .gpx format) of control waypoint file
+      path: controls.kml      # filename (.kml or .gpx format) or path of control waypoint file
       fontsize: 14            # font size (in points) for control labels
       diameter: 7.0           # diameter of control circles in millimetres
       thickness: 0.2          # thickness of control circles in millimetres

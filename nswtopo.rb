@@ -2300,7 +2300,7 @@ controls:
       includes << label
     end
     
-    includes << "controls" if config["controls"]["path"]
+    includes << "controls" if config["controls"] && config["controls"]["path"]
 
     sources.keys.select do |label|
       config[label]

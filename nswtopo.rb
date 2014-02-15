@@ -2201,6 +2201,23 @@ alt-labels:
       - Major_Roads
       - Minor_Roads
       - Other_Access_Roads_and_Tracks
+# alt-labels:
+#   server: sixmaps
+#   service: LPI_RasterLabels_1
+#   ext: svg
+#   labels:
+#     0.6:
+#     - Raster_Road_Labels
+#     - Raster_Place_Labels
+#     - Cities
+#     - Towns
+#     - Villages
+#     - Localities
+#     - Suburbs
+#   colour:
+#     "#FFFFFF": black
+#     "#CCCCCC": black
+#   opacity: 0.8
 topographic:
   server: sixmaps
   service: LPIMap

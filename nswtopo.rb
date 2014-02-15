@@ -1015,6 +1015,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def rerender(element, command, values)
+      element.elements.each(".//path") do |path|
+        path.add_attribute "stroke-dasharray", [ *values ].join(?\s)
+      end if command == "dash"
       xpaths = case command
       when "opacity"
         "self::/@style"
@@ -1075,7 +1078,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         render_sources.inject(options) do |memo, key|
           memo.deep_merge(options[key] || {})
         end.select do |command, values|
-          %w[opacity expand stretch colour].include? command
+          %w[opacity expand stretch colour dash].include? command
         end.each do |command, values|
           rerender(layer, command, values)
         end
@@ -1157,7 +1160,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ type, scales_layers ]
       end.map do |type, scales_layers|
         scales_layers.map do |scale, layers|
-          dpi = ((scale || map.scale) * 0.0254 / resolution).ceil
+          dpi = ((scale || map.scale) * 0.0254 / resolution).floor
           scale = dpi * resolution / 0.0254
           layer_options = case layers
           when Array
@@ -2101,6 +2104,102 @@ alt-contours-index:
   Contour:
     colour: "#805100"
     expand: 0.63
+alt-cadastre:
+  server: flex2
+  service: Lots
+  ext: svg
+  layers:
+    25000:
+      - Boundary
+  opacity: 0.5
+  colour: "#777777"
+  expand: 0.5
+alt-creeks:
+  server: flex2
+  service: Base_Mapping
+  ext: svg
+  layers:
+    25000:
+      Other_Streams_and_Tributaries: relevance >= 8
+  colour: "#4985DF"
+  expand: 0.4
+  dash: ~
+alt-streams:
+  server: flex2
+  service: Base_Mapping
+  ext: svg
+  layers:
+    25000:
+      Other_Streams_and_Tributaries: relevance >= 5 AND relevance < 8
+  colour: "#4985DF"
+  expand: 0.7
+  dash: ~
+alt-rivers:
+  server: flex2
+  service: Base_Mapping
+  ext: svg
+  layers:
+    25000:
+      Other_Streams_and_Tributaries: relevance < 5
+  colour: "#4985DF"
+  dash: ~
+  expand: 1.5
+alt-paths:
+  server: flex2
+  service: Base_Mapping
+  ext: svg
+  layers:
+    ~:
+      Other_Access_Roads_and_Tracks: functionhierarchy_code = 9
+  colour: black
+  expand: 0.6
+  dash: 3.5
+alt-vehicular-tracks:
+  server: flex2
+  service: Base_Mapping
+  ext: svg
+  layers:
+    ~:
+      Other_Access_Roads_and_Tracks: functionhierarchy_code = 8
+  colour: darkorange
+  dash: 6 2
+alt-unsealed-roads:
+  server: flex2
+  service: Base_Mapping
+  ext: svg
+  layers:
+    25000:
+      Highways: surface_code >= 2
+      Regional_Roads: surface_code >= 2
+      Major_Roads: surface_code >= 2
+      Minor_Roads: surface_code >= 2
+      Other_Access_Roads_and_Tracks: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code >= 2
+  colour: darkorange
+alt-sealed-roads:
+  server: flex2
+  service: Base_Mapping
+  ext: svg
+  layers:
+    25000:
+      Highways: surface_code < 2 OR surface_code IS NULL
+      Regional_Roads: surface_code < 2 OR surface_code IS NULL
+      Major_Roads: surface_code < 2 OR surface_code IS NULL
+      Minor_Roads: surface_code < 2 OR surface_code IS NULL
+      Other_Access_Roads_and_Tracks: functionhierarchy_code in ( 5, 6, 7 ) AND (surface_code < 2 OR surface_code IS NULL)
+  colour: red
+alt-labels:
+  server: flex2
+  service: Base_Mapping
+  ext: svg
+  labels:
+    0.7:
+      - Major_Rivers
+      - Other_Streams_and_Tributaries
+      - Highways
+      - Regional_Roads
+      - Major_Roads
+      - Minor_Roads
+      - Other_Access_Roads_and_Tracks
 topographic:
   server: sixmaps
   service: LPIMap

@@ -336,6 +336,17 @@ You can remove a layer that you previously included in the map. To do so, list t
 
 Run the script again to remove the layers from the composite SVG map. (The original source files will not be deleted.) Use this option with caution, as any changes you have made to the layer in the SVG file will be lost.
 
+## Alternate Topographic Layers
+
+The main topographic layers are well-styled and produce the best topographic maps. However, the server can be very slow and sometimes produces large voids in the map data. If you are not able to obtain a good topographic map, you can choose an alternate source of topographic data, `alt`, as follows:
+
+    include:
+    - alt
+    exclude:
+    - topographic
+
+The alternate topographic layers do not contain as many features as the normal layers. Currently, they only contain: contours, sealed and unsealed roads, vehicular tracks, pathways, cadastral boundaries and watercourses. Labels are only present for contours and roads. Other informative layers (e.g. cliffs, swamp and inundation areas, water areas etc) are missing. Nonetheless, the alternative topographic layers may produce a sufficient map for your needs.
+
 Overlays
 ========
 

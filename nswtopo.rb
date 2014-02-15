@@ -18,6 +18,7 @@
 require 'uri'
 require 'net/http'
 require 'rexml/document'
+require 'rexml/formatters/pretty'
 require 'tmpdir'
 require 'yaml'
 require 'fileutils'
@@ -2539,7 +2540,13 @@ controls:
           fonts_missing.sort.each { |family| puts "  #{family}" }
         end
         
-        xml.write(file)
+        if config["pretty"]
+          formatter = REXML::Formatters::Pretty.new
+          formatter.compact = true
+          formatter.write xml.root, file
+        else
+          xml.write file
+        end
       end
       FileUtils.cp tmp_svg_path, svg_path
     end if updates.any? || removals.any?

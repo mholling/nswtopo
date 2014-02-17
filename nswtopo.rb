@@ -724,7 +724,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def render_svg(layer, label, options, map)
+    def render_svg(xml, label, options, map, &block)
+      puts "  Rendering #{label}"
       resolution = resolution_for label, options, map
       transform = "scale(#{1000.0 * resolution / map.scale})"
       opacity = options["opacity"] || params["opacity"] || 1
@@ -741,7 +742,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.basename
       end
       
-      layer.add_attributes "style" => "opacity:#{opacity}"
+      layer = xml.elements["/svg/g[@id='#{label}']"] || REXML::Element.new("g").tap(&block)
+      layer.add_attributes "id" => label, "style" => "opacity:#{opacity}"
       layer.add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
         clip_paths(layer, label, options).each do |clippath|
           defs.elements << clippath
@@ -1066,14 +1068,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       ext == "svg" ? get_vector(label, ext, options, map, temp_dir) : super(label, ext, options, map, temp_dir)
     end
     
-    def render_svg(layer, label, options, map)
-      return super(layer, label, options, map) unless options["ext"] == "svg"
+    def render_svg(xml, label, options, map, &block)
+      return super(xml, label, options, map, &block) unless options["ext"] == "svg"
+      source = REXML::Document.new(path(label, options).read)
       
-      source_svg = REXML::Document.new(path(label, options).read)
-      equivalences = options["equivalences"] || {}
-      source_svg.elements.collect("/svg/g[@id]") do |layer|
-        name = layer.attributes["id"].split(SEGMENT).last
-        render_sources = equivalences.select do |group, names|
+      if xml.elements.each("/svg/g[starts-with(@id,'#{label}')]") do |layer|
+        id = layer.attributes["id"]
+        layer.replace_with source.elements["/svg/g[@id='#{id}']"]
+      end.empty?
+        source.elements.each("/svg/g[starts-with(@id,'#{label}')]", &block)
+      end
+      
+      xml.elements.each("/svg/g[starts-with(@id,'#{label}')]") do |layer|
+        id = layer.attributes["id"]
+        name = id.split(SEGMENT).last
+        puts "  Rendering #{id}"
+        render_sources = (options["equivalences"] || {}).select do |group, names|
           names.include? name
         end.map(&:first) << name
         render_sources.inject(options) do |memo, key|
@@ -1085,8 +1095,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      source_svg.elements.each("/svg/defs") { |defs| layer.elements << defs }
-      source_svg.elements.each("/svg/g[@id]") { |sublayer| layer.elements << sublayer }
+      xml.elements.each("/svg/defs[starts-with(@id,'#{label}')]", &:delete_self)
+      source.elements.each("/svg/defs") { |defs| xml.elements["/svg"].unshift defs }
     end
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
@@ -1476,9 +1486,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class AnnotationSource < Source
     include NoDownload
     
-    def render_svg(layer, label, options, map)
+    def render_svg(xml, label, options, map, &block)
+      puts "  Rendering #{label}"
       opacity = options["opacity"] || params["opacity"] || 1
-      layer.add_attributes "transform" => map.svg_transform(1), "style" => "opacity:#{opacity}"
+      layer = xml.elements["/svg/g[@id='#{label}']"] || REXML::Element.new("g").tap(&block)
+      layer.add_attributes "id" => label, "style" => "opacity:#{opacity}", "transform" => map.svg_transform(1)
       draw(layer, options, map) do |coords, projection|
         easting, northing = projection.reproject_to(map.projection, coords)
         [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
@@ -2503,11 +2515,11 @@ controls:
     removals = labels.select do |label|
       excludes.any? { |match| label[match] }
     end.select do |label|
-      xml.elements["/svg/g[@id='#{label}']"]
+      xml.elements["/svg/g[starts-with(@id,'#{label}')]"]
     end
     
     updates = sources.reject do |label, options|
-      xml.elements["/svg/g[@id='#{label}']"] && FileUtils.uptodate?(svg_path, [ *options["server"].path(label, options) ])
+      xml.elements["/svg/g[starts-with(@id,'#{label}')]"] && FileUtils.uptodate?(svg_path, [ *options["server"].path(label, options) ])
     end
     
     Dir.mktmppath do |temp_dir|
@@ -2515,24 +2527,17 @@ controls:
       tmp_svg_path = temp_dir + svg_name
       tmp_svg_path.open("w") do |file|
         updates.each do |label, options|
-          puts "  Rendering #{label}"
+          before, after = labels.inject([[]]) do |memo, candidate|
+            candidate == label ? memo << [] : memo.last << candidate
+            memo
+          end
+          neighbour = xml.elements.collect("/svg/g[@id]") do |sibling|
+            sibling if after.any? { |after_label| sibling.attributes["id"].start_with? after_label }
+          end.compact.first
           begin
-            layer = xml.elements["/svg/g[@id='#{label}']"]
-            if layer
-              layer.elements.each(&:delete_self)
-            else
-              layer = REXML::Element.new("g")
-              layer.add_attributes "id" => label
-              before, after = labels.inject([[]]) do |memo, candidate|
-                candidate == label ? memo << [] : memo.last << candidate
-                memo
-              end
-              neighbour = xml.elements.collect("/svg/g[@id]") do |sibling|
-                sibling if after.include? sibling.attributes["id"]
-              end.compact.first
+            options["server"].render_svg(xml, label, options, map) do |layer|
               neighbour ? xml.elements["/svg"].insert_before(neighbour, layer) : xml.elements["/svg"].add_element(layer)
             end
-            options["server"].render_svg(layer, label, options, map)
           rescue BadLayerError => e
             puts "Failed to render #{label}: #{e.message}"
           end
@@ -2540,10 +2545,10 @@ controls:
         
         removals.each do |label|
           puts "  Removing #{label}"
-          xml.elements.each("/svg//g[@id='#{label}']", &:delete_self)
+          xml.elements.each("/svg/g[starts-with(@id,'#{label}')]", &:delete_self)
         end
         
-        xml.elements.each("/svg//g[@id]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
+        xml.elements.each("/svg/g[@id]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
         
         fonts_needed = xml.elements.collect("//[@font-family]") do |element|
           element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")

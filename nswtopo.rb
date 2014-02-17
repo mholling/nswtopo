@@ -1281,10 +1281,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       
       xml.elements.each("//path[@d='']", &:delete_self)
-      while xml.elements["//g[not(*)]"]
-        xml.elements.each("//g[not(*)]", &:delete_self)
+      until xml.elements.each("/svg/g[@id]//g[not(*)]", &:delete_self).empty? do
       end
-      xml.elements["//defs"].delete_self unless xml.elements["//g"]
+      xml.elements["//defs"].delete_self unless xml.elements["/svg/g[*]"]
       
       temp_dir.join("#{label}.svg").tap do |mosaic_path|
         File.write mosaic_path, xml
@@ -2548,7 +2547,7 @@ controls:
           xml.elements.each("/svg/g[starts-with(@id,'#{label}')]", &:delete_self)
         end
         
-        xml.elements.each("/svg/g[@id]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
+        xml.elements.each("/svg/g[*]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
         
         fonts_needed = xml.elements.collect("//[@font-family]") do |element|
           element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")

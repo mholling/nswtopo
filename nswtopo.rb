@@ -1079,7 +1079,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         source.elements.each("/svg/g[starts-with(@id,'#{label}')]", &block)
       end
       
-      xml.elements.each("/svg/g[starts-with(@id,'#{label}')]") do |layer|
+      xml.elements.each("/svg/g[starts-with(@id,'#{label}') and *]") do |layer|
         id = layer.attributes["id"]
         name = id.split(SEGMENT).last
         puts "  Rendering #{id}"

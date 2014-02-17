@@ -1166,29 +1166,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         when String, Array
           { options["scale"] => [ *options[type] ] }
         when true
-          { options["scale"] => true }
+          { options["scale"] => [] }
         end
         [ type, scales_layers ]
       end.map do |type, scales_layers|
         scales_layers.map do |scale, layers|
           dpi = ((scale || map.scale) * 0.0254 / resolution).floor
           scale = dpi * resolution / 0.0254
-          layer_options = case layers
-          when Array
-            ids = layers.map do |name|
-              service["layers"].find { |layer| layer["name"] == name }.fetch("id")
-            end
-            { "layers" => "show:#{ids.join ?,}" }
-          when Hash
-            ids, strings = layers.map do |name, definition|
-              id = service["layers"].find { |layer| layer["name"] == name }.fetch("id")
-              string = "#{id}:#{definition}"
-              [ id, string ]
-            end.transpose
-            { "layers" => "show:#{ids.join ?,}", "layerDefs" => strings.join(?;) }
-          when true
-            { }
-          end.merge("dpi" => dpi, "wkt" => map.projection.wkt_esri, "format" => "svg")
+          ids, layer_defs = layers.map do |name, definition|
+            name.is_a?(Hash) ? name.first : [ name, definition ]
+          end.map do |name, definition|
+            id = service["layers"].find { |layer| layer["name"] == name }.fetch("id")
+            layer_def = "#{id}:#{definition}" if definition
+            [ id, layer_def ]
+          end.transpose
+          layer_options = { "dpi" => dpi, "wkt" => map.projection.wkt_esri, "format" => "svg" }
+          layer_options.merge!("layers" => "show:#{ids.join ?,}") if ids && ids.any?
+          layer_options.merge!("layerDefs" => layer_defs.compact.join(?;)) if layer_defs && layer_defs.compact.any?
           xpath = type == "layers" ?
             "/svg//g[@id!='Labels' and not(.//g[@id])]" :
             "/svg//g[@id='Labels']"
@@ -1922,7 +1916,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     %w[bounds.kml bounds.gpx].map do |filename|
       Pathname.pwd + filename
     end.find(&:exist?).tap do |bounds_path|
-      default_config["bounds"] = bounds_path.to_s if bounds_path
+      default_config["bounds"] = bounds_path if bounds_path
     end
     
     unless Pathname.new("nswtopo.cfg").expand_path.exist?
@@ -2260,7 +2254,7 @@ topographic:
     - Stream_Main
     - River_Main
     - River_Major
-    - HydroArea
+    - HydroArea: perenniality < 2 OR perenniality IS NULL
     - Oceans_Bays
     11000:
     - Contour_20m
@@ -2297,7 +2291,7 @@ topographic:
     - Stream_Main
     - River_Main
     - River_Major
-    - HydroArea
+    - HydroArea: perenniality < 2 OR perenniality IS NULL
     - Oceans_Bays
     - PlacePoint_LS
     - Caves_Pinnacles

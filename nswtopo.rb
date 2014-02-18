@@ -2068,6 +2068,15 @@ vegetation:
 canvas:
   server: canvas
   ext: png
+reserves:
+  server: flex2
+  service: Conservation_Areas
+  ext: svg
+  layers:
+  - National_Parks
+  - State_Forest
+  opacity: 0.2
+  colour: black
 plantation:
   server: atlas
   folder: atlas

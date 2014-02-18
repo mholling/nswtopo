@@ -2486,14 +2486,14 @@ controls:
     includes += config["include"]
     includes.map! { |label_or_hash| [ *label_or_hash ].flatten }
     sources.each do |label, options|
-      includes.each { |match, resolution| options.merge!("resolution" => resolution) if label[match] && resolution }
+      includes.each { |match, resolution| options.merge!("resolution" => resolution) if label.start_with?(match) && resolution }
     end
     
     excludes = config["exclude"]
     
     labels = sources.keys
-    sources.select! { |label, options| includes.any? { |match, _| label[match] } }
-    sources.reject! { |label, options| excludes.any? { |match| label[match] } }
+    sources.select! { |label, options| includes.any? { |match, _| label.start_with?(match) } }
+    sources.reject! { |label, options| excludes.any? { |match| label.start_with?(match) } }
     
     puts "Map details:"
     puts "  name: #{map.name}"
@@ -2515,7 +2515,7 @@ controls:
     xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
     
     removals = labels.select do |label|
-      excludes.any? { |match| label[match] }
+      excludes.any? { |match| label.start_with?(match) }
     end.select do |label|
       xml.elements["/svg/g[starts-with(@id,'#{label}')]"]
     end

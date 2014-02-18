@@ -1964,6 +1964,13 @@ atlas:
   cookie: http://atlas.nsw.gov.au/
   tile_sizes: [ 2048, 2048 ]
   interval: 0.1
+actmapi:
+  class: ArcGIS
+  host: www.actmapi.act.gov.au
+  instance: actmapi
+  folder: mga
+  tile_sizes: [ 2048, 2048 ]
+  interval: 0.1
 lpi_ortho:
   class: LPIOrthoServer
   host: lite.maps.nsw.gov.au
@@ -2055,6 +2062,12 @@ aerial-best:
   server: sixmaps
   service: LPI_Imagery_Best
   ext: jpg
+  resolution: 1.0
+act-aerial-2012:
+  server: actmapi
+  service: dopm2012mga
+  ext: jpg
+  image: true
   resolution: 1.0
 vegetation:
   server: vegetation

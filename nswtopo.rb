@@ -1017,11 +1017,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def rerender(element, command, values)
-      element.elements.each(".//path") do |path|
-        path.add_attribute "stroke-dasharray", [ *values ].join(?\s)
-      end if command == "dash"
+    def rerender(element, command, args)
       xpaths = case command
+      when "dash"
+        ".//path"
       when "opacity"
         "self::/@style"
       when "expand"
@@ -1030,27 +1029,40 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         ".//[@stroke-dasharray]/@stroke-dasharray"
       when "colour"
         %w[stroke fill].map do |name|
-          case values
+          case args
           when Hash
-            values.keys.map { |colour| ".//[@#{name}='#{colour}']/@#{name}" }
+            args.keys.map { |colour| ".//[@#{name}='#{colour}']/@#{name}" }
           else
             ".//[@#{name}!='none']/@#{name}"
           end
         end.flatten
+      when %r{\.//}
+        command
+      else return
       end
+      
       [ *xpaths ].each do |xpath|
-        REXML::XPath.each(element, xpath) do |attribute|
-          attribute.normalized = case command
+        REXML::XPath.each(element, xpath) do |node|
+          case command
+          when "dash"
+            node.add_attribute "stroke-dasharray", [ *args ].join(?\s)
           when "opacity"
-            "opacity:#{values}"
+            node.element.attributes[node.name] = "opacity:#{args}"
           when "expand", "stretch"
-            attribute.value.split(/,\s*/).map(&:to_f).map { |size| size * values }.join(", ")
+            node.element.attributes[node.name] = node.value.split(/[,\s]+/).map(&:to_f).map { |size| size * args }.join(", ")
           when "colour"
-            case values
+            node.element.attributes[node.name] = case args
             when Hash
-              values[attribute.value] || attribute.value
+              args[node.value] || node.value
             when String
-              values
+              args
+            end
+          when %r{\.//}
+            case node
+            when REXML::Element
+              node.add_attributes(args)
+            when REXML::Attribute
+              node.element.attributes[node.name] = args.to_s
             end
           end
         end
@@ -1088,8 +1100,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.map(&:first) << name
         render_sources.inject(options) do |memo, key|
           memo.deep_merge(options[key] || {})
-        end.select do |command, values|
-          %w[opacity expand stretch colour dash].include? command
         end.each do |command, values|
           rerender(layer, command, values)
         end
@@ -1159,19 +1169,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.map do |type|
         scales_layers = case options[type]
         when Hash
-          case type
-          when "layers" then options[type]
-          when "labels" then options[type].map { |multiplier, layers| [ map.scale * multiplier, layers ] }
+          options[type].map do |scale_or_multiplier, layers|
+            case scale_or_multiplier
+            when Integer then [ scale_or_multiplier, layers]
+            when Float then [ scale_or_multiplier * map.scale, layers ]
+            when nil then [ map.scale, layers ]
+            end
           end
         when String, Array
-          { options["scale"] => [ *options[type] ] }
+          [ map.scale, [ *options[type] ] ]
         when true
-          { options["scale"] => [] }
+          [ map.scale, [] ]
         end
         [ type, scales_layers ]
       end.map do |type, scales_layers|
         scales_layers.map do |scale, layers|
-          dpi = ((scale || map.scale) * 0.0254 / resolution).floor
+          dpi = (scale * 0.0254 / resolution).floor
           scale = dpi * resolution / 0.0254
           ids, layer_defs = layers.map do |name, definition|
             name.is_a?(Hash) ? name.first : [ name, definition ]
@@ -1261,7 +1274,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             layers[id].add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
               case type
               when "layers"
-                rerender(layer, "expand", map.scale.to_f / scale) if scale
+                rerender(layer, "expand", map.scale.to_f / scale) if scale != map.scale
               when "labels"
                 layer.elements.each(".//pattern | .//path | .//font", &:delete_self)
                 layer.deep_clone.tap do |copy|

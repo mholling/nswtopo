@@ -1152,7 +1152,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def get_vector(label, ext, options, map, temp_dir)
       service = HTTP.get(service_uri(options, "f" => "json"), params["headers"]) do |response|
         JSON.parse(response.body).tap do |result|
-          raise ServerError.new(result["error"]["message"]) if result["error"]
+          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
         end
       end
       service["layers"].each { |layer| layer["name"].gsub! ?\s, ?_ }

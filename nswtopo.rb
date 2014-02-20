@@ -2114,7 +2114,7 @@ plantation:
   ext: svg
   opacity: 1
   colour: "#80D19B"
-alt-contours-10m:
+basic-contours-10m:
   server: flex2
   service: Topography
   ext: svg
@@ -2123,7 +2123,7 @@ alt-contours-10m:
       Contour: sourceprogram_code <> 2 AND (elevation % 10 = 0) AND elevation > 0
   colour: "#805100"
   expand: 0.28
-alt-contours-20m:
+basic-contours-20m:
   server: flex2
   service: Topography
   ext: svg
@@ -2132,7 +2132,7 @@ alt-contours-20m:
       Contour: sourceprogram_code <> 2 AND (elevation % 20 = 0) AND elevation > 0
   colour: "#805100"
   expand: 0.28
-alt-contours-index:
+basic-contours-index:
   server: flex2
   service: Topography
   ext: svg
@@ -2145,7 +2145,7 @@ alt-contours-index:
   Contour:
     colour: "#805100"
     expand: 0.63
-alt-cadastre:
+basic-cadastre:
   server: flex2
   service: Lots
   ext: svg
@@ -2155,7 +2155,7 @@ alt-cadastre:
   opacity: 0.5
   colour: "#777777"
   expand: 0.5
-alt-creeks:
+basic-creeks:
   server: flex2
   service: Base_Mapping
   ext: svg
@@ -2165,7 +2165,7 @@ alt-creeks:
   colour: "#4985DF"
   expand: 0.4
   dash: ~
-alt-streams:
+basic-streams:
   server: flex2
   service: Base_Mapping
   ext: svg
@@ -2175,7 +2175,7 @@ alt-streams:
   colour: "#4985DF"
   expand: 0.7
   dash: ~
-alt-rivers:
+basic-rivers:
   server: flex2
   service: Base_Mapping
   ext: svg
@@ -2185,7 +2185,7 @@ alt-rivers:
   colour: "#4985DF"
   dash: ~
   expand: 1.5
-alt-paths:
+basic-paths:
   server: flex2
   service: Base_Mapping
   ext: svg
@@ -2195,7 +2195,7 @@ alt-paths:
   colour: black
   expand: 0.6
   dash: 3.5
-alt-vehicular-tracks:
+basic-vehicular-tracks:
   server: flex2
   service: Base_Mapping
   ext: svg
@@ -2204,7 +2204,7 @@ alt-vehicular-tracks:
       Other_Access_Roads_and_Tracks: functionhierarchy_code = 8
   colour: darkorange
   dash: 6 2
-alt-unsealed-roads:
+basic-unsealed-roads:
   server: flex2
   service: Base_Mapping
   ext: svg
@@ -2216,7 +2216,7 @@ alt-unsealed-roads:
       Minor_Roads: surface_code >= 2
       Other_Access_Roads_and_Tracks: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code >= 2
   colour: darkorange
-alt-sealed-roads:
+basic-sealed-roads:
   server: flex2
   service: Base_Mapping
   ext: svg
@@ -2228,7 +2228,7 @@ alt-sealed-roads:
       Minor_Roads: surface_code < 2 OR surface_code IS NULL
       Other_Access_Roads_and_Tracks: functionhierarchy_code in ( 5, 6, 7 ) AND (surface_code < 2 OR surface_code IS NULL)
   colour: red
-alt-labels:
+basic-labels:
   server: flex2
   service: Base_Mapping
   ext: svg
@@ -2241,7 +2241,7 @@ alt-labels:
       - Major_Roads
       - Minor_Roads
       - Other_Access_Roads_and_Tracks
-# alt-labels:
+# basic-labels:
 #   server: sixmaps
 #   service: LPI_RasterLabels_1
 #   ext: svg
@@ -2472,7 +2472,7 @@ controls:
         end
       end.reject! { |scale, layers| layers.empty? }
       [ 10, 20, 50 ].each do |value|
-        sources.delete "alt-contours-#{value}m" unless value == interval
+        sources.delete "basic-contours-#{value}m" unless value == interval
       end
     end
     

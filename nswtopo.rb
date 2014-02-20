@@ -2466,11 +2466,17 @@ controls:
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
       abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
-      sources["topographic"]["layers"].each do |scale, layers|
-        [ 10, 20, 50 ].each do |value|
-          layers.delete "Contour_#{value}m" unless value == interval
-        end
-      end.reject! { |scale, layers| layers.empty? }
+      %w[topographic].each do |source|
+        sources[source]["layers"].each do |scale, layers|
+          case interval
+          when 10 then %w[Contour_20m Contour_50m MS_Contour SS_Contour]
+          when 20 then %w[Contour_10m Contour_50m LS_Contour SS_Contour]
+          when 50 then %w[Contour_10m Contour_20m LS_Contour MS_Contour]
+          end.each do |layer|
+            layers.delete layer
+          end
+        end.reject! { |scale, layers| layers.empty? }
+      end
       [ 10, 20, 50 ].each do |value|
         sources.delete "basic-contours-#{value}m" unless value == interval
       end

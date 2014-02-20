@@ -1088,7 +1088,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         id = layer.attributes["id"]
         layer.replace_with source.elements["/svg/g[@id='#{id}']"]
       end.empty?
-        source.elements.each("/svg/g[starts-with(@id,'#{label}')]", &block)
+        source.elements.each("/svg/g[starts-with(@id,'#{label}') and *]", &block)
       end
       
       xml.elements.each("/svg/g[starts-with(@id,'#{label}') and *]") do |layer|

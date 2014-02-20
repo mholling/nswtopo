@@ -707,7 +707,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def clip_paths(layer, label, options)
       [ *options["clips"] ].map do |sublayer|
-        layer.parent.elements.collect("//g[@id='#{sublayer}']//path[@fill-rule='evenodd']") { |path| path }
+        layer.parent.elements.collect("//g[contains(@id,'#{sublayer}')]//path[@fill-rule='evenodd']") { |path| path }
       end.inject([], &:+).map do |path|
         transform = path.elements.collect("ancestor-or-self::*[@transform]") do |element|
           element.attributes["transform"]
@@ -2419,8 +2419,8 @@ topographic:
 relief:
   server: relief
   clips:
-  - topographic.HydroArea
-  - topographic.Oceans_Bays
+  - HydroArea
+  - Oceans
   ext: png
   altitude: 45
   azimuth: 315

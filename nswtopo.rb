@@ -1963,6 +1963,12 @@ sixmaps:
   folder: sixmaps
   tile_sizes: [ 2048, 2048 ]
   interval: 0.1
+sixmapsq:
+  class: ArcGIS
+  host: mapsq.six.nsw.gov.au
+  folder: sixmaps
+  tile_sizes: [ 2048, 2048 ]
+  interval: 0.1
 flex2:
   class: ArcGIS
   host: spatialprod.dpi.nsw.gov.au
@@ -2194,7 +2200,7 @@ basic-paths:
       Other_Access_Roads_and_Tracks: functionhierarchy_code = 9
   colour: black
   expand: 0.6
-  dash: 3.5
+  dash: 3.5 1.75
 basic-vehicular-tracks:
   server: flex2
   service: Base_Mapping
@@ -2259,6 +2265,191 @@ basic-labels:
 #     "#CCCCCC": black
 #   opacity: 0.8
 topographic:
+  server: sixmapsq
+  service: LPIMapLocal
+  ext: svg
+  layers:
+    0.1:
+    - GeneralCulturalArea
+    - GeneralCulturalPoint
+    - GeneralCulturalLine
+    - TransportFacilityLine
+    0.5:
+    - MS_BuildingComplexPoint: classsubtype = 4 AND buildingcomplextype = 7
+    - Rural_Property
+    - SS_Rural_Property
+    ~:
+    - DLSArea_underwater
+    - DLSArea_overwater
+    - DLSPoint
+    - DLSLine
+    - TN_Watercourse
+    - VSS_Watercourse
+    - SS_Watercourse
+    - MS_Watercourse
+    - MS_Hydroline
+    - VSS_Oceans
+    - HydroArea: perenniality < 2 OR perenniality IS NULL
+    - AncillaryHydroPoint
+    - AncillaryHydroPoint_Bore
+    - DLSArea_underwater
+    - DLSArea_overwater
+    - DLSPoint
+    - DLSLine
+    - Urban_Areas
+    - border
+    - LS_GeneralCulturalPoint: NOT (classsubtype = 1 AND generalculturaltype = 2)
+    - Runway
+    - MS_Roads
+    - MS_Roads_intunnel
+    4000:
+    - LS_Roads_onbridge: (functionhierarchy = 9 AND classsubtype = 6)
+    - LS_Roads_onground: (functionhierarchy = 9 AND classsubtype = 6)
+    - LS_Roads_intunnel: (functionhierarchy = 9 AND classsubtype = 6)
+    - LS_Railway_onbridge
+    - LS_Railway_onground
+    - LS_Railway_intunnel
+    - LS_Contour
+    10000:
+    - MS_Tracks_onground
+    - MS_LocalRoads
+    - LS_Watercourse
+    - LS_Hydroline
+    20000:
+    - MS_Contour
+  labels:
+    0.65:
+    - DLSArea_underwater
+    - DLSArea_overwater
+    - DLSPoint
+    - DLSLine
+    - TN_Watercourse
+    - VSS_Watercourse
+    - SS_Watercourse
+    - MS_Watercourse
+    - MS_Hydroline
+    - LS_Watercourse
+    - LS_Hydroline
+    - VSS_Oceans
+    - HydroArea: perenniality < 2 OR perenniality IS NULL
+    - AncillaryHydroPoint
+    - AncillaryHydroPoint_Bore
+    - DLSArea_underwater
+    - DLSArea_overwater
+    - DLSPoint
+    - DLSLine
+    - border
+    - LS_GeneralCulturalPoint: NOT (classsubtype = 1 AND generalculturaltype = 2)
+    - Runway
+    # TODO: MS_LocalRoads & MS_Tracks_onground label/scale issues???
+    - MS_Tracks_onground
+    - MS_LocalRoads
+    - MS_Roads
+    - MS_Roads_intunnel
+    - MS_RoadNameExtent_Labels
+    - MS_Roads_Labels
+    - PointOfInterest: poigroup IN(6, 7)
+    - FuzzyExtentLine: NOT (generalname = 'GREAT DIVIDING RANGE')
+    - SS_Contour
+    - MS_Contour
+    - LS_Contour
+  equivalences:
+    contours:
+    - LS_Contour
+    - MS_Contour
+    cadastre:
+    - Rural_Property
+    - SS_Rural_Property
+    roads:
+    - MS_LocalRoads
+    - MS_Roads
+    - MS_Roads_intunnel
+    tracks:
+    - MS_Tracks_onground
+    paths:
+    - LS_Roads_onbridge
+    - LS_Roads_onground
+    - LS_Roads_intunnel
+    railways:
+    - LS_Railway_onbridge
+    - LS_Railway_onground
+    - LS_Railway_intunnel
+    water:
+    - TN_Watercourse
+    - VSS_Watercourse
+    - SS_Watercourse
+    - MS_Watercourse
+    - MS_Hydroline
+    - LS_Watercourse
+    - LS_Hydroline
+    - HydroArea
+  paths:
+    colour:
+      "#A39D93": black
+    expand: 0.4
+    stretch: 1.5
+  tracks:
+    expand: 0.7
+    colour:
+      "#9C9C9C": black
+  tracks:
+    expand: 0.4
+    stretch: 2.5
+    .//[@stroke-dasharray]/@stroke: darkorange
+    .//[not(@stroke-dasharray)]/@stroke: none
+  roads:
+    expand: 0.6
+    colour:
+      "#9C9C9C": "#333333"
+  contours:
+    expand: 0.7
+    colour: "#805100"
+  railways:
+    colour:
+      "#686868": black
+    expand: 1.25
+  water:
+    colour:
+      "#73A1E6": "#4985DF"
+    opacity: 1
+  cadastre:
+    expand: 0.5
+    opacity: 0.5
+    colour: "#777777"
+  TN_Watercourse:
+    expand: 0.6
+  VSS_Watercourse:
+    expand: 0.55
+  SS_Watercourse:
+    expand: 0.5
+  MS_Watercourse:
+    expand: 0.4
+  MS_Hydroline:
+    expand: 0.4
+  LS_Watercourse:
+    expand: 0.3
+  LS_Hydroline:
+    expand: 0.3
+  HydroArea:
+    expand: 0.7
+  LS_Railway_onbridge:
+    expand: 0.3
+  Urban_Areas:
+    colour: "#FFFABD"
+    opacity: 1.0
+  LS_GeneralCulturalPoint:
+    expand: 0.7
+  GeneralCulturalPoint:
+    expand: 0.5
+  GeneralCulturalArea:
+    colour: "#888888"
+  Labels: 
+    colour: 
+      "#A87000": black
+      "#686868": black
+      "#4E4E4E": black
+      "#343434": black
+backup:
   server: sixmaps
   service: LPIMap
   resolution: 0.55
@@ -2466,7 +2657,7 @@ controls:
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
       abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
-      %w[topographic].each do |source|
+      %w[topographic backup].each do |source|
         sources[source]["layers"].each do |scale, layers|
           case interval
           when 10 then %w[Contour_20m Contour_50m MS_Contour SS_Contour]

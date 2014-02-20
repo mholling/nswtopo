@@ -338,14 +338,16 @@ Run the script again to remove the layers from the composite SVG map. (The origi
 
 ## Alternate Topographic Layers
 
-The main topographic layers are well-styled and produce the best topographic maps. However, the server can be very slow and sometimes produces large voids in the map data. If you are not able to obtain a good topographic map, you can choose an alternate source of basic topographic data, `basic`, as follows:
+The main topographic layers are well-styled and produce the best topographic maps. However the server is not yet out of beta and may cease to work. If you do not achieve good results with the default server, you can chose two alternate sources, `backup` or `basic`, as follows:
 
     include:
-    - basic
+    - backup  # or 'basic'
     exclude:
     - topographic
 
-The basic topographic layers do not contain as many features as the normal layers. Currently, they only contain: contours, sealed and unsealed roads, vehicular tracks, pathways, cadastral boundaries and watercourses. Labels are only present for contours and roads. Other informative layers (e.g. cliffs, swamp and inundation areas, water areas etc) are missing. Nonetheless, the alternative topographic layers may produce a sufficient map for your needs.
+The `backup` topographic layers are similar to the default ones, however the server can be very slow and sometimes produces large voids in the map data.
+
+The `basic` topographic layers do not contain as many features as the normal layers. Currently, they only contain: contours, sealed and unsealed roads, vehicular tracks, pathways, cadastral boundaries and watercourses. Labels are only present for contours and roads. Other informative layers (e.g. cliffs, swamp and inundation areas, water areas, feature labels etc) are missing. Nonetheless, the alternative topographic layers may produce a sufficient map for your needs.
 
 Overlays
 ========

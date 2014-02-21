@@ -2277,7 +2277,7 @@ topographic:
     - GeneralCulturalLine
     - TransportFacilityLine
     0.5:
-    - MS_BuildingComplexPoint: classsubtype = 4 AND buildingcomplextype = 7
+    - MS_BuildingComplexPoint: classsubtype = 4
     - Rural_Property
     - SS_Rural_Property
     ~:
@@ -2349,6 +2349,7 @@ topographic:
     - MS_Roads
     - MS_Roads_intunnel
     - MS_RoadNameExtent_Labels
+    - MS_BuildingComplexPoint: classsubtype = 4
     - MS_Roads_Labels
     - PointOfInterest: poigroup IN(6, 7)
     - FuzzyExtentLine: NOT (generalname = 'GREAT DIVIDING RANGE')

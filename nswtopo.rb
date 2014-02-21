@@ -1024,9 +1024,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       when "opacity"
         "self::/@style"
       when "expand"
-        %w[stroke-width stroke-dasharray stroke-miterlimit font-size].map { |name| ".//[@#{name}]/@#{name}" }
+        %w[stroke-width stroke-dasharray stroke-miterlimit].map { |name| ".//[@#{name}]/@#{name}" }
       when "stretch"
         ".//[@stroke-dasharray]/@stroke-dasharray"
+      when "expand-glyph"
+        ".//[@font-size]/@font-size"
       when "colour"
         %w[stroke fill].map do |name|
           case args
@@ -1048,7 +1050,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             node.add_attribute "stroke-dasharray", [ *args ].join(?\s)
           when "opacity"
             node.element.attributes[node.name] = "opacity:#{args}"
-          when "expand", "stretch"
+          when "expand", "stretch", "expand-glyph"
             node.element.attributes[node.name] = node.value.split(/[,\s]+/).map(&:to_f).map { |size| size * args }.join(", ")
           when "colour"
             node.element.attributes[node.name] = case args
@@ -2438,9 +2440,9 @@ topographic:
     colour: "#FFFABD"
     opacity: 1.0
   LS_GeneralCulturalPoint:
-    expand: 0.7
+    expand-glyph: 0.6
   GeneralCulturalPoint:
-    expand: 0.5
+    expand-glyph: 5
   GeneralCulturalArea:
     colour: "#888888"
   Labels: 
@@ -2602,11 +2604,11 @@ backup:
   PointOfInterest:
     expand: 0.6
   Tourism_Minor:
-    expand: 0.6
+    expand-glyph: 0.6
   Gates_Grids:
-    expand: 0.5
+    expand-glyph: 1.4
   Beacon_Tower:
-    expand: 0.5
+    expand-glyph: 1.4
 relief:
   server: relief
   clips:

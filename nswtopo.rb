@@ -2670,6 +2670,27 @@ backup:
   intervals-contours:
     10: Contour_10m
     20: Contour_20m
+rfs:
+  server: sixmaps
+  service: RFS
+  ext: svg
+  features:
+    0.25:
+      buildings:
+        name: GeneralCulturalPoint
+        definition: generalculturaltype = 0
+    0.3:
+      stock-dams: HydroPoint
+  buildings:
+    colour:
+      "#BDBDC5": black
+    delete:
+    - .//path[@stroke='#FFFFFF']
+    - .//g[@fill='#000000']
+  stock-dams:
+    .//path[@fill]/@fill: "#B3E6E4"
+    .//path[@stroke]/@stroke: "#4985DF"
+    expand: 0.4
 relief:
   server: relief
   ext: png
@@ -2924,7 +2945,7 @@ end
 # TODO: default ArcGIS tile_sizes and interval?
 # TODO: split LPIMapLocal roads into sealed & unsealed?
 # TODO: speed up grid generation?
-# TODO: add huts?
+# TODO: change scale instead of using expand-glyph where possible
 
 # # later:
 # TODO: remove linked images from PDF output?

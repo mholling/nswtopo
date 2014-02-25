@@ -170,13 +170,14 @@ Any or all of the following additional layers can be included in your map by lis
     - canvas
     - vegetation
     - plantation
+    - rfs
     - holdings
     - relief
     - grid
     - declination
     - controls
 
-Viewing the map in Inkscape allows you to toggle individual layers on and off. This if helpful, for example, if you wish to view the aerial imagery superimposed against the topographic feature layers for comparison.
+Viewing the map in Inkscape allows you to toggle individual layers on and off. This if helpful, for example, if you wish to view the aerial imagery superimposed against the topographic feature layers for comparison. However, note that Inkscape rendering is not always the best, in particular regarding the correct placement of labels. (This is a problem with Inkscape, not the map file!)
 
 ## Aerial Imagery
 
@@ -263,6 +264,10 @@ If you include the `plantation` layer, a representation of pine forest plantatio
 ## Holdings
 
 The `holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is available for the ACT.)
+
+## RFS Layers
+
+The `rfs` layers add representations of stock dams and buildings to your map. These features are usually present on a standard 1:25k topographic map, but are not provided by the standard topographic server. The information is sourced from a map provided for the Rural Fire Service. You may wish to change the order of these layers with Inkscape after adding them to your map (e.g. the `rfs.stock-dams` layer should be moved to below the `topographic.water-areas` layer.)
 
 ## Relief
 
@@ -621,3 +626,4 @@ Release History
   * 25/9/2013: version 0.6.4: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.
 * 10/2/2014: version 0.7: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage and PhantomJS options for rasterising; added online source for 90m SRTM elevation data; added ability to import georeference raster images; added SPOT5 vegetation source; for rotated maps, prevent download of tiles which don't fall within map extents; scaled labels better for small-scale maps; added option to use 20-metre contour intervals; added option to exclude layers from map.
   * 22/2/2014: version 0.7.1: used all tracks instead of just first when calculating bounds from a GPX/KML file; fixed bug preventing tiny maps from downloading; changed manner of specifying rendering options; added alternate source of basic contour/road/track/watercourse/label layers; reverted to flat layer structure for SVG file; changed HydroArea layer to perennial water areas only; changed to LPIMapLocal as default data source due to availability.
+  * 26/2/2014: HEAD: added RFS layers for stock dams and buildings.

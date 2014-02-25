@@ -1040,6 +1040,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.flatten
       when %r{\.//}
         command
+      when "delete"
+        [ *args ]
       else return
       end
       
@@ -1066,6 +1068,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when REXML::Attribute
               node.element.attributes[node.name] = args.to_s
             end
+          when "delete"
+            node.delete_self
           end
         end
       end
@@ -1110,6 +1114,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           memo.deep_merge(options[key] || {})
         end.each do |command, values|
           rerender(layer, command, values)
+        end
+        until layer.elements.each(".//g[not(*)]", &:delete_self).empty? do
         end
       end
       
@@ -2437,7 +2443,7 @@ topographic:
     expand: 0.4
     stretch: 2.5
     .//[@stroke-dasharray]/@stroke: darkorange
-    .//[not(@stroke-dasharray)]/@stroke: none
+    delete: .//path[not(@stroke-dasharray)]
   road:
     expand: 0.6
     colour:
@@ -2919,7 +2925,6 @@ end
 # TODO: split LPIMapLocal roads into sealed & unsealed?
 # TODO: speed up grid generation?
 # TODO: add huts?
-# TODO: add "delete" rerender option for xpaths to delete?
 
 # # later:
 # TODO: remove linked images from PDF output?

@@ -1084,13 +1084,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def render_svg(xml, label, options, map, &block)
       return super(xml, label, options, map, &block) unless options["ext"] == "svg"
-      source = REXML::Document.new(path(label, options).read)
+      source_xml = path(label, options).tap do |vector_path|
+        raise BadLayerError.new("source file not found at #{vector_path}") unless vector_path.exist?
+      end.read
+      source = REXML::Document.new(source_xml)
       
       if xml.elements.each("/svg/g[starts-with(@id,'#{label}')]") do |layer|
         id = layer.attributes["id"]
         layer.replace_with source.elements["/svg/g[@id='#{id}']"]
       end.empty?
         source.elements.each("/svg/g[starts-with(@id,'#{label}') and *]", &block)
+        [ *options["exclude"] ].each do |sublabel|
+          xml.elements.each("/svg/g[@id='#{[ label, sublabel ].join SEGMENT}']", &:delete_self)
+        end
       end
       
       xml.elements.each("/svg/g[starts-with(@id,'#{label}') and *]") do |layer|
@@ -1152,24 +1158,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def get_vector(label, ext, options, map, temp_dir)
+      puts "Downloading: #{label}"
       service = HTTP.get(service_uri(options, "f" => "json"), params["headers"]) do |response|
         JSON.parse(response.body).tap do |result|
           raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
         end
       end
       service["layers"].each { |layer| layer["name"].gsub! ?\s, ?_ }
-      
-      layer_order = service["layers"].reverse.map.with_index { |layer, index| { layer["name"] => index } }.inject({}, &:merge)
       layer_names = service["layers"].map { |layer| layer["name"] }
       
       resolution = resolution_for label, options, map
       transform = map.svg_transform(1000.0 * resolution / map.scale)
       tile_list = tiles(map, resolution, 3) # TODO: margin of 3 means what?
       
-      downloads = %w[layers labels].select do |type|
+      downloads = %w[features text].select do |type|
         options[type]
       end.map do |type|
-        scales_layers = case options[type]
+        case options[type]
         when Hash
           options[type].map do |scale_or_multiplier, layers|
             case scale_or_multiplier
@@ -1179,42 +1184,62 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
         when String, Array
-          [ map.scale, [ *options[type] ] ]
+          { map.scale => [ *options[type] ] }
         when true
-          [ map.scale, [] ]
-        end
-        [ type, scales_layers ]
-      end.map do |type, scales_layers|
-        scales_layers.map do |scale, layers|
+          { map.scale => service["layers"].select { |layer| layer["parentLayerId"] == -1 }.map { |layer| layer["name"] } }
+        end.map do |scale, layers|
           dpi = (scale * 0.0254 / resolution).floor
           scale = dpi * resolution / 0.0254
-          ids, layer_defs = layers.map do |name, definition|
-            name.is_a?(Hash) ? name.first : [ name, definition ]
-          end.map do |name, definition|
-            id = service["layers"].find { |layer| layer["name"] == name }.fetch("id")
+          layers.map do |key, value|
+            case value
+            when String then { key => { "name" => value } }  # key is a sublabel, value is a layer name
+            when Fixnum then { key => { "id" => value } }    # key is a sublabel, value is a layer ID
+            when Hash   then { key => value }                # key is a sublabel, value is layer options
+            when nil
+              case key
+              when String then { key => { "name" => key } }  # key is a layer name
+              when Hash                                      # key is a layer name with definition
+                { key.first.first => { "name" => key.first.first, "definition" => key.first.last } }
+              when Fixnum                                    # key is a layer ID
+                layer = service["layers"].find { |layer| layer["id"] == key }
+                { layer["name"] => { "id" => layer["id"] } }
+              end
+            end
+          end.inject(&:merge).each do |sublabel, layer_options|
+            layer_options["id"]   ||= service["layers"].find { |layer| layer["name"] == layer_options["name"] }.fetch("id")
+            layer_options["name"] ||= service["layers"].find { |layer| layer["id"]   == layer_options["id"]   }.fetch("name")
+          end.inject([]) do |memo, (sublabel, layer_options)|
+            memo.find do |group|
+              group.none? do |_, other_layer_options|
+                other_layer_options["id"] == layer_options["id"]
+              end
+            end.tap do |group|
+              group ||= (memo << []).last
+              group << [ sublabel, layer_options ]
+            end
+            memo
+          end.map do |group|
+            [ scale, dpi, Hash[group], type ]
+          end
+        end
+      end.inject(:+).inject(:+)
+      
+      tilesets = tile_list.with_progress.map do |tile_bounds, tile_sizes, tile_offsets|
+        tileset = downloads.map do |scale, dpi, group, type|
+          sleep params["interval"] if params["interval"]
+          ids, layer_defs = group.values.map do |layer_options|
+            id, definition = layer_options.values_at("id", "definition")
             layer_def = "#{id}:#{definition}" if definition
             [ id, layer_def ]
           end.transpose
-          layer_options = { "dpi" => dpi, "wkt" => map.projection.wkt_esri, "format" => "svg" }
-          layer_options.merge!("layers" => "show:#{ids.join ?,}") if ids && ids.any?
-          layer_options.merge!("layerDefs" => layer_defs.compact.join(?;)) if layer_defs && layer_defs.compact.any?
-          xpath = type == "layers" ?
-            "/svg//g[@id!='Labels' and not(.//g[@id])]" :
-            "/svg//g[@id='Labels']"
-          [ scale, layer_options, type, xpath ]
-        end
-      end.inject(:+)
-      
-      tilesets = tile_list.with_progress("Downloading: #{label}").map do |tile_bounds, tile_sizes, tile_offsets|
-        tileset = downloads.map do |scale, layer_options, type, xpath|
-          sleep params["interval"] if params["interval"]
-          
-          tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(layer_options)) do |tile_data|
+          group_options = { "dpi" => dpi, "wkt" => map.projection.wkt_esri, "format" => "svg" }
+          group_options.merge!("layers" => "show:#{ids.join ?,}") if ids && ids.any?
+          group_options.merge!("layerDefs" => layer_defs.compact.join(?;)) if layer_defs && layer_defs.compact.any?
+          tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(group_options)) do |tile_data|
             tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
             tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
             tile_data.gsub! /Arial\s?MT/, "Arial"
             tile_data.gsub! "ESRISDS1.951", %Q['ESRI SDS 1.95 1']
-          
             [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
               tile_data.gsub! regex do |match|
                 case $1
@@ -1223,17 +1248,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
             end
-            
             begin
               REXML::Document.new(tile_data)
             rescue REXML::ParseException => e
               raise ServerError.new("Bad XML data received: #{e.message}")
             end
           end
-          
-          [ tile_xml, scale, type, xpath]
+          xpath = case type
+          when "features" then "/svg//g[@id='Layers']//g[@id!='Labels']"
+          when "text"     then "/svg//g[@id='Layers']//g[@id='Labels']"
+          end
+          [ scale, type, tile_xml, xpath ]
         end
-        
         [ tileset, tile_offsets ]
       end
       
@@ -1246,44 +1272,53 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      layers = tilesets.find(lambda { [ [ ] ] }) do |tileset, _|
-        tileset.all? { |tile_xml, _, _, xpath| tile_xml.elements[xpath] }
-      end.first.map do |tile_xml, _, _, xpath|
-        tile_xml.elements.collect(xpath) do |layer|
-          name = layer.attributes["id"]
-          opacity = layer.parent.attributes["opacity"] || 1
-          [ name, opacity ]
+      layerset = downloads.map do |scale, dpi, group, type|
+        case type
+        when "features"
+          group.map do |sublabel, layer_options|
+            feature_layer = REXML::Element.new("g").tap do |layer|
+              layer.add_attributes("id" => [ label, sublabel ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
+            end
+            [ layer_options["name"], layer_options["id"], feature_layer ]
+          end
+        when "text"
+          label_layer = REXML::Element.new("g").tap do |layer|
+            layer.add_attributes("id" => [ label, "labels" ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
+          end
+          [ [ "Labels", -1, label_layer ] ]
         end
-      end.inject([], &:+).uniq(&:first).sort_by do |name, _|
-        layer_order[name] || layer_order.length
-      end.map do |name, opacity|
-        { name => xml.elements["/svg"].add_element("g",
-          "id" => [ label, name ].join(SEGMENT),
-          "style" => "opacity:#{opacity}",
-          "transform" => transform,
-        )}
-      end.inject({}, &:merge)
+      end
+      
+      layerset.inject(&:+).sort_by do |name, id, layer|
+        -id
+      end.each do |name, id, layer|
+        xml.elements["/svg"].elements << layer
+      end
       
       tilesets.with_progress("Assembling: #{label}").each do |tileset, tile_offsets|
-        tileset.each do | tile_xml, scale, type, xpath|
-          tile_xml.elements.collect(xpath) do |layer|
-            [ layer, layer.attributes["id"] ]
-          end.select do |layer, id|
-            layers[id]
-          end.each do |layer, id|
+        [ tileset, layerset ].transpose.each do |(scale, type, tile_xml, xpath), layers|
+          tile_xml.elements.collect(xpath) do |layer_xml|
+            _, _, layer = layers.find do |name, _, _|
+              layer_xml.attributes["id"] == name
+            end
+            layer ? [ layer_xml, layer ] : nil
+          end.compact.each do |layer_xml, layer|
+            layer_xml.parent.attributes["opacity"].tap do |opacity|
+              layer.add_attribute("style", "opacity:#{opacity}") if opacity
+            end
             tile_transform = "translate(#{tile_offsets.join ?\s})"
             clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(SEGMENT)})"
-            layers[id].add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
+            layer.add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
               case type
-              when "layers"
-                rerender(layer, "expand", map.scale.to_f / scale) if scale != map.scale
-              when "labels"
-                layer.elements.each(".//pattern | .//path | .//font", &:delete_self)
-                layer.deep_clone.tap do |copy|
+              when "features"
+                rerender(layer_xml, "expand", map.scale.to_f / scale) if scale != map.scale
+              when "text"
+                layer_xml.elements.each(".//pattern | .//path | .//font", &:delete_self)
+                layer_xml.deep_clone.tap do |copy|
                   copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
                 end.elements.each { |element| tile << element }
               end
-              layer.elements.each { |element| tile << element }
+              layer_xml.elements.each { |element| tile << element }
             end
           end
         end
@@ -2106,141 +2141,115 @@ reserves:
   server: flex2
   service: Conservation_Areas
   ext: svg
-  layers:
-  - National_Parks
-  - State_Forest
+  features:
+    ~:
+      national-parks: National_Parks
+      state-forests: State_Forest
   opacity: 0.2
   colour: black
-plantation:
+plantations:
   server: atlas
   folder: atlas
   service: Economy_Forestry
   resolution: 0.55
-  layers:
+  features:
     ~:
-      Forestry: Classification='Plantation forestry'
+      forestry:
+        name: Forestry
+        definition: Classification='Plantation forestry' OR Classification='Irrigated plantation forestry'
   ext: svg
   opacity: 1
   colour: "#80D19B"
-basic-contours-10m:
+basic-contours:
   server: flex2
   service: Topography
   ext: svg
-  layers: 
+  features: 
     25000:
-      Contour: sourceprogram_code <> 2 AND (elevation % 10 = 0) AND elevation > 0
-  colour: "#805100"
-  expand: 0.28
-basic-contours-20m:
-  server: flex2
-  service: Topography
-  ext: svg
-  layers: 
-    25000:
-      Contour: sourceprogram_code <> 2 AND (elevation % 20 = 0) AND elevation > 0
-  colour: "#805100"
-  expand: 0.28
-basic-contours-index:
-  server: flex2
-  service: Topography
-  ext: svg
-  layers: 
-    25000:
-      Contour: sourceprogram_code <> 2 AND (elevation % 100 = 0) AND elevation > 0
-  labels:
+      index:
+        name: Contour
+        definition: sourceprogram_code <> 2 AND (elevation % 100 = 0) AND elevation > 0
+      20m:
+        name: Contour
+        definition: sourceprogram_code <> 2 AND (elevation % 20 = 0) AND elevation > 0
+      10m:
+        name: Contour
+        definition: sourceprogram_code <> 2 AND (elevation % 10 = 0) AND elevation > 0
+  text:
     0.5:
-      Contour: sourceprogram_code <> 2 AND (elevation % 100 = 0) AND elevation > 0
-  Contour:
-    colour: "#805100"
+      - Contour: sourceprogram_code <> 2 AND (elevation % 100 = 0) AND elevation > 0
+  colour: "#805100"
+  expand: 0.28
+  labels:
+    colour:
+      "#805100": black
+  index:
     expand: 0.63
+  intervals-contours:
+    10: 10m
+    20: 20m
 basic-cadastre:
   server: flex2
   service: Lots
   ext: svg
-  layers:
+  features:
     25000:
-      - Boundary
+      cadastre: Boundary
   opacity: 0.5
   colour: "#777777"
   expand: 0.5
-basic-creeks:
+basic-features:
   server: flex2
   service: Base_Mapping
   ext: svg
-  layers:
+  features:
     25000:
-      Other_Streams_and_Tributaries: relevance >= 8
-  colour: "#4985DF"
-  expand: 0.4
-  dash: ~
-basic-streams:
-  server: flex2
-  service: Base_Mapping
-  ext: svg
-  layers:
-    25000:
-      Other_Streams_and_Tributaries: relevance >= 5 AND relevance < 8
-  colour: "#4985DF"
-  expand: 0.7
-  dash: ~
-basic-rivers:
-  server: flex2
-  service: Base_Mapping
-  ext: svg
-  layers:
-    25000:
-      Other_Streams_and_Tributaries: relevance < 5
-  colour: "#4985DF"
-  dash: ~
-  expand: 1.5
-basic-paths:
-  server: flex2
-  service: Base_Mapping
-  ext: svg
-  layers:
-    ~:
-      Other_Access_Roads_and_Tracks: functionhierarchy_code = 9
-  colour: black
-  expand: 0.6
-  dash: 3.5 1.75
-basic-vehicular-tracks:
-  server: flex2
-  service: Base_Mapping
-  ext: svg
-  layers:
-    ~:
-      Other_Access_Roads_and_Tracks: functionhierarchy_code = 8
-  colour: darkorange
-  dash: 6 2
-basic-unsealed-roads:
-  server: flex2
-  service: Base_Mapping
-  ext: svg
-  layers:
-    25000:
-      Highways: surface_code >= 2
-      Regional_Roads: surface_code >= 2
-      Major_Roads: surface_code >= 2
-      Minor_Roads: surface_code >= 2
-      Other_Access_Roads_and_Tracks: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code >= 2
-  colour: darkorange
-basic-sealed-roads:
-  server: flex2
-  service: Base_Mapping
-  ext: svg
-  layers:
-    25000:
-      Highways: surface_code < 2 OR surface_code IS NULL
-      Regional_Roads: surface_code < 2 OR surface_code IS NULL
-      Major_Roads: surface_code < 2 OR surface_code IS NULL
-      Minor_Roads: surface_code < 2 OR surface_code IS NULL
-      Other_Access_Roads_and_Tracks: functionhierarchy_code in ( 5, 6, 7 ) AND (surface_code < 2 OR surface_code IS NULL)
-  colour: red
-basic-labels:
-  server: flex2
-  service: Base_Mapping
-  ext: svg
-  labels:
+      creeks:
+        name: Other_Streams_and_Tributaries
+        definition: relevance >= 8
+      streams:
+        name: Other_Streams_and_Tributaries
+        definition: relevance >= 5 AND relevance < 8
+      rivers:
+        name: Other_Streams_and_Tributaries
+        definition: relevance < 5
+      vehicular-tracks:
+        name: Other_Access_Roads_and_Tracks
+        definition: functionhierarchy_code = 8
+      footpaths:
+        name: Other_Access_Roads_and_Tracks
+        definition: functionhierarchy_code = 9
+      other-access-roads:
+        name: Other_Access_Roads_and_Tracks
+        definition: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code < 2
+      other-access-roads-unsealed:
+        name: Other_Access_Roads_and_Tracks
+        definition: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code >= 2
+      minor-roads:
+        name: Minor_Roads
+        definition: surface_code < 2
+      minor-roads-unsealed:
+        name: Minor_Roads
+        definition: surface_code >= 2
+      major-roads:
+        name: Major_Roads
+        definition: surface_code < 2
+      major-roads-unsealed:
+        name: Major_Roads
+        definition: surface_code >= 2
+      regional-roads:
+        name: Regional_Roads
+        definition: surface_code < 2
+      regional-roads-unsealed:
+        name: Regional_Roads
+        definition: surface_code >= 2
+      highways:
+        name: Highways
+        definition: surface_code < 2
+      highways-unsealed:
+        name: Highways
+        definition: surface_code >= 2
+  text:
     0.7:
       - Major_Rivers
       - Other_Streams_and_Tributaries
@@ -2249,77 +2258,107 @@ basic-labels:
       - Major_Roads
       - Minor_Roads
       - Other_Access_Roads_and_Tracks
-# basic-labels:
-#   server: sixmaps
-#   service: LPI_RasterLabels_1
-#   ext: svg
-#   labels:
-#     0.6:
-#     - Raster_Road_Labels
-#     - Raster_Place_Labels
-#     - Cities
-#     - Towns
-#     - Villages
-#     - Localities
-#     - Suburbs
-#   colour:
-#     "#FFFFFF": black
-#     "#CCCCCC": black
-#   opacity: 0.8
+  equivalences:
+    roads-sealed:
+    - other-access-roads
+    - minor-roads
+    - major-roads
+    - regional-roads
+    - highways
+    roads-unsealed:
+    - other-access-roads-unsealed
+    - minor-roads-unsealed
+    - major-roads-unsealed
+    - regional-roads-unsealed
+    - highways-unsealed
+  dash: ~
+  creeks:
+    colour: "#4985DF"
+    expand: 0.4
+  streams:
+    colour: "#4985DF"
+    expand: 0.7
+  rivers:
+    colour: "#4985DF"
+    expand: 1.5
+  footpaths:
+    colour: black
+    expand: 0.6
+    dash: 3.5 1.75
+  vehicular-tracks:
+    colour: darkorange
+    dash: 6 2
+  roads-sealed:
+    colour: red
+  roads-unsealed:
+    colour: darkorange
 topographic:
   server: sixmapsq
   service: LPIMapLocal
   ext: svg
-  layers:
+  features:
     0.1:
-    - GeneralCulturalArea
-    - GeneralCulturalPoint
-    - GeneralCulturalLine
-    - TransportFacilityLine
+      building-areas: GeneralCulturalArea
+      towers-beacons: GeneralCulturalPoint
+      breakwaters-dam-walls-racetracks: GeneralCulturalLine
+      ramps-slipways-wharves: TransportFacilityLine
     0.5:
-    - MS_BuildingComplexPoint: classsubtype = 4
-    - Rural_Property
-    - SS_Rural_Property
+      homesteads:
+        name: MS_BuildingComplexPoint
+        definition: classsubtype = 4
     ~:
-    - DLSArea_underwater
-    - DLSArea_overwater
-    - DLSPoint
-    - DLSLine
-    - TN_Watercourse
-    - VSS_Watercourse
-    - SS_Watercourse
-    - MS_Watercourse
-    - MS_Hydroline
-    - VSS_Oceans
-    - HydroArea: perenniality < 2 OR perenniality IS NULL
-    - AncillaryHydroPoint
-    - AncillaryHydroPoint_Bore
-    - DLSArea_underwater
-    - DLSArea_overwater
-    - DLSPoint
-    - DLSLine
-    - Urban_Areas
-    - border
-    - LS_GeneralCulturalPoint: NOT (classsubtype = 1 AND generalculturaltype = 2)
-    - Runway
-    - MS_Roads
-    - MS_Roads_intunnel
+      cliffs-intertidal-mangroves-reefs-rocks-sand: DLSArea_overwater
+      inundation-swamps: DLSArea_underwater
+      caves-pinnacles: DLSPoint
+      clifftops-excavation-levees: DLSLine
+      watercourse-tn: TN_Watercourse
+      watercourse-vss: VSS_Watercourse
+      watercourse-ss: SS_Watercourse
+      watercourse-ms: MS_Watercourse
+      watercourse-ms-unnamed: MS_Hydroline
+      ocean: VSS_Oceans
+      water-areas:
+        name: HydroArea
+        definition: perenniality < 2 OR perenniality IS NULL
+      water-areas-non-perennial:
+        name: HydroArea
+        definition: perenniality = 2
+      water-areas-mainly-dry: 
+        name: HydroArea
+        definition: perenniality = 3
+      waterfalls-named: AncillaryHydroPoint
+      bores-named: AncillaryHydroPoint_Bore
+      builtup-areas: Urban_Areas
+      nsw-border: border
+      mines-picnic-areas-campgrounds-shipwrecks:
+        name: LS_GeneralCulturalPoint
+        definition: NOT (classsubtype = 1 AND generalculturaltype = 2)
+      runways: Runway
+      roads: MS_Roads
+      road-tunnels: MS_Roads_intunnel
     4000:
-    - LS_Roads_onbridge: (functionhierarchy = 9 AND classsubtype = 6)
-    - LS_Roads_onground: (functionhierarchy = 9 AND classsubtype = 6)
-    - LS_Roads_intunnel: (functionhierarchy = 9 AND classsubtype = 6)
-    - LS_Railway_onbridge
-    - LS_Railway_onground
-    - LS_Railway_intunnel
-    - LS_Contour
+      footpaths:
+        name: LS_Roads_onground
+        definition: (functionhierarchy = 9 AND classsubtype = 6)
+      footpath-bridges:
+        name: LS_Roads_onbridge
+        definition: (functionhierarchy = 9 AND classsubtype = 6)
+      footpath-tunnels:
+        name: LS_Roads_intunnel
+        definition: (functionhierarchy = 9 AND classsubtype = 6)
+      railways: LS_Railway_onground
+      railway-bridges: LS_Railway_onbridge
+      railway-tunnels: LS_Railway_intunnel
+      contours-10m: LS_Contour
     10000:
-    - MS_Tracks_onground
-    - MS_LocalRoads
-    - LS_Watercourse
-    - LS_Hydroline
+      cadastre: Rural_Property
+      vehicular-tracks: MS_Tracks_onground
+      roads-local: MS_LocalRoads
+      watercourse-ls: LS_Watercourse
+      watercourse-ls-unnamed: LS_Hydroline
     20000:
-    - MS_Contour
-  labels:
+      contours-20m: MS_Contour
+  text:
     0.65:
     - DLSArea_underwater
     - DLSArea_overwater
@@ -2343,7 +2382,6 @@ topographic:
     - border
     - LS_GeneralCulturalPoint: NOT (classsubtype = 1 AND generalculturaltype = 2)
     - Runway
-    # TODO: MS_LocalRoads & MS_Tracks_onground label/scale issues???
     - MS_Tracks_onground
     - MS_LocalRoads
     - MS_Roads
@@ -2356,62 +2394,62 @@ topographic:
     - SS_Contour
     - MS_Contour
     - LS_Contour
+    - LS_PlacePoint: placetype IN (3, 4, 5)
+    - MS_PlacePoint: placetype IN (3, 4, 5)
   equivalences:
     contours:
-    - LS_Contour
-    - MS_Contour
-    cadastre:
-    - Rural_Property
-    - SS_Rural_Property
-    roads:
-    - MS_LocalRoads
-    - MS_Roads
-    - MS_Roads_intunnel
-    tracks:
-    - MS_Tracks_onground
-    paths:
-    - LS_Roads_onbridge
-    - LS_Roads_onground
-    - LS_Roads_intunnel
-    railways:
-    - LS_Railway_onbridge
-    - LS_Railway_onground
-    - LS_Railway_intunnel
-    water:
-    - TN_Watercourse
-    - VSS_Watercourse
-    - SS_Watercourse
-    - MS_Watercourse
-    - MS_Hydroline
-    - LS_Watercourse
-    - LS_Hydroline
-    - HydroArea
-  paths:
+    - contours-10m
+    - contours-20m
+    road:
+    - roads-local
+    - roads
+    - road-tunnels
+    footpath:
+    - footpaths
+    - footpath-bridges
+    - footpath-tunnels
+    railway:
+    - railways
+    - railway-bridges
+    - railway-tunnels
+    watercourse:
+    - watercourse-tn
+    - watercourse-vss
+    - watercourse-ss
+    - watercourse-ms
+    - watercourse-ms-unnamed
+    - watercourse-ls
+    - watercourse-ls-unnamed
+    water-area:
+    - water-areas
+    - water-areas-non-perennial
+    - water-areas-mainly-dry:
+  footpath:
     colour:
       "#A39D93": black
     expand: 0.4
     stretch: 1.5
-  tracks:
-    expand: 0.7
-    colour:
-      "#9C9C9C": black
-  tracks:
+  # vehicular-tracks:
+  #   expand: 0.7
+  #   colour:
+  #     "#9C9C9C": black
+  vehicular-tracks:
     expand: 0.4
     stretch: 2.5
     .//[@stroke-dasharray]/@stroke: darkorange
     .//[not(@stroke-dasharray)]/@stroke: none
-  roads:
+  road:
     expand: 0.6
     colour:
       "#9C9C9C": "#333333"
   contours:
     expand: 0.7
     colour: "#805100"
-  railways:
+  railway:
     colour:
       "#686868": black
     expand: 1.25
-  water:
+  watercourse:
     colour:
       "#73A1E6": "#4985DF"
     opacity: 1
@@ -2419,48 +2457,65 @@ topographic:
     expand: 0.5
     opacity: 0.5
     colour: "#777777"
-  TN_Watercourse:
+  watercourse-tn:
     expand: 0.6
-  VSS_Watercourse:
+  watercourse-vss:
     expand: 0.55
-  SS_Watercourse:
+  watercourse-ss:
     expand: 0.5
-  MS_Watercourse:
+  watercourse-ms:
     expand: 0.4
-  MS_Hydroline:
+  watercourse-ms-unnamed:
     expand: 0.4
-  LS_Watercourse:
+  watercourse-ls:
     expand: 0.3
-  LS_Hydroline:
+  watercourse-ls-unnamed:
     expand: 0.3
-  HydroArea:
+  water-area:
+    colour:
+      "#73A1E6": "#4985DF"
+    opacity: 1
     expand: 0.7
-  LS_Railway_onbridge:
+  water-areas-non-perennial:
+    opacity: 0.5
+  water-areas-mainly-dry:
+    opacity: 0.25
+  railway-bridges:
     expand: 0.3
-  Urban_Areas:
+  builtup-areas:
     colour: "#FFFABD"
     opacity: 1.0
-  LS_GeneralCulturalPoint:
+  mines-picnic-areas-campgrounds-shipwrecks:
     expand-glyph: 0.6
-  GeneralCulturalPoint:
+  towers-beacons:
     expand-glyph: 5
-  GeneralCulturalArea:
+  building-areas:
     colour: "#888888"
-  Labels: 
+  labels: 
     colour: 
       "#A87000": black
       "#686868": black
       "#4E4E4E": black
       "#343434": black
+  relief-clips:
+  - water-areas
+  - ocean
+  intervals-contours:
+    10: contours-10m
+    20: contours-20m
 backup:
   server: sixmaps
   service: LPIMap
   resolution: 0.55
   ext: svg
-  layers:
+  features:
     4500:
-      Roads_onbridge_LS: functionhierarchy = 9 AND roadontype = 2
-      Roads_onground_LS: functionhierarchy = 9 AND roadontype = 1
+      Footpaths:
+        name: Roads_onground_LS
+        definition: functionhierarchy = 9 AND roadontype = 1
+      Footpaths_intunnels:
+        name: Roads_onbridge_LS
+        definition: functionhierarchy = 9 AND roadontype = 2
     9000:
     - Roads_Urban_MS
     - Roads_intunnel_MS
@@ -2488,21 +2543,18 @@ backup:
     11000:
     - Contour_20m
     ~:
-    - PlacePoint_LS
     - Caves_Pinnacles
     - Ridge_Beach
     - Waterfalls_springs
     - Swamps_LSI
     - Cliffs_Reefs_Mangroves
     - CliffTop_Levee
-    - PointOfInterest
     - Tourism_Minor
     - Railway_MS
     - Railway_intunnel_MS
     - Runway
-    - Airport_Station
     - State_Border
-  labels:
+  text:
     0.6:
     - Roads_Urban_MS
     - Roads_intunnel_MS
@@ -2552,16 +2604,14 @@ backup:
     - HydroArea
     - Oceans_Bays
     pathways:
-    - Roads_onground_LS
-    - Roads_onbridge_LS
+    - Footpaths
+    - Footpaths_intunnels
     roads:
     - Roads_Urban_MS
     - Roads_intunnel_MS
     cadastre:
     - Lot
     - Property
-    text:
-    - Labels
   pathways:
     expand: 0.5
     colour: 
@@ -2578,7 +2628,7 @@ backup:
     expand: 0.5
     opacity: 0.5
     colour: "#777777"
-  text: 
+  labels: 
     colour: 
       "#A87000": "#000000"
       "#FAFAFA": "#444444"
@@ -2602,19 +2652,20 @@ backup:
     expand: 0.7
   HydroArea:
     expand: 0.5
-  PointOfInterest:
-    expand: 0.6
   Tourism_Minor:
     expand-glyph: 0.6
   Gates_Grids:
     expand-glyph: 1.4
   Beacon_Tower:
     expand-glyph: 1.4
+  relief-clips:
+  - HydroArea
+  - Oceans_Bays
+  intervals-contours:
+    10: Contour_10m
+    20: Contour_20m
 relief:
   server: relief
-  clips:
-  - HydroArea
-  - Oceans
   ext: png
   altitude: 45
   azimuth: 315
@@ -2627,10 +2678,8 @@ holdings:
   folder: sixmaps
   service: _LHPA
   ext: svg
-  layers:
-  - Holdings
-  labels:
-  - Holdings
+  features: Holdings
+  text: Holdings
   colour:
     "#B0A100": "#FF0000"
     "#948800": "#FF0000"
@@ -2657,22 +2706,20 @@ controls:
   water-colour: blue
 ]
     
+    sources["relief"]["clips"] = sources.map do |label, options|
+      [ *options["relief-clips"] ].map { |sublabel| [ label, sublabel ].join SEGMENT }
+    end.inject(&:+)
+    
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
       abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
-      %w[topographic backup].each do |source|
-        sources[source]["layers"].each do |scale, layers|
-          case interval
-          when 10 then %w[Contour_20m Contour_50m MS_Contour SS_Contour]
-          when 20 then %w[Contour_10m Contour_50m LS_Contour SS_Contour]
-          when 50 then %w[Contour_10m Contour_20m LS_Contour MS_Contour]
-          end.each do |layer|
-            layers.delete layer
-          end
-        end.reject! { |scale, layers| layers.empty? }
-      end
-      [ 10, 20, 50 ].each do |value|
-        sources.delete "basic-contours-#{value}m" unless value == interval
+      sources.each do |label, options|
+        options["exclude"] ||= []
+        [ *options["intervals-contours"] ].select do |candidate, sublayer|
+          candidate != interval
+        end.map(&:last).each do |sublayer|
+          options["exclude"] << sublayer
+        end
       end
     end
     
@@ -2868,6 +2915,11 @@ end
 
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Open3 for shelling out
+# TODO: default ArcGIS tile_sizes and interval?
+# TODO: split LPIMapLocal roads into sealed & unsealed?
+# TODO: speed up grid generation?
+# TODO: add huts?
+# TODO: add "delete" rerender option for xpaths to delete?
 
 # # later:
 # TODO: remove linked images from PDF output?

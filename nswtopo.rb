@@ -1261,8 +1261,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
           xpath = case type
-          when "features" then "/svg//g[@id='Layers']//g[@id!='Labels']"
-          when "text"     then "/svg//g[@id='Layers']//g[@id='Labels']"
+          when "features" then "/svg//g[@id='%s']//g[@id!='Labels']" % service["mapName"]
+          when "text"     then "/svg//g[@id='%s']//g[@id='Labels']"  % service["mapName"]
           end
           [ scale, type, tile_xml, xpath ]
         end

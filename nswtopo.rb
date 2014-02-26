@@ -378,7 +378,11 @@ margin: 15
     
     def reproject_to(target, point_or_points)
       case point_or_points.first
-      when Array then point_or_points.map { |point| reproject_to target, point }
+      when Array
+        echoes = point_or_points.map { |point| "echo #{point.join ?\s}" }.join " && "
+        %x[(#{echoes}) | gdaltransform -s_srs "#{self}" -t_srs "#{target}"].each_line.map do |line|
+          line.split(?\s)[0..1].map(&:to_f)
+        end
       else %x[echo #{point_or_points.join ?\s} | gdaltransform -s_srs "#{self}" -t_srs "#{target}"].split(?\s)[0..1].map(&:to_f)
       end
     end

@@ -354,6 +354,17 @@ The `backup` topographic layers are similar to the default ones, however the ser
 
 The `basic` topographic layers do not contain as many features as the normal layers. Currently, they only contain: contours, sealed and unsealed roads, vehicular tracks, pathways, cadastral boundaries and watercourses. Labels are only present for contours and roads. Other informative layers (e.g. cliffs, swamp and inundation areas, water areas, feature labels etc) are missing. Nonetheless, the alternative topographic layers may produce a sufficient map for your needs.
 
+Reordering Layers
+==================
+
+You can change the default order in which layers are composited in your map. This is helpful if you are combining layers from more than one source. For example, to place the `rfs` layers in their best position in the topographic map:
+
+    below:
+      rfs.stock-dams: topographic.water-areas
+      rfs.buildings: topographic.homesteads
+
+This will insert the `rfs.stock-dams` layer below the `topographic.water-areas` layer, and so on. Likewise, an `above:` option can also be specified.
+
 Overlays
 ========
 

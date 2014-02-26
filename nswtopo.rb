@@ -2745,6 +2745,7 @@ controls:
       [ *options["relief-clips"] ].map { |sublabel| [ label, sublabel ].join SEGMENT }
     end.inject(&:+)
     
+    # TODO: move this section to below source config deep_merge!
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
       abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
@@ -2871,6 +2872,27 @@ controls:
           puts "Your system does not include some fonts used in #{svg_name}. (Inkscape will not render these fonts correctly.)"
           fonts_missing.sort.each { |family| puts "  #{family}" }
         end
+        
+        [ %w[below insert_before 1 to_a], %w[above insert_after last() reverse] ].select do |position, insert, predicate, order|
+          config[position]
+        end.each do |position, insert, predicate, order|
+          config[position].each do |label, sibling_label|
+            sibling = xml.elements["/svg/g[starts-with(@id,'#{sibling_label}')][#{predicate}]"]
+            if sibling
+              if xml.elements.collect("/svg/g[starts-with(@id,'#{label}')]") do |layer|
+                layer
+              end.send(order).each do |layer|
+                puts "  Moving #{layer.attributes['id']} #{position} #{sibling.attributes['id']}"
+                layer.parent.send insert, sibling, layer
+              end.empty?
+                puts "Error: can't move #{label}: not found"
+              end
+            else
+              puts "Error: can't move #{label}: #{sibling_label} not found"
+            end
+          end
+        end
+        # TODO: should we add an out-of-order trigger to update the map?
         
         if config["pretty"]
           formatter = REXML::Formatters::Pretty.new

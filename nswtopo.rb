@@ -160,6 +160,13 @@ class Array
   def proj(other)
     dot(other) / other.norm
   end
+  
+  def one_or_many(&block)
+    case first
+    when Array then map(&block)
+    else block.(self)
+    end
+  end
 end
 
 module NSWTopo
@@ -1545,9 +1552,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       layer = xml.elements["/svg/g[@id='#{label}']"] || REXML::Element.new("g").tap(&block)
       layer.add_attributes "id" => label, "style" => "opacity:#{opacity}", "transform" => map.svg_transform(1)
       draw(layer, options, map) do |coords, projection|
-        easting, northing = projection.reproject_to(map.projection, coords)
-        [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
-          1000.0 * metres / map.scale
+        projection.reproject_to(map.projection, coords).one_or_many do |easting, northing|
+          [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
+            1000.0 * metres / map.scale
+          end
         end
       end
     end
@@ -1572,7 +1580,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         northings = bounds.last
         [ eastings, northings ].transpose
       end.map do |line|
-        line.map { |point| yield point, projection }
+        yield line, projection
       end.map do |line|
         "M%f %f L%f %f" % line.flatten
       end.each do |d|
@@ -1587,7 +1595,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def self.zone(coords, projection)
-      (projection.reproject_to_wgs84(coords).first / 6).floor + 31
+      projection.reproject_to_wgs84(coords).one_or_many do |longitude, latitude|
+        (longitude / 6).floor + 31
+      end
     end
     
     def draw(group, options, map)
@@ -1598,9 +1608,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       fontsize = 25.4 * options["fontsize"] / 72.0
       strokewidth = options["width"]
       
-      map.bounds.inject(:product).map do |corner|
-        GridSource.zone(corner, map.projection)
-      end.inject do |range, zone|
+      GridSource.zone(map.bounds.inject(&:product), map.projection).inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
       end.each do |zone|
         projection = Projection.utm(zone)
@@ -1610,18 +1618,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           counts.map { |count| count * interval }
         end
         grid = eastings.map do |easting|
-          northings.reverse.map do |northing|
-            [ easting, northing ]
-          end.map do |coords|
-            [ GridSource.zone(coords, projection) == zone, coords ]
-          end
+          column = [ easting ].product(northings.reverse)
+          in_zone = GridSource.zone(column, projection).map { |candidate| candidate == zone }
+          [ in_zone, column ].transpose
         end
         [ grid, grid.transpose ].each.with_index do |gridlines, index|
           gridlines.each do |gridline|
             line = gridline.select(&:first).map(&:last)
-            line.map do |coords|
-              yield coords, projection
-            end.map do |point|
+            yield(line, projection).map do |point|
               point.join ?\s
             end.join(" L").tap do |d|
               group.add_element("path", "d" => "M#{d}", "stroke-width" => strokewidth, "stroke" => options["colour"])
@@ -1716,7 +1720,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ :areas, "polygon", { "fill" => colour, "stroke" => "none" } ]
       ].each do |feature, element, attributes|
         gps.send(feature).each do |list, name|
-          points = list.map { |coords| yield(coords, Projection.wgs84).join ?, }.join ?\s
+          points = yield(list, Projection.wgs84).map { |point| point.join ?, }.join ?\s
           group.add_element(element, attributes.merge("points" => points))
         end
       end
@@ -2948,7 +2952,6 @@ end
 # TODO: switch to Open3 for shelling out
 # TODO: default ArcGIS tile_sizes and interval?
 # TODO: split LPIMapLocal roads into sealed & unsealed?
-# TODO: speed up grid generation?
 # TODO: change scale instead of using expand-glyph where possible
 
 # # later:

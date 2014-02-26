@@ -2745,20 +2745,6 @@ controls:
       [ *options["relief-clips"] ].map { |sublabel| [ label, sublabel ].join SEGMENT }
     end.inject(&:+)
     
-    # TODO: move this section to below source config deep_merge!
-    config["contour-interval"].tap do |interval|
-      interval ||= map.scale < 40000 ? 10 : 20
-      abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
-      sources.each do |label, options|
-        options["exclude"] ||= []
-        [ *options["intervals-contours"] ].select do |candidate, sublayer|
-          candidate != interval
-        end.map(&:last).each do |sublayer|
-          options["exclude"] << sublayer
-        end
-      end
-    end
-    
     includes = %w[topographic]
     includes << "canvas" if Pathname.new("canvas.png").expand_path.exist?
     
@@ -2786,6 +2772,19 @@ controls:
       config[label]
     end.each do |label|
       sources[label].deep_merge! config[label]
+    end
+    
+    config["contour-interval"].tap do |interval|
+      interval ||= map.scale < 40000 ? 10 : 20
+      abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
+      sources.each do |label, options|
+        options["exclude"] = [ *options["exclude"] ]
+        [ *options["intervals-contours"] ].select do |candidate, sublayer|
+          candidate != interval
+        end.map(&:last).each do |sublayer|
+          options["exclude"] << sublayer
+        end
+      end
     end
     
     sources.each do |label, options|

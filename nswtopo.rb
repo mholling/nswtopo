@@ -956,6 +956,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class ArcGIS < Source
+    def initialize(params)
+      super({ "tile_sizes" => [ 2048, 2048 ], "interval" => 0.1 }.merge params)
+    end
+    
     def tiles(map, resolution, margin = 0)
       cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - margin }
       dimensions = map.bounds.map { |bound| ((bound.max - bound.min) / resolution).ceil }
@@ -2012,35 +2016,25 @@ sixmaps:
   class: ArcGIS
   host: maps.six.nsw.gov.au
   folder: sixmaps
-  tile_sizes: [ 2048, 2048 ]
-  interval: 0.1
 sixmapsq:
   class: ArcGIS
   host: mapsq.six.nsw.gov.au
   folder: sixmaps
-  tile_sizes: [ 2048, 2048 ]
-  interval: 0.1
 flex2:
   class: ArcGIS
   host: spatialprod.dpi.nsw.gov.au
   instance: ArcGIS2
   folder: IndustryViewFLEX2
-  tile_sizes: [ 2048, 2048 ]
-  interval: 0.1
 atlas:
   class: ArcGIS
   host: atlas.nsw.gov.au
   instance: arcgis1
   cookie: http://atlas.nsw.gov.au/
-  tile_sizes: [ 2048, 2048 ]
-  interval: 0.1
 actmapi:
   class: ArcGIS
   host: www.actmapi.act.gov.au
   instance: actmapi
   folder: mga
-  tile_sizes: [ 2048, 2048 ]
-  interval: 0.1
 lpi_ortho:
   class: LPIOrthoServer
   host: lite.maps.nsw.gov.au

@@ -163,8 +163,8 @@ class Array
   
   def one_or_many(&block)
     case first
-    when Array then map(&block)
-    else block.(self)
+    when Numeric then block.(self)
+    else map(&block)
     end
   end
 end

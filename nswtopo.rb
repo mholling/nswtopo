@@ -1028,59 +1028,61 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def rerender(element, command, args)
-      xpaths = case command
-      when "dash"
-        ".//path"
-      when "opacity"
-        "self::/@style"
-      when "expand"
-        %w[stroke-width stroke-dasharray stroke-miterlimit].map { |name| ".//[@#{name}]/@#{name}" }
-      when "stretch"
-        ".//[@stroke-dasharray]/@stroke-dasharray"
-      when "expand-glyph"
-        ".//[@font-size]/@font-size"
-      when "colour"
-        %w[stroke fill].map do |name|
-          case args
-          when Hash
-            args.keys.map { |colour| ".//[@#{name}='#{colour}']/@#{name}" }
-          else
-            ".//[@#{name}!='none']/@#{name}"
-          end
-        end.flatten
-      when %r{\.//}
-        command
-      when "delete"
-        [ *args ]
-      else return
-      end
-      
-      [ *xpaths ].each do |xpath|
-        REXML::XPath.each(element, xpath) do |node|
-          case command
-          when "dash"
-            node.add_attribute "stroke-dasharray", [ *args ].join(?\s)
-          when "opacity"
-            node.element.attributes[node.name] = "opacity:#{args}"
-          when "expand", "stretch", "expand-glyph"
-            node.element.attributes[node.name] = node.value.split(/[,\s]+/).map(&:to_f).map { |size| size * args }.join(", ")
-          when "colour"
-            node.element.attributes[node.name] = case args
+    def rerender(element, commands)
+      commands.each do |command, args|
+        xpaths = case command
+        when "dash"
+          ".//path"
+        when "opacity"
+          "self::/@style"
+        when "expand"
+          %w[stroke-width stroke-dasharray stroke-miterlimit].map { |name| ".//[@#{name}]/@#{name}" }
+        when "stretch"
+          ".//[@stroke-dasharray]/@stroke-dasharray"
+        when "expand-glyph"
+          ".//[@font-size]/@font-size"
+        when "colour"
+          %w[stroke fill].map do |name|
+            case args
             when Hash
-              args[node.value] || node.value
-            when String
-              args
+              args.keys.map { |colour| ".//[@#{name}='#{colour}']/@#{name}" }
+            else
+              ".//[@#{name}!='none']/@#{name}"
             end
-          when %r{\.//}
-            case node
-            when REXML::Element
-              node.add_attributes(args)
-            when REXML::Attribute
-              node.element.attributes[node.name] = args.to_s
+          end.flatten
+        when %r{\.//}
+          command
+        when "delete"
+          [ *args ]
+        else next
+        end
+        
+        [ *xpaths ].each do |xpath|
+          REXML::XPath.each(element, xpath) do |node|
+            case command
+            when "dash"
+              node.add_attribute "stroke-dasharray", [ *args ].join(?\s)
+            when "opacity"
+              node.element.attributes[node.name] = "opacity:#{args}"
+            when "expand", "stretch", "expand-glyph"
+              node.element.attributes[node.name] = node.value.split(/[,\s]+/).map(&:to_f).map { |size| size * args }.join(", ")
+            when "colour"
+              node.element.attributes[node.name] = case args
+              when Hash
+                args[node.value] || node.value
+              when String
+                args
+              end
+            when %r{\.//}
+              case node
+              when REXML::Element
+                node.add_attributes(args)
+              when REXML::Attribute
+                node.element.attributes[node.name] = args.to_s
+              end
+            when "delete"
+              node.remove
             end
-          when "delete"
-            node.remove
           end
         end
       end
@@ -1123,8 +1125,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.map(&:first) << name
         render_sources.inject(options) do |memo, key|
           memo.deep_merge(options[key] || {})
-        end.each do |command, values|
-          rerender(layer, command, values)
+        end.tap do |commands|
+          rerender(layer, commands)
         end
         until layer.elements.each(".//g[not(*)]", &:remove).empty? do
         end
@@ -1329,7 +1331,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             layer.add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
               case type
               when "features"
-                rerender(layer_xml, "expand", map.scale.to_f / scale) if scale != map.scale
+                rerender(layer_xml, "expand" => map.scale.to_f / scale) if scale != map.scale
               when "text"
                 layer_xml.elements.each(".//pattern | .//path | .//font", &:remove)
                 layer_xml.deep_clone.tap do |copy|

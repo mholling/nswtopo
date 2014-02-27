@@ -34,10 +34,6 @@ class REXML::Element
       yield element if block_given?
     end
   end
-  
-  def delete_self
-    parent.delete_element(self)
-  end
 end
 
 module HashHelpers
@@ -770,7 +766,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "image-rendering" => "optimizeQuality",
         "xlink:href" => href,
       )
-      layer.elements.each("./defs[not(*)]", &:delete_self)
+      layer.elements.each("./defs[not(*)]", &:remove)
     end
   end
   
@@ -1084,7 +1080,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               node.element.attributes[node.name] = args.to_s
             end
           when "delete"
-            node.delete_self
+            node.remove
           end
         end
       end
@@ -1114,7 +1110,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.empty?
         source.elements.each("/svg/g[starts-with(@id,'#{label}') and *]", &block)
         [ *options["exclude"] ].each do |sublabel|
-          xml.elements.each("/svg/g[@id='#{[ label, sublabel ].join SEGMENT}']", &:delete_self)
+          xml.elements.each("/svg/g[@id='#{[ label, sublabel ].join SEGMENT}']", &:remove)
         end
       end
       
@@ -1130,11 +1126,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.each do |command, values|
           rerender(layer, command, values)
         end
-        until layer.elements.each(".//g[not(*)]", &:delete_self).empty? do
+        until layer.elements.each(".//g[not(*)]", &:remove).empty? do
         end
       end
       
-      xml.elements.each("/svg/defs[starts-with(@id,'#{label}')]", &:delete_self)
+      xml.elements.each("/svg/defs[starts-with(@id,'#{label}')]", &:remove)
       source.elements.each("/svg/defs") { |defs| xml.elements["/svg"].unshift defs }
     end
     
@@ -1335,7 +1331,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when "features"
                 rerender(layer_xml, "expand", map.scale.to_f / scale) if scale != map.scale
               when "text"
-                layer_xml.elements.each(".//pattern | .//path | .//font", &:delete_self)
+                layer_xml.elements.each(".//pattern | .//path | .//font", &:remove)
                 layer_xml.deep_clone.tap do |copy|
                   copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
                 end.elements.each { |element| tile << element }
@@ -1346,10 +1342,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      xml.elements.each("//path[@d='']", &:delete_self)
-      until xml.elements.each("/svg/g[@id]//g[not(*)]", &:delete_self).empty? do
+      xml.elements.each("//path[@d='']", &:remove)
+      until xml.elements.each("/svg/g[@id]//g[not(*)]", &:remove).empty? do
       end
-      xml.elements["//defs"].delete_self unless xml.elements["/svg/g[*]"]
+      xml.elements["//defs"].remove unless xml.elements["/svg/g[*]"]
       
       temp_dir.join("#{label}.svg").tap do |mosaic_path|
         File.write mosaic_path, xml
@@ -2850,7 +2846,7 @@ controls:
         
         removals.each do |label|
           puts "  Removing #{label}"
-          xml.elements.each("/svg/g[starts-with(@id,'#{label}')]", &:delete_self)
+          xml.elements.each("/svg/g[starts-with(@id,'#{label}')]", &:remove)
         end
         
         updates.each do |label, options|

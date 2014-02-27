@@ -1186,6 +1186,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       service["layers"].each { |layer| layer["name"].gsub! ?\s, ?_ }
+      service["mapName"].gsub! ?\s, ?_
       layer_names = service["layers"].map { |layer| layer["name"] }
       
       resolution = resolution_for label, options, map

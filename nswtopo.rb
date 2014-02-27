@@ -2852,6 +2852,24 @@ controls:
           xml.elements.each("/svg/g[starts-with(@id,'#{label}')]", &:delete_self)
         end
         
+        updates.each do |label, options|
+          [ %w[below insert_before 1 to_a], %w[above insert_after last() reverse] ].select do |position, insert, predicate, order|
+            config[position]
+          end.each do |position, insert, predicate, order|
+            config[position].select do |target_label, sibling_label|
+              target_label.start_with? label
+            end.each do |target_label, sibling_label|
+              sibling = xml.elements["/svg/g[starts-with(@id,'#{sibling_label}')][#{predicate}]"]
+              xml.elements.collect("/svg/g[starts-with(@id,'#{target_label}')]") do |layer|
+                layer
+              end.send(order).each do |layer|
+                puts "  Moving #{layer.attributes['id']} #{position} #{sibling.attributes['id']}"
+                layer.parent.send insert, sibling, layer
+              end if sibling
+            end
+          end
+        end
+        
         xml.elements.each("/svg/g[*]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
         
         fonts_needed = xml.elements.collect("//[@font-family]") do |element|
@@ -2865,27 +2883,6 @@ controls:
           puts "Your system does not include some fonts used in #{svg_name}. (Inkscape will not render these fonts correctly.)"
           fonts_missing.sort.each { |family| puts "  #{family}" }
         end
-        
-        [ %w[below insert_before 1 to_a], %w[above insert_after last() reverse] ].select do |position, insert, predicate, order|
-          config[position]
-        end.each do |position, insert, predicate, order|
-          config[position].each do |label, sibling_label|
-            sibling = xml.elements["/svg/g[starts-with(@id,'#{sibling_label}')][#{predicate}]"]
-            if sibling
-              if xml.elements.collect("/svg/g[starts-with(@id,'#{label}')]") do |layer|
-                layer
-              end.send(order).each do |layer|
-                puts "  Moving #{layer.attributes['id']} #{position} #{sibling.attributes['id']}"
-                layer.parent.send insert, sibling, layer
-              end.empty?
-                puts "Error: can't move #{label}: not found"
-              end
-            else
-              puts "Error: can't move #{label}: #{sibling_label} not found"
-            end
-          end
-        end
-        # TODO: should we add an out-of-order trigger to update the map?
         
         if config["pretty"]
           formatter = REXML::Formatters::Pretty.new
@@ -2965,7 +2962,6 @@ end
 
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Open3 for shelling out
-# TODO: default ArcGIS tile_sizes and interval?
 # TODO: split LPIMapLocal roads into sealed & unsealed?
 # TODO: change scale instead of using expand-glyph where possible
 

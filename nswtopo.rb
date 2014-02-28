@@ -1029,6 +1029,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def rerender(map, element, commands)
+      scale_by = lambda do |factor, string|
+        string.split(/[,\s]+/).map { |number| factor * number.to_f }.join(?\s)
+      end
       commands.inject({}) do |memo, (command, args)|
         memo.deep_merge case command
         when "colour" then { "stroke" => args, "fill" => args }
@@ -1049,24 +1052,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             { ".//[@#{command}!='none']/@#{command}" => args }
           end
         when "widen", "stretch", "expand-glyph"
-          multiply = lambda { |value|
-            value.split(/[,\s]+/).map(&:to_f).map { |size| size * args }.join(", ")
-          }
           case command
           when "widen"        then %w[stroke-width stroke-miterlimit]
           when "stretch"      then %w[stroke-dasharray]
           when "expand-glyph" then %w[font-size]
-          end.map { |name| { ".//[@#{name}]/@#{name}" => multiply } }.inject(&:merge)
+          end.map { |name| { ".//[@#{name}]/@#{name}" => scale_by.curry[args] } }.inject(&:merge)
         when "dash"
           case args
           when nil
             { ".//[@stroke-dasharray]/@stroke-dasharray" => nil }
-          when String
-            stroke_dasharray = args.split(?\s).map(&:to_f).map { |value| value * map.scale / 25000 }.join(?\s)
-            { ".//path" => { "stroke-dasharray" => stroke_dasharray } }
-          when Array, Numeric
-            stroke_dasharray = [ *args ].map(&:to_f).map { |value| value * map.scale / 25000 }.join(?\s)
-            { ".//path" => { "stroke-dasharray" => stroke_dasharray } }
+          when String, Numeric
+            { ".//path" => { "stroke-dasharray" => scale_by.(map.scale / 25000.0, args.to_s) } }
           end
         else { }
         end

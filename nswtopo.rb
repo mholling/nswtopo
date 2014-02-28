@@ -1028,60 +1028,64 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def rerender(element, commands)
-      commands.each do |command, args|
-        xpaths = case command
-        when "dash"
-          ".//path"
-        when "opacity"
-          "self::/@style"
-        when "expand"
-          %w[stroke-width stroke-dasharray stroke-miterlimit].map { |name| ".//[@#{name}]/@#{name}" }
-        when "stretch"
-          ".//[@stroke-dasharray]/@stroke-dasharray"
-        when "expand-glyph"
-          ".//[@font-size]/@font-size"
-        when "colour"
-          %w[stroke fill].map do |name|
-            case args
-            when Hash
-              args.keys.map { |colour| ".//[@#{name}='#{colour}']/@#{name}" }
-            else
-              ".//[@#{name}!='none']/@#{name}"
-            end
-          end.flatten
-        when %r{\.//}
-          command
-        when "delete"
-          [ *args ]
-        else next
+    def rerender(map, element, commands)
+      commands.inject({}) do |memo, (command, args)|
+        memo.deep_merge case command
+        when "colour" then { "stroke" => args, "fill" => args }
+        when "expand" then { "widen" => args, "stretch" => args }
+        else { command => args }
         end
-        
-        [ *xpaths ].each do |xpath|
-          REXML::XPath.each(element, xpath) do |node|
-            case command
-            when "dash"
-              node.add_attribute "stroke-dasharray", [ *args ].join(?\s)
-            when "opacity"
-              node.element.attributes[node.name] = "opacity:#{args}"
-            when "expand", "stretch", "expand-glyph"
-              node.element.attributes[node.name] = node.value.split(/[,\s]+/).map(&:to_f).map { |size| size * args }.join(", ")
-            when "colour"
-              node.element.attributes[node.name] = case args
-              when Hash
-                args[node.value] || node.value
-              when String
-                args
-              end
-            when %r{\.//}
-              case node
-              when REXML::Element
-                node.add_attributes(args)
-              when REXML::Attribute
-                node.element.attributes[node.name] = args.to_s
-              end
-            when "delete"
-              node.remove
+      end.inject({}) do |memo, (command, args)|
+        memo.deep_merge case command
+        when %r{\.//}  then { command => args }
+        when "opacity" then { "self::/@style" => "opacity:#{args}" }
+        when "stroke", "fill"
+          case args
+          when Hash
+            args.map { |colour, replacement|
+              { ".//[@#{command}='#{colour}']/@#{command}" => replacement }
+            }.inject(&:merge)
+          else
+            { ".//[@#{command}!='none']/@#{command}" => args }
+          end
+        when "widen", "stretch", "expand-glyph"
+          multiply = lambda { |value|
+            value.split(/[,\s]+/).map(&:to_f).map { |size| size * args }.join(", ")
+          }
+          case command
+          when "widen"        then %w[stroke-width stroke-miterlimit]
+          when "stretch"      then %w[stroke-dasharray]
+          when "expand-glyph" then %w[font-size]
+          end.map { |name| { ".//[@#{name}]/@#{name}" => multiply } }.inject(&:merge)
+        when "dash"
+          case args
+          when nil
+            { ".//[@stroke-dasharray]/@stroke-dasharray" => nil }
+          when String
+            stroke_dasharray = args.split(?\s).map(&:to_f).map { |value| value * map.scale / 25000 }.join(?\s)
+            { ".//path" => { "stroke-dasharray" => stroke_dasharray } }
+          when Array, Numeric
+            stroke_dasharray = [ *args ].map(&:to_f).map { |value| value * map.scale / 25000 }.join(?\s)
+            { ".//path" => { "stroke-dasharray" => stroke_dasharray } }
+          end
+        else { }
+        end
+      end.each do |xpath, args|
+        REXML::XPath.each(element, xpath) do |node|
+          case args
+          when nil then node.remove
+          when Hash
+            case node
+            when REXML::Element   then node.add_attributes(args)
+            end
+          when Proc
+            case node
+            when REXML::Attribute then node.element.attributes[node.name] = args.(node.value)
+            end
+          else
+            case node
+            when REXML::Attribute then node.element.attributes[node.name] = args
+            when REXML::Text      then node.value = args
             end
           end
         end
@@ -1126,7 +1130,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         render_sources.inject(options) do |memo, key|
           memo.deep_merge(options[key] || {})
         end.tap do |commands|
-          rerender(layer, commands)
+          rerender(map, layer, commands)
         end
         until layer.elements.each(".//g[not(*)]", &:remove).empty? do
         end
@@ -1331,7 +1335,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             layer.add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
               case type
               when "features"
-                rerender(layer_xml, "expand" => map.scale.to_f / scale) if scale != map.scale
+                rerender(map, layer_xml, "expand" => map.scale.to_f / scale) if scale != map.scale
               when "text"
                 layer_xml.elements.each(".//pattern | .//path | .//font", &:remove)
                 layer_xml.deep_clone.tap do |copy|
@@ -2186,12 +2190,12 @@ basic-contours:
     0.5:
       - Contour: sourceprogram_code <> 2 AND (elevation % 100 = 0) AND elevation > 0
   colour: "#805100"
-  expand: 0.28
+  widen: 0.28
   labels:
     colour:
       "#805100": black
   index:
-    expand: 0.63
+    widen: 0.63
   intervals-contours:
     10: 10m
     20: 20m
@@ -2204,7 +2208,7 @@ basic-cadastre:
       cadastre: Boundary
   opacity: 0.5
   colour: "#777777"
-  expand: 0.5
+  widen: 0.5
 basic-features:
   server: flex2
   service: Base_Mapping
@@ -2281,20 +2285,20 @@ basic-features:
   dash: ~
   creeks:
     colour: "#4985DF"
-    expand: 0.4
+    widen: 0.4
   streams:
     colour: "#4985DF"
-    expand: 0.7
+    widen: 0.7
   rivers:
     colour: "#4985DF"
-    expand: 1.5
+    widen: 1.5
   footpaths:
     colour: black
-    expand: 0.6
+    widen: 0.6
     dash: 3.5 1.75
   vehicular-tracks:
     colour: darkorange
-    dash: 6 2
+    dash: 6 3
   roads-sealed:
     colour: red
   roads-unsealed:
@@ -2434,61 +2438,60 @@ topographic:
   footpath:
     colour:
       "#A39D93": black
-    expand: 0.4
-    stretch: 1.5
+    widen: 0.4
+    stretch: 0.6
   # vehicular-tracks:
-  #   expand: 0.7
+  #   widen: 0.7
   #   colour:
   #     "#9C9C9C": black
   vehicular-tracks:
-    expand: 0.4
-    stretch: 2.5
+    widen: 0.4
     .//[@stroke-dasharray]/@stroke: darkorange
-    delete: .//path[not(@stroke-dasharray)]
+    .//path[not(@stroke-dasharray)]: ~
   road:
-    expand: 0.6
+    widen: 0.6
     colour:
       "#9C9C9C": "#333333"
   contours:
-    expand: 0.7
+    widen: 0.7
     colour: "#805100"
   railway:
     colour:
       "#686868": black
-    expand: 1.25
+    widen: 1.25
   watercourse:
     colour:
       "#73A1E6": "#4985DF"
     opacity: 1
   cadastre:
-    expand: 0.5
+    widen: 0.5
     opacity: 0.5
     colour: "#777777"
   watercourse-tn:
-    expand: 0.6
+    widen: 0.6
   watercourse-vss:
-    expand: 0.55
+    widen: 0.55
   watercourse-ss:
-    expand: 0.5
+    widen: 0.5
   watercourse-ms:
-    expand: 0.4
+    widen: 0.4
   watercourse-ms-unnamed:
-    expand: 0.4
+    widen: 0.4
   watercourse-ls:
-    expand: 0.3
+    widen: 0.3
   watercourse-ls-unnamed:
-    expand: 0.3
+    widen: 0.3
   water-area:
     colour:
       "#73A1E6": "#4985DF"
     opacity: 1
-    expand: 0.7
+    widen: 0.7
   water-areas-non-perennial:
     opacity: 0.5
   water-areas-mainly-dry:
     opacity: 0.25
   railway-bridges:
-    expand: 0.3
+    widen: 0.3
   builtup-areas:
     colour: "#FFFABD"
     opacity: 1.0
@@ -2624,15 +2627,15 @@ backup:
     colour: 
       "#A39D93": "#363636"
   contours:
-    expand: 0.7
+    widen: 0.7
     colour: "#805100"
   roads:
-    expand: 0.6
+    widen: 0.6
     colour:
       "#A39D93": "#363636"
       "#9C9C9C": "#363636"
   cadastre:
-    expand: 0.5
+    widen: 0.5
     opacity: 0.5
     colour: "#777777"
   labels: 
@@ -2644,21 +2647,21 @@ backup:
     colour:
       "#73A1E6": "#4985DF"
   Creek_Named:
-    expand: 0.3
+    widen: 0.3
   Creek_Unnamed:
-    expand: 0.3
+    widen: 0.3
   Stream_Named:
-    expand: 0.5
+    widen: 0.5
   Stream_Unnamed:
-    expand: 0.5
+    widen: 0.5
   Stream_Main:
-    expand: 0.7
+    widen: 0.7
   River_Main:
-    expand: 0.7
+    widen: 0.7
   River_Major:
-    expand: 0.7
+    widen: 0.7
   HydroArea:
-    expand: 0.5
+    widen: 0.5
   Tourism_Minor:
     expand-glyph: 0.6
   Gates_Grids:
@@ -2685,13 +2688,12 @@ rfs:
   buildings:
     colour:
       "#BDBDC5": black
-    delete:
-    - .//path[@stroke='#FFFFFF']
-    - .//g[@fill='#000000']
+    .//path[@stroke='#FFFFFF']: ~
+    .//g[@fill='#000000']: ~
   stock-dams:
     .//path[@fill]/@fill: "#B3E6E4"
     .//path[@stroke]/@stroke: "#4985DF"
-    expand: 0.4
+    widen: 0.4
 relief:
   server: relief
   ext: png
@@ -2963,6 +2965,7 @@ end
 # TODO: switch to Open3 for shelling out
 # TODO: split LPIMapLocal roads into sealed & unsealed?
 # TODO: change scale instead of using expand-glyph where possible
+# TODO: add option for absolute measurements for rerendering?
 
 # # later:
 # TODO: remove linked images from PDF output?

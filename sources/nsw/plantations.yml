@@ -1,0 +1,16 @@
+server:
+  class: ArcGIS
+  host: atlas.nsw.gov.au
+  instance: arcgis1
+  cookie: http://atlas.nsw.gov.au/
+  folder: atlas
+service: Economy_Forestry
+resolution: 0.55
+features:
+  ~:
+    forestry:
+      name: Forestry
+      definition: Classification='Plantation forestry' OR Classification='Irrigated plantation forestry'
+ext: svg
+opacity: 1
+colour: "#80D19B"

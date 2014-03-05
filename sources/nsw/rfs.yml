@@ -1,0 +1,22 @@
+server:
+  class: ArcGIS
+  host: maps.six.nsw.gov.au
+  folder: sixmaps
+service: RFS
+ext: svg
+features:
+  0.25:
+    buildings:
+      name: GeneralCulturalPoint
+      definition: generalculturaltype = 0
+  0.3:
+    stock-dams: HydroPoint
+buildings:
+  colour:
+    "#BDBDC5": black
+  .//path[@stroke='#FFFFFF']: ~
+  .//g[@fill='#000000']: ~
+stock-dams:
+  .//path[@fill]/@fill: "#B3E6E4"
+  .//path[@stroke]/@stroke: "#4985DF"
+  widen: 0.4

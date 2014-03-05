@@ -5,7 +5,7 @@ This software allows you to download and compile high-resolution vector topograp
 
 This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
 
-A few limitations currently exist when using the software. In particular, *map data is not always available, particularly in populated areas*, due to caching performed by the map server. (Your map will be blank, or include blank tiles, if you encounter this limitation.)
+A few limitations currently exist when using the software. In particular, for some sources, *map data is not always available, particularly in populated areas*, due to caching performed by the map server. (Your map will be blank, or include blank tiles, if you encounter this limitation.)
 
 Pre-Requisites
 ==============
@@ -61,7 +61,7 @@ If you wish the missing fonts to display correctly in Inkscape, you need to obta
 Usage
 =====
 
-The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. You only need to download the script itself, `nswtopo.rb`. Download by clicking the 'ZIP' button, or simply copying and pasting the script out of your browser.
+The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. You only need to download the script itself, `nswtopo.rb`. Download by clicking the 'ZIP' button, or simply copying and pasting the script out of your browser. More experienced users can install the [git](http://git-scm.com/) command and clone the entire repository with `git clone https://github.com/mholling/nswtopo.git`; update to the latest code at any time with `git pull` from within the `nswtopo` directory.
 
 You will first need to create a directory for the map you are building. Running the script will result in a various image files being downloaded, so a directory is needed to contain them.
 
@@ -116,17 +116,15 @@ or,
 
 ## Running the Script
 
-Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your Ruby binary).
+Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your Ruby binary). For advanced users, add the script location to your path so you can run it anywhere.
 
-When the script starts it will list the scale of your map (e.g. 1:25000), its rotation and its physical size. The size (in megapixels) and resolution of any associated rasters (e.g. aerial imagery) will also be displayed.
-
-The script will then proceed to download the topographic data. Depending on your connection and the size of your map, an hour or more may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) It is best not to interrupt the program while the topographic data is downloading, as you will have to start over.
+When the script starts it will list the scale of your map (e.g. 1:25000), its rotation, physical size and on-the-ground extent. The script will then proceed to download topographic data. Depending on your connection and the size of your map, many minutes or even hours may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) It is best not to interrupt the program while the topographic data is downloading, as you will have to start over.
 
 You can ctrl-c at any point to stop the script. Files which have already downloaded will be skipped when you next execute the script. Conversely, deleting an already-created file will cause that file to be recreated when you run the script again.
 
 After all files have been downloaded, the script will then compile them into a final map image in `.svg` format. The map image is easily viewed in a modern web browser such as Chrome or Firefox, or edited in a vector imaging tool like Inkscape or Illustrator.
 
-You will likely want to tinker with the configuration file to change the appearance of your final map. To rebuild your map after changing the configuration, simply delete `map.svg` (or whatever name you've configured) and run the script again. The map will be recreated from the intermediate files which have been downloaded.
+You will likely want to tinker with the configuration file to change the appearance of your final map. To rebuild your map after changing the configuration, you can simply delete `map.svg` (or whatever name you've configured) and run the script again. The map will be recreated from the intermediate files which have been downloaded. You can also add or remove layers without deleting the map; more on this later.
 
 Map Configuration
 =================
@@ -153,121 +151,21 @@ By default a map's contour interval is chosen according to its scale: 20 metres 
 
     contour-interval: 10
 
-Additional Layers
-=================
+Available Map Layers
+====================
 
-Any or all of the following additional layers can be included in your map by listing them in the `include` option in your `nswtopo.cfg` file. (At the very least, you will want to include `grid` for a normal map or `declination` for a rogaining map. The `relief` layer is also recommended, and in many cases the `vegetation` layer.)
+A number of different map layers are available for your map, each obtained from different online and local sources. To specify which layers are included in your map, use an `include:` directive in your configuration file, with a list of the layer names to include. The order of the layers determines their overlay order in the map. For example, a basic NSW topographic map with shaded relief and UTM grid would have the following layers specified:
 
     include:
-    - aerial-lpi-eastcoast
-    - aerial-lpi-ads40
-    - aerial-google
-    - aerial-nokia
-    - aerial-best
-    - reference-topo-s1
-    - reference-topo-s2
-    - reference-topo-current
-    - canvas
-    - vegetation
-    - plantation
-    - rfs
-    - holdings
+    - nsw/lpimap
     - relief
     - grid
-    - declination
-    - controls
 
 Viewing the map in Inkscape allows you to toggle individual layers on and off. This if helpful, for example, if you wish to view the aerial imagery superimposed against the topographic feature layers for comparison. However, note that Inkscape rendering is not always the best, in particular regarding the correct placement of labels. (This is a problem with Inkscape, not the map file!)
 
-## Aerial Imagery
+There are a number of map layers specific to NSW and the ACT. These are [described here](sources) in detail. They include several topographic data sources various and various aerial imagery.
 
-These are orthographic aerial images for the specified map area, derived from Google Maps, Nokia Maps, and the NSW LPI department. Depending on your map location there may be up to four different aerial images available.
-
-These layers are very useful for confirming the accuracy of the topographic features. For example, you may be able to manually add firetrails, new dams, etc, which are missing from the NSW map layers, on the basis of what you can see in the aerial imagery. Since the images are correctly georeferenced, this is achieved simply by tracing out the extra information on the appropriate layer while viewing the aerial imagery underneath. (Another excellent use for these aerial imagery layers is to produce your own vegetation layer for a rogaine map. This is described below in the "canvas" section.)
-
-* `aerial-best`: A mosaic of the best NSW LPI imagery
-* `aerial-lpi-ads40`: Recent, high resolution imagery available from the NSW LPI; available for many but not all areas of interest 
-* `aerial-lpi-eastcoast`: medium resolution imagery for most of the 25k topographic coverage; quite old film imagery (from the 90s?)
-* `aerial-google`: generally good quality, recent aerial imagery from Google Maps; limited to 250 tiles per six hour period
-* `aerial-nokia`: reasonable quality aerial imagery from Nokia Maps; limited to 250 tiles per six hours; georeferencing is not always the best
-
-Each of these images downloads at a default resolution, typically 2.0 metres per pixel. (This indicates that one pixel in the image represents two metres on the ground.) You can override the default by specifying a different resolution for the image:
-
-    include:
-    - aerial-best: 0.5
-
-Depending on the native resolution of the dataset, you may or may not obtain a more detailed image by specifying a better resolution. A lot of the `aerial-best` imagery has a native resolution of 0.5 m/px, and can yield very a very detailed image. However, for a map of reasonable size, the image produced at this resolution can be extremely large (easily 100+ megapixels)!
-
-If you wish to just download all the aerial images at their default resolutions, simply specify the shortcut `aerial` in your your include list.
-
-## Reference Topo Maps
-
-These layers (`reference-topo-s1`, `reference-topo-s2` and `reference-topo-current`, or simply `reference` as shortcut) contain lower-resolution topographic map raster images at various points in time (oldest, older and current, respectively). They are useful to have as a reference for comparison against the output of this software.
-
-## Vegetation
-
-The vegetation layer in standard NSW printed topo sheets appears to be derived from a dataset called *NSW Interim Native Vegetation Extent (2008-v2)*, which is a 25-metre resolution raster representation of NSW, categorised into 'woody' and 'non-woody' vegetation. For our purposes this generally corresponds to forested and open areas on our map.
-
-This vegetation data is not available from a map server, but the entire 162 MB dataset may be downloaded from [here](http://mapdata.environment.nsw.gov.au/geonetwork/srv/en/metadata.show?id=246) (you will need to provide your name and email address). You need only download this once as the same data is used for any maps you create.
-
-Once you have downloaded the data, unzip the file to a suitable location, locate the file named `hdr.adf` and add its path (relative or absolute) to your configuration file. (You can also modify the default colours for woody and non-woody vegetation, should you wish.)
-
-    vegetation:
-      path: /Users/matthew/nswtopo/NSWInterimNativeVegetationExtentV2_2008/Data/nswintext08/hdr.adf
-      colour:
-        woody: light green      # alternately specify a hex triplet, e.g. "#C2FFC2"
-        non-woody: white
-
-Finally, add `vegetation` to your list of layers to include, and build or rebuild your map to view the resulting vegetation underlay.
-
-A newer, far superior vegetation data set is becoming available for NSW. Known as *SPOT5 woody extent and foliage projective cover (FPC) (5-10m) 2011*, it has a much higher resolution of 5-10 metres, and further classifies the woody areas by their foliage projective cover (the fraction of green foliage) as a percentage. To obtain this data, email the contact listed [here](https://sdi.nsw.gov.au/catalog/search/resource/details.page?uuid=%7BA9A65A5C-D3F2-4879-8994-6FF855201E30%7D) with a request for the data for your map area. (As the data set is not yet completed as of January 2014, data for your area may or may not be available.)
-
-If you obtain the data, unzip it and specify its path and resolution as follows:
-
-    vegetation:
-      path: /Users/matthew/nswtopo/SPOT_woody_extent/r422c105.img
-      resolution: 5.0
-      embed: false     # optional
-
-Or, if you have multiple tiles of data:
-
-    vegetation:
-      path:
-      - /Users/matthew/nswtopo/SPOT_woody_extent/r422c105.img
-      - /Users/matthew/nswtopo/SPOT_woody_extent/r423c105.img
-      resolution: 5.0
-      embed: false     # optional
-
-Running the script will create and composite the new vegetation layer in your map. By default, the vegetation layer is embedded as data within the SVG, however this can produce a large, unwieldy file when using the 5-metre data. Specify `embed: false` to link the vegetation by reference instead. (The SVG file will no longer be self-contained.)
-
-Since the SPOT5 data is so detailed, you may wish to adjust its contrast to get the best visual effect for your map. (However, there is a trade-off between detail shown in the vegetation and readability of other map features such as contours.) You can do so using Photoshop or GIMP (e.g. by applying the levels adjustment) to adjust the vegetation raster. Alternatively, some control of levels is available from within the script. For example, to increase contrast between lightly and heavily wooded areas:
-
-    vegetation:
-      spot5:
-        low: 30   # default is 0
-        high: 70  # default is 80
-
-(This would map 30% or lighter foliage to white and 70% or more to full green, effecting an increase in contrast.)
-
-## Canvas
-
-If you include a PNG image named `canvas.png` in the map directory, it will be automatically detected and used as an underlay for the map. It is intended that this map canvas should be derived from one of the aerial images using an image editing tool such as Photoshop or GIMP, in order to represent vegetation cover. This is useful in case you are not satisfied with the vegetation layer provided above.
-
-Generating your own vegetation layer can be accomplished using the 'color range' selection tool in Photoshop, for example, or other similar selection tools. (Selecting on a single channel, such as green or magenta, may be helpful.) You can also create additional vegetation markings (e.g. for the distinctive, nasty heath that sometimes appears in ACT rogaines) using the aerial imagery.
-
-If you wish to create your canvas at a lower resolution, it is fine to resample (resize) the aerial image to smaller pixel count before selecting and colouring the vegetation. However, it is important that you *resample the image by changing its resolution* (usually shown in pixels/inch), rather than by changing the width and height.
-
-## Plantations
-
-If you include the `plantation` layer, a representation of pine forest plantations will be added to your map in darker green. The accuracy of this layer is not guaranteed however.
-
-## Holdings
-
-The `holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is available for the ACT.)
-
-## RFS Layers
-
-The `rfs` layers add representations of stock dams and buildings to your map. These features are usually present on a standard 1:25k topographic map, but are not provided by the standard topographic server. The information is sourced from a map provided for the Rural Fire Service. You may wish to change the order of these layers with Inkscape after adding them to your map (e.g. the `rfs.stock-dams` layer should be moved to below the `topographic.water-areas` layer.)
+Generic layers depicting shaded relief, UTM grid and magnetic declination are also available.
 
 ## Relief
 
@@ -330,40 +228,34 @@ Drop a control waypoints file (`controls.kml` or `controls.gpx`) into the direct
       colour: "#880088"       # colour of the control markers and labels (as a hex triplet or web colour)
       water-colour: blue      # colour of waterdrop markers
 
-## Excluding Layers
+## Canvas
+
+If you include a PNG image named `canvas.png` in the map directory, it will be automatically detected and used as an underlay for the map. It is intended that this map canvas should be derived from one of the aerial images using an image editing tool such as Photoshop or GIMP, in order to represent vegetation cover. This is useful in case you are not satisfied with the vegetation layer provided above.
+
+Generating your own vegetation layer can be accomplished using the 'color range' selection tool in Photoshop, for example, or other similar selection tools. (Selecting on a single channel, such as green or magenta, may be helpful.) You can also create additional vegetation markings (e.g. for the distinctive, nasty heath that sometimes appears in ACT rogaines) using the aerial imagery.
+
+If you wish to create your canvas at a lower resolution, it is fine to resample (resize) the aerial image to smaller pixel count before selecting and colouring the vegetation. However, it is important that you *resample the image by changing its resolution* (usually shown in pixels/inch), rather than by changing the width and height.
+
+Excluding & Reordering Layers
+=============================
 
 You can remove a layer that you previously included in the map. To do so, list the layers you wish to exclude as follows:
 
     exclude:
-    - vegetation
-    - aerial-best
+    - nsw.aerial-best
     - relief
 
 Run the script again to remove the layers from the composite SVG map. (The original source files will not be deleted.) Use this option with caution, as any changes you have made to the layer in the SVG file will be lost.
 
-## Alternate Topographic Layers
-
-The main topographic layers are well-styled and produce the best topographic maps. However the server is not yet out of beta and may cease to work. If you do not achieve good results with the default server, you can chose two alternate sources, `backup` or `basic`, as follows:
-
-    include:
-    - backup  # or 'basic'
-    exclude:
-    - topographic
-
-The `backup` topographic layers are similar to the default ones, however the server can be very slow and sometimes produces large voids in the map data.
-
-The `basic` topographic layers do not contain as many features as the normal layers. Currently, they only contain: contours, sealed and unsealed roads, vehicular tracks, pathways, cadastral boundaries and watercourses. Labels are only present for contours and roads. Other informative layers (e.g. cliffs, swamp and inundation areas, water areas, feature labels etc) are missing. Nonetheless, the alternative topographic layers may produce a sufficient map for your needs.
-
-Reordering Layers
-==================
-
-You can change the default order in which layers are composited in your map. This is helpful if you are combining layers from more than one source. For example, to place the `rfs` layers in their best position in the topographic map:
+Vector data sources can produce multiple sub-layers in your map. You can intermingle the order in which these sub-layers are composited in your map. This is helpful if you are combining layers from more than one source. For example, to place the `rfs` layers in their best position in the `lpimaplocal` topographic map:
 
     below:
-      rfs.stock-dams: topographic.water-areas
-      rfs.buildings: topographic.homesteads
+      nsw.rfs.stock-dams: nsw.lpimaplocal.water-areas
+      nsw.rfs.buildings: nsw.lpimaplocal.homesteads
 
-This will insert the `rfs.stock-dams` layer below the `topographic.water-areas` layer, and so on. Likewise, an `above:` option can also be specified.
+This will insert the `nsw.rfs.stock-dams` sub-layer below the `nsw.lpimaplocal.water-areas` sub-layer, and so on. Likewise, an `above:` option can also be specified.
+
+It is also possible to manually re-order layers using Inkscape. (The new layer order is respected when re-running the script.)
 
 Overlays
 ========
@@ -481,14 +373,15 @@ Here is a suggested workflow for producing a rogaine map using this software (al
 
 1.  Set out the expected bounds of your course using the polygon tool in Google Earth, and save as `bounds.kml`. (Set the style to partially transparent to make this easier.)
 
-2.  Select all the topographic, aerial and reference layers, as well as landholdings, using the following configuration:
+2.  Select the topographic, aerial and reference layers, as well as landholdings, using the following configuration:
 
         name: rogaine
         bounds: bounds.kml
         include:
-        - aerial
-        - reference
-        - vegetation
+        - nsw/aerial-best
+        - nsw/reference-topo-current
+        - nsw/vegetation-2008-v2
+        - nsw/lpimap                  # or nsw/lpimaplocal
         - declination
         - holdings
         - grid
@@ -501,20 +394,21 @@ Here is a suggested workflow for producing a rogaine map using this software (al
 
 6.  In Google Earth, mark out any boundaries and out-of-bounds areas using the polygon tool, and save them all to a `boundaries.kml` file.
 
-7.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (topographic.svg, rogaine.svg, aerial-\*.jpg, reference-\*.png etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
+7.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (nsw.lpimap.svg, rogaine.svg, nsw.aerial-best.jpg, nsw.reference-topo-current.png etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
 
         name: rogaine
-        bounds: controls.kml    # size the map to contain all the controls ...
-        margin: 15              # ... with a 15mm margin around the outer-most controls
-        rotation: magnetic      # align the map to magnetic north
+        bounds: controls.kml       # size the map to contain all the controls ...
+        margin: 15                 # ... with a 15mm margin around the outer-most controls
+        rotation: magnetic         # align the map to magnetic north
         include:
-        - vegetation            # show vegetation layer (or use a canvas)
-        - declination           # show magnetic declination lines
-        - controls              # show controls
+        - nsw/vegetation-2008-v2   # show vegetation layer (or use a canvas)
+        - nsw/lpimap               # show topographic layers
+        - declination              # show magnetic declination lines
+        - controls                 # show controls
         overlays:
-          boundaries.kml:       # mark out-of-bounds areas
-            colour: black       # (in black)
-            opacity: 0.3        # (only partially opaque)
+          boundaries.kml:          # mark out-of-bounds areas
+            colour: black          # (in black)
+            opacity: 0.3           # (only partially opaque)
 
     If you have trouble fitting your map on one or two A3 sheets, you can either reduce the margin or use the automatic rotation feature (`rotation: auto`) to minimise the map area.
 
@@ -538,15 +432,15 @@ Several formats of georeferenced output image are available. You can specify `ti
 Customising Topographic Rendering
 =================================
 
-You can control how the raw topographic data (`topographic.svg`) is rendered into you final map. This allows you to change the colour, size and opacity of individual layers. The default rendering was chosen to give a reasonable map with emphasis on contours, and changes to rendering may not be needed.
+You can control how the raw topographic data (`nsw.lpimap.svg`) is rendered into you final map. This allows you to change the colour, size and opacity of individual layers. The default rendering was chosen to give a reasonable map with emphasis on contours, and changes to rendering may not be needed.
 
-To change rendering of a feature, open `topographic.svg` and identify the name of the topographic layer (e.g. `Gates_Grids`, `Contour_10m`) containing the feature. (The following labels for groups of related layers are also available: contours, water, pathways, roads, cadastre, labels).
+To change rendering of a feature, open `nsw.lpimap.svg` and identify the name of the topographic layer (e.g. `Gates_Grids`, `Contour_10m`) containing the feature. (The following labels for groups of related layers are also available: contours, water, pathways, roads, cadastre, labels).
 
-Next, add a `topographic:` section to your `nswtopo.cfg` file. For each layer which you wish to modify, specify one or more of `opacity`, `expand` and `colour` values to change the opacity, scaling and colour, respectively, of the features in that layer. Colours should be specified as hex triplets (e.g. `"#FF0000"` for red). Use a [colour picker](http://www.google.com/search?q=color+picker) to choose your desired colour and get its hex triplet. `opacity` should be a value between 0.0 and 1.0. The `expand` value should specify how much the feature's size is reduced (expand < 1.0) or enlarged (expand > 1.0) compared to the raw map.
+Next, add a `nsw.lpimap:` section to your `nswtopo.cfg` file. For each layer which you wish to modify, specify one or more of `opacity`, `expand` and `colour` values to change the opacity, scaling and colour, respectively, of the features in that layer. Colours should be specified as hex triplets (e.g. `"#FF0000"` for red). Use a [colour picker](http://www.google.com/search?q=color+picker) to choose your desired colour and get its hex triplet. `opacity` should be a value between 0.0 and 1.0. The `expand` value should specify how much the feature's size is reduced (expand < 1.0) or enlarged (expand > 1.0) compared to the raw map.
 
 The following shows the default renderings and illustrates the format to be used. Any renderings you specify in your `nswtopo.cfg` will override these defaults. Note that `colour` may specify a single colour for the whole layer (e.g. the contour and cadastre layers below), or a mapping of specific colours to new colours (e.g. the labels layer below). The latter is useful if the original layer contains more than one colour; you will need to identify the colours to be changed using Inkscape (or a text editor).
 
-    topographic:
+    nsw.lpimap:
       pathways:
         expand: 0.5
         colour: 
@@ -595,17 +489,17 @@ The following shows the default renderings and illustrates the format to be used
         expand: 0.5
       Beacon_Tower:
         expand: 0.5
-    plantation:
+    nsw.plantation:
       opacity: 1
       colour: "#80D19B"
-    holdings:
+    nsw.holdings:
       colour:
         "#B0A100": "#FF0000"
         "#948800": "#FF0000"
 
 As an example, to make the contours black, the roads thinner and the cadastre lines thicker and darker, add the following to your map configuration file:
 
-    topographic:
+    nsw.lpimap:
       contours:
         colour: "#000000"
       roads:
@@ -637,4 +531,4 @@ Release History
   * 25/9/2013: version 0.6.4: fixed aerial-best, paths and holdings layers; expanded and renamed reference topo layers; updated vegetation layer to use v2 dataset.
 * 10/2/2014: version 0.7: added in-place updating of composite map svg; added manual DEM option for shaded relief layer; store intermediate vegetation layer; added qlmanage and PhantomJS options for rasterising; added online source for 90m SRTM elevation data; added ability to import georeference raster images; added SPOT5 vegetation source; for rotated maps, prevent download of tiles which don't fall within map extents; scaled labels better for small-scale maps; added option to use 20-metre contour intervals; added option to exclude layers from map.
   * 22/2/2014: version 0.7.1: used all tracks instead of just first when calculating bounds from a GPX/KML file; fixed bug preventing tiny maps from downloading; changed manner of specifying rendering options; added alternate source of basic contour/road/track/watercourse/label layers; reverted to flat layer structure for SVG file; changed HydroArea layer to perennial water areas only; changed to LPIMapLocal as default data source due to availability.
-  * 26/2/2014: HEAD: added RFS layers for stock dams and buildings.
+  * 5/3/2014: HEAD: added RFS layers for stock dams and buildings; extracted various layer sources to external configuration files for greater flexibility.

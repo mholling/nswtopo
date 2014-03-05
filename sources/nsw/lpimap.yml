@@ -1,0 +1,163 @@
+server:
+  class: ArcGIS
+  host: maps.six.nsw.gov.au
+  folder: sixmaps
+service: LPIMap
+resolution: 0.55
+ext: svg
+features:
+  4500:
+    Footpaths:
+      name: Roads_onground_LS
+      definition: functionhierarchy = 9 AND roadontype = 1
+    Footpaths_intunnels:
+      name: Roads_onbridge_LS
+      definition: functionhierarchy = 9 AND roadontype = 2
+  9000:
+  - Roads_Urban_MS
+  - Roads_intunnel_MS
+  - Bridge_Ford_Names
+  - Gates_Grids
+  - Dwellings_Buildings
+  - Building_Large
+  - Homestead_Tourism_Major
+  - Lot
+  - Property
+  - Contour_10m
+  - Beacon_Tower
+  - Wharfs_Ramps
+  - Damwall_Racetrack
+  - StockDams
+  - Creek_Named
+  - Creek_Unnamed
+  - Stream_Unnamed
+  - Stream_Named
+  - Stream_Main
+  - River_Main
+  - River_Major
+  - HydroArea: perenniality < 2 OR perenniality IS NULL
+  - Oceans_Bays
+  11000:
+  - Contour_20m
+  ~:
+  - Caves_Pinnacles
+  - Ridge_Beach
+  - Waterfalls_springs
+  - Swamps_LSI
+  - Cliffs_Reefs_Mangroves
+  - CliffTop_Levee
+  - Tourism_Minor
+  - Railway_MS
+  - Railway_intunnel_MS
+  - Runway
+  - State_Border
+text:
+  0.6:
+  - Roads_Urban_MS
+  - Roads_intunnel_MS
+  - Homestead_Tourism_Major
+  - Contour_20m
+  - Beacon_Tower
+  - Wharfs_Ramps
+  - Damwall_Racetrack
+  - StockDams
+  - Creek_Named
+  - Creek_Unnamed
+  - Stream_Names
+  - Stream_Unnamed
+  - Stream_Named
+  - Stream_Main
+  - River_Main
+  - River_Major
+  - HydroArea: perenniality < 2 OR perenniality IS NULL
+  - Oceans_Bays
+  - PlacePoint_LS
+  - Caves_Pinnacles
+  - Ridge_Beach
+  - Waterfalls_springs
+  - Swamps_LSI
+  - Cliffs_Reefs_Mangroves
+  - CliffTop_Levee
+  - PointOfInterest
+  - Tourism_Minor
+  - Railway_MS
+  - Railway_intunnel_MS
+  - Runway
+  - Airport_Station
+  - State_Border
+equivalences:
+  contours:
+  - Contour_10m
+  - Contour_20m
+  water:
+  - StockDams
+  - Creek_Named
+  - Creek_Unnamed
+  - Stream_Unnamed
+  - Stream_Named
+  - Stream_Main
+  - River_Main
+  - River_Major
+  - HydroArea
+  - Oceans_Bays
+  pathways:
+  - Footpaths
+  - Footpaths_intunnels
+  roads:
+  - Roads_Urban_MS
+  - Roads_intunnel_MS
+  cadastre:
+  - Lot
+  - Property
+pathways:
+  expand: 0.5
+  colour: 
+    "#A39D93": "#363636"
+contours:
+  widen: 0.7
+  colour: "#805100"
+roads:
+  widen: 0.6
+  colour:
+    "#A39D93": "#363636"
+    "#9C9C9C": "#363636"
+cadastre:
+  widen: 0.5
+  opacity: 0.5
+  colour: "#777777"
+labels: 
+  colour: 
+    "#A87000": "#000000"
+    "#FAFAFA": "#444444"
+water:
+  opacity: 1
+  colour:
+    "#73A1E6": "#4985DF"
+Creek_Named:
+  widen: 0.3
+Creek_Unnamed:
+  widen: 0.3
+Stream_Named:
+  widen: 0.5
+Stream_Unnamed:
+  widen: 0.5
+Stream_Main:
+  widen: 0.7
+River_Main:
+  widen: 0.7
+River_Major:
+  widen: 0.7
+HydroArea:
+  widen: 0.5
+Tourism_Minor:
+  expand-glyph: 0.6
+Gates_Grids:
+  expand-glyph: 1.4
+Beacon_Tower:
+  expand-glyph: 1.4
+relief-clips:
+- HydroArea
+- Oceans_Bays
+intervals-contours:
+  10: Contour_10m
+  20: Contour_20m

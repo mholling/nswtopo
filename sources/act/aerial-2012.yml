@@ -1,0 +1,9 @@
+server:
+  class: ArcGIS
+  host: www.actmapi.act.gov.au
+  instance: actmapi
+  folder: mga
+service: dopm2012mga
+ext: jpg
+image: true
+resolution: 1.0

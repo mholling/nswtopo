@@ -1,0 +1,13 @@
+server:
+  class: ArcGIS
+  host: atlas.nsw.gov.au
+  instance: arcgis1
+  cookie: http://atlas.nsw.gov.au/
+  folder: sixmaps
+service: _LHPA
+ext: svg
+features: Holdings
+text: Holdings
+colour:
+"#B0A100": "#FF0000"
+"#948800": "#FF0000"

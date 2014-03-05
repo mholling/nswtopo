@@ -1,0 +1,212 @@
+server:
+  class: ArcGIS
+  host: mapsq.six.nsw.gov.au
+  folder: sixmaps
+service: LPIMapLocal
+ext: svg
+features:
+  0.1:
+    building-areas: GeneralCulturalArea
+    towers-beacons: GeneralCulturalPoint
+    breakwaters-dam-walls-racetracks: GeneralCulturalLine
+    ramps-slipways-wharves: TransportFacilityLine
+  0.5:
+    homesteads:
+      name: MS_BuildingComplexPoint
+      definition: classsubtype = 4
+  ~:
+    cliffs-intertidal-mangroves-reefs-rocks-sand: DLSArea_overwater
+    inundation-swamps: DLSArea_underwater
+    caves-pinnacles: DLSPoint
+    clifftops-excavation-levees: DLSLine
+    watercourse-tn: TN_Watercourse
+    watercourse-vss: VSS_Watercourse
+    watercourse-ss: SS_Watercourse
+    watercourse-ms: MS_Watercourse
+    watercourse-ms-unnamed: MS_Hydroline
+    ocean: VSS_Oceans
+    water-areas:
+      name: HydroArea
+      definition: perenniality < 2 OR perenniality IS NULL
+    water-areas-non-perennial:
+      name: HydroArea
+      definition: perenniality = 2
+    water-areas-mainly-dry: 
+      name: HydroArea
+      definition: perenniality = 3
+    waterfalls-named: AncillaryHydroPoint
+    bores-named: AncillaryHydroPoint_Bore
+    builtup-areas: Urban_Areas
+    nsw-border: border
+    mines-picnic-areas-campgrounds-shipwrecks:
+      name: LS_GeneralCulturalPoint
+      definition: NOT (classsubtype = 1 AND generalculturaltype = 2)
+    runways: Runway
+    roads: MS_Roads
+    road-tunnels: MS_Roads_intunnel
+  4000:
+    footpaths:
+      name: LS_Roads_onground
+      definition: (functionhierarchy = 9 AND classsubtype = 6)
+    footpath-bridges:
+      name: LS_Roads_onbridge
+      definition: (functionhierarchy = 9 AND classsubtype = 6)
+    footpath-tunnels:
+      name: LS_Roads_intunnel
+      definition: (functionhierarchy = 9 AND classsubtype = 6)
+    railways: LS_Railway_onground
+    railway-bridges: LS_Railway_onbridge
+    railway-tunnels: LS_Railway_intunnel
+    contours-10m: LS_Contour
+  10000:
+    cadastre: Rural_Property
+    vehicular-tracks: MS_Tracks_onground
+    roads-local: MS_LocalRoads
+    watercourse-ls: LS_Watercourse
+    watercourse-ls-unnamed: LS_Hydroline
+  20000:
+    contours-20m: MS_Contour
+text:
+  0.65:
+  - DLSArea_underwater
+  - DLSArea_overwater
+  - DLSPoint
+  - DLSLine
+  - TN_Watercourse
+  - VSS_Watercourse
+  - SS_Watercourse
+  - MS_Watercourse
+  - MS_Hydroline
+  - LS_Watercourse
+  - LS_Hydroline
+  - VSS_Oceans
+  - HydroArea: perenniality < 2 OR perenniality IS NULL
+  - AncillaryHydroPoint
+  - AncillaryHydroPoint_Bore
+  - DLSArea_underwater
+  - DLSArea_overwater
+  - DLSPoint
+  - DLSLine
+  - border
+  - LS_GeneralCulturalPoint: NOT (classsubtype = 1 AND generalculturaltype = 2)
+  - Runway
+  - MS_Tracks_onground
+  - MS_LocalRoads
+  - MS_Roads
+  - MS_Roads_intunnel
+  - MS_RoadNameExtent_Labels
+  - MS_BuildingComplexPoint: classsubtype = 4
+  - MS_Roads_Labels
+  - PointOfInterest: poigroup IN(6, 7)
+  - FuzzyExtentLine: NOT (generalname = 'GREAT DIVIDING RANGE')
+  - SS_Contour
+  - MS_Contour
+  - LS_Contour
+  - LS_PlacePoint: placetype IN (3, 4, 5)
+  - MS_PlacePoint: placetype IN (3, 4, 5)
+equivalences:
+  contours:
+  - contours-10m
+  - contours-20m
+  road:
+  - roads-local
+  - roads
+  - road-tunnels
+  footpath:
+  - footpaths
+  - footpath-bridges
+  - footpath-tunnels
+  railway:
+  - railways
+  - railway-bridges
+  - railway-tunnels
+  watercourse:
+  - watercourse-tn
+  - watercourse-vss
+  - watercourse-ss
+  - watercourse-ms
+  - watercourse-ms-unnamed
+  - watercourse-ls
+  - watercourse-ls-unnamed
+  water-area:
+  - water-areas
+  - water-areas-non-perennial
+  - water-areas-mainly-dry:
+footpath:
+  colour:
+    "#A39D93": black
+  widen: 0.4
+  stretch: 0.6
+# vehicular-tracks:
+#   widen: 0.7
+#   colour:
+#     "#9C9C9C": black
+vehicular-tracks:
+  widen: 0.4
+  .//[@stroke-dasharray]/@stroke: darkorange
+  .//path[not(@stroke-dasharray)]: ~
+road:
+  widen: 0.6
+  colour:
+    "#9C9C9C": "#333333"
+contours:
+  widen: 0.7
+  colour: "#805100"
+railway:
+  colour:
+    "#686868": black
+  widen: 1.25
+watercourse:
+  colour:
+    "#73A1E6": "#4985DF"
+  opacity: 1
+cadastre:
+  widen: 0.5
+  opacity: 0.5
+  colour: "#777777"
+watercourse-tn:
+  widen: 0.6
+watercourse-vss:
+  widen: 0.55
+watercourse-ss:
+  widen: 0.5
+watercourse-ms:
+  widen: 0.4
+watercourse-ms-unnamed:
+  widen: 0.4
+watercourse-ls:
+  widen: 0.3
+watercourse-ls-unnamed:
+  widen: 0.3
+water-area:
+  colour:
+    "#73A1E6": "#4985DF"
+  opacity: 1
+  widen: 0.7
+water-areas-non-perennial:
+  opacity: 0.5
+water-areas-mainly-dry:
+  opacity: 0.25
+railway-bridges:
+  widen: 0.3
+builtup-areas:
+  colour: "#FFFABD"
+  opacity: 1.0
+mines-picnic-areas-campgrounds-shipwrecks:
+  expand-glyph: 0.6
+towers-beacons:
+  expand-glyph: 5
+building-areas:
+  colour: "#888888"
+labels: 
+  colour: 
+    "#A87000": black
+    "#686868": black
+    "#4E4E4E": black
+    "#343434": black
+relief-clips:
+- water-areas
+- ocean
+intervals-contours:
+  10: contours-10m
+  20: contours-20m

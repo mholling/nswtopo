@@ -1,0 +1,8 @@
+server:
+  class: ArcGIS
+  host: maps.six.nsw.gov.au
+  folder: sixmaps
+service: LPITopoMap_S1
+ext: png
+resolution: 2.0
+background: white

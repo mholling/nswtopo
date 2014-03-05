@@ -1,0 +1,13 @@
+server:
+  class: ArcGIS
+  host: spatialprod.dpi.nsw.gov.au
+  instance: ArcGIS2
+  folder: IndustryViewFLEX2
+service: Conservation_Areas
+ext: svg
+features:
+  ~:
+    national-parks: National_Parks
+    state-forests: State_Forest
+opacity: 0.2
+colour: black

@@ -1,0 +1,13 @@
+server:
+  class: ArcGIS
+  host: spatialprod.dpi.nsw.gov.au
+  instance: ArcGIS2
+  folder: IndustryViewFLEX2
+service: Lots
+ext: svg
+features:
+  25000:
+    cadastre: Boundary
+opacity: 0.5
+colour: "#777777"
+widen: 0.5

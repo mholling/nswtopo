@@ -1,0 +1,97 @@
+server:
+  class: ArcGIS
+  host: spatialprod.dpi.nsw.gov.au
+  instance: ArcGIS2
+  folder: IndustryViewFLEX2
+service: Base_Mapping
+ext: svg
+features:
+  25000:
+    creeks:
+      name: Other_Streams_and_Tributaries
+      definition: relevance >= 8
+    streams:
+      name: Other_Streams_and_Tributaries
+      definition: relevance >= 5 AND relevance < 8
+    rivers:
+      name: Other_Streams_and_Tributaries
+      definition: relevance < 5
+    vehicular-tracks:
+      name: Other_Access_Roads_and_Tracks
+      definition: functionhierarchy_code = 8
+    footpaths:
+      name: Other_Access_Roads_and_Tracks
+      definition: functionhierarchy_code = 9
+    other-access-roads:
+      name: Other_Access_Roads_and_Tracks
+      definition: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code < 2
+    other-access-roads-unsealed:
+      name: Other_Access_Roads_and_Tracks
+      definition: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code >= 2
+    minor-roads:
+      name: Minor_Roads
+      definition: surface_code < 2
+    minor-roads-unsealed:
+      name: Minor_Roads
+      definition: surface_code >= 2
+    major-roads:
+      name: Major_Roads
+      definition: surface_code < 2
+    major-roads-unsealed:
+      name: Major_Roads
+      definition: surface_code >= 2
+    regional-roads:
+      name: Regional_Roads
+      definition: surface_code < 2
+    regional-roads-unsealed:
+      name: Regional_Roads
+      definition: surface_code >= 2
+    highways:
+      name: Highways
+      definition: surface_code < 2
+    highways-unsealed:
+      name: Highways
+      definition: surface_code >= 2
+text:
+  0.7:
+    - Major_Rivers
+    - Other_Streams_and_Tributaries
+    - Highways
+    - Regional_Roads
+    - Major_Roads
+    - Minor_Roads
+    - Other_Access_Roads_and_Tracks
+equivalences:
+  roads-sealed:
+  - other-access-roads
+  - minor-roads
+  - major-roads
+  - regional-roads
+  - highways
+  roads-unsealed:
+  - other-access-roads-unsealed
+  - minor-roads-unsealed
+  - major-roads-unsealed
+  - regional-roads-unsealed
+  - highways-unsealed
+dash: ~
+creeks:
+  colour: "#4985DF"
+  widen: 0.4
+streams:
+  colour: "#4985DF"
+  widen: 0.7
+rivers:
+  colour: "#4985DF"
+  widen: 1.5
+footpaths:
+  colour: black
+  widen: 0.6
+  dash: 3.5 1.75
+vehicular-tracks:
+  colour: darkorange
+  dash: 6 3
+roads-sealed:
+  colour: red
+roads-unsealed:
+  colour: darkorange

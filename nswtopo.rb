@@ -26,6 +26,11 @@ require 'pathname'
 require 'rbconfig'
 require 'json'
 require 'base64'
+require 'open-uri'
+
+# %w[uri net/http rexml/document rexml/formatters/pretty tmpdir yaml fileutils pathname rbconfig json base64 open-uri].each { |file| require file }
+
+GITHUB_SOURCES = "https://raw.github.com/mholling/nswtopo/master/sources/"
 
 class REXML::Element
   alias_method :unadorned_add_element, :add_element
@@ -1106,17 +1111,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.read
       source = REXML::Document.new(source_xml)
       
-      if xml.elements.each("/svg/g[starts-with(@id,'#{label}')]") do |layer|
+      if xml.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')]") do |layer|
         id = layer.attributes["id"]
         layer.replace_with source.elements["/svg/g[@id='#{id}']"]
       end.empty?
-        source.elements.each("/svg/g[starts-with(@id,'#{label}') and *]", &block)
+        source.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')][*]", &block)
         [ *options["exclude"] ].each do |sublabel|
           xml.elements.each("/svg/g[@id='#{[ label, sublabel ].join SEGMENT}']", &:remove)
         end
       end
       
-      xml.elements.each("/svg/g[starts-with(@id,'#{label}') and *]") do |layer|
+      xml.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')][*]") do |layer|
         id = layer.attributes["id"]
         name = id.split(SEGMENT).last
         puts "  Rendering #{id}"
@@ -1132,7 +1137,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      xml.elements.each("/svg/defs[starts-with(@id,'#{label}')]", &:remove)
+      xml.elements.each("/svg/defs[starts-with(@id,'#{label}#{SEGMENT}')]", &:remove)
       source.elements.each("/svg/defs") { |defs| xml.elements["/svg"].unshift defs }
     end
     
@@ -1464,18 +1469,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
       %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]
       
-      low, high = options["spot5"].values_at("low", "high")
-      fx = [ *(100..200), *(6..10) ].inject(0.0) do |memo, n|
-        "j==#{n} ? %.5f : (#{memo})" % case n
-        # mappings for SPOT5 woody extent and foliage projective cover (FPC) (5-10m) 2011:
-        when 100 then 0.0
-        when 101..200 then n - 100 < low ? 0.0 : n - 100 > high ? 1.0 : (n - 100 - low).to_f / (high - low)
-        # mappings for NSW Interim Native Vegetation Extent (2008-v2):
-        when 6..7 then 0.6
-        when 8..10 then 1.0
-        else 0.0
-        end
+      low, high = { "low" => 0, "high" => 100 }.merge(options["contrast"] || {}).values_at("low", "high")
+      fx = options["mapping"].inject(0.0) do |memo, (key, value)|
+        "j==#{key} ? %.5f : (#{memo})" % (value < low ? 0.0 : value > high ? 1.0 : (value - low).to_f / (high - low))
       end
+      
       %x[convert -size 1x256 canvas:black -fx "#{fx}" "#{clut_path}"]
       %x[convert "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
       
@@ -2005,693 +2003,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end.inject(default_config, &:deep_merge)
     
     config["include"] = [ *config["include"] ]
-    config["exclude"] = [ *config["exclude"] ]
-    config["formats"] = [ *config["formats"] ]
+    if config["include"].empty?
+      config["include"] << "nsw/lpimap"
+      puts "No layers specified. Adding nsw/lpimap by default."
+    end
     
     map = Map.new(config)
     
-    servers = YAML.load %q[---
-sixmaps:
-  class: ArcGIS
-  host: maps.six.nsw.gov.au
-  folder: sixmaps
-sixmapsq:
-  class: ArcGIS
-  host: mapsq.six.nsw.gov.au
-  folder: sixmaps
-flex2:
-  class: ArcGIS
-  host: spatialprod.dpi.nsw.gov.au
-  instance: ArcGIS2
-  folder: IndustryViewFLEX2
-atlas:
-  class: ArcGIS
-  host: atlas.nsw.gov.au
-  instance: arcgis1
-  cookie: http://atlas.nsw.gov.au/
-actmapi:
-  class: ArcGIS
-  host: www.actmapi.act.gov.au
-  instance: actmapi
-  folder: mga
-lpi_ortho:
-  class: LPIOrthoServer
-  host: lite.maps.nsw.gov.au
-  tile_size: 1024
-  interval: 1.0
-  projection: +proj=lcc +lat_1=-30.75 +lat_2=-35.75 +lat_0=-33.25 +lon_0=147 +x_0=9300000 +y_0=4500000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs
-nokia_maps:
-  class: TiledMapServer
-  uri: http://m.ovi.me/?c=${latitude},${longitude}&t=${name}&z=${zoom}&h=${vsize}&w=${hsize}&f=${format}&nord&nodot
-  projection: +proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs
-  tile_sizes: [ 1024, 1024 ]
-  interval: 1.2
-  crops: [ [ 0, 0 ], [ 26, 0 ] ]
-  tile_limit: 250
-  retries_on_blank: 1
-google_maps:
-  class: TiledMapServer
-  uri: http://maps.googleapis.com/maps/api/staticmap?zoom=${zoom}&size=${hsize}x${vsize}&scale=1&format=${format}&maptype=${name}&sensor=false&center=${latitude},${longitude}
-  projection: +proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs
-  tile_sizes: [ 640, 640 ]
-  interval: 1.2
-  crops: [ [ 0, 0 ], [ 30, 0 ] ]
-  tile_limit: 250
-relief:
-  class: ReliefSource
-  interval: 0.3
-  tile_sizes: [ 1024, 1024 ]
-declination:
-  class: DeclinationSource
-controls:
-  class: ControlSource
-grid:
-  class: GridSource
+    builtins = YAML.load %q[---
 canvas:
-  class: CanvasSource
-import:
-  class: ImportSource
-vegetation:
-  class: VegetationSource
-overlay:
-  class: OverlaySource
-  width: 0.5
-  colour: black
-  opacity: 0.3
-]
-    servers = servers.inject({}) do |memo, (name, params)|
-      source = NSWTopo.const_get(params.delete "class").new(params)
-      memo.merge name => source
-    end
-    
-    sources = YAML.load %q[---
-reference-topo-current:
-  server: sixmaps
-  service: LPITopoMap
+  server:
+    class: CanvasSource
   ext: png
-  resolution: 2.0
-  background: white
-reference-topo-s1:
-  server: sixmaps
-  service: LPITopoMap_S1
-  ext: png
-  resolution: 2.0
-  background: white
-reference-topo-s2:
-  server: lpi_ortho
-  image: /OTDF_Imagery/NSWTopoS2v2.ecw
-  otdf: true
-  ext: png
-  resolution: 4.0
-aerial-lpi-eastcoast:
-  server: lpi_ortho
-  image: /Imagery/lr94ortho1m.ecw
-  ext: jpg
-aerial-google:
-  server: google_maps
-  name: satellite
-  format: jpg
-  ext: jpg
-aerial-nokia:
-  server: nokia_maps
-  name: 1
-  format: 1
-  ext: jpg
-aerial-lpi-ads40:
-  server: lpi_ortho
-  config: /ADS40ImagesConfig.js
-  ext: jpg
-aerial-best:
-  server: sixmaps
-  service: LPI_Imagery_Best
-  ext: jpg
-  resolution: 1.0
-act-aerial-2012:
-  server: actmapi
-  service: dopm2012mga
-  ext: jpg
-  image: true
-  resolution: 1.0
-vegetation:
-  server: vegetation
-  resolution: 25.0
-  colour:
-    woody: light green
-    non-woody: white
-  spot5:
-    low: 0
-    high: 80
-canvas:
-  server: canvas
-  ext: png
-reserves:
-  server: flex2
-  service: Conservation_Areas
-  ext: svg
-  features:
-    ~:
-      national-parks: National_Parks
-      state-forests: State_Forest
-  opacity: 0.2
-  colour: black
-plantations:
-  server: atlas
-  folder: atlas
-  service: Economy_Forestry
-  resolution: 0.55
-  features:
-    ~:
-      forestry:
-        name: Forestry
-        definition: Classification='Plantation forestry' OR Classification='Irrigated plantation forestry'
-  ext: svg
-  opacity: 1
-  colour: "#80D19B"
-basic-contours:
-  server: flex2
-  service: Topography
-  ext: svg
-  features: 
-    25000:
-      index:
-        name: Contour
-        definition: sourceprogram_code <> 2 AND (elevation % 100 = 0) AND elevation > 0
-      20m:
-        name: Contour
-        definition: sourceprogram_code <> 2 AND (elevation % 20 = 0) AND elevation > 0
-      10m:
-        name: Contour
-        definition: sourceprogram_code <> 2 AND (elevation % 10 = 0) AND elevation > 0
-  text:
-    0.5:
-      - Contour: sourceprogram_code <> 2 AND (elevation % 100 = 0) AND elevation > 0
-  colour: "#805100"
-  widen: 0.28
-  labels:
-    colour:
-      "#805100": black
-  index:
-    widen: 0.63
-  intervals-contours:
-    10: 10m
-    20: 20m
-basic-cadastre:
-  server: flex2
-  service: Lots
-  ext: svg
-  features:
-    25000:
-      cadastre: Boundary
-  opacity: 0.5
-  colour: "#777777"
-  widen: 0.5
-basic-features:
-  server: flex2
-  service: Base_Mapping
-  ext: svg
-  features:
-    25000:
-      creeks:
-        name: Other_Streams_and_Tributaries
-        definition: relevance >= 8
-      streams:
-        name: Other_Streams_and_Tributaries
-        definition: relevance >= 5 AND relevance < 8
-      rivers:
-        name: Other_Streams_and_Tributaries
-        definition: relevance < 5
-      vehicular-tracks:
-        name: Other_Access_Roads_and_Tracks
-        definition: functionhierarchy_code = 8
-      footpaths:
-        name: Other_Access_Roads_and_Tracks
-        definition: functionhierarchy_code = 9
-      other-access-roads:
-        name: Other_Access_Roads_and_Tracks
-        definition: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code < 2
-      other-access-roads-unsealed:
-        name: Other_Access_Roads_and_Tracks
-        definition: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code >= 2
-      minor-roads:
-        name: Minor_Roads
-        definition: surface_code < 2
-      minor-roads-unsealed:
-        name: Minor_Roads
-        definition: surface_code >= 2
-      major-roads:
-        name: Major_Roads
-        definition: surface_code < 2
-      major-roads-unsealed:
-        name: Major_Roads
-        definition: surface_code >= 2
-      regional-roads:
-        name: Regional_Roads
-        definition: surface_code < 2
-      regional-roads-unsealed:
-        name: Regional_Roads
-        definition: surface_code >= 2
-      highways:
-        name: Highways
-        definition: surface_code < 2
-      highways-unsealed:
-        name: Highways
-        definition: surface_code >= 2
-  text:
-    0.7:
-      - Major_Rivers
-      - Other_Streams_and_Tributaries
-      - Highways
-      - Regional_Roads
-      - Major_Roads
-      - Minor_Roads
-      - Other_Access_Roads_and_Tracks
-  equivalences:
-    roads-sealed:
-    - other-access-roads
-    - minor-roads
-    - major-roads
-    - regional-roads
-    - highways
-    roads-unsealed:
-    - other-access-roads-unsealed
-    - minor-roads-unsealed
-    - major-roads-unsealed
-    - regional-roads-unsealed
-    - highways-unsealed
-  dash: ~
-  creeks:
-    colour: "#4985DF"
-    widen: 0.4
-  streams:
-    colour: "#4985DF"
-    widen: 0.7
-  rivers:
-    colour: "#4985DF"
-    widen: 1.5
-  footpaths:
-    colour: black
-    widen: 0.6
-    dash: 3.5 1.75
-  vehicular-tracks:
-    colour: darkorange
-    dash: 6 3
-  roads-sealed:
-    colour: red
-  roads-unsealed:
-    colour: darkorange
-topographic:
-  server: sixmapsq
-  service: LPIMapLocal
-  ext: svg
-  features:
-    0.1:
-      building-areas: GeneralCulturalArea
-      towers-beacons: GeneralCulturalPoint
-      breakwaters-dam-walls-racetracks: GeneralCulturalLine
-      ramps-slipways-wharves: TransportFacilityLine
-    0.5:
-      homesteads:
-        name: MS_BuildingComplexPoint
-        definition: classsubtype = 4
-    ~:
-      cliffs-intertidal-mangroves-reefs-rocks-sand: DLSArea_overwater
-      inundation-swamps: DLSArea_underwater
-      caves-pinnacles: DLSPoint
-      clifftops-excavation-levees: DLSLine
-      watercourse-tn: TN_Watercourse
-      watercourse-vss: VSS_Watercourse
-      watercourse-ss: SS_Watercourse
-      watercourse-ms: MS_Watercourse
-      watercourse-ms-unnamed: MS_Hydroline
-      ocean: VSS_Oceans
-      water-areas:
-        name: HydroArea
-        definition: perenniality < 2 OR perenniality IS NULL
-      water-areas-non-perennial:
-        name: HydroArea
-        definition: perenniality = 2
-      water-areas-mainly-dry: 
-        name: HydroArea
-        definition: perenniality = 3
-      waterfalls-named: AncillaryHydroPoint
-      bores-named: AncillaryHydroPoint_Bore
-      builtup-areas: Urban_Areas
-      nsw-border: border
-      mines-picnic-areas-campgrounds-shipwrecks:
-        name: LS_GeneralCulturalPoint
-        definition: NOT (classsubtype = 1 AND generalculturaltype = 2)
-      runways: Runway
-      roads: MS_Roads
-      road-tunnels: MS_Roads_intunnel
-    4000:
-      footpaths:
-        name: LS_Roads_onground
-        definition: (functionhierarchy = 9 AND classsubtype = 6)
-      footpath-bridges:
-        name: LS_Roads_onbridge
-        definition: (functionhierarchy = 9 AND classsubtype = 6)
-      footpath-tunnels:
-        name: LS_Roads_intunnel
-        definition: (functionhierarchy = 9 AND classsubtype = 6)
-      railways: LS_Railway_onground
-      railway-bridges: LS_Railway_onbridge
-      railway-tunnels: LS_Railway_intunnel
-      contours-10m: LS_Contour
-    10000:
-      cadastre: Rural_Property
-      vehicular-tracks: MS_Tracks_onground
-      roads-local: MS_LocalRoads
-      watercourse-ls: LS_Watercourse
-      watercourse-ls-unnamed: LS_Hydroline
-    20000:
-      contours-20m: MS_Contour
-  text:
-    0.65:
-    - DLSArea_underwater
-    - DLSArea_overwater
-    - DLSPoint
-    - DLSLine
-    - TN_Watercourse
-    - VSS_Watercourse
-    - SS_Watercourse
-    - MS_Watercourse
-    - MS_Hydroline
-    - LS_Watercourse
-    - LS_Hydroline
-    - VSS_Oceans
-    - HydroArea: perenniality < 2 OR perenniality IS NULL
-    - AncillaryHydroPoint
-    - AncillaryHydroPoint_Bore
-    - DLSArea_underwater
-    - DLSArea_overwater
-    - DLSPoint
-    - DLSLine
-    - border
-    - LS_GeneralCulturalPoint: NOT (classsubtype = 1 AND generalculturaltype = 2)
-    - Runway
-    - MS_Tracks_onground
-    - MS_LocalRoads
-    - MS_Roads
-    - MS_Roads_intunnel
-    - MS_RoadNameExtent_Labels
-    - MS_BuildingComplexPoint: classsubtype = 4
-    - MS_Roads_Labels
-    - PointOfInterest: poigroup IN(6, 7)
-    - FuzzyExtentLine: NOT (generalname = 'GREAT DIVIDING RANGE')
-    - SS_Contour
-    - MS_Contour
-    - LS_Contour
-    - LS_PlacePoint: placetype IN (3, 4, 5)
-    - MS_PlacePoint: placetype IN (3, 4, 5)
-  equivalences:
-    contours:
-    - contours-10m
-    - contours-20m
-    road:
-    - roads-local
-    - roads
-    - road-tunnels
-    footpath:
-    - footpaths
-    - footpath-bridges
-    - footpath-tunnels
-    railway:
-    - railways
-    - railway-bridges
-    - railway-tunnels
-    watercourse:
-    - watercourse-tn
-    - watercourse-vss
-    - watercourse-ss
-    - watercourse-ms
-    - watercourse-ms-unnamed
-    - watercourse-ls
-    - watercourse-ls-unnamed
-    water-area:
-    - water-areas
-    - water-areas-non-perennial
-    - water-areas-mainly-dry:
-  footpath:
-    colour:
-      "#A39D93": black
-    widen: 0.4
-    stretch: 0.6
-  # vehicular-tracks:
-  #   widen: 0.7
-  #   colour:
-  #     "#9C9C9C": black
-  vehicular-tracks:
-    widen: 0.4
-    .//[@stroke-dasharray]/@stroke: darkorange
-    .//path[not(@stroke-dasharray)]: ~
-  road:
-    widen: 0.6
-    colour:
-      "#9C9C9C": "#333333"
-  contours:
-    widen: 0.7
-    colour: "#805100"
-  railway:
-    colour:
-      "#686868": black
-    widen: 1.25
-  watercourse:
-    colour:
-      "#73A1E6": "#4985DF"
-    opacity: 1
-  cadastre:
-    widen: 0.5
-    opacity: 0.5
-    colour: "#777777"
-  watercourse-tn:
-    widen: 0.6
-  watercourse-vss:
-    widen: 0.55
-  watercourse-ss:
-    widen: 0.5
-  watercourse-ms:
-    widen: 0.4
-  watercourse-ms-unnamed:
-    widen: 0.4
-  watercourse-ls:
-    widen: 0.3
-  watercourse-ls-unnamed:
-    widen: 0.3
-  water-area:
-    colour:
-      "#73A1E6": "#4985DF"
-    opacity: 1
-    widen: 0.7
-  water-areas-non-perennial:
-    opacity: 0.5
-  water-areas-mainly-dry:
-    opacity: 0.25
-  railway-bridges:
-    widen: 0.3
-  builtup-areas:
-    colour: "#FFFABD"
-    opacity: 1.0
-  mines-picnic-areas-campgrounds-shipwrecks:
-    expand-glyph: 0.6
-  towers-beacons:
-    expand-glyph: 5
-  building-areas:
-    colour: "#888888"
-  labels: 
-    colour: 
-      "#A87000": black
-      "#686868": black
-      "#4E4E4E": black
-      "#343434": black
-  relief-clips:
-  - water-areas
-  - ocean
-  intervals-contours:
-    10: contours-10m
-    20: contours-20m
-backup:
-  server: sixmaps
-  service: LPIMap
-  resolution: 0.55
-  ext: svg
-  features:
-    4500:
-      Footpaths:
-        name: Roads_onground_LS
-        definition: functionhierarchy = 9 AND roadontype = 1
-      Footpaths_intunnels:
-        name: Roads_onbridge_LS
-        definition: functionhierarchy = 9 AND roadontype = 2
-    9000:
-    - Roads_Urban_MS
-    - Roads_intunnel_MS
-    - Bridge_Ford_Names
-    - Gates_Grids
-    - Dwellings_Buildings
-    - Building_Large
-    - Homestead_Tourism_Major
-    - Lot
-    - Property
-    - Contour_10m
-    - Beacon_Tower
-    - Wharfs_Ramps
-    - Damwall_Racetrack
-    - StockDams
-    - Creek_Named
-    - Creek_Unnamed
-    - Stream_Unnamed
-    - Stream_Named
-    - Stream_Main
-    - River_Main
-    - River_Major
-    - HydroArea: perenniality < 2 OR perenniality IS NULL
-    - Oceans_Bays
-    11000:
-    - Contour_20m
-    ~:
-    - Caves_Pinnacles
-    - Ridge_Beach
-    - Waterfalls_springs
-    - Swamps_LSI
-    - Cliffs_Reefs_Mangroves
-    - CliffTop_Levee
-    - Tourism_Minor
-    - Railway_MS
-    - Railway_intunnel_MS
-    - Runway
-    - State_Border
-  text:
-    0.6:
-    - Roads_Urban_MS
-    - Roads_intunnel_MS
-    - Homestead_Tourism_Major
-    - Contour_20m
-    - Beacon_Tower
-    - Wharfs_Ramps
-    - Damwall_Racetrack
-    - StockDams
-    - Creek_Named
-    - Creek_Unnamed
-    - Stream_Names
-    - Stream_Unnamed
-    - Stream_Named
-    - Stream_Main
-    - River_Main
-    - River_Major
-    - HydroArea: perenniality < 2 OR perenniality IS NULL
-    - Oceans_Bays
-    - PlacePoint_LS
-    - Caves_Pinnacles
-    - Ridge_Beach
-    - Waterfalls_springs
-    - Swamps_LSI
-    - Cliffs_Reefs_Mangroves
-    - CliffTop_Levee
-    - PointOfInterest
-    - Tourism_Minor
-    - Railway_MS
-    - Railway_intunnel_MS
-    - Runway
-    - Airport_Station
-    - State_Border
-  equivalences:
-    contours:
-    - Contour_10m
-    - Contour_20m
-    water:
-    - StockDams
-    - Creek_Named
-    - Creek_Unnamed
-    - Stream_Unnamed
-    - Stream_Named
-    - Stream_Main
-    - River_Main
-    - River_Major
-    - HydroArea
-    - Oceans_Bays
-    pathways:
-    - Footpaths
-    - Footpaths_intunnels
-    roads:
-    - Roads_Urban_MS
-    - Roads_intunnel_MS
-    cadastre:
-    - Lot
-    - Property
-  pathways:
-    expand: 0.5
-    colour: 
-      "#A39D93": "#363636"
-  contours:
-    widen: 0.7
-    colour: "#805100"
-  roads:
-    widen: 0.6
-    colour:
-      "#A39D93": "#363636"
-      "#9C9C9C": "#363636"
-  cadastre:
-    widen: 0.5
-    opacity: 0.5
-    colour: "#777777"
-  labels: 
-    colour: 
-      "#A87000": "#000000"
-      "#FAFAFA": "#444444"
-  water:
-    opacity: 1
-    colour:
-      "#73A1E6": "#4985DF"
-  Creek_Named:
-    widen: 0.3
-  Creek_Unnamed:
-    widen: 0.3
-  Stream_Named:
-    widen: 0.5
-  Stream_Unnamed:
-    widen: 0.5
-  Stream_Main:
-    widen: 0.7
-  River_Main:
-    widen: 0.7
-  River_Major:
-    widen: 0.7
-  HydroArea:
-    widen: 0.5
-  Tourism_Minor:
-    expand-glyph: 0.6
-  Gates_Grids:
-    expand-glyph: 1.4
-  Beacon_Tower:
-    expand-glyph: 1.4
-  relief-clips:
-  - HydroArea
-  - Oceans_Bays
-  intervals-contours:
-    10: Contour_10m
-    20: Contour_20m
-rfs:
-  server: sixmaps
-  service: RFS
-  ext: svg
-  features:
-    0.25:
-      buildings:
-        name: GeneralCulturalPoint
-        definition: generalculturaltype = 0
-    0.3:
-      stock-dams: HydroPoint
-  buildings:
-    colour:
-      "#BDBDC5": black
-    .//path[@stroke='#FFFFFF']: ~
-    .//g[@fill='#000000']: ~
-  stock-dams:
-    .//path[@fill]/@fill: "#B3E6E4"
-    .//path[@stroke]/@stroke: "#4985DF"
-    widen: 0.4
 relief:
-  server: relief
+  server:
+    class: ReliefSource
+    interval: 0.3
+    tile_sizes: [ 1024, 1024 ]
   ext: png
   altitude: 45
   azimuth: 315
@@ -2699,18 +2027,9 @@ relief:
   resolution: 45.0
   opacity: 0.3
   highlights: 20
-holdings:
-  server: atlas
-  folder: sixmaps
-  service: _LHPA
-  ext: svg
-  features: Holdings
-  text: Holdings
-  colour:
-    "#B0A100": "#FF0000"
-    "#948800": "#FF0000"
 grid:
-  server: grid
+  server:
+    class: GridSource
   interval: 1000
   width: 0.1
   colour: black
@@ -2718,12 +2037,14 @@ grid:
   fontsize: 7.8
   family: Arial Narrow
 declination:
-  server: declination
+  server:
+    class: DeclinationSource
   spacing: 1000
   width: 0.1
   colour: black
 controls:
-  server: controls
+  server:
+    class: ControlSource
   colour: "#880088"
   family: Arial
   fontsize: 14
@@ -2732,41 +2053,65 @@ controls:
   water-colour: blue
 ]
     
-    sources["relief"]["clips"] = sources.map do |label, options|
-      [ *options["relief-clips"] ].map { |sublabel| [ label, sublabel ].join SEGMENT }
-    end.inject(&:+)
+    sources = {}
+    sources.merge! "canvas" => builtins["canvas"] if Pathname.new("canvas.png").expand_path.exist?
     
-    includes = %w[topographic]
-    includes << "canvas" if Pathname.new("canvas.png").expand_path.exist?
-    
-    (config["import"] || []).reverse.map do |file_or_hash|
+    [ *config["import"] ].reverse.map do |file_or_hash|
       [ *file_or_hash ].flatten
     end.map do |file_or_path, label|
       [ Pathname.new(file_or_path).expand_path, label ]
     end.each do |path, label|
       label ||= path.basename(path.extname).to_s
-      sources = { label => { "server" => "import", "path" => path.to_s } }.merge sources
-      includes << label
+      sources.merge! label => { "server" => { "class" => "ImportSource" }, "path" => path.to_s }
     end
     
-    (config["overlays"] || {}).map do |file_or_path, options|
+    config["include"].map do |label_or_hash|
+      [ *label_or_hash ].flatten
+    end.each do |label, resolution|
+      options = builtins[label]
+      [ Pathname.pwd, Pathname.new(__FILE__).realdirpath.dirname + "sources", URI.parse(GITHUB_SOURCES) ].map do |root|
+        root + "#{label}.yml"
+      end.inject(nil) do |yaml, path|
+        yaml ||= path.read rescue nil
+      end.tap do |yaml|
+        abort "Error: couldn't find source for '#{label}'" unless yaml
+        label.gsub! ?/, SEGMENT
+        options = YAML.load yaml
+      end unless options
+      options.merge! "resolution" => resolution if resolution
+      sources.merge! label => options
+    end
+    
+    [ *config["overlays"] ].map do |file_or_path, options|
       [ Pathname.new(file_or_path).expand_path, options ]
-    end.each do |path, options|
+    end.each do |path, overlay_options|
       label = path.basename(path.extname).to_s
-      sources.merge! label => (options || {}).merge("server" => "overlay", "path" => path.to_s)
-      includes << label
+      options = {
+        "server" => { "class" => "OverlaySource" },
+        "width" => 0.5,
+        "colour" => "black",
+        "opacity" => 0.3,
+        "path" => path.to_s,
+      }
+      options.merge! overlay_options if overlay_options
+      sources.merge! label => options
     end
     
-    includes << "controls" if config["controls"] && config["controls"]["path"]
-
+    sources.merge! "controls" => builtins["controls"] if config["controls"] && config["controls"]["path"]
+    
     sources.keys.select do |label|
       config[label]
     end.each do |label|
       sources[label].deep_merge! config[label]
     end
     
+    sources["relief"]["clips"] = sources.map do |label, options|
+      [ *options["relief-clips"] ].map { |sublabel| [ label, sublabel ].join SEGMENT }
+    end.inject(&:+) if sources["relief"]
+    
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
+      # TODO: generalise this!
       abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
       sources.each do |label, options|
         options["exclude"] = [ *options["exclude"] ]
@@ -2779,20 +2124,12 @@ controls:
     end
     
     sources.each do |label, options|
-      options["server"] = servers[options.delete "server"]
+      server_options = options.delete "server"
+      options["server"] = NSWTopo.const_get(server_options.delete "class").new(server_options)
     end
     
-    includes += config["include"]
-    includes.map! { |label_or_hash| [ *label_or_hash ].flatten }
-    sources.each do |label, options|
-      includes.each { |match, resolution| options.merge!("resolution" => resolution) if label.start_with?(match) && resolution }
-    end
-    
-    excludes = config["exclude"]
-    
-    labels = sources.keys
-    sources.select! { |label, options| includes.any? { |match, _| label.start_with?(match) } }
-    sources.reject! { |label, options| excludes.any? { |match| label.start_with?(match) } }
+    config["exclude"] = [ *config["exclude"] ].map { |label| label.gsub ?/, SEGMENT }
+    config["exclude"].each { |label| sources.delete label }
     
     puts "Map details:"
     puts "  name: #{map.name}"
@@ -2813,14 +2150,12 @@ controls:
     svg_path = Pathname.pwd + svg_name
     xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
     
-    removals = labels.select do |label|
-      excludes.any? { |match| label.start_with?(match) }
-    end.select do |label|
-      xml.elements["/svg/g[starts-with(@id,'#{label}')]"]
+    removals = config["exclude"].select do |label|
+      xml.elements["/svg/g[@id='#{label}' or starts-with(@id,'#{label}#{SEGMENT}')]"]
     end
     
     updates = sources.reject do |label, options|
-      xml.elements["/svg/g[starts-with(@id,'#{label}')]"] && FileUtils.uptodate?(svg_path, [ *options["server"].path(label, options) ])
+      xml.elements["/svg/g[@id='#{label}' or starts-with(@id,'#{label}#{SEGMENT}')]"] && FileUtils.uptodate?(svg_path, [ *options["server"].path(label, options) ])
     end
     
     Dir.mktmppath do |temp_dir|
@@ -2828,12 +2163,14 @@ controls:
       tmp_svg_path = temp_dir + svg_name
       tmp_svg_path.open("w") do |file|
         updates.each do |label, options|
-          before, after = labels.inject([[]]) do |memo, candidate|
+          before, after = sources.keys.inject([[]]) do |memo, candidate|
             candidate == label ? memo << [] : memo.last << candidate
             memo
           end
           neighbour = xml.elements.collect("/svg/g[@id]") do |sibling|
-            sibling if after.any? { |after_label| sibling.attributes["id"].start_with? after_label }
+            sibling if after.any? do |after_label|
+              sibling.attributes["id"] == after_label || sibling.attributes["id"].start_with?("#{after_label}#{SEGMENT}")
+            end
           end.compact.first
           begin
             options["server"].render_svg(xml, label, options, map) do |layer|
@@ -2846,7 +2183,7 @@ controls:
         
         removals.each do |label|
           puts "  Removing #{label}"
-          xml.elements.each("/svg/g[starts-with(@id,'#{label}')]", &:remove)
+          xml.elements.each("/svg/g[@id='#{label}' or starts-with(@id,'#{label}#{SEGMENT}')]", &:remove)
         end
         
         updates.each do |label, options|
@@ -2854,10 +2191,10 @@ controls:
             config[position]
           end.each do |position, insert, predicate, order|
             config[position].select do |target_label, sibling_label|
-              target_label.start_with? label
+              target_label == label || target_label.start_with?("#{label}#{SEGMENT}")
             end.each do |target_label, sibling_label|
-              sibling = xml.elements["/svg/g[starts-with(@id,'#{sibling_label}')][#{predicate}]"]
-              xml.elements.collect("/svg/g[starts-with(@id,'#{target_label}')]") do |layer|
+              sibling = xml.elements["/svg/g[@id='#{sibling_label}' or starts-with(@id,'#{sibling_label}#{SEGMENT}')][#{predicate}]"]
+              xml.elements.collect("/svg/g[@id='#{target_label}' or starts-with(@id,'#{target_label}#{SEGMENT}')]") do |layer|
                 layer
               end.send(order).each do |layer|
                 puts "  Moving #{layer.attributes['id']} #{position} #{sibling.attributes['id']}"
@@ -2892,7 +2229,7 @@ controls:
       FileUtils.cp tmp_svg_path, svg_path
     end if updates.any? || removals.any?
     
-    formats = config["formats"].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
+    formats = [ *config["formats"] ].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["prj"] = %w[wkt_all proj4 wkt wkt_simple wkt_noct wkt_esri mapinfo xml].delete(formats["prj"]) || "proj4" if formats.include? "prj"
     formats["png"] ||= nil if formats.include? "map"
     (formats.keys & %w[png tif gif jpg kmz]).each do |format|
@@ -2957,11 +2294,14 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
+# TODO: simply specify overlays as kml/gpx files in the include list (also controls, canvas?)
+
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Open3 for shelling out
 # TODO: split LPIMapLocal roads into sealed & unsealed?
 # TODO: change scale instead of using expand-glyph where possible
 # TODO: add option for absolute measurements for rerendering?
+# TODO: add nodata transparency in vegetation source?
 
 # # later:
 # TODO: remove linked images from PDF output?

@@ -754,7 +754,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.basename
       end
       
-      layer = xml.elements["/svg/g[@id='#{label}']"] || REXML::Element.new("g").tap(&block)
+      layer = REXML::Element.new("g")
+      xml.elements["/svg/g[@id='#{label}']"].tap do |old_layer|
+        old_layer ? old_layer.replace_with(layer) : yield(layer)
+      end
       layer.add_attributes "id" => label, "style" => "opacity:#{opacity}"
       layer.add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
         clip_paths(layer, label, options).each do |clippath|
@@ -1550,7 +1553,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def render_svg(xml, label, options, map, &block)
       puts "  Rendering #{label}"
       opacity = options["opacity"] || params["opacity"] || 1
-      layer = xml.elements["/svg/g[@id='#{label}']"] || REXML::Element.new("g").tap(&block)
+      layer = REXML::Element.new("g")
+      xml.elements["/svg/g[@id='#{label}']"].tap do |old_layer|
+        old_layer ? old_layer.replace_with(layer) : yield(layer)
+      end
       layer.add_attributes "id" => label, "style" => "opacity:#{opacity}", "transform" => map.svg_transform(1)
       draw(layer, options, map) do |coords, projection|
         projection.reproject_to(map.projection, coords).one_or_many do |easting, northing|
@@ -1714,8 +1720,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def draw(group, options, map)
-      width = options["width"] || params["width"]
-      colour = options["colour"] || params["colour"]
+      width, colour = options.values_at "width", "colour"
       gps = GPS.new Pathname.new(options["path"]).expand_path
       [ [ :tracks, "polyline", { "fill" => "none", "stroke" => colour, "stroke-width" => width } ],
         [ :areas, "polygon", { "fill" => colour, "stroke" => "none" } ]
@@ -2068,33 +2073,31 @@ controls:
     config["include"].map do |label_or_hash|
       [ *label_or_hash ].flatten
     end.each do |label, resolution|
-      options = builtins[label]
-      [ Pathname.pwd, Pathname.new(__FILE__).realdirpath.dirname + "sources", URI.parse(GITHUB_SOURCES) ].map do |root|
-        root + "#{label}.yml"
-      end.inject(nil) do |yaml, path|
-        yaml ||= path.read rescue nil
-      end.tap do |yaml|
+      label_options = { label => builtins[label] } if builtins[label]
+      label_options ||= begin
+        path = Pathname.new(label).expand_path
+        if %w[.kml .gpx].include?(path.extname.downcase) && path.file?
+          options = {
+            "server" => { "class" => "OverlaySource" },
+            "width" => 0.4,
+            "colour" => "black",
+            "opacity" => 0.4,
+            "path" => path.to_s,
+          }
+          { path.basename(path.extname).to_s => options }
+        end
+      end
+      label_options ||= begin
+        yaml = [ Pathname.pwd, Pathname.new(__FILE__).realdirpath.dirname + "sources", URI.parse(GITHUB_SOURCES) ].map do |root|
+          root + "#{label}.yml"
+        end.inject(nil) do |memo, path|
+          memo ||= path.read rescue nil
+        end
         abort "Error: couldn't find source for '#{label}'" unless yaml
-        label.gsub! ?/, SEGMENT
-        options = YAML.load yaml
-      end unless options
-      options.merge! "resolution" => resolution if resolution
-      sources.merge! label => options
-    end
-    
-    [ *config["overlays"] ].map do |file_or_path, options|
-      [ Pathname.new(file_or_path).expand_path, options ]
-    end.each do |path, overlay_options|
-      label = path.basename(path.extname).to_s
-      options = {
-        "server" => { "class" => "OverlaySource" },
-        "width" => 0.5,
-        "colour" => "black",
-        "opacity" => 0.3,
-        "path" => path.to_s,
-      }
-      options.merge! overlay_options if overlay_options
-      sources.merge! label => options
+        { label.gsub(?/, SEGMENT) => YAML.load(yaml) }
+      end
+      label_options.values.first.merge! "resolution" => resolution if resolution
+      sources.merge! label_options
     end
     
     sources.merge! "controls" => builtins["controls"] if config["controls"] && config["controls"]["path"]
@@ -2294,14 +2297,15 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: simply specify overlays as kml/gpx files in the include list (also controls, canvas?)
-
 # TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Open3 for shelling out
 # TODO: split LPIMapLocal roads into sealed & unsealed?
 # TODO: change scale instead of using expand-glyph where possible
 # TODO: add option for absolute measurements for rerendering?
 # TODO: add nodata transparency in vegetation source?
+# TODO: add include: option for ArcGIS sublayers?
+# TODO: add controls layer in the same way as other overlays?
+# TODO: (add imports the same way?)
 
 # # later:
 # TODO: remove linked images from PDF output?

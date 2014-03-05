@@ -264,15 +264,25 @@ You can add overlays to your map for representing areas (polygons) and tracks (p
 
 The simplest way to create overlays is to use Google Earth or equivalent software. Mark out the out-of-bounds area or areas using the polygon tool, then save these areas to a KML file (e.g. `boundaries.kml`). Similarly, trace out additional unmarked tracks using the path tool, and save them as KML (e.g. `tracks.kml`).
 
-In your configuration file, add your overlay files and specify their colours, opacities and/or widths as follows:
+In your configuration file, add your overlay file in the list of included layers, as in the following example:
 
-    overlays:
-      boundaries.kml:
-        colour: black         # colour out-of-bounds areas in black...
-        opacity: 0.3          # ...with 0.3 opacity to give a nice grayed-out rendering
-      tracks.kml:
-        colour: red           # mark tracks in red...
-        width: 0.2            # ...with a width of 0.2mm
+    include:
+    - nsw/lpimap
+    - relief
+    - boundaries.kml
+    - tracks.kml
+    - grid
+
+This will cause new layers titled `boundaries` and `tracks` to be added to the map. Note the layer ordering, which places the overlays above the topographic layer but below the grid, as you would expect.)
+
+Specify the colour, width and/or opacity of the overlays as follows:
+
+    boundaries:
+      colour: black         # colour out-of-bounds areas in black...
+      opacity: 0.3          # ...with 0.3 opacity to give a nice grayed-out rendering
+    tracks:
+      colour: red           # mark tracks in red...
+      width: 0.2            # ...with a width of 0.2mm
 
 Build or rebuild your map by running the script to add the overlays. (Advanced users may alter the overlay rendering further using Inkscape, e.g. by adding dashes or dots to tracks or patterns to areas.)
 

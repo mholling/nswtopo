@@ -1681,6 +1681,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       [ [ /\d{2,3}/, :circle,   options["colour"] ],
         [ /HH/,      :triangle, options["colour"] ],
+        [ /ANC/,     :square,   options["colour"] ],
         [ /W/,       :water,    options["water-colour"] ],
       ].each do |selector, type, colour|
         gps.waypoints.map do |waypoint, name|
@@ -1693,8 +1694,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             case type
             when :circle
               rotated.add_element("circle", "r"=> radius, "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth)
-            when :triangle
-              points = [ -90, -210, -330 ].map do |angle|
+            when :triangle, :square
+              angles = type == :triangle ? [ -90, -210, -330 ] : [ -45, -135, -225, -315 ]
+              points = angles.map do |angle|
                 [ radius, 0 ].rotate_by(angle * Math::PI / 180.0)
               end.map { |vertex| vertex.join ?, }.join ?\s
               rotated.add_element("polygon", "points" => points, "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth)
@@ -2306,6 +2308,8 @@ end
 # TODO: add include: option for ArcGIS sublayers?
 # TODO: add controls layer in the same way as other overlays?
 # TODO: (add imports the same way?)
+# TODO: change include: layer list to a hash?
+# TODO: redo water-drop option in controls?
 
 # # later:
 # TODO: remove linked images from PDF output?

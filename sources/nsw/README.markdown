@@ -18,7 +18,7 @@ Unfortunately, due to caching issues, the map is slow to download and some areas
 This map layer is a substitute for the *LPIMap* layer, should it be needed. The map service is currently in beta and may be subject to change. It includes most of the same information, however a few features are not present (these includes gates & grid, buildings and stock dams). The upside is that the map is available everywhere and the download is considerably faster. Include the *LPIMapLocal* layers as follows:
 
     include:
-    -nsw/lpimaplocal
+    - nsw/lpimaplocal
 
 ## RFS Layers
 

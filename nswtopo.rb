@@ -1979,11 +1979,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   def self.run
     default_config = YAML.load(CONFIG)
-    %w[controls.kml controls.gpx].map do |filename|
-      Pathname.pwd + filename
-    end.find(&:exist?).tap do |control_path|
-      default_config["controls"] = { "path" => control_path.to_s } if control_path
-    end
     
     %w[bounds.kml bounds.gpx].map do |filename|
       Pathname.pwd + filename
@@ -2015,13 +2010,24 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       puts "No layers specified. Adding nsw/lpimap by default."
     end
     
+    %w[controls.gpx controls.kml].map do |filename|
+      Pathname.pwd + filename
+    end.find(&:file?).tap do |control_path|
+      if control_path
+        config["include"] |= [ "controls" ]
+        config["controls"] ||= {}
+        config["controls"]["path"] ||= control_path.to_s
+      end
+    end
+    
+    config["include"].unshift "canvas" if Pathname.new("canvas.png").expand_path.exist?
+    
     map = Map.new(config)
     
     builtins = YAML.load %q[---
 canvas:
   server:
     class: CanvasSource
-  ext: png
 relief:
   server:
     class: ReliefSource
@@ -2061,7 +2067,6 @@ controls:
 ]
     
     sources = {}
-    sources.merge! "canvas" => builtins["canvas"] if Pathname.new("canvas.png").expand_path.exist?
     
     [ *config["import"] ].reverse.map do |file_or_hash|
       [ *file_or_hash ].flatten
@@ -2075,34 +2080,32 @@ controls:
     config["include"].map do |label_or_hash|
       [ *label_or_hash ].flatten
     end.each do |label, resolution|
-      label_options = { label => builtins[label] } if builtins[label]
-      label_options ||= begin
-        path = Pathname.new(label).expand_path
-        if %w[.kml .gpx].include?(path.extname.downcase) && path.file?
-          options = {
-            "server" => { "class" => "OverlaySource" },
-            "width" => 0.4,
-            "colour" => "black",
-            "opacity" => 0.4,
-            "path" => path.to_s,
-          }
-          { path.basename(path.extname).to_s => options }
-        end
-      end
-      label_options ||= begin
+      path = Pathname.new(label).expand_path
+      layer_label, options = case
+      when builtins[label]
+        [ label, builtins[label] ]
+      when %w[.kml .gpx].include?(path.extname.downcase) && path.file?
+        options = YAML.load %Q[---
+          server:
+            class: OverlaySource
+          width: 0.4
+          colour: black
+          opacity: 0.4
+          path: #{path}
+        ]
+        [ path.basename(path.extname).to_s, options ]
+      else
         yaml = [ Pathname.pwd, Pathname.new(__FILE__).realdirpath.dirname + "sources", URI.parse(GITHUB_SOURCES) ].map do |root|
           root + "#{label}.yml"
         end.inject(nil) do |memo, path|
           memo ||= path.read rescue nil
         end
         abort "Error: couldn't find source for '#{label}'" unless yaml
-        { label.gsub(?/, SEGMENT) => YAML.load(yaml) }
+        [ label.gsub(?/, SEGMENT), YAML.load(yaml) ]
       end
-      label_options.values.first.merge! "resolution" => resolution if resolution
-      sources.merge! label_options
+      options.merge! "resolution" => resolution if resolution
+      sources.merge! layer_label => options
     end
-    
-    sources.merge! "controls" => builtins["controls"] if config["controls"] && config["controls"]["path"]
     
     sources.keys.select do |label|
       config[label]
@@ -2306,8 +2309,7 @@ end
 # TODO: add option for absolute measurements for rerendering?
 # TODO: add nodata transparency in vegetation source?
 # TODO: add include: option for ArcGIS sublayers?
-# TODO: add controls layer in the same way as other overlays?
-# TODO: (add imports the same way?)
+# TODO: Add import layers as per controls/overlays/etc?
 # TODO: change include: layer list to a hash?
 # TODO: redo water-drop option in controls?
 

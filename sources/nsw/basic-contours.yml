@@ -3,6 +3,7 @@ server:
   host: spatialprod.dpi.nsw.gov.au
   instance: ArcGIS2
   folder: IndustryViewFLEX2
+  integer-dpi: true
 service: Topography
 ext: svg
 features: 

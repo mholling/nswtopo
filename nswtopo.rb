@@ -1218,8 +1218,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         when true
           { map.scale => service["layers"].select { |layer| layer["parentLayerId"] == -1 }.map { |layer| layer["name"] } }
         end.map do |scale, layers|
-          dpi = (scale * 0.0254 / resolution).floor
-          scale = dpi * resolution / 0.0254
+          dpi = scale * 0.0254 / resolution
+          if params["integer-dpi"]
+            dpi = dpi.floor
+            scale = dpi * resolution / 0.0254
+          end
           layers.map do |key, value|
             case value
             when String then { key => { "name" => value } }  # key is a sublabel, value is a layer name

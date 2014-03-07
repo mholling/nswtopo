@@ -960,6 +960,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class ArcGIS < Source
+    UNDERSCORES = /[\s\(\)]/
+    
     def initialize(params)
       super({ "tile_sizes" => [ 2048, 2048 ], "interval" => 0.1 }.merge params)
     end
@@ -1191,9 +1193,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
         end
       end
-      service["layers"].each { |layer| layer["name"].gsub! ?\s, ?_ }
-      service["mapName"].gsub! ?\s, ?_
-      layer_names = service["layers"].map { |layer| layer["name"] }
+      service["layers"].each { |layer| layer["name"].gsub! UNDERSCORES, ?_ }
+      service["mapName"].gsub! UNDERSCORES, ?_
+      layer_ids = service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
       
       resolution = resolution_for label, options, map
       transform = map.svg_transform(1000.0 * resolution / map.scale)
@@ -1234,8 +1236,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
           end.inject(&:merge).each do |sublabel, layer_options|
+            layer_options["name"].gsub! UNDERSCORES, ?_
             layer_options["id"]   ||= service["layers"].find { |layer| layer["name"] == layer_options["name"] }.fetch("id")
             layer_options["name"] ||= service["layers"].find { |layer| layer["id"]   == layer_options["id"]   }.fetch("name")
+            layer_options["name"].gsub! UNDERSCORES, ?_
           end.inject([]) do |memo, (sublabel, layer_options)|
             memo.find do |group|
               group.none? do |_, other_layer_options|
@@ -1271,7 +1275,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
               tile_data.gsub! regex do |match|
                 case $1
-                when "Labels", service["mapName"], *layer_names then match
+                when "Labels", service["mapName"], *layer_ids then match
                 else match.sub $1, [ label, type, scale, *tile_offsets, $1 ].compact.join(SEGMENT)
                 end
               end
@@ -1327,7 +1331,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ tileset, layerset ].transpose.each do |(scale, type, tile_xml, xpath), layers|
           tile_xml.elements.collect(xpath) do |layer_xml|
             _, _, layer = layers.find do |name, _, _|
-              layer_xml.attributes["id"] == name
+              layer_xml.attributes["id"] == name.sub(/^\d/, ?_)
             end
             layer ? [ layer_xml, layer ] : nil
           end.compact.each do |layer_xml, layer|

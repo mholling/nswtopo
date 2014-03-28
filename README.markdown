@@ -52,7 +52,7 @@ A large amount of memory is helpful. I developed the software on a 2Gb machine b
 
 ## Fonts
 
-A few point features of the map (camping grounds, picnic areas, mines, towers) use special ESRI fonts, namely 'ESRI Transportation & Civic', 'ESRI Environmental & Icons', 'ESRI Telecom' and others. Some Microsoft fonts (e.g. Cambria) may also be used. These fonts are embedded in the SVG map and should display correctly. However Inkscape does not support embedded fonts and will not render them correctly if they are not installed on your system. This is only relevant if you are using Inkscape to rasterise your final map. Any fonts which are not installed in your system will be listed by the script.
+A few point features of the map (camping grounds, picnic areas, mines, towers) use special ESRI fonts, namely 'ESRI Transportation & Civic', 'ESRI Environmental & Icons', 'ESRI Telecom' and others. Some Microsoft fonts (e.g. Cambria) may also be used. These fonts are embedded in the SVG map and should display correctly. However Inkscape does not support embedded fonts and will not render them correctly if they are not installed on your system. This is usually only relevant if you are using Inkscape to rasterise your final map.
 
 If you wish the missing fonts to display correctly in Inkscape, you need to obtain and install them on your system, either by scrounging them from the internet, or as follows:
 * obtain the ESRI fonts by installing [ArcGIS Explorer](http://www.esri.com/software/arcgis/explorer/index.html) and then downloading the [fonts expansion pack](http://webhelp.esri.com/arcgisexplorer/900/en/expansion_packs.htm) (Windows only).
@@ -150,6 +150,10 @@ Set the filename for the output map and related files.
 By default a map's contour interval is chosen according to its scale: 20 metres for 1:40000 or smaller scale or 10 metres otherwise. To override this default and specify a contour interval to use (either 10 or 20):
 
     contour-interval: 10
+
+You can check the fonts used in the map against those installed on your system by adding the following line:
+
+    check-fonts: true
 
 Available Map Layers
 ====================

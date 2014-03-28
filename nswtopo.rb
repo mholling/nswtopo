@@ -1194,7 +1194,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       service["layers"].each { |layer| layer["name"] = layer["name"].gsub UNDERSCORES, ?_ }
-      service["mapName"] = service["mapName"].gsub UNDERSCORES, ?_
+      service_map_name = options["service-map-name"] || service["mapName"].gsub(UNDERSCORES, ?_)
       layer_ids = service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
       
       resolution = resolution_for label, options, map
@@ -1278,7 +1278,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
               tile_data.gsub! regex do |match|
                 case $1
-                when "Labels", service["mapName"], *layer_ids then match
+                when "Labels", service_map_name, *layer_ids then match
                 else match.sub $1, [ label, type, scale, *tile_offsets, $1 ].compact.join(SEGMENT)
                 end
               end
@@ -1290,8 +1290,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
           xpath = case type
-          when "features" then "/svg//g[@id='%s']//g[@id!='Labels']" % service["mapName"]
-          when "text"     then "/svg//g[@id='%s']//g[@id='Labels']"  % service["mapName"]
+          when "features" then "/svg//g[@id='#{service_map_name}']//g[@id!='Labels']"
+          when "text"     then "/svg//g[@id='#{service_map_name}']//g[@id='Labels']"
           end
           [ scale, type, tile_xml, xpath ]
         end

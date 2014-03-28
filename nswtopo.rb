@@ -1194,7 +1194,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       service["layers"].each { |layer| layer["name"] = layer["name"].gsub UNDERSCORES, ?_ }
-      service_map_name = options["service-map-name"] || service["mapName"].gsub(UNDERSCORES, ?_)
+      service_map_name = service["mapName"].gsub(UNDERSCORES, ?_)
       layer_ids = service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
       
       resolution = resolution_for label, options, map
@@ -1290,8 +1290,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
           xpath = case type
-          when "features" then "/svg//g[@id='#{service_map_name}']//g[@id!='Labels']"
-          when "text"     then "/svg//g[@id='#{service_map_name}']//g[@id='Labels']"
+          when "features" then "/svg//g[@id]//g[@id!='Labels']"
+          when "text"     then "/svg//g[@id]//g[@id='Labels']"
           end
           [ scale, type, tile_xml, xpath ]
         end

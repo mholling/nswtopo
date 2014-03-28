@@ -1385,7 +1385,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       dem_path = if options["path"]
         Pathname.new(options["path"]).expand_path
       else
-        tile_sizes = params["tile_sizes"]
+        tile_sizes = [ 1024, 1024 ]
         degrees_per_pixel = 3.0 / 3600
         bounds = map.wgs84_bounds.map do |bound|
           [ (bound.first / degrees_per_pixel).floor * degrees_per_pixel, (bound.last / degrees_per_pixel).ceil * degrees_per_pixel ]
@@ -1414,32 +1414,26 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           uri = URI::HTTP.build :host => "www.webservice-energy.org", :path => "/mapserv/srtm", :query => URI.escape(query)
           HTTP.get(uri) do |response|
             tile_path.open("wb") { |file| file << response.body }
-            sleep params["interval"]
           end
           %Q["#{tile_path}"]
         end
     
         temp_dir.join("dem.vrt").tap do |vrt_path|
-          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join ?\s}]
+          %x[gdalbuildvrt -srcnodata "-32768" "#{vrt_path}" #{tile_paths.join ?\s}]
         end
       end
       raise BadLayerError.new("elevation data not found at #{dem_path}") unless dem_path.exist?
       
-      relief_path = temp_dir + "#{label}-small.tif"
-      tif_path = temp_dir + "#{label}.tif"
-      tfw_path = temp_dir + "#{label}.tfw"
-      map.write_world_file tfw_path, resolution
-      density = 0.01 * map.scale / resolution
-      altitude = options["altitude"]
-      azimuth = options["azimuth"]
-      exaggeration = options["exaggeration"]
-      %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type Grayscale -depth 8 "#{tif_path}"]
-      %x[gdaldem hillshade -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" -q]
-      raise BadLayerError.new("invalid elevation data") unless $?.success?
-      %x[gdalwarp -s_srs "#{Projection.wgs84}" -t_srs "#{map.projection}" -r bilinear "#{relief_path}" "#{tif_path}"]
-      
-      temp_dir.join("#{label}.#{ext}").tap do |output_path|
-        %x[convert "#{tif_path}" -channel Red -separate -quiet -depth 8 -type Grayscale "#{output_path}"]
+      temp_dir.join("#{label}.tif").tap do |tif_path|
+        relief_path = temp_dir + "#{label}-uncropped.tif"
+        tfw_path = temp_dir + "#{label}.tfw"
+        map.write_world_file tfw_path, resolution
+        density = 0.01 * map.scale / resolution
+        altitude, azimuth, exaggeration = options.values_at("altitude", "azimuth", "exaggeration")
+        %x[gdaldem hillshade -compute_edges -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" -q]
+        raise BadLayerError.new("invalid elevation data") unless $?.success?
+        %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
+        %x[gdalwarp -s_srs "#{Projection.wgs84}" -t_srs "#{map.projection}" -r bilinear -srcnodata 0 -dstalpha "#{relief_path}" "#{tif_path}"]
       end
     end
     
@@ -1447,10 +1441,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       hillshade_path = path(label, options)
       raise BadLayerError.new("hillshade image not found at #{hillshade_path}") unless hillshade_path.exist?
       highlights = options["highlights"]
-      shade = %Q["#{hillshade_path}" -colorspace Gray -level 0,65% -negate -alpha Copy -fill black +opaque black]
-      sun = %Q["#{hillshade_path}" -colorspace Gray -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
+      shade = %Q["#{hillshade_path}" -colorspace Gray -fill white -opaque none -level 0,65% -negate -alpha Copy -fill black +opaque black]
+      sun = %Q["#{hillshade_path}" -colorspace Gray -fill black -opaque none -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
       temp_dir.join("overlay.png").tap do |overlay_path|
-        %x[convert #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
+        %x[convert -quiet #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
       end
     end
   end
@@ -2048,9 +2042,7 @@ canvas:
 relief:
   server:
     class: ReliefSource
-    interval: 0.3
-    tile_sizes: [ 1024, 1024 ]
-  ext: png
+  ext: tif
   altitude: 45
   azimuth: 315
   exaggeration: 2

@@ -1,0 +1,5 @@
+server:
+  class: ArcGIS
+  host: maps.sa.gov.au
+  folder: BaseMaps
+service: Topographic_wmas

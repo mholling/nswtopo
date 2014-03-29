@@ -1,0 +1,16 @@
+server:
+  class: ArcGIS
+  host: services.thelist.tas.gov.au
+  folder: Public
+  tile_sizes:
+  - 4096
+  - 4096
+service: NaturalEnvironment
+ext: svg
+features:
+  ~:
+    sand-mud:
+      name: TASVEG 3.0
+      definition: VEGCODE='OSM'
+sand-mud:
+  stroke: ~

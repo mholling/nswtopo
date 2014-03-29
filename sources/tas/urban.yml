@@ -1,0 +1,18 @@
+server:
+  class: ArcGIS
+  host: services.thelist.tas.gov.au
+  folder: Public
+  tile_sizes:
+  - 4096
+  - 4096
+service: NaturalEnvironment
+ext: svg
+features:
+  ~:
+    urban:
+      name: TASVEG 3.0
+      definition: VEGCODE='FUR'
+urban:
+  stroke: ~
+  fill: "#FFFABD"
+  .//pattern: ~

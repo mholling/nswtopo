@@ -1,0 +1,53 @@
+server:
+  class: ArcGIS
+  host: services.thelist.tas.gov.au
+  folder: Public
+  tile_sizes:
+  - 4096
+  - 4096
+service: NaturalEnvironment
+ext: svg
+features:
+  25000:
+    eucalypt-low:
+      name: Forest Groups
+      definition: FORGROUP='ELF'
+    eucalypt-tall:
+      name: Forest Groups
+      definition: FORGROUP='ETF'
+    rainforest:
+      name: Forest Groups
+      definition: FORGROUP='RFT'
+    other-native:
+      name: Forest Groups
+      definition: FORGROUP='ONF'
+    plantation-hardwood:
+      name: Forest Groups
+      definition: FORGROUP='PHW'
+    plantation-softwood:
+      name: Forest Groups
+      definition: FORGROUP='PSW'
+    # none:
+    #   name: Forest Groups
+    #   definition: FORGROUP='NON'
+eucalypt-low:
+  stroke: ~
+  fill: "#C1FFC1"
+eucalypt-tall:
+  stroke: ~
+  fill: "#E0FFE0"
+rainforest:
+  stroke: ~
+  fill: "#A3FFA3"
+other-native:
+  stroke: ~
+  fill: "#E0FFE0"
+plantation-hardwood:
+  stroke: ~
+  fill: "#B6CC38"
+plantation-softwood:
+  stroke: ~
+  fill: "#B6CC38"
+# none:
+#   stroke: ~
+#   fill: white

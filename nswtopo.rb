@@ -56,7 +56,7 @@ module HashHelpers
   end
 
   def to_query
-    map { |key, value| "#{key}=#{value}" }.join ?&
+    reject { |key, value| value.nil? }.map { |key, value| "#{key}=#{value}" }.join ?&
   end
 end
 Hash.send :include, HashHelpers
@@ -959,7 +959,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class ArcGIS < Source
+  module ArcGIS
     UNDERSCORES = /[\s\(\)]/
     
     def initialize(params)
@@ -1009,6 +1009,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       URI::HTTP.build :host => params["host"], :path => path, :query => URI.escape(query.to_query)
     end
     
+    def get_cookie
+      if params["cookie"] && !params["headers"]
+        cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
+        params["headers"] = { "Cookie" => cookie }
+      end
+    end
+      
     def get_tile(bounds, sizes, options)
       srs = { "wkt" => options["wkt"] }.to_json
       query = {
@@ -1019,137 +1026,30 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "f" => "image"
       }
       if options["image"]
-        query.merge!(
-          "format" => "png24",
-          "interpolation" => options["interpolation"] || "RSP_BilinearInterpolation"
-        )
+        query["format"] = "png24",
+        query["interpolation"] = options["interpolation"] || "RSP_BilinearInterpolation"
       else
-        query.merge!(
-          "layers" => options["layers"],
-          "layerDefs" => options["layerDefs"],
-          "dpi" => options["dpi"],
-          "format" => options["format"],
-          "transparent" => true
-        )
+        %w[layers layerDefs dpi format].each do |key|
+          query[key] = options[key] if options[key]
+        end
+        query["transparent"] = true
       end
       
       HTTP.get(export_uri(options, query), params["headers"]) do |response|
         block_given? ? yield(response.body) : response.body
       end
     end
-    
-    def rerender(map, element, commands)
-      scale_by = lambda do |factor, string|
-        string.split(/[,\s]+/).map { |number| factor * number.to_f }.join(?\s)
-      end
-      commands.inject({}) do |memo, (command, args)|
-        memo.deep_merge case command
-        when "colour" then { "stroke" => args, "fill" => args }
-        when "expand" then { "widen" => args, "stretch" => args }
-        else { command => args }
-        end
-      end.inject({}) do |memo, (command, args)|
-        memo.deep_merge case command
-        when %r{\.//}  then { command => args }
-        when "opacity" then { "self::/@style" => "opacity:#{args}" }
-        when "stroke", "fill"
-          case args
-          when Hash
-            args.map { |colour, replacement|
-              { ".//[@#{command}='#{colour}']/@#{command}" => replacement }
-            }.inject(&:merge)
-          else
-            { ".//[@#{command}!='none']/@#{command}" => args }
-          end
-        when "widen", "stretch", "expand-glyph"
-          case command
-          when "widen"        then %w[stroke-width stroke-miterlimit]
-          when "stretch"      then %w[stroke-dasharray]
-          when "expand-glyph" then %w[font-size]
-          end.map { |name| { ".//[@#{name}]/@#{name}" => scale_by.curry[args] } }.inject(&:merge)
-        when "dash"
-          case args
-          when nil
-            { ".//[@stroke-dasharray]/@stroke-dasharray" => nil }
-          when String, Numeric
-            { ".//path" => { "stroke-dasharray" => scale_by.(map.scale / 25000.0, args.to_s) } }
-          end
-        else { }
-        end
-      end.each do |xpath, args|
-        REXML::XPath.each(element, xpath) do |node|
-          case args
-          when nil then node.remove
-          when Hash
-            case node
-            when REXML::Element   then node.add_attributes(args)
-            end
-          when Proc
-            case node
-            when REXML::Attribute then node.element.attributes[node.name] = args.(node.value)
-            end
-          else
-            case node
-            when REXML::Attribute then node.element.attributes[node.name] = args
-            when REXML::Text      then node.value = args
-            end
-          end
-        end
-      end
-    end
-    
+  end
+  
+  class ArcGISRaster < Source
+    include ArcGIS
     include RasterRenderer
-    
-    def get_source(label, ext, options, map, temp_dir)
-      if params["cookie"] && !params["headers"]
-        cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
-        params["headers"] = { "Cookie" => cookie }
-      end
-      
-      ext == "svg" ? get_vector(label, ext, options, map, temp_dir) : super(label, ext, options, map, temp_dir)
-    end
-    
-    def render_svg(xml, label, options, map, &block)
-      return super(xml, label, options, map, &block) unless options["ext"] == "svg"
-      source_xml = path(label, options).tap do |vector_path|
-        raise BadLayerError.new("source file not found at #{vector_path}") unless vector_path.exist?
-      end.read
-      source = REXML::Document.new(source_xml)
-      
-      if xml.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')]") do |layer|
-        id = layer.attributes["id"]
-        layer.replace_with source.elements["/svg/g[@id='#{id}']"]
-      end.empty?
-        source.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')][*]", &block)
-        [ *options["exclude"] ].each do |sublabel|
-          xml.elements.each("/svg/g[@id='#{[ label, sublabel ].join SEGMENT}']", &:remove)
-        end
-      end
-      
-      xml.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')][*]") do |layer|
-        id = layer.attributes["id"]
-        name = id.split(SEGMENT).last
-        puts "  Rendering #{id}"
-        render_sources = (options["equivalences"] || {}).select do |group, names|
-          names.include? name
-        end.map(&:first) << name
-        render_sources.inject(options) do |memo, key|
-          memo.deep_merge(options[key] || {})
-        end.tap do |commands|
-          rerender(map, layer, commands)
-        end
-        until layer.elements.each(".//g[not(*)]", &:remove).empty? do
-        end
-      end
-      
-      xml.elements.each("/svg/defs[starts-with(@id,'#{label}#{SEGMENT}')]", &:remove)
-      source.elements.each("/svg/defs") { |defs| xml.elements["/svg"].unshift defs }
-    end
     
     def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
       scale = options["scale"] || map.scale
       layer_options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "png32" }
       
+      get_cookie
       dataset = tiles(map, resolution).with_progress.with_index.map do |(tile_bounds, tile_sizes, tile_offsets), tile_index|
         sleep params["interval"] if params["interval"]
         tile_path = temp_dir + "tile.#{tile_index}.png"
@@ -1185,9 +1085,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
     end
+  end
+  
+  class ArcGISVector < Source
+    include ArcGIS
+    DEFAULT_MM_PER_TILE = 200
     
-    def get_vector(label, ext, options, map, temp_dir)
+    def path(label, options)
+      Pathname.pwd + "#{label}.svg"
+    end
+    
+    def get_source(label, ext, options, map, temp_dir)
       puts "Downloading: #{label}"
+      get_cookie
       service = HTTP.get(service_uri(options, "f" => "json"), params["headers"]) do |response|
         JSON.parse(response.body).tap do |result|
           raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
@@ -1197,7 +1107,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       service_map_name = service["mapName"].gsub(UNDERSCORES, ?_)
       layer_ids = service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
       
-      resolution = resolution_for label, options, map
+      resolution = options["resolution"] || params["resolution"] || DEFAULT_MM_PER_TILE * 0.001 * map.scale / params["tile_sizes"].min
       transform = map.svg_transform(1000.0 * resolution / map.scale)
       tile_list = tiles(map, resolution, 3) # TODO: margin of 3 means what?
       
@@ -1369,6 +1279,102 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     rescue REXML::ParseException => e
       abort "Bad XML received:\n#{e.message}"
+    end
+    
+    def rerender(map, element, commands)
+      scale_by = lambda do |factor, string|
+        string.split(/[,\s]+/).map { |number| factor * number.to_f }.join(?\s)
+      end
+      commands.inject({}) do |memo, (command, args)|
+        memo.deep_merge case command
+        when "colour" then { "stroke" => args, "fill" => args }
+        when "expand" then { "widen" => args, "stretch" => args }
+        else { command => args }
+        end
+      end.inject({}) do |memo, (command, args)|
+        memo.deep_merge case command
+        when %r{\.//}  then { command => args }
+        when "opacity" then { "self::/@style" => "opacity:#{args}" }
+        when "stroke", "fill"
+          case args
+          when Hash
+            args.map { |colour, replacement|
+              { ".//[@#{command}='#{colour}']/@#{command}" => replacement }
+            }.inject(&:merge)
+          else
+            { ".//[@#{command}!='none']/@#{command}" => args }
+          end
+        when "widen", "stretch", "expand-glyph"
+          case command
+          when "widen"        then %w[stroke-width stroke-miterlimit]
+          when "stretch"      then %w[stroke-dasharray]
+          when "expand-glyph" then %w[font-size]
+          end.map { |name| { ".//[@#{name}]/@#{name}" => scale_by.curry[args] } }.inject(&:merge)
+        when "dash"
+          case args
+          when nil
+            { ".//[@stroke-dasharray]/@stroke-dasharray" => nil }
+          when String, Numeric
+            { ".//path" => { "stroke-dasharray" => scale_by.(map.scale / 25000.0, args.to_s) } }
+          end
+        else { }
+        end
+      end.each do |xpath, args|
+        REXML::XPath.each(element, xpath) do |node|
+          case args
+          when nil then node.remove
+          when Hash
+            case node
+            when REXML::Element   then node.add_attributes(args)
+            end
+          when Proc
+            case node
+            when REXML::Attribute then node.element.attributes[node.name] = args.(node.value)
+            end
+          else
+            case node
+            when REXML::Attribute then node.element.attributes[node.name] = args
+            when REXML::Text      then node.value = args
+            end
+          end
+        end
+      end
+    end
+    
+    def render_svg(xml, label, options, map, &block)
+      source_xml = path(label, options).tap do |vector_path|
+        raise BadLayerError.new("source file not found at #{vector_path}") unless vector_path.exist?
+      end.read
+      source = REXML::Document.new(source_xml)
+      
+      if xml.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')]") do |layer|
+        id = layer.attributes["id"]
+        layer.replace_with source.elements["/svg/g[@id='#{id}']"]
+      end.empty?
+        source.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')][*]", &block)
+        [ *options["exclude"] ].each do |sublabel|
+          xml.elements.each("/svg/g[@id='#{[ label, sublabel ].join SEGMENT}']", &:remove)
+        end
+      end
+      
+      xml.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')][*]") do |layer|
+        id = layer.attributes["id"]
+        name = id.split(SEGMENT).last
+        puts "  Rendering #{id}"
+        render_sources = (options["equivalences"] || {}).select do |group, names|
+          names.include? name
+        end.map(&:first) << name
+        render_sources.inject(options) do |memo, key|
+          memo.deep_merge(options[key] || {})
+        end.tap do |commands|
+          rerender(map, layer, commands)
+        end
+        until layer.elements.each(".//g[not(*)]", &:remove).empty? do
+        end
+      end
+      
+      xml.elements.each("/svg/defs[starts-with(@id,'#{label}#{SEGMENT}')]", &:remove)
+      source.elements.each("/svg/defs") { |defs| xml.elements["/svg"].unshift defs }
     end
   end
   

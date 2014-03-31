@@ -1,5 +1,5 @@
 server:
-  class: ArcGIS
+  class: ArcGISRaster
   host: www.actmapi.act.gov.au
   instance: actmapi
   folder: mga

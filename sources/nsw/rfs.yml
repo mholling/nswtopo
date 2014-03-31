@@ -1,9 +1,8 @@
 server:
-  class: ArcGIS
+  class: ArcGISVector
   host: maps.six.nsw.gov.au
   folder: sixmaps
 service: RFS
-ext: svg
 features:
   0.25:
     buildings:

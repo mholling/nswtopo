@@ -1,11 +1,10 @@
 server:
-  class: ArcGIS
+  class: ArcGISVector
   host: spatialprod.dpi.nsw.gov.au
   instance: ArcGIS2
   folder: IndustryViewFLEX2
   integer-dpi: true
 service: Base_Mapping
-ext: svg
 features:
   25000:
     creeks:

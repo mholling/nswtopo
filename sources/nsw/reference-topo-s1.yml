@@ -1,5 +1,5 @@
 server:
-  class: ArcGIS
+  class: ArcGISRaster
   host: maps.six.nsw.gov.au
   folder: sixmaps
 service: LPITopoMap_S1

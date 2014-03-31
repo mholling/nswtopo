@@ -1,12 +1,11 @@
 server:
-  class: ArcGIS
+  class: ArcGISVector
   host: services.thelist.tas.gov.au
   folder: Public
   tile_sizes:
   - 4096
   - 4096
 service: MarineAndCoastal
-ext: svg
 features:
   ~:
     ocean: Bathymetric Contours

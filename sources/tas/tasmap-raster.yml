@@ -1,5 +1,5 @@
 server:
-  class: ArcGIS
+  class: ArcGISRaster
   host: services.thelist.tas.gov.au
   folder: Basemaps
 service: TasmapRaster

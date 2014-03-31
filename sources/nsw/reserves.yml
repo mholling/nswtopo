@@ -1,11 +1,10 @@
 server:
-  class: ArcGIS
+  class: ArcGISVector
   host: spatialprod.dpi.nsw.gov.au
   instance: ArcGIS2
   folder: IndustryViewFLEX2
   integer-dpi: true
 service: Conservation_Areas
-ext: svg
 features:
   ~:
     national-parks: National_Parks

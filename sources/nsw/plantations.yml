@@ -1,5 +1,5 @@
 server:
-  class: ArcGIS
+  class: ArcGISVector
   host: atlas.nsw.gov.au
   instance: arcgis1
   cookie: http://atlas.nsw.gov.au/
@@ -11,6 +11,5 @@ features:
     forestry:
       name: Forestry
       definition: Classification='Plantation forestry' OR Classification='Irrigated plantation forestry'
-ext: svg
 opacity: 1
 colour: "#80D19B"

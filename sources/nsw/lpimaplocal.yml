@@ -1,9 +1,8 @@
 server:
-  class: ArcGIS
+  class: ArcGISVector
   host: mapsq.six.nsw.gov.au
   folder: sixmaps
 service: LPIMapLocal
-ext: svg
 features:
   0.1:
     building-areas: GeneralCulturalArea

@@ -1,0 +1,8 @@
+server:
+  class: ArcGIS
+  host: services.thelist.tas.gov.au
+  folder: Basemaps
+service: Orthophoto
+ext: png
+image: true
+resolution: 2.0

@@ -960,8 +960,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   module ArcGIS
-    UNDERSCORES = /[\s\(\)]/
-    
     def initialize(params)
       super({ "tile_sizes" => [ 2048, 2048 ], "interval" => 0.1 }.merge params)
     end
@@ -1029,7 +1027,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         query["format"] = "png24",
         query["interpolation"] = options["interpolation"] || "RSP_BilinearInterpolation"
       else
-        %w[layers layerDefs dpi format].each do |key|
+        %w[layers layerDefs dpi format dynamicLayers].each do |key|
           query[key] = options[key] if options[key]
         end
         query["transparent"] = true
@@ -1089,6 +1087,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class ArcGISVector < Source
     include ArcGIS
+    UNDERSCORES = /[\s\(\)]/
     DEFAULT_MM_PER_TILE = 200
     
     def path(label, options)
@@ -1104,12 +1103,21 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       service["layers"].each { |layer| layer["name"] = layer["name"].gsub UNDERSCORES, ?_ }
-      service_map_name = service["mapName"].gsub(UNDERSCORES, ?_)
+      service["mapName"] = service["mapName"].gsub UNDERSCORES, ?_
       layer_ids = service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
       
       resolution = options["resolution"] || params["resolution"] || DEFAULT_MM_PER_TILE * 0.001 * map.scale / params["tile_sizes"].min
       transform = map.svg_transform(1000.0 * resolution / map.scale)
       tile_list = tiles(map, resolution, 3) # TODO: margin of 3 means what?
+      
+      xml = map.xml
+      xml.elements["/svg"].add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
+        tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
+          defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
+            clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
+          end
+        end
+      end
       
       downloads = %w[features text].select do |type|
         options[type]
@@ -1188,7 +1196,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
               tile_data.gsub! regex do |match|
                 case $1
-                when "Labels", service_map_name, *layer_ids then match
+                when "Labels", service["mapName"], *layer_ids then match
                 else match.sub $1, [ label, type, scale, *tile_offsets, $1 ].compact.join(SEGMENT)
                 end
               end
@@ -1206,15 +1214,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           [ scale, type, tile_xml, xpath ]
         end
         [ tileset, tile_offsets ]
-      end
-      
-      xml = map.xml
-      xml.elements["/svg"].add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
-        tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
-          defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
-            clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
-          end
-        end
       end
       
       layerset = downloads.map do |scale, dpi, group, type|
@@ -1375,6 +1374,104 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       xml.elements.each("/svg/defs[starts-with(@id,'#{label}#{SEGMENT}')]", &:remove)
       source.elements.each("/svg/defs") { |defs| xml.elements["/svg"].unshift defs }
+    end
+  end
+  
+  class ArcGISDynamic < ArcGISVector
+    def get_source(label, ext, options, map, temp_dir)
+      puts "Downloading: #{label}"
+      get_cookie
+      service = HTTP.get(service_uri(options, "f" => "json"), params["headers"]) do |response|
+        JSON.parse(response.body).tap do |result|
+          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+        end
+      end
+      service["layers"].each { |layer| layer["name"] = layer["name"].gsub UNDERSCORES, ?_ }
+      service["mapName"] = service["mapName"].gsub(UNDERSCORES, ?_)
+      layer_ids = service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
+      
+      resolution = options["resolution"] || params["resolution"] || DEFAULT_MM_PER_TILE * 0.001 * map.scale / params["tile_sizes"].min
+      transform = map.svg_transform(1000.0 * resolution / map.scale)
+      tile_list = tiles(map, resolution, 3) # TODO: margin of 3 means what?
+      
+      xml = map.xml
+      xml.elements["/svg"].add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
+        tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
+          defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
+            clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
+          end
+        end
+      end
+      
+      ids = options["layers"].values.map { |layer| layer["id"] }
+      tiles = tile_list.with_progress.map do |tile_bounds, tile_sizes, tile_offsets|
+        sleep params["interval"] if params["interval"]
+        query_options = {
+          "dpi" => map.scale * 0.0254 / resolution,
+          "wkt" => map.projection.wkt_esri,
+          "layers" => "show:#{ids.join ?,}",
+          "dynamicLayers" => options["layers"].values.to_json,
+          "format" => "svg",
+        }
+        tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(query_options)) do |tile_data|
+          tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
+          tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
+          tile_data.gsub! /Arial\s?MT/, "Arial"
+          tile_data.gsub! "ESRISDS1.951", %Q['ESRI SDS 1.95 1']
+          [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
+            tile_data.gsub! regex do |match|
+              case $1
+              when "Labels", service["mapName"], *layer_ids then match
+              else match.sub $1, [ label, type, scale, *tile_offsets, $1 ].compact.join(SEGMENT)
+              end
+            end
+          end
+          begin
+            REXML::Document.new(tile_data)
+          rescue REXML::ParseException => e
+            raise ServerError.new("Bad XML data received: #{e.message}")
+          end
+        end
+        [ tile_xml, tile_offsets ]
+      end
+      layers = options["layers"].keys.map do |sublabel|
+        xml.elements["/svg"].add_element("g", "id" => [ label, sublabel ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
+      end
+      label_layer = xml.elements["/svg"].add_element("g", "id" => [ label, "labels" ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
+      
+      tiles.with_progress("Assembling: #{label}").each do |tile_xml, tile_offsets|
+        tile_transform = "translate(#{tile_offsets.join ?\s})"
+        clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(SEGMENT)})"
+        layer_xmls = tile_xml.elements.collect("/svg//g[@id]/g[@id]/g[@id!='Labels']") { |layer_xml| layer_xml }
+        [ layer_xmls, layers ].transpose.each do |layer_xml, layer|
+          layer_xml.parent.attributes["opacity"].tap do |opacity|
+            layer.add_attribute("style", "opacity:#{opacity}") if opacity
+          end
+          layer.add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
+            layer_xml.elements.each { |element| tile << element }
+          end
+        end
+        tile_xml.elements["/svg//g[@id]/g[@id]/g[@id='Labels']"].tap do |label_xml|
+          label_xml.elements.each(".//pattern | .//path | .//font", &:remove)
+          label_layer.add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
+            label_xml.deep_clone.tap do |copy|
+              copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
+            end.elements.each { |element| tile << element }
+            label_xml.elements.each { |element| tile << element }
+          end
+        end
+      end
+      
+      xml.elements.each("//path[@d='']", &:remove)
+      until xml.elements.each("/svg/g[@id]//g[not(*)]", &:remove).empty? do
+      end
+      xml.elements["//defs"].remove unless xml.elements["/svg/g[*]"]
+      
+      temp_dir.join("#{label}.svg").tap do |mosaic_path|
+        File.write mosaic_path, xml
+      end
+    rescue REXML::ParseException => e
+      abort "Bad XML received:\n#{e.message}"
     end
   end
   

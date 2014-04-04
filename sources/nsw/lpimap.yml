@@ -1,7 +1,6 @@
-server:
-  class: ArcGISVector
-  host: maps.six.nsw.gov.au
-  folder: sixmaps
+class: ArcGISVector
+host: maps.six.nsw.gov.au
+folder: sixmaps
 service: LPIMap
 resolution: 0.55
 features:

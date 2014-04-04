@@ -1,5 +1,4 @@
-server:
-  class: VegetationSource
+class: VegetationSource
 mapping:
   6: 60
   7: 60

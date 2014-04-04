@@ -1,9 +1,8 @@
-server:
-  class: ArcGISVector
-  host: spatialprod.dpi.nsw.gov.au
-  instance: ArcGIS2
-  folder: IndustryViewFLEX2
-  integer-dpi: true
+class: ArcGISVector
+host: spatialprod.dpi.nsw.gov.au
+instance: ArcGIS2
+folder: IndustryViewFLEX2
+integer-dpi: true
 service: Base_Mapping
 features:
   25000:

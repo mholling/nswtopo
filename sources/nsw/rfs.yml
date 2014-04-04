@@ -1,7 +1,6 @@
-server:
-  class: ArcGISVector
-  host: maps.six.nsw.gov.au
-  folder: sixmaps
+class: ArcGISVector
+host: maps.six.nsw.gov.au
+folder: sixmaps
 service: RFS
 features:
   0.25:

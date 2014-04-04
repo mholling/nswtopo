@@ -1,9 +1,8 @@
-server:
-  class: ArcGISVector
-  host: atlas.nsw.gov.au
-  instance: arcgis1
-  cookie: http://atlas.nsw.gov.au/
-  folder: atlas
+class: ArcGISVector
+host: atlas.nsw.gov.au
+instance: arcgis1
+cookie: http://atlas.nsw.gov.au/
+folder: atlas
 service: Economy_Forestry
 resolution: 0.55
 features:

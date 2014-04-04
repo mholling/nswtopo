@@ -1,8 +1,7 @@
-server:
-  class: ArcGISRaster
-  host: www.actmapi.act.gov.au
-  instance: actmapi
-  folder: mga
+class: ArcGISRaster
+host: www.actmapi.act.gov.au
+instance: actmapi
+folder: mga
 service: dopm2012mga
 ext: jpg
 image: true

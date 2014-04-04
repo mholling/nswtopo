@@ -685,40 +685,40 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   # end
   
   class Source
-    def initialize(params = {})
+    def initialize(layer_name, params)
+      @layer_name = layer_name
       @params = params
     end
-  
-    attr_reader :params
+    attr_reader :layer_name, :params, :path
     
-    def path(label, options)
-      ext = options["ext"] || params["ext"] || "png"
-      Pathname.pwd + "#{label}.#{ext}"
-    end
-    
-    def download(label, options, map)
-      ext = options["ext"] || params["ext"] || "png"
-      Dir.mktmppath do |temp_dir|
-        FileUtils.cp get_source(label, ext, options, map, temp_dir), path(label, options)
-      end
+    def exist?
+      path.nil? || path.exist?
     end
   end
   
   module RasterRenderer
-    def resolution_for(label, options, map)
-      options["resolution"] || params["resolution"] || map.scale / 12500.0
+    def initialize(*args)
+      super(*args)
+      ext = params["ext"] || "png"
+      @path = Pathname.pwd + "#{layer_name}.#{ext}"
     end
     
-    def get_source(label, ext, options, map, temp_dir)
-      resolution = resolution_for label, options, map
+    def resolution_for(map)
+      params["resolution"] || map.scale / 12500.0
+    end
+    
+    def create(map)
+      resolution = resolution_for map
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       pixels = dimensions.inject(:*) > 500000 ? " (%.1fMpx)" % (0.000001 * dimensions.inject(:*)) : nil
-      puts "Creating: %s, %ix%i%s @ %.1f m/px" % [ label, *dimensions, pixels, resolution]
-      get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
+      puts "Creating: %s, %ix%i%s @ %.1f m/px" % [ layer_name, *dimensions, pixels, resolution]
+      Dir.mktmppath do |temp_dir|
+        FileUtils.cp get_raster(map, dimensions, resolution, temp_dir), path
+      end
     end
     
-    def clip_paths(layer, label, options)
-      [ *options["clips"] ].map do |sublayer|
+    def clip_paths(layer)
+      [ *params["clips"] ].map do |sublayer|
         layer.parent.elements.collect("//g[contains(@id,'#{sublayer}')]//path[@fill-rule='evenodd']") { |path| path }
       end.inject([], &:+).map do |path|
         transform = path.elements.collect("ancestor-or-self::*[@transform]") do |element|
@@ -730,37 +730,38 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         { "d" => d, "transform" => transform, "clip-rule" => "evenodd" }
       end.map.with_index do |attributes, index|
         REXML::Element.new("clipPath").tap do |clippath|
-          clippath.add_attribute("id", [ label, "clip", index ].join(SEGMENT))
+          clippath.add_attribute("id", [ layer_name, "clip", index ].join(SEGMENT))
           clippath.add_element("path", attributes)
         end
       end
     end
     
-    def render_svg(xml, label, options, map, &block)
-      puts "  Rendering #{label}"
-      resolution = resolution_for label, options, map
+    def render_svg(xml, map, &block)
+      puts "  Rendering #{layer_name}"
+      resolution = resolution_for map
       transform = "scale(#{1000.0 * resolution / map.scale})"
-      opacity = options["opacity"] || params["opacity"] || 1
+      opacity = params["opacity"] || 1
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       
       href = if respond_to?(:embed_image) && params["embed"] != false
-        base64 = Dir.mktmppath do |temp_dir|
-          Base64.encode64 embed_image(label, options, temp_dir).read
+        Dir.mktmppath do |temp_dir|
+          raster_path = embed_image(temp_dir)
+          base64 = Base64.encode64 raster_path.read
+          mimetype = %x[identify -quiet -verbose "#{raster_path}"][/image\/\w+/] || "image/png"
+          "data:#{mimetype};base64,#{base64}"
         end
-        "data:image/png;base64,#{base64}"
       else
-        path(label, options).tap do |raster_path|
-          raise BadLayerError.new("#{label} raster image not found at #{raster_path}") unless raster_path.exist?
-        end.basename
+        raise BadLayerError.new("#{layer_name} raster image not found at #{path}") unless path.exist?
+        path.basename
       end
       
       layer = REXML::Element.new("g")
-      xml.elements["/svg/g[@id='#{label}']"].tap do |old_layer|
+      xml.elements["/svg/g[@id='#{layer_name}']"].tap do |old_layer|
         old_layer ? old_layer.replace_with(layer) : yield(layer)
       end
-      layer.add_attributes "id" => label, "style" => "opacity:#{opacity}"
-      layer.add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
-        clip_paths(layer, label, options).each do |clippath|
+      layer.add_attributes "id" => layer_name, "style" => "opacity:#{opacity}"
+      layer.add_element("defs", "id" => [ layer_name, "tiles" ].join(SEGMENT)) do |defs|
+        clip_paths(layer).each do |clippath|
           defs.elements << clippath
         end
       end.elements.collect("./clipPath") do |clippath|
@@ -781,16 +782,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class TiledServer < Source
     include RasterRenderer
     
-    def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      tile_paths = tiles(options, map, resolution, temp_dir).map do |tile_bounds, tile_resolution, tile_path|
+    def get_raster(map, dimensions, resolution, temp_dir)
+      tile_paths = tiles(map, resolution, temp_dir).map do |tile_bounds, tile_resolution, tile_path|
         topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
         WorldFile.write topleft, tile_resolution, 0, Pathname.new("#{tile_path}w")
         %Q["#{tile_path}"]
       end
       
-      tif_path = temp_dir + "#{label}.tif"
-      tfw_path = temp_dir + "#{label}.tfw"
-      vrt_path = temp_dir + "#{label}.vrt"
+      tif_path = temp_dir + "#{layer_name}.tif"
+      tfw_path = temp_dir + "#{layer_name}.tfw"
+      vrt_path = temp_dir + "#{layer_name}.vrt"
       
       density = 0.01 * map.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
@@ -802,14 +803,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x[gdalwarp -s_srs "#{projection}" -t_srs "#{map.projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
       end
       
-      temp_dir.join("#{label}.#{ext}").tap do |output_path|
-        %x[convert -quiet "#{tif_path}" "#{output_path}"]
+      temp_dir.join(path.basename).tap do |raster_path|
+        %x[convert -quiet "#{tif_path}" "#{raster_path}"]
       end
     end
   end
   
   class TiledMapServer < TiledServer
-    def tiles(options, map, raster_resolution, temp_dir)
+    def tiles(map, raster_resolution, temp_dir)
       tile_sizes = params["tile_sizes"]
       tile_limit = params["tile_limit"]
       crops = params["crops"] || [ [ 0, 0 ], [ 0, 0 ] ]
@@ -828,8 +829,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         counts.inject(:*) < tile_limit
       end
       
-      format = options["format"]
-      name = options["name"]
+      format, name = params.values_at("format", "name")
       
       puts "(Downloading #{counts.inject(:*)} tiles)"
       counts.map { |count| (0...count).to_a }.inject(:product).with_progress.map do |indices|
@@ -870,14 +870,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class LPIOrthoServer < TiledServer
-    def tiles(options, map, raster_resolution, temp_dir)
+    def tiles(map, raster_resolution, temp_dir)
       projection = Projection.new(params["projection"])
       bounds = map.transform_bounds_to(projection)
       images_regions = case
-      when options["image"]
-        { options["image"] => options["region"] }
-      when options["config"]
-        HTTP.get(URI::HTTP.build(:host => params["host"], :path => options["config"])) do |response|
+      when params["image"]
+        { params["image"] => params["region"] }
+      when params["config"]
+        HTTP.get(URI::HTTP.build(:host => params["host"], :path => params["config"])) do |response|
           vars, images = response.body.scan(/(.+)_ECWP_URL\s*?=\s*?.*"(.+)";/x).transpose
           regions = vars.map do |var|
             response.body.match(/#{var}_CLIP_REGION\s*?=\s*?\[(.+)\]/x) do |match|
@@ -888,7 +888,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
     
-      otdf = options["otdf"]
+      otdf = params["otdf"]
       dll_path = otdf ? "/otdf/otdf.dll" : "/ImageX/ImageX.dll"
       uri = URI::HTTP.build(:host => params["host"], :path => dll_path, :query => "dsinfo?verbose=#{!otdf}&layers=#{images_regions.keys.join ?,}")
       images_attributes = HTTP.get(uri) do |response|
@@ -960,8 +960,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   module ArcGIS
-    def initialize(params)
-      super({ "tile_sizes" => [ 2048, 2048 ], "interval" => 0.1 }.merge params)
+    def initialize(*args)
+      super(*args)
+      params["tile_sizes"] ||= [ 2048, 2048 ]
+      params["interval"] ||= 0.1
     end
     
     def tiles(map, resolution, margin = 0)
@@ -995,16 +997,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def export_uri(options, query)
-      service_type, function = options["image"] ? %w[ImageServer exportImage] : %w[MapServer export]
-      path = [ "", params["instance"] || "arcgis", "rest", "services", options["folder"] || params["folder"], options["service"], service_type, function ].compact.join ?/
-      URI::HTTP.build :host => params["host"], :path => path, :query => URI.escape(query.to_query)
+    def export_uri(query)
+      service_type, function = params["image"] ? %w[ImageServer exportImage] : %w[MapServer export]
+      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type, function ].compact.join ?/
+      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
     end
     
-    def service_uri(options, query)
-      service_type = options["image"] ? "ImageServer" : "MapServer"
-      path = [ "", params["instance"] || "arcgis", "rest", "services", options["folder"] || params["folder"], options["service"], service_type ].compact.join ?/
-      URI::HTTP.build :host => params["host"], :path => path, :query => URI.escape(query.to_query)
+    def service_uri(query)
+      service_type = params["image"] ? "ImageServer" : "MapServer"
+      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type ].compact.join ?/
+      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
     end
     
     def get_cookie
@@ -1015,6 +1017,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
       
     def get_tile(bounds, sizes, options)
+      # TODO: we could tidy this up a bit...
       srs = { "wkt" => options["wkt"] }.to_json
       query = {
         "bbox" => bounds.transpose.flatten.join(?,),
@@ -1023,9 +1026,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "size" => sizes.join(?,),
         "f" => "image"
       }
-      if options["image"]
+      if params["image"]
         query["format"] = "png24",
-        query["interpolation"] = options["interpolation"] || "RSP_BilinearInterpolation"
+        query["interpolation"] = params["interpolation"] || "RSP_BilinearInterpolation"
       else
         %w[layers layerDefs dpi format dynamicLayers].each do |key|
           query[key] = options[key] if options[key]
@@ -1033,7 +1036,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         query["transparent"] = true
       end
       
-      HTTP.get(export_uri(options, query), params["headers"]) do |response|
+      HTTP.get(export_uri(query), params["headers"]) do |response|
         block_given? ? yield(response.body) : response.body
       end
     end
@@ -1043,43 +1046,43 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include ArcGIS
     include RasterRenderer
     
-    def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      scale = options["scale"] || map.scale
-      layer_options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "png32" }
+    def get_raster(map, dimensions, resolution, temp_dir)
+      scale = params["scale"] || map.scale
+      options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "png32" }
       
       get_cookie
       dataset = tiles(map, resolution).with_progress.with_index.map do |(tile_bounds, tile_sizes, tile_offsets), tile_index|
         sleep params["interval"] if params["interval"]
         tile_path = temp_dir + "tile.#{tile_index}.png"
         tile_path.open("wb") do |file|
-          file << get_tile(tile_bounds, tile_sizes, options.merge(layer_options))
+          file << get_tile(tile_bounds, tile_sizes, options)
         end
         [ tile_bounds, tile_sizes, tile_offsets, tile_path ]
       end
       
-      temp_dir.join("#{label}.#{ext}").tap do |mosaic_path|
+      temp_dir.join(path.basename).tap do |raster_path|
         density = 0.01 * map.scale / resolution
-        alpha = options["background"] ? %Q[-background "#{options['background']}" -alpha Remove] : nil
+        alpha = params["background"] ? %Q[-background "#{params['background']}" -alpha Remove] : nil
         if map.rotation.zero?
           sequence = dataset.map do |_, tile_sizes, tile_offsets, tile_path|
             %Q[#{OP} "#{tile_path}" +repage -repage +#{tile_offsets[0]}+#{tile_offsets[1]} #{CP}]
           end.join ?\s
-          resize = (options["resolution"] || options["scale"]) ? "-resize #{dimensions.join ?x}!" : "" # TODO: check?
-          %x[convert #{sequence} -compose Copy -layers mosaic -units PixelsPerCentimeter -density #{density} #{resize} #{alpha} "#{mosaic_path}"]
+          resize = (params["resolution"] || params["scale"]) ? "-resize #{dimensions.join ?x}!" : "" # TODO: check?
+          %x[convert #{sequence} -compose Copy -layers mosaic -units PixelsPerCentimeter -density #{density} #{resize} #{alpha} "#{raster_path}"]
         else
           tile_paths = dataset.map do |tile_bounds, _, _, tile_path|
             topleft = [ tile_bounds.first.first, tile_bounds.last.last ]
             WorldFile.write topleft, resolution, 0, Pathname.new("#{tile_path}w")
             %Q["#{tile_path}"]
           end.join ?\s
-          vrt_path = temp_dir + "#{label}.vrt"
-          tif_path = temp_dir + "#{label}.tif"
-          tfw_path = temp_dir + "#{label}.tfw"
+          vrt_path = temp_dir + "#{layer_name}.vrt"
+          tif_path = temp_dir + "#{layer_name}.tif"
+          tfw_path = temp_dir + "#{layer_name}.tfw"
           %x[gdalbuildvrt "#{vrt_path}" #{tile_paths}]
           %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
           map.write_world_file tfw_path, resolution
           %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -dstalpha -r cubic "#{vrt_path}" "#{tif_path}"]
-          %x[convert "#{tif_path}" -quiet #{alpha} "#{mosaic_path}"]
+          %x[convert "#{tif_path}" -quiet #{alpha} "#{raster_path}"]
         end
       end
     end
@@ -1090,14 +1093,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     UNDERSCORES = /[\s\(\)]/
     DEFAULT_MM_PER_TILE = 200
     
-    def path(label, options)
-      Pathname.pwd + "#{label}.svg"
+    def initialize(*args)
+      super(*args)
+      @path = Pathname.pwd + "#{layer_name}.svg"
     end
     
-    def get_source(label, ext, options, map, temp_dir)
-      puts "Downloading: #{label}"
+    def create(map)
+      puts "Downloading: #{layer_name}"
       get_cookie
-      service = HTTP.get(service_uri(options, "f" => "json"), params["headers"]) do |response|
+      service = HTTP.get(service_uri("f" => "json"), params["headers"]) do |response|
         JSON.parse(response.body).tap do |result|
           raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
         end
@@ -1106,25 +1110,25 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       service["mapName"] = service["mapName"].gsub UNDERSCORES, ?_
       layer_ids = service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
       
-      resolution = options["resolution"] || params["resolution"] || DEFAULT_MM_PER_TILE * 0.001 * map.scale / params["tile_sizes"].min
+      resolution = params["resolution"] || DEFAULT_MM_PER_TILE * 0.001 * map.scale / params["tile_sizes"].min
       transform = map.svg_transform(1000.0 * resolution / map.scale)
       tile_list = tiles(map, resolution, 3) # TODO: margin of 3 means what?
       
       xml = map.xml
-      xml.elements["/svg"].add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
+      xml.elements["/svg"].add_element("defs", "id" => [ layer_name, "tiles" ].join(SEGMENT)) do |defs|
         tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
-          defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
+          defs.add_element("clipPath", "id" => [ layer_name, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
             clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
           end
         end
       end
       
       downloads = %w[features text].select do |type|
-        options[type]
+        params[type]
       end.map do |type|
-        case options[type]
+        case params[type]
         when Hash
-          options[type].map do |scale_or_multiplier, layers|
+          params[type].map do |scale_or_multiplier, layers|
             case scale_or_multiplier
             when Integer then [ scale_or_multiplier, layers]
             when Float then [ scale_or_multiplier * map.scale, layers ]
@@ -1132,7 +1136,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
         when String, Array
-          { map.scale => [ *options[type] ] }
+          { map.scale => [ *params[type] ] }
         when true
           { map.scale => service["layers"].select { |layer| layer["parentLayerId"] == -1 }.map { |layer| layer["name"] } }
         end.map do |scale, layers|
@@ -1143,32 +1147,32 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
           layers.map do |key, value|
             case value
-            when String then { key => { "name" => value } }  # key is a sublabel, value is a layer name
-            when Fixnum then { key => { "id" => value } }    # key is a sublabel, value is a layer ID
-            when Hash   then { key => value }                # key is a sublabel, value is layer options
+            when String then { key => { "name" => value } }  # key is a sublayer name, value is a service layer name
+            when Fixnum then { key => { "id" => value } }    # key is a sublayer name, value is a service layer ID
+            when Hash   then { key => value }                # key is a sublayer name, value is layer options
             when nil
               case key
-              when String then { key => { "name" => key } }  # key is a layer name
-              when Hash                                      # key is a layer name with definition
+              when String then { key => { "name" => key } }  # key is a service layer name
+              when Hash                                      # key is a service layer name with definition
                 { key.first.first => { "name" => key.first.first, "definition" => key.first.last } }
-              when Fixnum                                    # key is a layer ID
+              when Fixnum                                    # key is a service layer ID
                 layer = service["layers"].find { |layer| layer["id"] == key }
                 { layer["name"] => { "id" => layer["id"] } }
               end
             end
-          end.inject(&:merge).each do |sublabel, layer_options|
-            layer_options["name"] = layer_options["name"].gsub UNDERSCORES, ?_
-            layer_options["id"]   ||= service["layers"].find { |layer| layer["name"] == layer_options["name"] }.fetch("id")
-            layer_options["name"] ||= service["layers"].find { |layer| layer["id"]   == layer_options["id"]   }.fetch("name")
-            layer_options["name"] = layer_options["name"].gsub UNDERSCORES, ?_
-          end.inject([]) do |memo, (sublabel, layer_options)|
+          end.inject(&:merge).each do |sublayer_name, options|
+            options["name"] = options["name"].gsub UNDERSCORES, ?_
+            options["id"]   ||= service["layers"].find { |layer| layer["name"] == options["name"] }.fetch("id")
+            options["name"] ||= service["layers"].find { |layer| layer["id"]   == options["id"]   }.fetch("name")
+            options["name"] = options["name"].gsub UNDERSCORES, ?_
+          end.inject([]) do |memo, (sublayer_name, options)|
             memo.find do |group|
-              group.none? do |_, other_layer_options|
-                other_layer_options["id"] == layer_options["id"]
+              group.none? do |_, other_options|
+                other_options["id"] == options["id"]
               end
             end.tap do |group|
               group ||= (memo << []).last
-              group << [ sublabel, layer_options ]
+              group << [ sublayer_name, options ]
             end
             memo
           end.map do |group|
@@ -1180,15 +1184,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       tilesets = tile_list.with_progress.map do |tile_bounds, tile_sizes, tile_offsets|
         tileset = downloads.map do |scale, dpi, group, type|
           sleep params["interval"] if params["interval"]
-          ids, layer_defs = group.values.map do |layer_options|
-            id, definition = layer_options.values_at("id", "definition")
+          ids, layer_defs = group.values.map do |options|
+            id, definition = options.values_at("id", "definition")
             layer_def = "#{id}:#{definition}" if definition
             [ id, layer_def ]
           end.transpose
-          group_options = { "dpi" => dpi, "wkt" => map.projection.wkt_esri, "format" => "svg" }
-          group_options.merge!("layers" => "show:#{ids.join ?,}") if ids && ids.any?
-          group_options.merge!("layerDefs" => layer_defs.compact.join(?;)) if layer_defs && layer_defs.compact.any?
-          tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(group_options)) do |tile_data|
+          query_options = { "dpi" => dpi, "wkt" => map.projection.wkt_esri, "format" => "svg" }
+          query_options.merge!("layers" => "show:#{ids.join ?,}") if ids && ids.any?
+          query_options.merge!("layerDefs" => layer_defs.compact.join(?;)) if layer_defs && layer_defs.compact.any?
+          tile_xml = get_tile(tile_bounds, tile_sizes, query_options) do |tile_data|
             tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
             tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
             tile_data.gsub! /Arial\s?MT/, "Arial"
@@ -1197,7 +1201,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               tile_data.gsub! regex do |match|
                 case $1
                 when "Labels", service["mapName"], *layer_ids then match
-                else match.sub $1, [ label, type, scale, *tile_offsets, $1 ].compact.join(SEGMENT)
+                else match.sub $1, [ layer_name, type, scale, *tile_offsets, $1 ].compact.join(SEGMENT)
                 end
               end
             end
@@ -1219,15 +1223,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       layerset = downloads.map do |scale, dpi, group, type|
         case type
         when "features"
-          group.map do |sublabel, layer_options|
+          group.map do |sublayer_name, options|
             feature_layer = REXML::Element.new("g").tap do |layer|
-              layer.add_attributes("id" => [ label, sublabel ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
+              layer.add_attributes("id" => [ layer_name, sublayer_name ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
             end
-            [ layer_options["name"], layer_options["id"], feature_layer ]
+            [ options["name"], options["id"], feature_layer ]
           end
         when "text"
           label_layer = REXML::Element.new("g").tap do |layer|
-            layer.add_attributes("id" => [ label, "labels" ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
+            layer.add_attributes("id" => [ layer_name, "labels" ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
           end
           [ [ "Labels", -1, label_layer ] ]
         end
@@ -1239,7 +1243,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         xml.elements["/svg"].elements << layer
       end
       
-      tilesets.with_progress("Assembling: #{label}").each do |tileset, tile_offsets|
+      tilesets.with_progress("Assembling: #{layer_name}").each do |tileset, tile_offsets|
         [ tileset, layerset ].transpose.each do |(scale, type, tile_xml, xpath), layers|
           tile_xml.elements.collect(xpath) do |layer_xml|
             _, _, layer = layers.find do |name, _, _|
@@ -1251,7 +1255,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               layer.add_attribute("style", "opacity:#{opacity}") if opacity
             end
             tile_transform = "translate(#{tile_offsets.join ?\s})"
-            clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(SEGMENT)})"
+            clip_path = "url(##{[ layer_name, 'tile', *tile_offsets ].join(SEGMENT)})"
             layer.add_element("g", "transform" => tile_transform, "clip-path" => clip_path) do |tile|
               case type
               when "features"
@@ -1273,8 +1277,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       xml.elements["//defs"].remove unless xml.elements["/svg/g[*]"]
       
-      temp_dir.join("#{label}.svg").tap do |mosaic_path|
-        File.write mosaic_path, xml
+      Dir.mktmppath do |temp_dir|
+        svg_path = temp_dir + "#{layer_name}.svg"
+        File.write svg_path, xml
+        FileUtils.cp svg_path, path
       end
     rescue REXML::ParseException => e
       abort "Bad XML received:\n#{e.message}"
@@ -1340,31 +1346,29 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def render_svg(xml, label, options, map, &block)
-      source_xml = path(label, options).tap do |vector_path|
-        raise BadLayerError.new("source file not found at #{vector_path}") unless vector_path.exist?
-      end.read
-      source = REXML::Document.new(source_xml)
+    def render_svg(xml, map, &block)
+      raise BadLayerError.new("source file not found at #{path}") unless path.exist?
+      source = REXML::Document.new(path.read)
       
-      if xml.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')]") do |layer|
+      if xml.elements.each("/svg/g[starts-with(@id,'#{layer_name}#{SEGMENT}')]") do |layer|
         id = layer.attributes["id"]
         layer.replace_with source.elements["/svg/g[@id='#{id}']"]
       end.empty?
-        source.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')][*]", &block)
-        [ *options["exclude"] ].each do |sublabel|
-          xml.elements.each("/svg/g[@id='#{[ label, sublabel ].join SEGMENT}']", &:remove)
+        source.elements.each("/svg/g[starts-with(@id,'#{layer_name}#{SEGMENT}')][*]", &block)
+        [ *params["exclude"] ].each do |sublayer_name|
+          xml.elements.each("/svg/g[@id='#{[ layer_name, sublayer_name ].join SEGMENT}']", &:remove)
         end
       end
       
-      xml.elements.each("/svg/g[starts-with(@id,'#{label}#{SEGMENT}')][*]") do |layer|
+      xml.elements.each("/svg/g[starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
         id = layer.attributes["id"]
-        name = id.split(SEGMENT).last
+        sublayer_name = id.split(SEGMENT).last
         puts "  Rendering #{id}"
-        render_sources = (options["equivalences"] || {}).select do |group, names|
-          names.include? name
-        end.map(&:first) << name
-        render_sources.inject(options) do |memo, key|
-          memo.deep_merge(options[key] || {})
+        render_sources = (params["equivalences"] || {}).select do |group, sublayer_names|
+          sublayer_names.include? sublayer_name
+        end.map(&:first) << sublayer_name
+        render_sources.inject(params) do |memo, key|
+          memo.deep_merge(params[key] || {})
         end.tap do |commands|
           rerender(map, layer, commands)
         end
@@ -1372,16 +1376,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      xml.elements.each("/svg/defs[starts-with(@id,'#{label}#{SEGMENT}')]", &:remove)
+      xml.elements.each("/svg/defs[starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
       source.elements.each("/svg/defs") { |defs| xml.elements["/svg"].unshift defs }
     end
   end
   
   class ArcGISDynamic < ArcGISVector
-    def get_source(label, ext, options, map, temp_dir)
-      puts "Downloading: #{label}"
+    def create(map)
+      # TODO: refactor ArcGISVector::create to remove duplication in this method?
+      puts "Downloading: #{layer_name}"
       get_cookie
-      service = HTTP.get(service_uri(options, "f" => "json"), params["headers"]) do |response|
+      service = HTTP.get(service_uri("f" => "json"), params["headers"]) do |response|
         JSON.parse(response.body).tap do |result|
           raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
         end
@@ -1390,30 +1395,30 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       service["mapName"] = service["mapName"].gsub(UNDERSCORES, ?_)
       layer_ids = service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
       
-      resolution = options["resolution"] || params["resolution"] || DEFAULT_MM_PER_TILE * 0.001 * map.scale / params["tile_sizes"].min
+      resolution = params["resolution"] || DEFAULT_MM_PER_TILE * 0.001 * map.scale / params["tile_sizes"].min
       transform = map.svg_transform(1000.0 * resolution / map.scale)
       tile_list = tiles(map, resolution, 3) # TODO: margin of 3 means what?
       
       xml = map.xml
-      xml.elements["/svg"].add_element("defs", "id" => [ label, "tiles" ].join(SEGMENT)) do |defs|
+      xml.elements["/svg"].add_element("defs", "id" => [ layer_name, "tiles" ].join(SEGMENT)) do |defs|
         tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
-          defs.add_element("clipPath", "id" => [ label, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
+          defs.add_element("clipPath", "id" => [ layer_name, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
             clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
           end
         end
       end
       
-      ids = options["layers"].values.map { |layer| layer["id"] }
+      ids = params["layers"].values.map { |options| options["id"] }
       tiles = tile_list.with_progress.map do |tile_bounds, tile_sizes, tile_offsets|
         sleep params["interval"] if params["interval"]
         query_options = {
           "dpi" => map.scale * 0.0254 / resolution,
           "wkt" => map.projection.wkt_esri,
           "layers" => "show:#{ids.join ?,}",
-          "dynamicLayers" => options["layers"].values.to_json,
+          "dynamicLayers" => params["layers"].values.to_json,
           "format" => "svg",
         }
-        tile_xml = get_tile(tile_bounds, tile_sizes, options.merge(query_options)) do |tile_data|
+        tile_xml = get_tile(tile_bounds, tile_sizes, query_options) do |tile_data|
           tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
           tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
           tile_data.gsub! /Arial\s?MT/, "Arial"
@@ -1422,7 +1427,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             tile_data.gsub! regex do |match|
               case $1
               when "Labels", service["mapName"], *layer_ids then match
-              else match.sub $1, [ label, type, scale, *tile_offsets, $1 ].compact.join(SEGMENT)
+              else match.sub $1, [ layer_name, type, scale, *tile_offsets, $1 ].compact.join(SEGMENT)
               end
             end
           end
@@ -1434,14 +1439,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
         [ tile_xml, tile_offsets ]
       end
-      layers = options["layers"].keys.map do |sublabel|
-        xml.elements["/svg"].add_element("g", "id" => [ label, sublabel ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
+      layers = params["layers"].keys.map do |sublayer_name|
+        xml.elements["/svg"].add_element("g", "id" => [ layer_name, sublayer_name ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
       end
-      label_layer = xml.elements["/svg"].add_element("g", "id" => [ label, "labels" ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
+      label_layer = xml.elements["/svg"].add_element("g", "id" => [ layer_name, "labels" ].join(SEGMENT), "style" => "opacity:1", "transform" => transform)
       
-      tiles.with_progress("Assembling: #{label}").each do |tile_xml, tile_offsets|
+      tiles.with_progress("Assembling: #{layer_name}").each do |tile_xml, tile_offsets|
         tile_transform = "translate(#{tile_offsets.join ?\s})"
-        clip_path = "url(##{[ label, 'tile', *tile_offsets ].join(SEGMENT)})"
+        clip_path = "url(##{[ layer_name, 'tile', *tile_offsets ].join(SEGMENT)})"
         layer_xmls = tile_xml.elements.collect("/svg//g[@id]/g[@id]/g[@id!='Labels']") { |layer_xml| layer_xml }
         [ layer_xmls, layers ].transpose.each do |layer_xml, layer|
           layer_xml.parent.attributes["opacity"].tap do |opacity|
@@ -1467,26 +1472,32 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       xml.elements["//defs"].remove unless xml.elements["/svg/g[*]"]
       
-      temp_dir.join("#{label}.svg").tap do |mosaic_path|
-        File.write mosaic_path, xml
+      Dir.mktmppath do |temp_dir|
+        svg_path = temp_dir + "#{layer_name}.svg"
+        File.write svg_path, xml
+        FileUtils.cp svg_path, path
       end
     rescue REXML::ParseException => e
       abort "Bad XML received:\n#{e.message}"
     end
   end
   
-  module NoDownload
-    def download(label, options, map)
-      raise BadLayerError.new("#{label} file not found at #{path(label, options)}")
+  module NoCreate
+    def create(map)
+      raise BadLayerError.new("#{layer_name} file not found at #{path}")
     end
   end
   
   class ReliefSource < Source
     include RasterRenderer
     
-    def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      dem_path = if options["path"]
-        Pathname.new(options["path"]).expand_path
+    def initialize(layer_name, params)
+      super(layer_name, params.merge("ext" => "tif"))
+    end
+    
+    def get_raster(map, dimensions, resolution, temp_dir)
+      dem_path = if params["path"]
+        Pathname.new(params["path"]).expand_path
       else
         tile_sizes = [ 1024, 1024 ]
         degrees_per_pixel = 3.0 / 3600
@@ -1527,12 +1538,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       raise BadLayerError.new("elevation data not found at #{dem_path}") unless dem_path.exist?
       
-      temp_dir.join("#{label}.tif").tap do |tif_path|
-        relief_path = temp_dir + "#{label}-uncropped.tif"
-        tfw_path = temp_dir + "#{label}.tfw"
+      temp_dir.join(path.basename).tap do |tif_path|
+        relief_path = temp_dir + "#{layer_name}-uncropped.tif"
+        tfw_path = temp_dir + "#{layer_name}.tfw"
         map.write_world_file tfw_path, resolution
         density = 0.01 * map.scale / resolution
-        altitude, azimuth, exaggeration = options.values_at("altitude", "azimuth", "exaggeration")
+        altitude, azimuth, exaggeration = params.values_at("altitude", "azimuth", "exaggeration")
         %x[gdaldem hillshade -compute_edges -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" -q]
         raise BadLayerError.new("invalid elevation data") unless $?.success?
         %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
@@ -1540,12 +1551,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def embed_image(label, options, temp_dir)
-      hillshade_path = path(label, options)
-      raise BadLayerError.new("hillshade image not found at #{hillshade_path}") unless hillshade_path.exist?
-      highlights = options["highlights"]
-      shade = %Q["#{hillshade_path}" -colorspace Gray -fill white -opaque none -level 0,65% -negate -alpha Copy -fill black +opaque black]
-      sun = %Q["#{hillshade_path}" -colorspace Gray -fill black -opaque none -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
+    def embed_image(temp_dir)
+      raise BadLayerError.new("hillshade image not found at #{path}") unless path.exist?
+      highlights = params["highlights"]
+      shade = %Q["#{path}" -colorspace Gray -fill white -opaque none -level 0,65% -negate -alpha Copy -fill black +opaque black]
+      sun = %Q["#{path}" -colorspace Gray -fill black -opaque none -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
       temp_dir.join("overlay.png").tap do |overlay_path|
         %x[convert -quiet #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
       end
@@ -1555,8 +1565,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class VegetationSource < Source
     include RasterRenderer
     
-    def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      source_paths = [ *options["path"] ].tap do |paths|
+    def get_raster(map, dimensions, resolution, temp_dir)
+      source_paths = [ *params["path"] ].tap do |paths|
         raise BadLayerError.new("no vegetation data file specified") if paths.empty?
       end.map do |source_path|
         Pathname.new(source_path).expand_path
@@ -1565,62 +1575,56 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %Q["#{source_path}"]
       end.join ?\s
       
-      vrt_path = temp_dir + "#{label}.vrt"
-      tif_path = temp_dir + "#{label}.tif"
-      tfw_path = temp_dir + "#{label}.tfw"
-      clut_path = temp_dir + "#{label}-clut.png"
-      mask_path = temp_dir + "#{label}-mask.png"
+      vrt_path = temp_dir + "#{layer_name}.vrt"
+      tif_path = temp_dir + "#{layer_name}.tif"
+      tfw_path = temp_dir + "#{layer_name}.tfw"
+      clut_path = temp_dir + "#{layer_name}-clut.png"
+      mask_path = temp_dir + "#{layer_name}-mask.png"
       
       %x[gdalbuildvrt "#{vrt_path}" #{source_paths}]
       map.write_world_file tfw_path, resolution
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
       %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]
       
-      low, high = { "low" => 0, "high" => 100 }.merge(options["contrast"] || {}).values_at("low", "high")
-      fx = options["mapping"].inject(0.0) do |memo, (key, value)|
+      low, high = { "low" => 0, "high" => 100 }.merge(params["contrast"] || {}).values_at("low", "high")
+      fx = params["mapping"].inject(0.0) do |memo, (key, value)|
         "j==#{key} ? %.5f : (#{memo})" % (value < low ? 0.0 : value > high ? 1.0 : (value - low).to_f / (high - low))
       end
       
       %x[convert -size 1x256 canvas:black -fx "#{fx}" "#{clut_path}"]
       %x[convert "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
       
-      woody, nonwoody = options["colour"].values_at("woody", "non-woody")
+      woody, nonwoody = params["colour"].values_at("woody", "non-woody")
       density = 0.01 * map.scale / resolution
-      temp_dir.join("#{label}.png").tap do |png_path|
-        %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{png_path}"]
+      temp_dir.join(path.basename).tap do |raster_path|
+        %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{raster_path}"]
       end
     end
     
-    def embed_image(label, options, temp_dir)
-      path(label, options).tap do |vegetation_path|
-        raise BadLayerError.new("vegetation raster image not found at #{vegetation_path}") unless vegetation_path.exist?
-      end
+    def embed_image(temp_dir)
+      raise BadLayerError.new("vegetation raster image not found at #{path}") unless path.exist?
+      path
     end
   end
   
   class CanvasSource < Source
     include RasterRenderer
-    include NoDownload
+    include NoCreate
     
-    def resolution_for(label, options, map)
-      return options["resolution"] if options["resolution"]
-      canvas_path = path(label, options)
-      raise BadLayerError.new("canvas image not found at #{canvas_path}") unless canvas_path.exist?
-      pixels_per_centimeter = %x[convert "#{canvas_path}" -units PixelsPerCentimeter -format "%[resolution.x]" info:]
-      raise BadLayerError.new("bad canvas image at #{canvas_path}") unless $?.success?
+    def resolution_for(map)
+      return params["resolution"] if params["resolution"]
+      raise BadLayerError.new("canvas image not found at #{path}") unless path.exist?
+      pixels_per_centimeter = %x[convert "#{path}" -units PixelsPerCentimeter -format "%[resolution.x]" info:]
+      raise BadLayerError.new("bad canvas image at #{path}") unless $?.success?
       map.scale * 0.01 / pixels_per_centimeter.to_f
-    end
-    
-    def path(label, options)
-      Pathname.pwd + "#{label}.png"
     end
   end
   
   class ImportSource < Source
     include RasterRenderer
     
-    def resolution_for(label, options, map)
-      import_path = Pathname.new(options["path"]).expand_path
+    def resolution_for(map)
+      import_path = Pathname.new(params["path"]).expand_path
       Math::sqrt(0.5) * [ [ 0, 0 ], [ 1, 1 ] ].map do |point|
         %x[echo #{point.join ?\s} | gdaltransform "#{import_path}" -t_srs "#{map.projection}"].tap do |output|
           raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
@@ -1628,11 +1632,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.inject(&:minus).norm
     end
     
-    def get_raster(label, ext, options, map, dimensions, resolution, temp_dir)
-      import_path = Pathname.new(options["path"]).expand_path
+    def get_raster(map, dimensions, resolution, temp_dir)
+      import_path = Pathname.new(params["path"]).expand_path
       source_path = temp_dir + "source.tif"
-      tfw_path = temp_dir + "#{label}.tfw"
-      tif_path = temp_dir + "#{label}.tif"
+      tfw_path = temp_dir + "#{layer_name}.tfw"
+      tif_path = temp_dir + "#{layer_name}.tif"
       
       density = 0.01 * map.scale / resolution
       map.write_world_file tfw_path, resolution
@@ -1641,28 +1645,24 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       %x[gdal_translate #{import_path} #{source_path}] unless $?.success?
       raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
       %x[gdalwarp -t_srs "#{map.projection}" -r bilinear #{source_path} #{tif_path}]
-      temp_dir.join("#{label}.#{ext}").tap do |raster_path|
+      temp_dir.join(path.basename).tap do |raster_path|
         %x[convert "#{tif_path}" -quiet "#{raster_path}"]
       end
-    end
-    
-    def path(label, options)
-      Pathname.pwd + "#{label}.png"
     end
   end
   
   class AnnotationSource < Source
-    include NoDownload
+    include NoCreate
     
-    def render_svg(xml, label, options, map, &block)
-      puts "  Rendering #{label}"
-      opacity = options["opacity"] || params["opacity"] || 1
+    def render_svg(xml, map, &block)
+      puts "  Rendering #{layer_name}"
+      opacity = params["opacity"] || 1
       layer = REXML::Element.new("g")
-      xml.elements["/svg/g[@id='#{label}']"].tap do |old_layer|
+      xml.elements["/svg/g[@id='#{layer_name}']"].tap do |old_layer|
         old_layer ? old_layer.replace_with(layer) : yield(layer)
       end
-      layer.add_attributes "id" => label, "style" => "opacity:#{opacity}", "transform" => map.svg_transform(1)
-      draw(layer, options, map) do |coords, projection|
+      layer.add_attributes "id" => layer_name, "style" => "opacity:#{opacity}", "transform" => map.svg_transform(1)
+      draw(layer, map) do |coords, projection|
         projection.reproject_to(map.projection, coords).one_or_many do |easting, northing|
           [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
             1000.0 * metres / map.scale
@@ -1673,14 +1673,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class DeclinationSource < AnnotationSource
-    def path(label, options)
-      nil
-    end
-    
-    def draw(group, options, map)
+    def draw(group, map)
       centre = map.wgs84_bounds.map { |bound| 0.5 * bound.inject(:+) }
       projection = Projection.transverse_mercator(centre.first, 1.0)
-      spacing = options["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
+      spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
       bounds = map.transform_bounds_to(projection)
       extents = bounds.map { |bound| bound.max - bound.min }
       longitudinal_extent = extents[0] + extents[1] * Math::tan(map.declination * Math::PI / 180.0)
@@ -1695,29 +1691,25 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.map do |line|
         "M%f %f L%f %f" % line.flatten
       end.each do |d|
-        group.add_element("path", "d" => d, "stroke" => options["colour"], "stroke-width" => options["width"])
+        group.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"])
       end
     end
   end
   
   class GridSource < AnnotationSource
-    def path(label, options)
-      nil
-    end
-    
     def self.zone(coords, projection)
       projection.reproject_to_wgs84(coords).one_or_many do |longitude, latitude|
         (longitude / 6).floor + 31
       end
     end
     
-    def draw(group, options, map)
-      interval = options["interval"]
-      label_spacing = options["label-spacing"]
+    def draw(group, map)
+      interval = params["interval"]
+      label_spacing = params["label-spacing"]
       label_interval = label_spacing * interval
-      fontfamily = options["family"]
-      fontsize = 25.4 * options["fontsize"] / 72.0
-      strokewidth = options["width"]
+      fontfamily = params["family"]
+      fontsize = 25.4 * params["fontsize"] / 72.0
+      strokewidth = params["width"]
       
       GridSource.zone(map.bounds.inject(&:product), map.projection).inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
@@ -1739,7 +1731,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             yield(line, projection).map do |point|
               point.join ?\s
             end.join(" L").tap do |d|
-              group.add_element("path", "d" => "M#{d}", "stroke-width" => strokewidth, "stroke" => options["colour"])
+              group.add_element("path", "d" => "M#{d}", "stroke-width" => strokewidth, "stroke" => params["colour"])
             end
             if line[0] && line[0][index] % label_interval == 0 
               coord = line[0][index]
@@ -1752,7 +1744,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   middle = points.transpose.map { |values| 0.5 * values.inject(:+) }
                   angle = 180.0 * Math::atan2(*points[1].minus(points[0]).reverse) / Math::PI
                   transform = "translate(#{middle.join ?\s}) rotate(#{angle})"
-                  [ [ "white", "white" ], [ options["colour"], "none" ] ].each do |fill, stroke|
+                  [ [ "white", "white" ], [ params["colour"], "none" ] ].each do |fill, stroke|
                     group.add_element("text", "transform" => transform, "dy" => 0.25 * fontsize, "stroke-width" => 0.15 * fontsize, "font-family" => fontfamily, "font-size" => fontsize, "fill" => fill, "stroke" => stroke, "text-anchor" => "middle") do |text|
                       label_segments.each do |digits, percent|
                         text.add_element("tspan", "font-size" => "#{percent}%") do |tspan|
@@ -1771,28 +1763,31 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class ControlSource < AnnotationSource
-    def path(label, options)
-      Pathname.new(options["path"]).expand_path
+  module PathInParams
+    def initialize(*args)
+      super(*args)
+      @path = Pathname.new(params["path"]).expand_path
     end
+  end
+  
+  class ControlSource < AnnotationSource
+    include PathInParams
     
-    def draw(group, options, map)
-      gps = GPS.new Pathname.new(options["path"]).expand_path
-      radius = 0.5 * options["diameter"]
-      strokewidth = options["thickness"]
-      fontfamily = options["family"]
-      fontsize = 25.4 * options["fontsize"] / 72.0
+    def draw(group, map)
+      gps = GPS.new(path)
+      radius = 0.5 * params["diameter"]
+      strokewidth = params["thickness"]
+      fontfamily = params["family"]
+      fontsize = 25.4 * params["fontsize"] / 72.0
       
-      [ [ /\d{2,3}/, :circle,   options["colour"] ],
-        [ /HH/,      :triangle, options["colour"] ],
-        [ /ANC/,     :square,   options["colour"] ],
-        [ /W/,       :water,    options["water-colour"] ],
+      [ [ /\d{2,3}/, :circle,   params["colour"] ],
+        [ /HH/,      :triangle, params["colour"] ],
+        [ /ANC/,     :square,   params["colour"] ],
+        [ /W/,       :water,    params["water-colour"] ],
       ].each do |selector, type, colour|
         gps.waypoints.map do |waypoint, name|
           [ yield(waypoint, Projection.wgs84), name[selector] ]
-        end.select do |point, label|
-          label
-        end.each do |point, label|
+        end.select(&:last).each do |point, text|
           transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
           group.add_element("g", "transform" => transform) do |rotated|
             case type
@@ -1820,7 +1815,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
             rotated.add_element("text", "dx" => radius, "dy" => -radius, "font-family" => fontfamily, "font-size" => fontsize, "fill" => colour, "stroke" => "none") do |text|
-              text.add_text label
+              text.add_text text
             end unless type == :water
           end
         end
@@ -1831,13 +1826,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class OverlaySource < AnnotationSource
-    def path(label, options)
-      Pathname.new(options["path"]).expand_path
-    end
+    include PathInParams
     
-    def draw(group, options, map)
-      width, colour = options.values_at "width", "colour"
-      gps = GPS.new Pathname.new(options["path"]).expand_path
+    def draw(group, map)
+      width, colour = params.values_at "width", "colour"
+      gps = GPS.new(path)
       [ [ :tracks, "polyline", { "fill" => "none", "stroke" => colour, "stroke-width" => width } ],
         [ :areas, "polygon", { "fill" => colour, "stroke" => "none" } ]
       ].each do |feature, element, attributes|
@@ -2140,12 +2133,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     builtins = YAML.load %q[---
 canvas:
-  server:
-    class: CanvasSource
+  class: CanvasSource
 relief:
-  server:
-    class: ReliefSource
-  ext: tif
+  class: ReliefSource
   altitude: 45
   azimuth: 315
   exaggeration: 2
@@ -2153,8 +2143,7 @@ relief:
   opacity: 0.3
   highlights: 20
 grid:
-  server:
-    class: GridSource
+  class: GridSource
   interval: 1000
   width: 0.1
   colour: black
@@ -2162,14 +2151,12 @@ grid:
   fontsize: 7.8
   family: Arial Narrow
 declination:
-  server:
-    class: DeclinationSource
+  class: DeclinationSource
   spacing: 1000
   width: 0.1
   colour: black
 controls:
-  server:
-    class: ControlSource
+  class: ControlSource
   colour: "#880088"
   family: Arial
   fontsize: 14
@@ -2178,78 +2165,76 @@ controls:
   water-colour: blue
 ]
     
-    sources = {}
+    layers = {}
     
     [ *config["import"] ].reverse.map do |file_or_hash|
       [ *file_or_hash ].flatten
-    end.map do |file_or_path, label|
-      [ Pathname.new(file_or_path).expand_path, label ]
-    end.each do |path, label|
-      label ||= path.basename(path.extname).to_s
-      sources.merge! label => { "server" => { "class" => "ImportSource" }, "path" => path.to_s }
+    end.map do |file_or_path, layer_name|
+      [ Pathname.new(file_or_path).expand_path, layer_name ]
+    end.each do |path, layer_name|
+      layer_name ||= path.basename(path.extname).to_s
+      layers.merge! layer_name => { "class" => "ImportSource", "path" => path.to_s }
     end
     
-    config["include"].map do |label_or_hash|
-      [ *label_or_hash ].flatten
-    end.each do |label, resolution|
-      path = Pathname.new(label).expand_path
-      layer_label, options = case
-      when builtins[label]
-        [ label, builtins[label] ]
+    config["include"].map do |layer_name_or_path_or_hash|
+      [ *layer_name_or_path_or_hash ].flatten
+    end.each do |layer_name_or_path, resolution|
+      path = Pathname.new(layer_name_or_path).expand_path
+      layer_name, params = case
+      when builtins[layer_name_or_path]
+        [ layer_name_or_path, builtins[layer_name_or_path] ]
       when %w[.kml .gpx].include?(path.extname.downcase) && path.file?
-        options = YAML.load %Q[---
-          server:
-            class: OverlaySource
+        params = YAML.load %Q[---
+          class: OverlaySource
           width: 0.4
           colour: black
           opacity: 0.4
           path: #{path}
         ]
-        [ path.basename(path.extname).to_s, options ]
+        [ path.basename(path.extname).to_s, params ]
       else
         yaml = [ Pathname.pwd, Pathname.new(__FILE__).realdirpath.dirname + "sources", URI.parse(GITHUB_SOURCES) ].map do |root|
-          root + "#{label}.yml"
+          root + "#{layer_name_or_path}.yml"
         end.inject(nil) do |memo, path|
           memo ||= path.read rescue nil
         end
-        abort "Error: couldn't find source for '#{label}'" unless yaml
-        [ label.gsub(?/, SEGMENT), YAML.load(yaml) ]
+        abort "Error: couldn't find source for '#{layer_name_or_path}'" unless yaml
+        [ layer_name_or_path.gsub(?/, SEGMENT), YAML.load(yaml) ]
       end
-      options.merge! "resolution" => resolution if resolution
-      sources.merge! layer_label => options
+      params.merge! "resolution" => resolution if resolution
+      layers.merge! layer_name => params
     end
     
-    sources.keys.select do |label|
-      config[label]
-    end.each do |label|
-      sources[label].deep_merge! config[label]
+    layers.keys.select do |layer_name|
+      config[layer_name]
+    end.each do |layer_name|
+      layers[layer_name].deep_merge! config[layer_name]
     end
     
-    sources["relief"]["clips"] = sources.map do |label, options|
-      [ *options["relief-clips"] ].map { |sublabel| [ label, sublabel ].join SEGMENT }
-    end.inject(&:+) if sources["relief"]
+    layers["relief"]["clips"] = layers.map do |layer_name, params|
+      [ *params["relief-clips"] ].map { |sublayer_name| [ layer_name, sublayer_name ].join SEGMENT }
+    end.inject(&:+) if layers["relief"]
     
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
       # TODO: generalise this!
       abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
-      sources.each do |label, options|
-        options["exclude"] = [ *options["exclude"] ]
-        [ *options["intervals-contours"] ].select do |candidate, sublayer|
+      layers.each do |layer_name, params|
+        params["exclude"] = [ *params["exclude"] ]
+        [ *params["intervals-contours"] ].select do |candidate, sublayer|
           candidate != interval
         end.map(&:last).each do |sublayer|
-          options["exclude"] << sublayer
+          params["exclude"] << sublayer
         end
       end
     end
     
-    sources.each do |label, options|
-      server_options = options.delete "server"
-      options["server"] = NSWTopo.const_get(server_options.delete "class").new(server_options)
-    end
+    config["exclude"] = [ *config["exclude"] ].map { |layer_name| layer_name.gsub ?/, SEGMENT }
+    config["exclude"].each { |layer_name| layers.delete layer_name }
     
-    config["exclude"] = [ *config["exclude"] ].map { |label| label.gsub ?/, SEGMENT }
-    config["exclude"].each { |label| sources.delete label }
+    sources = layers.map do |layer_name, params|
+      NSWTopo.const_get(params.delete "class").new(layer_name, params)
+    end
     
     puts "Map details:"
     puts "  name: #{map.name}"
@@ -2258,63 +2243,59 @@ controls:
     puts "  rotation: %.1f degrees" % map.rotation
     puts "  extent: %.1fkm x %.1fkm" % map.extents.map { |extent| 0.001 * extent }
     
-    sources.map do |label, options|
-      [ label, options, options["server"].path(label, options) ]
-    end.select do |label, options, path|
-      path && !path.exist?
-    end.recover(InternetError, ServerError, BadLayerError).each do |label, options, path|
-      options["server"].download(label, options, map)
+    sources.reject(&:exist?).recover(InternetError, ServerError, BadLayerError).each do |source|
+      source.create(map)
     end
     
     svg_name = "#{map.name}.svg"
     svg_path = Pathname.pwd + svg_name
     xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
     
-    removals = config["exclude"].select do |label|
-      xml.elements["/svg/g[@id='#{label}' or starts-with(@id,'#{label}#{SEGMENT}')]"]
+    removals = config["exclude"].select do |layer_name|
+      xml.elements["/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]"]
     end
     
-    updates = sources.reject do |label, options|
-      xml.elements["/svg/g[@id='#{label}' or starts-with(@id,'#{label}#{SEGMENT}')]"] && FileUtils.uptodate?(svg_path, [ *options["server"].path(label, options) ])
+    updates = sources.reject do |source|
+      xml.elements["/svg/g[@id='#{source.layer_name}' or starts-with(@id,'#{source.layer_name}#{SEGMENT}')]"] && FileUtils.uptodate?(svg_path, [ *source.path ])
     end
     
     Dir.mktmppath do |temp_dir|
       puts "Compositing layers to #{svg_name}:"
       tmp_svg_path = temp_dir + svg_name
       tmp_svg_path.open("w") do |file|
-        updates.each do |label, options|
-          before, after = sources.keys.inject([[]]) do |memo, candidate|
-            candidate == label ? memo << [] : memo.last << candidate
+        updates.each do |source|
+          before, after = sources.map(&:layer_name).inject([[]]) do |memo, candidate|
+            candidate == source.layer_name ? memo << [] : memo.last << candidate
             memo
           end
           neighbour = xml.elements.collect("/svg/g[@id]") do |sibling|
-            sibling if after.any? do |after_label|
-              sibling.attributes["id"] == after_label || sibling.attributes["id"].start_with?("#{after_label}#{SEGMENT}")
+            sibling if after.any? do |layer_name|
+              sibling.attributes["id"] == layer_name || sibling.attributes["id"].start_with?("#{layer_name}#{SEGMENT}")
             end
           end.compact.first
           begin
-            options["server"].render_svg(xml, label, options, map) do |layer|
+            source.render_svg(xml, map) do |layer|
               neighbour ? xml.elements["/svg"].insert_before(neighbour, layer) : xml.elements["/svg"].add_element(layer)
             end
           rescue BadLayerError => e
-            puts "Failed to render #{label}: #{e.message}"
+            puts "Failed to render #{source.layer_name}: #{e.message}"
           end
         end
         
-        removals.each do |label|
-          puts "  Removing #{label}"
-          xml.elements.each("/svg/g[@id='#{label}' or starts-with(@id,'#{label}#{SEGMENT}')]", &:remove)
+        removals.each do |layer_name|
+          puts "  Removing #{layer_name}"
+          xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
         end
         
-        updates.each do |label, options|
+        updates.each do |source|
           [ %w[below insert_before 1 to_a], %w[above insert_after last() reverse] ].select do |position, insert, predicate, order|
             config[position]
           end.each do |position, insert, predicate, order|
-            config[position].select do |target_label, sibling_label|
-              target_label == label || target_label.start_with?("#{label}#{SEGMENT}")
-            end.each do |target_label, sibling_label|
-              sibling = xml.elements["/svg/g[@id='#{sibling_label}' or starts-with(@id,'#{sibling_label}#{SEGMENT}')][#{predicate}]"]
-              xml.elements.collect("/svg/g[@id='#{target_label}' or starts-with(@id,'#{target_label}#{SEGMENT}')]") do |layer|
+            config[position].select do |layer_name, sibling_name|
+              layer_name == source.layer_name || layer_name.start_with?("#{source.layer_name}#{SEGMENT}")
+            end.each do |layer_name, sibling_name|
+              sibling = xml.elements["/svg/g[@id='#{sibling_name}' or starts-with(@id,'#{sibling_name}#{SEGMENT}')][#{predicate}]"]
+              xml.elements.collect("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]") do |layer|
                 layer
               end.send(order).each do |layer|
                 puts "  Moving #{layer.attributes['id']} #{position} #{sibling.attributes['id']}"
@@ -2416,18 +2397,15 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: move Source#download to main script, change NoDownload to raise in get_source, extract ext from path?
 # TODO: switch to Open3 for shelling out
 # TODO: split LPIMapLocal roads into sealed & unsealed?
 # TODO: change scale instead of using expand-glyph where possible
 # TODO: add option for absolute measurements for rerendering?
 # TODO: add nodata transparency in vegetation source?
 # TODO: add include: option for ArcGIS sublayers?
-# TODO: Add import layers as per controls/overlays/etc?
-# TODO: change include: layer list to a hash?
-
-# # later:
+# TODO: add import layers as per controls/overlays/etc?
 # TODO: remove linked images from PDF output?
 # TODO: put glow on control labels?
 # TODO: add Relative_Height to topographic layers?
 # TODO: find source for electricity transmission lines
+# TODO: check georeferencing of aerial-google, aerial-nokia

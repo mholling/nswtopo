@@ -1,5 +1,4 @@
-server:
-  class: ArcGISRaster
-  host: maps.sa.gov.au
-  folder: BaseMaps
+class: ArcGISRaster
+host: maps.sa.gov.au
+folder: BaseMaps
 service: Topographic_wmas

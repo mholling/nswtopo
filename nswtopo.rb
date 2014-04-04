@@ -1382,17 +1382,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class ArcGISDynamic < ArcGISVector
     def download_layers(map, tile_list, resolution)
-      feature_layers = params["layers"].keys.map do |sublayer_name|
+      feature_layers = params["layers"].keys.reverse.map do |sublayer_name|
         REXML::Element.new("g").tap { |layer| yield layer, sublayer_name }
       end
       label_layer = REXML::Element.new("g").tap { |layer| yield layer, "labels" }
       
-      ids = params["layers"].values.map { |options| options["id"] }
+      start_id = @service["layers"].map { |layer| layer["id"] }.max + 1
+      dynamic_layers = params["layers"].values.map.with_index do |layer, index|
+        layer.merge("id" => start_id + index)
+      end
+      ids = dynamic_layers.map { |options| options["id"] }
+      
       query_options = {
         "dpi" => map.scale * 0.0254 / resolution,
         "wkt" => map.projection.wkt_esri,
         "layers" => "show:#{ids.join ?,}",
-        "dynamicLayers" => params["layers"].values.to_json,
+        "dynamicLayers" => dynamic_layers.to_json,
         "format" => "svg",
       }
       

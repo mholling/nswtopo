@@ -1108,6 +1108,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def get_tile_xml(tile_bounds, tile_sizes, options, *uniquifiers)
       tile_data = get_tile(tile_bounds, tile_sizes, options)
+      raise BadLayerError.new(JSON.parse(tile_data)["error"]["message"]) if tile_data[0..8] == '{"error":'
       tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
       tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
       tile_data.gsub! /Arial\s?MT/, "Arial"

@@ -1735,7 +1735,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       ].each do |selector, type, colour|
         gps.waypoints.map do |waypoint, name|
           [ yield(waypoint, Projection.wgs84), name[selector] ]
-        end.select(&:last).each do |point, text|
+        end.select(&:last).each do |point, label|
           transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
           group.add_element("g", "transform" => transform) do |rotated|
             case type
@@ -1763,7 +1763,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
             rotated.add_element("text", "dx" => radius, "dy" => -radius, "font-family" => fontfamily, "font-size" => fontsize, "fill" => colour, "stroke" => "none") do |text|
-              text.add_text text
+              text.add_text label
             end unless type == :water
           end
         end

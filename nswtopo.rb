@@ -30,7 +30,7 @@ require 'open-uri'
 
 # %w[uri net/http rexml/document rexml/formatters/pretty tmpdir yaml fileutils pathname rbconfig json base64 open-uri].each { |file| require file }
 
-GITHUB_SOURCES = "https://raw.github.com/mholling/nswtopo/master/sources/"
+GITHUB_SOURCES = "https://github.com/mholling/nswtopo/raw/master/sources/"
 
 class REXML::Element
   alias_method :unadorned_add_element, :add_element

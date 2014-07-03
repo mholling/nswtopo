@@ -8,4 +8,4 @@ mapping:
 resolution: 25.0
 colour:
   non-woody: white
-  woody: light green
+  woody: "#C1FFC1"

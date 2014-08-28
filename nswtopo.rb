@@ -746,7 +746,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       href = if respond_to?(:embed_image) && params["embed"] != false
         Dir.mktmppath do |temp_dir|
           raster_path = embed_image(temp_dir)
-          base64 = Base64.encode64 raster_path.read
+          base64 = Base64.encode64 raster_path.read(:mode => "rb")
           mimetype = %x[identify -quiet -verbose "#{raster_path}"][/image\/\w+/] || "image/png"
           "data:#{mimetype};base64,#{base64}"
         end

@@ -1227,14 +1227,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         case type
         when "features"
           group.map do |sublayer_name, options|
-            [ -options["id"], options["name"], REXML::Element.new("g"), sublayer_name ]
+            order = params["order"] ? -params["order"].index(sublayer_name) : -options["id"]
+            [ order, options["name"], REXML::Element.new("g"), sublayer_name ]
           end
         when "text"
           [ [ 1, "Labels", REXML::Element.new("g"), "labels" ] ]
         end
       end
       
-      layerset.inject(&:+).sort_by(&:first).each do |id, name, layer, sublayer_name|
+      layerset.inject(&:+).sort_by(&:first).each do |_, _, layer, sublayer_name|
         yield layer, sublayer_name
       end
       

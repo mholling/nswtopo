@@ -2173,7 +2173,7 @@ controls:
         [ *params["intervals-contours"] ].select do |candidate, sublayer|
           candidate != interval
         end.map(&:last).each do |sublayer|
-          params["exclude"] << sublayer
+          params["exclude"] += [ *sublayer ]
         end
       end
     end

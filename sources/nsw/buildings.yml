@@ -3,8 +3,12 @@ host: mapsq.six.nsw.gov.au
 folder: sixmaps
 service: RFS
 features:
+  0.095:
+    dwellings:
+      name: GeneralCulturalPoint
+      definition: generalculturaltype = 1
   0.25:
-    points:
+    other:
       name: GeneralCulturalPoint
       definition: generalculturaltype = 0
     areas: GeneralCulturalArea
@@ -15,7 +19,11 @@ text:
 areas:
   .//path[@fill]/@fill: gray
   .//path[@stroke]/@stroke: ~
-points:
+dwellings:
+  .//image: ~
+  .//path[@fill]/@fill: black
+  .//path[@stroke]/@stroke: none;
+other:
   .//font: ~
   .//g[@font-family]: ~
   .//path[@fill='#FFFFFF']: ~

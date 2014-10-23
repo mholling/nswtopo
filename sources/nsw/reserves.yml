@@ -1,12 +1,12 @@
 class: ArcGISVector
-host: spatialprod.dpi.nsw.gov.au
-instance: ArcGIS2
-folder: IndustryViewFLEX2
-integer-dpi: true
-service: Conservation_Areas
+host: maps.six.nsw.gov.au
+folder: sixmaps
+service: Boundaries
 features:
   ~:
-    national-parks: National_Parks
-    state-forests: State_Forest
-opacity: 0.2
-colour: black
+    npws: NPWS Reserve
+    state-forest: State Forest
+opacity: 0.75
+.//[@stroke]:
+  fill: none
+  stroke-dasharray: "40 4 2 4"

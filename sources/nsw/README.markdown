@@ -112,6 +112,10 @@ Since the SPOT5 data is so detailed, you may wish to adjust its contrast to get 
 
 If you include the `nsw/plantations` layer, a representation of pine forest plantations will be added to your map in darker green. The accuracy of this layer is not guaranteed however.
 
+## Reserves
+
+Include `nsw/reserves` in order to show boundaries of NSW state forests and NPWS parks and reserves.
+
 ## Holdings
 
 The `nsw/holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is available for the ACT.)

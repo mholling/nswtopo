@@ -12,6 +12,7 @@ features:
       name: GeneralCulturalPoint
       definition: generalculturaltype = 0
     areas: GeneralCulturalArea
+    tanks: TankPoint
 text:
   0.6:
   - GeneralCulturalPoint
@@ -29,3 +30,6 @@ other:
   .//path[@fill='#FFFFFF']: ~
   .//path[@stroke]/@stroke: none
   .//path[@fill]/@fill: black
+tanks:
+  .//path[@fill]/@fill: none
+  expand: 0.5

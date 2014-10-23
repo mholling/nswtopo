@@ -1,0 +1,21 @@
+class: ArcGISVector
+host: mapsq.six.nsw.gov.au
+folder: sixmaps
+service: RFS
+features:
+  0.4:
+    gates:
+      name: TrafficControlDevice
+      definition: classsubtype = 1
+  0.5:
+    grids:
+      name: TrafficControlDevice
+      definition: classsubtype = 2
+.//font: ~
+.//g[@font-family]: ~
+.//path[@fill='#FFFFFF']: ~
+.//path[@stroke]/@stroke: none
+grids:
+  .//path[@fill]/@fill: black
+gates:
+  .//path[@fill]/@fill: "#303030"

@@ -126,3 +126,13 @@ The main `lpimap` topographic layers (or `landform`, `cadastre`, `hydrography`, 
     - nsw/basic-features
 
 The `basic` topographic layers do not contain as many features as the normal layers. Currently, they only contain: contours, sealed and unsealed roads, vehicular tracks, pathways, cadastral boundaries and watercourses. Labels are only present for contours and roads. Other informative layers (e.g. cliffs, swamp and inundation areas, water areas, feature labels etc) are missing. Nonetheless, the alternative topographic layers may produce a sufficient map for your needs.
+
+## Miscellaneous Layers
+
+A few other, self-explanatory layers are also available:
+
+* `nsw/gates-grids`
+* `nsw/runways`
+* `nsw/state-border`
+
+(These may be useful when `lpimap` is not available.)

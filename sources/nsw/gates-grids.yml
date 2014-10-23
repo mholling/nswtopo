@@ -14,8 +14,9 @@ features:
 .//font: ~
 .//g[@font-family]: ~
 .//path[@fill='#FFFFFF']: ~
-.//path[@stroke]/@stroke: none
+.//path[@stroke]/@stroke: "#333333"
+.//path[@fill]/@fill: "#333333"
 grids:
-  .//path[@fill]/@fill: black
+  expand: 0.05
 gates:
-  .//path[@fill]/@fill: "#303030"
+  expand: 0.02

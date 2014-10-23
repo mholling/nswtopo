@@ -40,19 +40,19 @@ order:
 - waterfalls-springs
 - bores
 - damwalls-breakwaters
-- stock-dams
 - reefs-mangroves-intertidal
 - ocean
 - water-areas
 - watercourse
-- water-areas-mainly-dry
 - water-areas-non-perennial
+- stock-dams
+- water-areas-mainly-dry
 - inundation-swamps
 equivalences:
   water-area:
   - water-areas
   - water-areas-non-perennial
-  - water-areas-mainly-dry:
+  - water-areas-mainly-dry
 watercourse:
   colour: "#4985DF"
   widen: 0.4
@@ -68,7 +68,7 @@ water-areas-mainly-dry:
   opacity: 0.25
 stock-dams:
   widen: 0.5
-  stroke: "#4985DF"
+  colour: "#4985DF"
 labels:
   colour:
     "#BEE8FF": "#005CE6"

@@ -251,13 +251,19 @@ You can remove a layer that you previously included in the map. To do so, list t
 
 Run the script again to remove the layers from the composite SVG map. (The original source files will not be deleted.) Use this option with caution, as any changes you have made to the layer in the SVG file will be lost.
 
-Vector data sources can produce multiple sub-layers in your map. You can intermingle the order in which these sub-layers are composited in your map. This is helpful if you are combining layers from more than one source. For example, to place the `rfs` layers in their best position in the `lpimaplocal` topographic map:
+Vector data sources can produce multiple sub-layers in your map. You can intermingle the order in which these sub-layers are composited. This is helpful if you are combining layers from more than one source. For example, to re-arrange label layers when using the separate `landform`/`hydrography`/`roads`/`buildings` sources:
 
-    below:
-      nsw.rfs.stock-dams: nsw.lpimaplocal.water-areas
-      nsw.rfs.buildings: nsw.lpimaplocal.homesteads
+    include:
+    - nsw/landform
+    - nsw/hydrography
+    - nsw/roads
+    - nsw/buildings
+    above:
+      nsw.roads.labels: nsw.buildings.labels
+      nsw.landform.labels: nsw.buildings.labels
+      nsw.hydrography.labels: nsw.buildings.labels
 
-This will insert the `nsw.rfs.stock-dams` sub-layer below the `nsw.lpimaplocal.water-areas` sub-layer, and so on. Likewise, an `above:` option can also be specified.
+This will reposition all label layers above the other feature layers. Likewise, a `below:` option can also be specified.
 
 It is also possible to manually re-order layers using Inkscape. (The new layer order is respected when re-running the script.)
 
@@ -395,12 +401,20 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         - nsw/aerial-best
         - nsw/reference-topo-current
         - nsw/vegetation-2008-v2
-        - nsw/lpimap                  # or nsw/lpimaplocal
+        - nsw/lpimap
         - declination
         - holdings
         - grid
 
 3.  Run the script to create your preliminary map, `rogaine.svg`.
+
+3.  If your map includes blank areas, delete it and start again with the following layer stack in place of `nsw/lpimap`:
+
+        - nsw/landform
+        - nsw/cadastre
+        - nsw/hydrography
+        - nsw/roads
+        - nsw/buildings
 
 4.  Use the maps and aerial images to assist you in setting your rogaine. Ideally, you will carry a GPS with you to record waypoints for all the controls you set.
 

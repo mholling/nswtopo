@@ -11,22 +11,31 @@ This map is published by the NSW LPI department as their standard online topogra
     - nsw/lpimap
     - grid
 
-Unfortunately, due to caching issues, the map is slow to download and some areas will not download at all. (This usually occurs in urban areas, so you should not intend to use it for topographic maps near sydney or any town.) Blank tiles in the downloaded map are an indication that you have encountered these issues. If this occurs, `nsw/lpimaplocal` is a good replacement.
+Unfortunately, due to caching issues, the map is slow to download and some areas will not download at all. (This usually occurs in urban areas, so you should not intend to use it for topographic maps near sydney or any town.) Blank tiles in the downloaded map are an indication that you have encountered these issues. If this occurs, try the following:
 
-## LPIMapLocal
+## Landform/Cadastre/Hydrography/Roads/Buildings
 
-This map layer is a substitute for the *LPIMap* layer, should it be needed. The map service is currently in beta and may be subject to change. It includes most of the same information, however a few features are not present (these includes gates & grid, buildings and stock dams). The upside is that the map is available everywhere and the download is considerably faster. Include the *LPIMapLocal* layers as follows:
+These alternative topographic sources are available when the *LPIMap* service does not work in your map area. Recommended usage is as follows:
 
     include:
-    - nsw/lpimaplocal
+    - nsw/landform
+    - nsw/cadastre
+    - nsw/hydrography
+    - nsw/roads
+    - nsw/buildings
 
-## RFS Layers
+The `landform` layers include contours, spot heights, cliffs and sand areas. The `hydrography` layers include swamps, water areas, watercourses, ocean, intertidal areas, stock dams, dam walls, breakwaters and waterfalls. The `roads` layers include sealed and unsealed roads, vehicular tracks and footpaths.
 
-The `nsw/rfs` layers add representations of stock dams and buildings to your map. These features are usually present on a standard 1:25k topographic map, but are not provided by the `lpimaplocal` topographic server. The information is sourced from a map provided for the Rural Fire Service. You may wish to change the order of these layers with Inkscape after adding them to your map:
+Labelling on the `landform` layers is poor, with no contour labels (only spot heights) and no landmark labels for anything other than ridge features. Because multiple sources are used, labels are likely to overlap in some places. Label layers can be rearranged above other feature layers as follows:
 
-    below:
-      nsw.rfs.stock-dams: nsw.lpimaplocal.water-areas
-      nsw.rfs.buildings: nsw.lpimaplocal.homesteads
+    above:
+      nsw.roads.labels: nsw.buildings
+      nsw.landform.labels: nsw.buildings
+      nsw.hydrography.labels: nsw.buildings
+
+## <s>LPIMapLocal</s>
+
+*(LPIMap layer is now defunct! Use landform/cadastre/hydrography/roads/buildings instead.)*
 
 ## Aerial Imagery
 
@@ -109,7 +118,7 @@ The `nsw/holdings` layer overlays property boundaries and the names of landowner
 
 ## Basic Topographic Layers
 
-The main topographic layers, `lpimap` and `lpimaplocal`, are well-styled and produce the best topographic maps. However the server is not yet out of beta and subject to change. If you do not achieve good results with the default server, you can chose alternate `basic` sources as follows:
+The main `lpimap` topographic layers (or `landform`, `cadastre`, `hydrography`, `roads` and `buildings`), are well-styled and produce the best topographic maps. However the server is not yet out of beta and subject to change. If you do not achieve good results with the default server, you can chose alternate `basic` sources as follows:
 
     include:
     - nsw/basic-contours

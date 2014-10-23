@@ -1,0 +1,61 @@
+class: ArcGISVector
+host: mapsq.six.nsw.gov.au
+folder: sixmaps
+service: Landform
+features:
+  5000:
+    contours-10m:
+      name: Contour_10m
+      definition: classsubtype <> 3
+    contours-10m-ancillary:
+      name: Contour_10m
+      definition: classsubtype = 3
+  20000:
+    contours-20m:
+      name: Contour_20m
+      definition: classsubtype <> 3
+    contours-20m-ancillary:
+      name: Contour_20m
+      definition: classsubtype = 3
+  ~:
+    spot-heights: SpotHeight
+    ridges-beaches: Ridge_Beach
+    cliffs-sand:
+      name: Cliffs_Reefs_Mangroves
+      definition: classsubtype IN (6,7,11)
+    clifftops-levees: CliffTop_Levee
+    caves-pinnacles: Caves_Pinnacles
+text:
+  0.6:
+  - Contour_10m
+  - Contour_20m
+  - Contour_50m
+  - SpotHeight
+  - Ridge_Beach: generalname <> 'GREAT DIVIDING RANGE'
+  - Cliffs_Reefs_Mangroves: classsubtype IN (6,7,11)
+  - CliffTop_Levee
+  - RelativeHeight
+  - Caves_Pinnacles
+  - Mountains
+intervals-contours:
+  10:
+  - contours-10m
+  - contours-10m-ancillary
+  20:
+  - contours-20m
+  - contours-20m-ancillary
+equivalences:
+  contours:
+  - contours-10m
+  - contours-20m
+  - contours-10m-ancillary
+  - contours-20m-ancillary
+  contours-ancillary:
+  - contours-10m-ancillary
+  - contours-20m-ancillary
+contours:
+  widen: 0.3
+  colour: "#805100"
+contours-ancillary:
+  .//[@stroke]:
+    stroke-dasharray: "8, 6"

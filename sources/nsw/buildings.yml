@@ -1,0 +1,23 @@
+class: ArcGISVector
+host: mapsq.six.nsw.gov.au
+folder: sixmaps
+service: RFS
+features:
+  0.25:
+    points:
+      name: GeneralCulturalPoint
+      definition: generalculturaltype = 0
+    areas: GeneralCulturalArea
+text:
+  0.6:
+  - GeneralCulturalPoint
+  - BuildingComplexPoint
+areas:
+  .//path[@fill]/@fill: gray
+  .//path[@stroke]/@stroke: ~
+points:
+  .//font: ~
+  .//g[@font-family]: ~
+  .//path[@fill='#FFFFFF']: ~
+  .//path[@stroke]/@stroke: none
+  .//path[@fill]/@fill: black

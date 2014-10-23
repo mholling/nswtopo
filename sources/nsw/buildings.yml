@@ -31,5 +31,6 @@ other:
   .//path[@stroke]/@stroke: none
   .//path[@fill]/@fill: black
 tanks:
-  .//path[@fill]/@fill: none
-  expand: 0.5
+  .//path[@fill]/@fill: white
+  .//path[@stroke]/@stroke: black
+  expand: 0.4

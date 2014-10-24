@@ -59,3 +59,5 @@ contours:
 contours-ancillary:
   .//[@stroke]:
     stroke-dasharray: "8, 6"
+caves-pinnacles:
+  expand: 0.5

@@ -133,10 +133,11 @@ The `basic` topographic layers do not contain as many features as the normal lay
 
 ## Miscellaneous Layers
 
-A few other, self-explanatory layers are also available:
+A few other, miscellaneous layers are also available:
 
-* `nsw/gates-grids`
-* `nsw/runways`
-* `nsw/state-border`
+* `nsw/gates-grids`: gates and cattle grids on roads and tracks
+* `nsw/runways`: runways and airstrips
+* `nsw/state-border`: NSW state border
+* `nsw/survey`: trig stations
 
 (These may be useful when `lpimap` is not available.)

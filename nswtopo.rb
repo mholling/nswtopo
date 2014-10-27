@@ -1993,7 +1993,30 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       else
         abort("Error: specify either phantomjs, inkscape or qlmanage as your rasterise method (see README).")
       end
-      %x[mogrify -units PixelsPerInch -density #{ppi} -type TrueColor "#{png_path}"]
+      %x[mogrify -units PixelsPerInch -density #{ppi} "#{png_path}"]
+    end
+  end
+  
+  module PSD
+    def self.build(config, map, ppi, svg_path, composite_png_path, temp_dir, psd_path)
+      xml = REXML::Document.new(svg_path.read)
+      xml.elements["/svg/rect"].remove
+      xml.elements.delete_all("/svg/g[@id]").map do |layer|
+        id = layer.attributes["id"]
+        puts "    Generating layer: #{id}"
+        layer_svg_path, layer_png_path = %w[svg png].map { |ext| temp_dir + [ map.name, id, ext ].join(?.) }
+        xml.elements["/svg"].add layer
+        layer_svg_path.open("w") { |file| xml.write file }
+        layer.remove
+        Raster.build(config, map, ppi, layer_svg_path, temp_dir, layer_png_path)
+        # Dodgy; Make sure there's a coloured pixel or imagemagick won't fill in the G and B channels in the PSD:
+        %x[mogrify -label #{id} -fill "#FFFFFEFF" -draw 'color 0,0 point' "#{layer_png_path}"]
+        layer_png_path
+      end.unshift(composite_png_path).map do |layer_png_path|
+        %Q[#{OP} "#{layer_png_path}" -units PixelsPerInch #{CP}]
+      end.join(?\s).tap do |sequence|
+        %x[convert #{sequence} "#{psd_path}"]
+      end
     end
   end
   
@@ -2284,12 +2307,12 @@ controls:
     formats = [ *config["formats"] ].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["prj"] = %w[wkt_all proj4 wkt wkt_simple wkt_noct wkt_esri mapinfo xml].delete(formats["prj"]) || "proj4" if formats.include? "prj"
     formats["png"] ||= nil if formats.include? "map"
-    (formats.keys & %w[png tif gif jpg kmz]).each do |format|
+    (formats.keys & %w[png tif gif jpg kmz psd]).each do |format|
       formats[format] ||= config["ppi"]
       formats["#{format[0]}#{format[2]}w"] = formats[format] if formats.include? "prj"
     end
     
-    outstanding = (formats.keys & %w[png tif gif jpg kmz pdf pgw tfw gfw jgw map prj]).reject do |format|
+    outstanding = (formats.keys & %w[png tif gif jpg kmz psd pdf pgw tfw gfw jgw map prj]).reject do |format|
       FileUtils.uptodate? "#{map.name}.#{format}", [ svg_path ]
     end
     
@@ -2299,7 +2322,7 @@ controls:
         formats[format]
       end.each do |ppi, group|
         raster_path = temp_dir + "#{map.name}.#{ppi}.png"
-        if (group & %w[png tif gif jpg kmz]).any? || (ppi && group.include?("pdf"))
+        if (group & %w[png tif gif jpg kmz psd]).any? || (ppi && group.include?("pdf"))
           dimensions = map.dimensions_at(ppi)
           puts "  Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
           Raster.build config, map, ppi, svg_path, temp_dir, raster_path
@@ -2319,6 +2342,8 @@ controls:
               %x[convert "#{raster_path}" "#{output_path}"]
             when "kmz"
               KMZ.build map, ppi, raster_path, output_path
+            when "psd"
+              PSD.build config, map, ppi, svg_path, raster_path, temp_dir, output_path
             when "pdf"
               ppi ? %x[convert "#{raster_path}" "#{output_path}"] : PDF.build(config, map, svg_path, temp_dir, output_path)
             when "pgw", "tfw", "gfw", "jgw"

@@ -1448,33 +1448,26 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       dem_path = if params["path"]
         Pathname.new(params["path"]).expand_path
       else
-        tile_sizes = [ 1024, 1024 ]
-        degrees_per_pixel = 3.0 / 3600
-        bounds = map.wgs84_bounds.map do |bound|
-          [ (bound.first / degrees_per_pixel).floor * degrees_per_pixel, (bound.last / degrees_per_pixel).ceil * degrees_per_pixel ]
+        base_uri = URI.parse "http://www.ga.gov.au/gisimg/rest/services/topography/dem_s_1s/ImageServer/"
+        base_query = { "f" => "json", "geometry" => map.wgs84_bounds.map(&:sort).transpose.flatten.plus([ -0.001, -0.001, 0.001, 0.001 ]).join(?,) }
+        query = URI.escape base_query.merge("returnIdsOnly" => true, "where" => "category = 1").to_query
+        raster_ids = HTTP.get(base_uri + "query?#{query}") do |response|
+          JSON.parse(response.body).tap do |result|
+            raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+          end.fetch("objectIds")
         end
-        counts = [ bounds, tile_sizes ].transpose.map do |bound, tile_size|
-          ((bound.max - bound.min) / degrees_per_pixel / tile_size).ceil
-        end
-        tile_paths = [ counts, bounds, tile_sizes ].transpose.map do |count, bound, tile_size|
-          boundaries = (0..count).map { |index| bound.first + index * degrees_per_pixel * tile_size }
-          [ boundaries[0..-2], boundaries[1..-1] ].transpose
-        end.inject(:product).map.with_index do |tile_bounds, index|
-          tile_path = temp_dir + "tile.#{index}.tif"
-          bbox = tile_bounds.transpose.map { |corner| corner.join ?, }.join ?,
-          query = {
-            "service" => "WMS",
-            "version" => "1.1.0",
-            "request" => "GetMap",
-            "styles" => "",
-            "srs" => "EPSG:4326",
-            "bbox" => bbox,
-            "width" => tile_sizes[0],
-            "height" => tile_sizes[1],
-            "format" => "image/tiff",
-            "layers" => "srtmv4.1_s0_pyramidal_16bits",
-          }.to_query
-          uri = URI::HTTP.build :host => "www.webservice-energy.org", :path => "/mapserv/srtm", :query => URI.escape(query)
+        query = URI.escape base_query.merge("rasterIDs" => raster_ids.join(?,), "format" => "TIFF").to_query
+        tile_paths = HTTP.get(base_uri + "download?#{query}") do |response|
+          JSON.parse(response.body).tap do |result|
+            raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+          end.fetch("rasterFiles")
+        end.map do |file|
+          file["id"][/[^@]*/]
+        end.select do |url|
+          url[/\.tif$/]
+        end.map do |url|
+          [ URI.parse(URI.escape url), temp_dir + url[/[^\/]*$/] ]
+        end.map do |uri, tile_path|
           HTTP.get(uri) do |response|
             tile_path.open("wb") { |file| file << response.body }
           end
@@ -1482,7 +1475,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
     
         temp_dir.join("dem.vrt").tap do |vrt_path|
-          %x[gdalbuildvrt -srcnodata "-32768" "#{vrt_path}" #{tile_paths.join ?\s}]
+          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join ?\s}]
         end
       end
       raise BadLayerError.new("elevation data not found at #{dem_path}") unless dem_path.exist?
@@ -2111,7 +2104,7 @@ relief:
   altitude: 45
   azimuth: 315
   exaggeration: 2
-  resolution: 45.0
+  resolution: 30.0
   opacity: 0.3
   highlights: 20
 grid:

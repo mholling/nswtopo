@@ -183,7 +183,7 @@ You can specify the azimuthal angle, altitude and terrain exaggeration used to g
       exaggeration: 1         # vertical exaggeration factor
       opacity: 0.3            # opacity of the shaded relief; determines how subtle the effect is
 
-The shaded relief is derived from low-resolution (90 metres per pixel) SRTM elevation data, and is embedded directly into the map at a default of 45 metre/pixel resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. This is not an issue unless you also use Inkscape to rasterise your map. (PhantomJS is a better option for this; see below.)
+The shaded relief is derived from smoothed, one-arcsecond SRTM elevation data. (The dataset, `dem_s_1s`, is provided online by Geoscience Australia and it's no longer necessary to obtain the data manually). Shaded relief is embedded directly into the map at a default of 30 metre/pixel resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. This is not an issue unless you also use Inkscape to rasterise your map. (PhantomJS is a better option for this; see below.)
 
 You can also provide your own elevation data from a _DEM_ (Digital Elevation Model). This allows you to obtain higher-resolution data for a better shaded relief depiction. DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows:
 
@@ -191,11 +191,7 @@ You can also provide your own elevation data from a _DEM_ (Digital Elevation Mod
       path: /path/to/my/dem.tif  # path for the GeoTIFF or hdr.adf file
       resolution: 30             # render the relief data at 30 metres/pixel
 
-The best elevation data is probably 30 metre resolution SRTM data, available from Geoscience Australia. Create an account at the [NEDF Portal](http://nedf.ga.gov.au/geoportal) and log in. Go to the search page and select your area of interest on the (very-slow-loading) map. From the search results, order the _1sSRTM 2008 DEMs ESRI GRID 1sx1s Mosaic_ (be sure to select the _mosaic_ option). Preparation of the download might take a few days, but more likely 10-20 minutes. You will be emailed a download URL; download and unzip the data file and specify its path in your configuration. Set a resolution of 30.0 or better to fully utilise the detail in this data.
-
-Data at 30m resolution is also available from the [ASTER Global Digital Elevation Map](http://asterweb.jpl.nasa.gov/gdem.asp). (Although actual resolution is probably less, and the data does seem quite noisy.) You can download ASTER data for your area of interest [here](http://gdex.cr.usgs.gov/gdex/); create an account, select _ASTER Global DEM V2_, mark your area of interest on the map and click the download icon to obtain a geoTIFF file.
-
-All sources of elevation data will include some noise which produces artifacts in the shaded relief image. You can smooth out these artifacts and improve the appearance with some judicious image filtering. To do this, open the intermediate relief image, `relief.png`, in Photoshop or GIMP. A recommended process is to apply a _median filter_, (_Median Filter_ in Photoshop, _Despeckle_ in GIMP), followed by a bilateral filter (_Surface Blur_ in Photoshop, _Selective Gaussian Blur_ in GIMP); find settings which work best for you. After editing the relief layer in this way, save it and re-run the script to incorporate the changes into your map.
+All sources of elevation data will include some noise which produces artifacts in the shaded relief image. You can smooth out these artifacts and improve the appearance with some judicious image filtering. To do this, open the intermediate relief image, `relief.tif`, in Photoshop or GIMP. A recommended process is to apply a _median filter_, (_Median Filter_ in Photoshop, _Despeckle_ in GIMP), followed by a bilateral filter (_Surface Blur_ in Photoshop, _Selective Gaussian Blur_ in GIMP); find settings which work best for you. After editing the relief layer in this way, save it and re-run the script to incorporate the changes into your map.
 
 ## UTM Grid
 
@@ -561,4 +557,4 @@ Release History
   * 22/2/2014: version 0.7.1: used all tracks instead of just first when calculating bounds from a GPX/KML file; fixed bug preventing tiny maps from downloading; changed manner of specifying rendering options; added alternate source of basic contour/road/track/watercourse/label layers; reverted to flat layer structure for SVG file; changed HydroArea layer to perennial water areas only; changed to LPIMapLocal as default data source due to availability.
 * 3/7/2014: version 0.8: added RFS layers for stock dams and buildings; extracted various layer sources to external configuration files for greater flexibility; change way of specifying overlays; add ANC and water-drop icons for controls; add some SA and TAS map data sources.
   * 28/8/2014: version 0.8.1: change nsw/vegetation-2008-v2 woody vegetation colour; fix vegetation & relief rendering bug in Windows
-  * 10/27/2014: HEAD: add psd format output; fix bug in ArcGIS image servers
+  * 10/27/2014: HEAD: add psd format output; fix bug in ArcGIS image servers; change to online source of 1-second SRTM relief data

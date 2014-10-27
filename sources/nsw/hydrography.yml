@@ -58,8 +58,7 @@ watercourse:
   widen: 0.4
   opacity: 1
 water-area:
-  colour:
-    "#73A1E6": "#4985DF"
+  stroke: "#4985DF"
   opacity: 1
   widen: 0.7
 water-areas-non-perennial:

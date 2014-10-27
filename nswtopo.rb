@@ -1021,8 +1021,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
         end
       end
-      @service["layers"].each { |layer| layer["name"] = layer["name"].gsub UNDERSCORES, ?_ }
-      @service["mapName"] = @service["mapName"].gsub UNDERSCORES, ?_
+      @service["layers"].each { |layer| layer["name"] = layer["name"].gsub(UNDERSCORES, ?_) } if @service["layers"]
+      @service["mapName"] = @service["mapName"].gsub(UNDERSCORES, ?_) if @service["mapName"]
     end
       
     def get_tile(bounds, sizes, options)

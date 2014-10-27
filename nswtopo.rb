@@ -1490,6 +1490,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         raise BadLayerError.new("invalid elevation data") unless $?.success?
         %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
         %x[gdalwarp -s_srs "#{Projection.wgs84}" -t_srs "#{map.projection}" -r bilinear -srcnodata 0 -dstalpha "#{relief_path}" "#{tif_path}"]
+        (params["median"].to_f / resolution).round.tap do |pixels|
+          %x[mogrify -quiet -virtual-pixel edge -statistic median #{2 * pixels + 1} "#{tif_path}"] if pixels > 0
+        end
       end
     end
     
@@ -2107,6 +2110,7 @@ relief:
   resolution: 30.0
   opacity: 0.3
   highlights: 20
+  median: 30.0
 grid:
   class: GridSource
   interval: 1000

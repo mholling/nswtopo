@@ -191,7 +191,7 @@ You can also provide your own elevation data from a _DEM_ (Digital Elevation Mod
       path: /path/to/my/dem.tif  # path for the GeoTIFF or hdr.adf file
       resolution: 30             # render the relief data at 30 metres/pixel
 
-All sources of elevation data will include some noise which produces artifacts in the shaded relief image. You can smooth out these artifacts and improve the appearance with some judicious image filtering. To do this, open the intermediate relief image, `relief.tif`, in Photoshop or GIMP. A recommended process is to apply a _median filter_, (_Median Filter_ in Photoshop, _Despeckle_ in GIMP), followed by a bilateral filter (_Surface Blur_ in Photoshop, _Selective Gaussian Blur_ in GIMP); find settings which work best for you. After editing the relief layer in this way, save it and re-run the script to incorporate the changes into your map.
+All sources of elevation data will include some noise which produces artifacts in the shaded relief image. By default, a modest _median filter_ is applied to the shaded relief to smooth such artifacts and produce a more natural effect. (The filter removes noise while preserving edges.)
 
 ## UTM Grid
 
@@ -557,4 +557,4 @@ Release History
   * 22/2/2014: version 0.7.1: used all tracks instead of just first when calculating bounds from a GPX/KML file; fixed bug preventing tiny maps from downloading; changed manner of specifying rendering options; added alternate source of basic contour/road/track/watercourse/label layers; reverted to flat layer structure for SVG file; changed HydroArea layer to perennial water areas only; changed to LPIMapLocal as default data source due to availability.
 * 3/7/2014: version 0.8: added RFS layers for stock dams and buildings; extracted various layer sources to external configuration files for greater flexibility; change way of specifying overlays; add ANC and water-drop icons for controls; add some SA and TAS map data sources.
   * 28/8/2014: version 0.8.1: change nsw/vegetation-2008-v2 woody vegetation colour; fix vegetation & relief rendering bug in Windows
-  * 10/27/2014: HEAD: add psd format output; fix bug in ArcGIS image servers; change to online source of 1-second SRTM relief data
+  * 10/28/2014: HEAD: add psd format output; fix bug in ArcGIS image servers; change to online source of 1-second SRTM relief data; apply median filtering to shaded relief

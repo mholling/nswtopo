@@ -42,7 +42,7 @@ sealed:
 unsealed:
   .//font: ~
   .//g[@font-family]: ~
-  .//[@stroke]:
+  .//[@stroke!='#000000']:
     stroke-width: 1.5
     stroke: "#FF7518"
   .//[@stroke='#000000']:

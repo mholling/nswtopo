@@ -2266,7 +2266,9 @@ controls:
           end
         end
         
-        removals.each do |layer_name|
+        config["exclude"].select do |layer_name|
+          xml.elements["/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]"]
+        end.each do |layer_name|
           puts "  Removing #{layer_name}"
           xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
         end

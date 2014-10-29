@@ -1605,26 +1605,34 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class AnnotationSource < Source
     include NoCreate
     
-    def render_svg(xml, map, &block)
-      puts "  Rendering #{layer_name}"
-      opacity = params["opacity"] || 1
-      layer = REXML::Element.new("g")
-      xml.elements["/svg/g[@id='#{layer_name}']"].tap do |old_layer|
-        old_layer ? old_layer.replace_with(layer) : yield(layer)
+    def svg_coords(coords, projection, map)
+      projection.reproject_to(map.projection, coords).one_or_many do |easting, northing|
+        [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
+          1000.0 * metres / map.scale
+        end
       end
-      layer.add_attributes "id" => layer_name, "style" => "opacity:#{opacity}", "transform" => map.svg_transform(1)
-      draw(layer, map) do |coords, projection|
-        projection.reproject_to(map.projection, coords).one_or_many do |easting, northing|
-          [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
-            1000.0 * metres / map.scale
+    end
+    
+    def render_svg(xml, map, &block)
+      opacity = params["opacity"] || 1
+      layers = Hash.new do |layers, id|
+        puts "  Rendering #{id}"
+        layers[id] = REXML::Element.new("g").tap do |layer|
+          layer.add_attributes "id" => id, "style" => "opacity:#{opacity}", "transform" => map.svg_transform(1)
+          xml.elements["/svg/g[@id='#{id}']"].tap do |old_layer|
+            old_layer ? old_layer.replace_with(layer) : yield(layer)
           end
         end
+      end
+      draw(map) do |sublayer_name|
+        id = [ layer_name, sublayer_name ].compact.join(SEGMENT)
+        layers[id]
       end
     end
   end
   
   class DeclinationSource < AnnotationSource
-    def draw(group, map)
+    def draw(map)
       centre = map.wgs84_bounds.map { |bound| 0.5 * bound.inject(:+) }
       projection = Projection.transverse_mercator(centre.first, 1.0)
       spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
@@ -1638,11 +1646,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         northings = bounds.last
         [ eastings, northings ].transpose
       end.map do |line|
-        yield line, projection
+        svg_coords(line, projection, map)
       end.map do |line|
         "M%f %f L%f %f" % line.flatten
       end.each do |d|
-        group.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"])
+        yield.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"])
       end
     end
   end
@@ -1654,7 +1662,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def draw(group, map)
+    def draw(map)
       interval = params["interval"]
       label_spacing = params["label-spacing"]
       label_interval = label_spacing * interval
@@ -1679,10 +1687,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ grid, grid.transpose ].each.with_index do |gridlines, index|
           gridlines.each do |gridline|
             line = gridline.select(&:first).map(&:last)
-            yield(line, projection).map do |point|
+            svg_coords(line, projection, map).map do |point|
               point.join ?\s
             end.join(" L").tap do |d|
-              group.add_element("path", "d" => "M#{d}", "stroke-width" => strokewidth, "stroke" => params["colour"])
+              yield("lines").add_element("path", "d" => "M#{d}", "stroke-width" => strokewidth, "stroke" => params["colour"])
             end
             if line[0] && line[0][index] % label_interval == 0 
               coord = line[0][index]
@@ -1691,12 +1699,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               label_segments.map! { |template, number, percent| [ template % number, percent ] }
               line.inject do |*segment|
                 if segment[0][1-index] % label_interval == 0
-                  points = segment.map { |coords| yield coords, projection }
+                  points = segment.map { |coords| svg_coords(coords, projection, map) }
                   middle = points.transpose.map { |values| 0.5 * values.inject(:+) }
                   angle = 180.0 * Math::atan2(*points[1].minus(points[0]).reverse) / Math::PI
                   transform = "translate(#{middle.join ?\s}) rotate(#{angle})"
                   [ [ "white", "white" ], [ params["colour"], "none" ] ].each do |fill, stroke|
-                    group.add_element("text", "transform" => transform, "dy" => 0.25 * fontsize, "stroke-width" => 0.15 * fontsize, "font-family" => fontfamily, "font-size" => fontsize, "fill" => fill, "stroke" => stroke, "text-anchor" => "middle") do |text|
+                    yield("labels").add_element("text", "transform" => transform, "dy" => 0.25 * fontsize, "stroke-width" => 0.15 * fontsize, "font-family" => fontfamily, "font-size" => fontsize, "fill" => fill, "stroke" => stroke, "text-anchor" => "middle") do |text|
                       label_segments.each do |digits, percent|
                         text.add_element("tspan", "font-size" => "#{percent}%") do |tspan|
                           tspan.add_text(digits)
@@ -1724,7 +1732,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class ControlSource < AnnotationSource
     include PathInParams
     
-    def draw(group, map)
+    def draw(map)
       gps = GPS.new(path)
       radius = 0.5 * params["diameter"]
       strokewidth = params["thickness"]
@@ -1737,10 +1745,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ /W/,       :water,    params["water-colour"] ],
       ].each do |selector, type, colour|
         gps.waypoints.map do |waypoint, name|
-          [ yield(waypoint, Projection.wgs84), name[selector] ]
+          [ svg_coords(waypoint, Projection.wgs84, map), name[selector] ]
         end.select(&:last).each do |point, label|
           transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-          group.add_element("g", "transform" => transform) do |rotated|
+          yield.add_element("g", "transform" => transform) do |rotated|
             case type
             when :circle
               rotated.add_element("circle", "r"=> radius, "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth)
@@ -1779,15 +1787,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class OverlaySource < AnnotationSource
     include PathInParams
     
-    def draw(group, map)
+    def draw(map)
       width, colour = params.values_at "width", "colour"
       gps = GPS.new(path)
       [ [ :tracks, "polyline", { "fill" => "none", "stroke" => colour, "stroke-width" => width } ],
         [ :areas, "polygon", { "fill" => colour, "stroke" => "none" } ]
       ].each do |feature, element, attributes|
         gps.send(feature).each do |list, name|
-          points = yield(list, Projection.wgs84).map { |point| point.join ?, }.join ?\s
-          group.add_element(element, attributes.merge("points" => points))
+          points = svg_coords(list, Projection.wgs84, map).map { |point| point.join ?, }.join ?\s
+          yield.add_element(element, attributes.merge("points" => points))
         end
       end
     rescue BadGpxKmlFile => e

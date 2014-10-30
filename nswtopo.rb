@@ -1193,22 +1193,27 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             dpi = dpi.floor
             scale = dpi * resolution / 0.0254
           end
-          layers.map do |key, value|
+          layers.inject([]) do |memo, (key, value)|
             case value
-            when String then { key => { "name" => value } }  # key is a sublayer name, value is a service layer name
-            when Fixnum then { key => { "id" => value } }    # key is a sublayer name, value is a service layer ID
-            when Hash   then { key => value }                # key is a sublayer name, value is layer options
+            when Array then memo + value.map { |val| [ key, val ] }
+            else memo << [ key, value ]
+            end
+          end.map do |key, value|
+            case value
+            when String then [ key, { "name" => value } ]  # key is a sublayer name, value is a service layer name
+            when Fixnum then [ key, { "id" => value } ]    # key is a sublayer name, value is a service layer ID
+            when Hash   then [ key, value ]                # key is a sublayer name, value is layer options
             when nil
               case key
-              when String then { key => { "name" => key } }  # key is a service layer name
-              when Hash                                      # key is a service layer name with definition
-                { key.first.first => { "name" => key.first.first, "definition" => key.first.last } }
-              when Fixnum                                    # key is a service layer ID
+              when String then [ key, { "name" => key } ]  # key is a service layer name
+              when Hash                                    # key is a service layer name with definition
+                [ key.first.first, { "name" => key.first.first, "definition" => key.first.last } ]
+              when Fixnum                                  # key is a service layer ID
                 layer = @service["layers"].find { |layer| layer["id"] == key }
-                { layer["name"] => { "id" => layer["id"] } }
+                [ layer["name"], { "id" => layer["id"] } ]
               end
             end
-          end.inject(&:merge).each do |sublayer_name, options|
+          end.each do |sublayer_name, options|
             options["name"] = options["name"].gsub UNDERSCORES, ?_ if options["name"]
             options["id"] ||= @service["layers"].find { |layer| layer["name"] == options["name"] }.fetch("id")
             options["names"] = [ ].tap do |layers|
@@ -1231,7 +1236,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
             memo
           end.map do |group|
-            [ scale, dpi, Hash[group], type ]
+            [ scale, dpi, group, type ]
           end
         end
       end.inject(:+).inject(:+)
@@ -1264,7 +1269,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         tile_clip_path = "url(##{[ layer_name, 'tile', *tile_offsets ].join(SEGMENT)})"
         tileset = downloads.map do |scale, dpi, group, type|
           sleep params["interval"] if params["interval"]
-          ids, layer_defs = group.values.map do |options|
+          ids, layer_defs = group.map(&:last).map do |options|
             id, definition = options.values_at("id", "definition")
             layer_def = "#{id}:#{definition}" if definition
             [ id, layer_def ]

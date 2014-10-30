@@ -1145,9 +1145,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      download_layers(map, tile_list, resolution) do |layer, sublayer_name|
-        layer.add_attributes("style" => "opacity:1", "transform" => layer_transform, "id" => [ layer_name, sublayer_name ].compact.join(SEGMENT))
-        xml.elements["/svg"].elements << layer
+      layers = Hash.new do |layers, sublayer_name|
+        layers[sublayer_name] = REXML::Element.new("g").tap do |layer|
+          layer.add_attributes "style" => "opacity:1", "transform" => layer_transform, "id" => [ layer_name, sublayer_name ].compact.join(SEGMENT)
+          xml.elements["/svg"].elements << layer
+        end
+      end
+      
+      download_layers(map, tile_list, resolution) do |sublayer_name|
+        layers[sublayer_name]
       end
       
       xml.elements.each("//path[@d='']", &:remove)
@@ -1204,9 +1210,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end.inject(&:merge).each do |sublayer_name, options|
             options["name"] = options["name"].gsub UNDERSCORES, ?_ if options["name"]
-            options["id"]   ||= @service["layers"].find { |layer| layer["name"] == options["name"] }.fetch("id")
-            options["name"] ||= @service["layers"].find { |layer| layer["id"]   == options["id"]   }.fetch("name")
-            options["name"] = options["name"].gsub UNDERSCORES, ?_
+            options["id"] ||= @service["layers"].find { |layer| layer["name"] == options["name"] }.fetch("id")
+            options["names"] = [ ].tap do |layers|
+              begin
+                layers << @service["layers"].find do |layer|
+                  layer["id"] == (layers.empty? ? options["id"] : layers.last["parentLayerId"])
+                end
+              end while layers.last
+            end.compact.reverse.map do |layer|
+              layer["name"].gsub(UNDERSCORES, ?_)
+            end
           end.inject([]) do |memo, (sublayer_name, options)|
             memo.find do |group|
               group.none? do |_, other_options|
@@ -1223,20 +1236,27 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end.inject(:+).inject(:+)
       
-      layerset = downloads.map do |scale, dpi, group, type|
+      downloads.map do |_, _, group, type|
         case type
         when "features"
           group.map do |sublayer_name, options|
             order = params["order"] ? -params["order"].index(sublayer_name) : -options["id"]
-            [ order, options["name"], REXML::Element.new("g"), sublayer_name ]
+            [ order, sublayer_name ]
           end
-        when "text"
-          [ [ 1, "Labels", REXML::Element.new("g"), "labels" ] ]
+        when "text" then [ [ 1, "labels" ] ]
         end
+      end.inject(&:+).sort_by(&:first).map(&:last).each do |sublayer_name|
+        yield sublayer_name
       end
       
-      layerset.inject(&:+).sort_by(&:first).each do |_, _, layer, sublayer_name|
-        yield layer, sublayer_name
+      layerset = downloads.map do |_, _, group, type|
+        case type
+        when "features"
+          group.map do |sublayer_name, options|
+            [ options["names"], yield(sublayer_name) ]
+          end
+        when "text" then [ [ %w[Labels], yield("labels") ] ]
+        end
       end
       
       tile_list.with_progress.map do |tile_bounds, tile_sizes, tile_offsets|
@@ -1253,35 +1273,30 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           query_options.merge!("layers" => "show:#{ids.join ?,}") if ids && ids.any?
           query_options.merge!("layerDefs" => layer_defs.compact.join(?;)) if layer_defs && layer_defs.compact.any?
           tile_xml = get_tile_xml(tile_bounds, tile_sizes, query_options, type, scale, *tile_offsets)
-          xpath = case type
-          when "features" then "/svg//g[@id]//g[@id!='Labels']"
-          when "text"     then "/svg//g[@id]//g[@id='Labels']"
-          end
-          [ scale, type, tile_xml, xpath ]
+          [ scale, tile_xml ]
         end
         
-        [ tileset, layerset ].transpose.each do |(scale, type, tile_xml, xpath), layers|
-          tile_xml.elements.collect(xpath) do |layer_xml|
-            _, _, layer, _ = layers.find do |_, name, _, _|
-              layer_xml.attributes["id"] == name.sub(/^\d/, ?_)
-            end
-            layer ? [ layer_xml, layer ] : nil
-          end.compact.each do |layer_xml, layer|
+        [ tileset, layerset ].transpose.each do |(scale, tile_xml), layers|
+          layers.map do |names, layer|
+            xpath = names.map do |name|
+              "g[@id='#{name.sub(/^\d/, ?_)}']"
+            end.join("//").prepend("/svg//")
+            layer_xml = tile_xml.elements[xpath]
             layer_xml.parent.attributes["opacity"].tap do |opacity|
               layer.add_attribute("style", "opacity:#{opacity}") if opacity
-            end
+            end if layer_xml
             layer.add_element("g", "transform" => tile_transform, "clip-path" => tile_clip_path) do |tile|
-              case type
-              when "features"
-                rerender(map, layer_xml, "expand" => map.scale.to_f / scale) if scale != map.scale
-              when "text"
+              case names.last
+              when "Labels"
                 layer_xml.elements.each(".//pattern | .//path | .//font", &:remove)
                 layer_xml.deep_clone.tap do |copy|
                   copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
                 end.elements.each { |element| tile << element }
+              else
+                rerender(map, layer_xml, "expand" => map.scale.to_f / scale) if scale != map.scale
               end
               layer_xml.elements.each { |element| tile << element }
-            end
+            end if layer_xml and !layer_xml.elements.empty?
           end
         end
       end
@@ -1385,9 +1400,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class ArcGISDynamic < ArcGISVector
     def download_layers(map, tile_list, resolution)
       feature_layers = params["layers"].keys.reverse.map do |sublayer_name|
-        REXML::Element.new("g").tap { |layer| yield layer, sublayer_name }
+        yield sublayer_name
       end
-      label_layer = REXML::Element.new("g").tap { |layer| yield layer, "labels" }
+      label_layer = yield "labels"
       
       start_id = @service["layers"].map { |layer| layer["id"] }.max + 1
       dynamic_layers = params["layers"].values.map.with_index do |layer, index|

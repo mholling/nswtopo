@@ -6,7 +6,7 @@ integer-dpi: true
 service: NSW_Border
 features:
   ~:
-    border: NSW Border
+    ~: NSW Border
 opacity: 0.25
 .//[@stroke]:
   stroke: black

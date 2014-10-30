@@ -4,5 +4,5 @@ folder: sixmaps
 service: rfs_V3
 features:
   0.25:
-    runways: delivsdm:geodb.Runway
+    ~: delivsdm:geodb.Runway
 colour: darkgray

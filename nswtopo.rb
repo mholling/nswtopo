@@ -1146,7 +1146,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       
       download_layers(map, tile_list, resolution) do |layer, sublayer_name|
-        layer.add_attributes("style" => "opacity:1", "transform" => layer_transform, "id" => [ layer_name, sublayer_name ].join(SEGMENT))
+        layer.add_attributes("style" => "opacity:1", "transform" => layer_transform, "id" => [ layer_name, sublayer_name ].compact.join(SEGMENT))
         xml.elements["/svg"].elements << layer
       end
       
@@ -1203,7 +1203,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
           end.inject(&:merge).each do |sublayer_name, options|
-            options["name"] = options["name"].gsub UNDERSCORES, ?_
+            options["name"] = options["name"].gsub UNDERSCORES, ?_ if options["name"]
             options["id"]   ||= @service["layers"].find { |layer| layer["name"] == options["name"] }.fetch("id")
             options["name"] ||= @service["layers"].find { |layer| layer["id"]   == options["id"]   }.fetch("name")
             options["name"] = options["name"].gsub UNDERSCORES, ?_
@@ -1351,19 +1351,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       raise BadLayerError.new("source file not found at #{path}") unless path.exist?
       source = REXML::Document.new(path.read)
       
-      if xml.elements.each("/svg/g[starts-with(@id,'#{layer_name}#{SEGMENT}')]") do |layer|
+      if xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]") do |layer|
         id = layer.attributes["id"]
         layer.replace_with source.elements["/svg/g[@id='#{id}']"]
       end.empty?
-        source.elements.each("/svg/g[starts-with(@id,'#{layer_name}#{SEGMENT}')][*]", &block)
+        source.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]", &block)
         [ *params["exclude"] ].each do |sublayer_name|
           xml.elements.each("/svg/g[@id='#{[ layer_name, sublayer_name ].join SEGMENT}']", &:remove)
         end
       end
       
-      xml.elements.each("/svg/g[starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
+      xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
         id = layer.attributes["id"]
-        sublayer_name = id.split(SEGMENT).last
+        sublayer_name = id.split(/^#{layer_name}#{SEGMENT}?/).last
         puts "  Rendering #{id}"
         render_sources = (params["equivalences"] || {}).select do |group, sublayer_names|
           sublayer_names.include? sublayer_name
@@ -1377,7 +1377,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      xml.elements.each("/svg/defs[starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
+      xml.elements.each("/svg/defs[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
       source.elements.each("/svg/defs") { |defs| xml.elements["/svg"].unshift defs }
     end
   end

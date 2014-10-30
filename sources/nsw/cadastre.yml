@@ -4,7 +4,7 @@ folder: sixmaps
 service: Cadastre
 features:
   0.4:
-    lot: Lot
+    ~: Lot
 opacity: 0.5
 .//[@stroke]/@stroke: "#777777"
 .//[@stroke]/@stroke-width: 0.3

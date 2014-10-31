@@ -738,7 +738,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when nil
               { ".//[@stroke-dasharray]/@stroke-dasharray" => nil }
             when String, Numeric
-              { ".//path" => { "stroke-dasharray" => scale_by.(map.scale / 25000.0, args.to_s) } }
+              { ".//(path|polyline)" => { "stroke-dasharray" => args } }
             end
           else { }
           end

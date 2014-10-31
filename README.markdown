@@ -290,6 +290,7 @@ Specify the colour, width and/or opacity of the overlays as follows:
     tracks:
       colour: red           # mark tracks in red...
       width: 0.2            # ...with a width of 0.2mm
+      dash: 4 2             # add a 4mm/2mm dash to the track, if desired
 
 Build or rebuild your map by running the script to add the overlays. (Advanced users may alter the overlay rendering further using Inkscape, e.g. by adding dashes or dots to tracks or patterns to areas.)
 

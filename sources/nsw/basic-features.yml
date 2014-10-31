@@ -5,7 +5,7 @@ folder: IndustryViewFLEX2
 integer-dpi: true
 service: Base_Mapping
 features:
-  25000:
+  0.5:
     creeks:
       name: Other_Streams_and_Tributaries
       definition: relevance >= 8
@@ -86,10 +86,10 @@ rivers:
 footpaths:
   colour: black
   widen: 0.6
-  dash: 3.5 1.75
+  dash: 7 3.5
 vehicular-tracks:
   colour: darkorange
-  dash: 6 3
+  dash: 12 6
 roads-sealed:
   colour: red
 roads-unsealed:

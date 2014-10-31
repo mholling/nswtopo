@@ -1753,8 +1753,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def draw(map)
       gps = GPS.new(path)
       radius = 0.5 * params["diameter"]
-      strokewidth = params["thickness"]
-      fontfamily = params["family"]
+      strokewidth, fontfamily, spotdiameter = params.values_at "thickness", "family", "spot-diameter"
       fontsize = 25.4 * params["fontsize"] / 72.0
       
       [ [ /\d{2,3}/, :circle,   "circles" ],
@@ -1769,7 +1768,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           yield(sublayer).add_element("g", "transform" => transform) do |rotated|
             case type
             when :circle
-              rotated.add_element("circle", "r"=> radius, "fill" => "none", "stroke" => "black", "stroke-width" => 0.2)
+              rotated.add_element("circle", "r" => radius, "fill" => "none", "stroke" => "black", "stroke-width" => 0.2)
+              rotated.add_element("circle", "r" => 0.5 * spotdiameter, "fill" => "black", "stroke" => "none") if spotdiameter
             when :triangle, :square
               angles = type == :triangle ? [ -90, -210, -330 ] : [ -45, -135, -225, -315 ]
               points = angles.map do |angle|

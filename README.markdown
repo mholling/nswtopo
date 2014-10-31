@@ -227,6 +227,7 @@ Drop a control waypoints file (`controls.kml` or `controls.gpx`) into the direct
       colour: "#880088"       # colour of the control markers and labels (as a hex triplet or web colour)
       water:
         colour: blue          # colour of water drop markers
+      spot-diameter: 0.2      # specify a diameter (in mm) for control centre spots, if desired
 
 ## Canvas
 

@@ -202,7 +202,6 @@ You can customise the appearance of the UTM grid and labels if you desire:
     grid:
       interval: 1000          # interval between grid lines (1000 metres by default)
       width: 0.1              # width in millimetres of the marked lines on the map
-      colour: "#000000"       # colour of the gridlines as a hex triplet (black by default)
       label-spacing: 5        # number of gridlines between successive labels
       fontsize: 7.8           # font size (in points) of the grid labels
       family: Arial Narrow
@@ -214,7 +213,7 @@ This layer marks magnetic north lines on the map, and is useful for rogaining ma
     declination:
       spacing: 1000           # perpendicular spacing of magnetic declination lines in metres
       width: 0.1              # width of the marked lines on the map, in millimetres
-      colour: "#000000"       # colour of the magnetic declination lines as a hex triplet (black by default)
+      colour: black           # colour of magnetic declination lines (as a hex triplet or web colour)
 
 ## Controls
 
@@ -224,9 +223,10 @@ Drop a control waypoints file (`controls.kml` or `controls.gpx`) into the direct
       path: controls.kml      # filename (.kml or .gpx format) or path of control waypoint file
       fontsize: 14            # font size (in points) for control labels
       diameter: 7.0           # diameter of control circles in millimetres
-      thickness: 0.2          # thickness of control circles in millimetres
+      width: 0.2              # thickness of control circles in millimetres
       colour: "#880088"       # colour of the control markers and labels (as a hex triplet or web colour)
-      water-colour: blue      # colour of waterdrop markers
+      water:
+        colour: blue          # colour of water drop markers
 
 ## Canvas
 

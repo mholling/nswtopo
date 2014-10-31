@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# Copyright 2011, 2012 Matthew Hollingworth
+# Copyright 2011-2014 Matthew Hollingworth
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -694,6 +694,78 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def exist?
       path.nil? || path.exist?
     end
+    
+    def rerender(xml, map)
+      scale_by = lambda do |factor, string|
+        string.split(/[,\s]+/).map { |number| factor * number.to_f }.join(?\s)
+      end
+      xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
+        id = layer.attributes["id"]
+        sublayer_name = id.split(/^#{layer_name}#{SEGMENT}?/).last
+        puts "    (#{id})" unless id == layer_name
+        (params["equivalences"] || {}).select do |group, sublayer_names|
+          sublayer_names.include? sublayer_name
+        end.map(&:first).push(sublayer_name).inject(params) do |memo, key|
+          params[key] ? memo.deep_merge(params[key]) : memo
+        end.inject({}) do |memo, (command, args)|
+          memo.deep_merge case command
+          when "colour" then { "stroke" => args, "fill" => args }
+          when "expand" then { "widen" => args, "stretch" => args }
+          else { command => args }
+          end
+        end.inject({}) do |memo, (command, args)|
+          memo.deep_merge case command
+          when %r{\.//}  then { command => args }
+          when "opacity" then { "self::/@style" => "opacity:#{args}" }
+          when "width" then { ".//[@stroke-width and not(self::text)]/@stroke-width" => args }
+          when "stroke", "fill"
+            case args
+            when Hash
+              args.map { |colour, replacement|
+                { ".//[@#{command}='#{colour}']/@#{command}" => replacement }
+              }.inject(&:merge)
+            else
+              { ".//[@#{command}!='none']/@#{command}" => args }
+            end
+          when "widen", "stretch", "expand-glyph"
+            case command
+            when "widen"        then %w[stroke-width stroke-miterlimit]
+            when "stretch"      then %w[stroke-dasharray]
+            when "expand-glyph" then %w[font-size]
+            end.map { |name| { ".//[@#{name}]/@#{name}" => scale_by.curry[args] } }.inject(&:merge)
+          when "dash"
+            case args
+            when nil
+              { ".//[@stroke-dasharray]/@stroke-dasharray" => nil }
+            when String, Numeric
+              { ".//path" => { "stroke-dasharray" => scale_by.(map.scale / 25000.0, args.to_s) } }
+            end
+          else { }
+          end
+        end.each do |xpath, args|
+          REXML::XPath.each(layer, xpath) do |node|
+            case args
+            when nil then node.remove
+            when Hash
+              case node
+              when REXML::Element   then node.add_attributes(args)
+              end
+            when Proc
+              case node
+              when REXML::Attribute then node.element.attributes[node.name] = args.(node.value)
+              end
+            else
+              case node
+              when REXML::Attribute then node.element.attributes[node.name] = args
+              when REXML::Text      then node.value = args
+              end
+            end
+          end
+        end
+        until layer.elements.each(".//g[not(*)]", &:remove).empty? do
+        end
+      end
+    end
   end
   
   module RasterRenderer
@@ -737,7 +809,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def render_svg(xml, map, &block)
-      puts "  Rendering #{layer_name}"
       resolution = resolution_for map
       transform = "scale(#{1000.0 * resolution / map.scale})"
       opacity = params["opacity"] || 1
@@ -1298,70 +1369,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
                 end.elements.each { |element| tile << element }
               else
-                rerender(map, layer_xml, "expand" => map.scale.to_f / scale) if scale != map.scale
+                %w[stroke-width stroke-miterlimit stroke-dasharray].each do |name|
+                  REXML::XPath.each(layer_xml, ".//[@#{name}]/@#{name}") do |node|
+                    node.element.attributes[node.name] = node.value.split(/[,\s]+/).map do |number|
+                      number.to_f * map.scale / scale
+                    end.join(?\s)
+                  end
+                end if scale != map.scale
               end
               layer_xml.elements.each { |element| tile << element }
             end if layer_xml and !layer_xml.elements.empty?
-          end
-        end
-      end
-    end
-    
-    def rerender(map, element, commands)
-      scale_by = lambda do |factor, string|
-        string.split(/[,\s]+/).map { |number| factor * number.to_f }.join(?\s)
-      end
-      commands.inject({}) do |memo, (command, args)|
-        memo.deep_merge case command
-        when "colour" then { "stroke" => args, "fill" => args }
-        when "expand" then { "widen" => args, "stretch" => args }
-        else { command => args }
-        end
-      end.inject({}) do |memo, (command, args)|
-        memo.deep_merge case command
-        when %r{\.//}  then { command => args }
-        when "opacity" then { "self::/@style" => "opacity:#{args}" }
-        when "stroke", "fill"
-          case args
-          when Hash
-            args.map { |colour, replacement|
-              { ".//[@#{command}='#{colour}']/@#{command}" => replacement }
-            }.inject(&:merge)
-          else
-            { ".//[@#{command}!='none']/@#{command}" => args }
-          end
-        when "widen", "stretch", "expand-glyph"
-          case command
-          when "widen"        then %w[stroke-width stroke-miterlimit]
-          when "stretch"      then %w[stroke-dasharray]
-          when "expand-glyph" then %w[font-size]
-          end.map { |name| { ".//[@#{name}]/@#{name}" => scale_by.curry[args] } }.inject(&:merge)
-        when "dash"
-          case args
-          when nil
-            { ".//[@stroke-dasharray]/@stroke-dasharray" => nil }
-          when String, Numeric
-            { ".//path" => { "stroke-dasharray" => scale_by.(map.scale / 25000.0, args.to_s) } }
-          end
-        else { }
-        end
-      end.each do |xpath, args|
-        REXML::XPath.each(element, xpath) do |node|
-          case args
-          when nil then node.remove
-          when Hash
-            case node
-            when REXML::Element   then node.add_attributes(args)
-            end
-          when Proc
-            case node
-            when REXML::Attribute then node.element.attributes[node.name] = args.(node.value)
-            end
-          else
-            case node
-            when REXML::Attribute then node.element.attributes[node.name] = args
-            when REXML::Text      then node.value = args
-            end
           end
         end
       end
@@ -1378,22 +1395,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         source.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]", &block)
         [ *params["exclude"] ].each do |sublayer_name|
           xml.elements.each("/svg/g[@id='#{[ layer_name, sublayer_name ].join SEGMENT}']", &:remove)
-        end
-      end
-      
-      xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
-        id = layer.attributes["id"]
-        sublayer_name = id.split(/^#{layer_name}#{SEGMENT}?/).last
-        puts "  Rendering #{id}"
-        render_sources = (params["equivalences"] || {}).select do |group, sublayer_names|
-          sublayer_names.include? sublayer_name
-        end.map(&:first) << sublayer_name
-        render_sources.inject(params) do |memo, key|
-          memo.deep_merge(params[key] || {})
-        end.tap do |commands|
-          rerender(map, layer, commands)
-        end
-        until layer.elements.each(".//g[not(*)]", &:remove).empty? do
         end
       end
       
@@ -1634,11 +1635,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def render_svg(xml, map, &block)
-      opacity = params["opacity"] || 1
       layers = Hash.new do |layers, id|
-        puts "  Rendering #{id}"
         layers[id] = REXML::Element.new("g").tap do |layer|
-          layer.add_attributes "id" => id, "style" => "opacity:#{opacity}", "transform" => map.svg_transform(1)
+          layer.add_attributes "id" => id, "style" => "opacity:1", "transform" => map.svg_transform(1)
           xml.elements["/svg/g[@id='#{id}']"].tap do |old_layer|
             old_layer ? old_layer.replace_with(layer) : yield(layer)
           end
@@ -1670,7 +1669,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.map do |line|
         "M%f %f L%f %f" % line.flatten
       end.each do |d|
-        yield.add_element("path", "d" => d, "stroke" => params["colour"], "stroke-width" => params["width"])
+        yield.add_element("path", "d" => d, "stroke" => "black", "stroke-width" => "0.1")
       end
     end
   end
@@ -1688,7 +1687,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       label_interval = label_spacing * interval
       fontfamily = params["family"]
       fontsize = 25.4 * params["fontsize"] / 72.0
-      strokewidth = params["width"]
       
       GridSource.zone(map.bounds.inject(&:product), map.projection).inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
@@ -1710,7 +1708,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             svg_coords(line, projection, map).map do |point|
               point.join ?\s
             end.join(" L").tap do |d|
-              yield("lines").add_element("path", "d" => "M#{d}", "stroke-width" => strokewidth, "stroke" => params["colour"])
+              yield("lines").add_element("path", "d" => "M#{d}", "stroke-width" => "0.1", "stroke" => "black")
             end
             if line[0] && line[0][index] % label_interval == 0 
               coord = line[0][index]
@@ -1723,7 +1721,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   middle = points.transpose.map { |values| 0.5 * values.inject(:+) }
                   angle = 180.0 * Math::atan2(*points[1].minus(points[0]).reverse) / Math::PI
                   transform = "translate(#{middle.join ?\s}) rotate(#{angle})"
-                  [ [ "white", "white" ], [ params["colour"], "none" ] ].each do |fill, stroke|
+                  [ %w[white white], %w[black none] ].each do |fill, stroke|
                     yield("labels").add_element("text", "transform" => transform, "dy" => 0.25 * fontsize, "stroke-width" => 0.15 * fontsize, "font-family" => fontfamily, "font-size" => fontsize, "fill" => fill, "stroke" => stroke, "text-anchor" => "middle") do |text|
                       label_segments.each do |digits, percent|
                         text.add_element("tspan", "font-size" => "#{percent}%") do |tspan|
@@ -1759,44 +1757,45 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       fontfamily = params["family"]
       fontsize = 25.4 * params["fontsize"] / 72.0
       
-      [ [ /\d{2,3}/, :circle,   params["colour"] ],
-        [ /HH/,      :triangle, params["colour"] ],
-        [ /ANC/,     :square,   params["colour"] ],
-        [ /W/,       :water,    params["water-colour"] ],
-      ].each do |selector, type, colour|
+      [ [ /\d{2,3}/, :circle,   "circles" ],
+        [ /HH/,      :triangle, "circles" ],
+        [ /ANC/,     :square,   "circles" ],
+        [ /W/,       :water,    "water"   ],
+      ].each do |selector, type, sublayer|
         gps.waypoints.map do |waypoint, name|
           [ svg_coords(waypoint, Projection.wgs84, map), name[selector] ]
         end.select(&:last).each do |point, label|
           transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-          yield.add_element("g", "transform" => transform) do |rotated|
+          yield(sublayer).add_element("g", "transform" => transform) do |rotated|
             case type
             when :circle
-              rotated.add_element("circle", "r"=> radius, "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth)
+              rotated.add_element("circle", "r"=> radius, "fill" => "none", "stroke" => "black", "stroke-width" => 0.2)
             when :triangle, :square
               angles = type == :triangle ? [ -90, -210, -330 ] : [ -45, -135, -225, -315 ]
               points = angles.map do |angle|
                 [ radius, 0 ].rotate_by(angle * Math::PI / 180.0)
               end.map { |vertex| vertex.join ?, }.join ?\s
-              rotated.add_element("polygon", "points" => points, "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth)
+              rotated.add_element("polygon", "points" => points, "fill" => "none", "stroke" => "black", "stroke-width" => 0.2)
             when :water
-              rotated.add_element("g", "transform" => "scale(#{radius * 0.8})") do |scaled|
-                [
-                  "m -0.79942321,0.07985921 -0.005008,0.40814711 0.41816285,0.0425684 0,-0.47826034 -0.41315487,0.02754198 z",
-                  "m -0.011951449,-0.53885114 0,0.14266384",
-                  "m 0.140317871,-0.53885114 0,0.14266384",
-                  "m -0.38626833,0.05057523 c 0.0255592,0.0016777 0.0370663,0.03000538 0.0613473,0.03881043 0.0234708,0.0066828 0.0475564,0.0043899 0.0713631,0.0025165 0.007966,-0.0041942 0.0530064,-0.03778425 0.055517,-0.04287323 0.0201495,-0.01674888 0.0473913,-0.05858754 0.0471458,-0.08232678 l 0.005008,-0.13145777 c 2.5649e-4,-0.006711 -0.0273066,-0.0279334 -0.0316924,-0.0330336 -0.005336,-0.006207 0.006996,-0.0660504 -0.003274,-0.0648984 -0.0115953,-0.004474 -0.0173766,5.5923e-4 -0.0345371,-0.007633 -0.004228,-0.0128063 -0.006344,-0.0668473 0.0101634,-0.0637967 0.0278325,0.001678 0.0452741,0.005061 0.0769157,-0.005732 0.0191776,0 0.08511053,-0.0609335 0.10414487,-0.0609335 l 0.16846578,8.3884e-4 c 0.0107679,0 0.0313968,0.0284032 0.036582,0.03359 0.0248412,0.0302766 0.0580055,0.0372558 0.10330712,0.0520893 0.011588,0.001398 0.0517858,-0.005676 0.0553021,0.002517 0.007968,0.0265354 0.005263,0.0533755 0.003112,0.0635227 -0.002884,0.0136172 -0.0298924,-1.9573e-4 -0.0313257,0.01742 -0.001163,0.0143162 -4.0824e-4,0.0399429 -0.004348,0.0576452 -0.0239272,0.024634 -0.0529159,0.0401526 -0.0429639,0.0501152 l -6.5709e-4,0.11251671 c 0.003074,0.02561265 0.0110277,0.05423115 0.0203355,0.07069203 0.026126,0.0576033 0.0800901,0.05895384 0.0862871,0.06055043 0.002843,8.3885e-4 0.24674425,0.0322815 0.38435932,0.16401046 0.0117097,0.0112125 0.0374559,0.0329274 0.0663551,0.12144199 0.0279253,0.0855312 0.046922,0.36424768 0.0375597,0.36808399 -0.0796748,0.0326533 -0.1879149,0.0666908 -0.31675221,0.0250534 -0.0160744,-0.005201 0.001703,-0.11017354 -0.008764,-0.16025522 -0.0107333,-0.0513567 3.4113e-4,-0.15113981 -0.11080061,-0.17089454 -0.0463118,-0.008221 -0.19606469,0.0178953 -0.30110236,0.0400631 -0.05001528,0.0105694 -0.117695,0.0171403 -0.15336817,0.0100102 -0.02204477,-0.004418 -0.15733412,-0.0337774 -0.18225582,-0.0400072 -0.0165302,-0.004138 -0.053376,-0.006263 -0.10905742,0.0111007 -0.0413296,0.0128902 -0.0635168,0.0443831 -0.0622649,0.0334027 9.1434e-4,-0.008025 0.001563,-0.46374837 -1.0743e-4,-0.47210603 z",
-                  "m 0.06341799,-0.8057541 c -0.02536687,-2.7961e-4 -0.06606003,0.0363946 -0.11502538,0.0716008 -0.06460411,0.0400268 -0.1414687,0.0117718 -0.20710221,-0.009675 -0.0622892,-0.0247179 -0.16166212,-0.004194 -0.17010213,0.0737175 0.001686,0.0453982 0.0182594,0.1160762 0.0734356,0.11898139 0.0927171,-0.0125547 0.18821206,-0.05389 0.28159685,-0.0236553 0.03728388,0.0164693 0.0439921,0.0419813 0.04709758,0.0413773 l 0.18295326,0 c 0.003105,5.5923e-4 0.009814,-0.0249136 0.0470976,-0.0413773 0.0933848,-0.0302347 0.18887978,0.0111007 0.2815969,0.0236553 0.0551762,-0.002908 0.0718213,-0.0735832 0.0735061,-0.11898139 -0.00844,-0.0779145 -0.10788342,-0.0984409 -0.17017266,-0.0737175 -0.0656335,0.0214464 -0.14249809,0.0497014 -0.20710215,0.009675 -0.0498479,-0.0358409 -0.09110973,-0.0731946 -0.11636702,-0.0715309 -4.5577e-4,-3.076e-5 -9.451e-4,-6.432e-5 -0.001412,-6.991e-5 z",
-                  "m -0.20848487,-0.33159571 c 0.29568578,0.0460357 0.5475498,0.0168328 0.5475498,0.0168328",
-                  "m -0.21556716,-0.26911875 c 0.29568578,0.0460329 0.55463209,0.0221175 0.55463209,0.0221175",
-                ].each do |d|
-                  scaled.add_element("path", "fill" => "none", "stroke" => colour, "stroke-width" => strokewidth / radius, "d" => d)
-                end
+              [
+                "m -0.79942321,0.07985921 -0.005008,0.40814711 0.41816285,0.0425684 0,-0.47826034 -0.41315487,0.02754198 z",
+                "m -0.011951449,-0.53885114 0,0.14266384",
+                "m 0.140317871,-0.53885114 0,0.14266384",
+                "m -0.38626833,0.05057523 c 0.0255592,0.0016777 0.0370663,0.03000538 0.0613473,0.03881043 0.0234708,0.0066828 0.0475564,0.0043899 0.0713631,0.0025165 0.007966,-0.0041942 0.0530064,-0.03778425 0.055517,-0.04287323 0.0201495,-0.01674888 0.0473913,-0.05858754 0.0471458,-0.08232678 l 0.005008,-0.13145777 c 2.5649e-4,-0.006711 -0.0273066,-0.0279334 -0.0316924,-0.0330336 -0.005336,-0.006207 0.006996,-0.0660504 -0.003274,-0.0648984 -0.0115953,-0.004474 -0.0173766,5.5923e-4 -0.0345371,-0.007633 -0.004228,-0.0128063 -0.006344,-0.0668473 0.0101634,-0.0637967 0.0278325,0.001678 0.0452741,0.005061 0.0769157,-0.005732 0.0191776,0 0.08511053,-0.0609335 0.10414487,-0.0609335 l 0.16846578,8.3884e-4 c 0.0107679,0 0.0313968,0.0284032 0.036582,0.03359 0.0248412,0.0302766 0.0580055,0.0372558 0.10330712,0.0520893 0.011588,0.001398 0.0517858,-0.005676 0.0553021,0.002517 0.007968,0.0265354 0.005263,0.0533755 0.003112,0.0635227 -0.002884,0.0136172 -0.0298924,-1.9573e-4 -0.0313257,0.01742 -0.001163,0.0143162 -4.0824e-4,0.0399429 -0.004348,0.0576452 -0.0239272,0.024634 -0.0529159,0.0401526 -0.0429639,0.0501152 l -6.5709e-4,0.11251671 c 0.003074,0.02561265 0.0110277,0.05423115 0.0203355,0.07069203 0.026126,0.0576033 0.0800901,0.05895384 0.0862871,0.06055043 0.002843,8.3885e-4 0.24674425,0.0322815 0.38435932,0.16401046 0.0117097,0.0112125 0.0374559,0.0329274 0.0663551,0.12144199 0.0279253,0.0855312 0.046922,0.36424768 0.0375597,0.36808399 -0.0796748,0.0326533 -0.1879149,0.0666908 -0.31675221,0.0250534 -0.0160744,-0.005201 0.001703,-0.11017354 -0.008764,-0.16025522 -0.0107333,-0.0513567 3.4113e-4,-0.15113981 -0.11080061,-0.17089454 -0.0463118,-0.008221 -0.19606469,0.0178953 -0.30110236,0.0400631 -0.05001528,0.0105694 -0.117695,0.0171403 -0.15336817,0.0100102 -0.02204477,-0.004418 -0.15733412,-0.0337774 -0.18225582,-0.0400072 -0.0165302,-0.004138 -0.053376,-0.006263 -0.10905742,0.0111007 -0.0413296,0.0128902 -0.0635168,0.0443831 -0.0622649,0.0334027 9.1434e-4,-0.008025 0.001563,-0.46374837 -1.0743e-4,-0.47210603 z",
+                "m 0.06341799,-0.8057541 c -0.02536687,-2.7961e-4 -0.06606003,0.0363946 -0.11502538,0.0716008 -0.06460411,0.0400268 -0.1414687,0.0117718 -0.20710221,-0.009675 -0.0622892,-0.0247179 -0.16166212,-0.004194 -0.17010213,0.0737175 0.001686,0.0453982 0.0182594,0.1160762 0.0734356,0.11898139 0.0927171,-0.0125547 0.18821206,-0.05389 0.28159685,-0.0236553 0.03728388,0.0164693 0.0439921,0.0419813 0.04709758,0.0413773 l 0.18295326,0 c 0.003105,5.5923e-4 0.009814,-0.0249136 0.0470976,-0.0413773 0.0933848,-0.0302347 0.18887978,0.0111007 0.2815969,0.0236553 0.0551762,-0.002908 0.0718213,-0.0735832 0.0735061,-0.11898139 -0.00844,-0.0779145 -0.10788342,-0.0984409 -0.17017266,-0.0737175 -0.0656335,0.0214464 -0.14249809,0.0497014 -0.20710215,0.009675 -0.0498479,-0.0358409 -0.09110973,-0.0731946 -0.11636702,-0.0715309 -4.5577e-4,-3.076e-5 -9.451e-4,-6.432e-5 -0.001412,-6.991e-5 z",
+                "m -0.20848487,-0.33159571 c 0.29568578,0.0460357 0.5475498,0.0168328 0.5475498,0.0168328",
+                "m -0.21556716,-0.26911875 c 0.29568578,0.0460329 0.55463209,0.0221175 0.55463209,0.0221175",
+              ].each do |d|
+                d.gsub!(/\d+\.\d+/) { |number| number.to_f * radius * 0.8 }
+                rotated.add_element("path", "fill" => "none", "stroke" => "black", "stroke-width" => 0.2, "d" => d)
               end
             end
-            rotated.add_element("text", "dx" => radius, "dy" => -radius, "font-family" => fontfamily, "font-size" => fontsize, "fill" => colour, "stroke" => "none") do |text|
-              text.add_text label
-            end unless type == :water
           end
+          yield("labels").add_element("g", "transform" => transform) do |rotated|
+            rotated.add_element("text", "dx" => radius, "dy" => -radius, "font-family" => fontfamily, "font-size" => fontsize, "fill" => "black", "stroke" => "none") do |text|
+              text.add_text label
+            end
+          end unless type == :water
         end
       end
     rescue BadGpxKmlFile => e
@@ -1808,10 +1807,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include PathInParams
     
     def draw(map)
-      width, colour = params.values_at "width", "colour"
       gps = GPS.new(path)
-      [ [ :tracks, "polyline", { "fill" => "none", "stroke" => colour, "stroke-width" => width } ],
-        [ :areas, "polygon", { "fill" => colour, "stroke" => "none" } ]
+      [ [ :tracks, "polyline", { "fill" => "none", "stroke" => "black", "stroke-width" => "0.4" } ],
+        [ :areas, "polygon", { "fill" => "black", "stroke" => "none" } ]
       ].each do |feature, element, attributes|
         gps.send(feature).each do |list, name|
           points = svg_coords(list, Projection.wgs84, map).map { |point| point.join ?, }.join ?\s
@@ -2149,8 +2147,6 @@ relief:
 grid:
   class: GridSource
   interval: 1000
-  width: 0.1
-  colour: black
   label-spacing: 5
   fontsize: 7.8
   family: Arial Narrow
@@ -2165,8 +2161,9 @@ controls:
   family: Arial
   fontsize: 14
   diameter: 7.0
-  thickness: 0.2
-  water-colour: blue
+  colour: "#880088"
+  water:
+    colour: blue
 ]
     
     layers = {}
@@ -2268,6 +2265,7 @@ controls:
       tmp_svg_path = temp_dir + svg_name
       tmp_svg_path.open("w") do |file|
         updates.each do |source|
+          puts "  Rendering #{source.layer_name}"
           before, after = sources.map(&:layer_name).inject([[]]) do |memo, candidate|
             candidate == source.layer_name ? memo << [] : memo.last << candidate
             memo
@@ -2281,6 +2279,7 @@ controls:
             source.render_svg(xml, map) do |layer|
               neighbour ? xml.elements["/svg"].insert_before(neighbour, layer) : xml.elements["/svg"].add_element(layer)
             end
+            source.rerender(xml, map)
           rescue BadLayerError => e
             puts "Failed to render #{source.layer_name}: #{e.message}"
           end

@@ -1440,7 +1440,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end
         tile_xml.elements["/svg//g[@id]/g[@id]/g[@id='Labels']"].tap do |label_xml|
-          label_xml.elements.each(".//pattern | .//path | .//font", &:remove)
+          label_xml.elements.each(".//pattern | .//path", &:remove)
           label_layer.add_element("g", "transform" => tile_transform, "clip-path" => tile_clip_path) do |tile|
             label_xml.deep_clone.tap do |copy|
               copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }

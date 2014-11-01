@@ -1364,7 +1364,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             layer.add_element("g", "transform" => tile_transform, "clip-path" => tile_clip_path) do |tile|
               case names.last
               when "Labels"
-                layer_xml.elements.each(".//pattern | .//path | .//font", &:remove)
+                layer_xml.elements.each(".//pattern | .//path", &:remove)
                 layer_xml.deep_clone.tap do |copy|
                   copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
                 end.elements.each { |element| tile << element }

@@ -21,7 +21,7 @@ features:
       definition: perenniality = 3
     inundation-swamps: Swamps_LSI
     ocean: Oceans_Bays
-  10000:
+  0.4:
     damwalls-breakwaters: Damwall_Racetrack
     stock-dams: StockDams
 text:

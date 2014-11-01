@@ -1362,22 +1362,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               layer.add_attribute("style", "opacity:#{opacity}") if opacity
             end if layer_xml
             layer.add_element("g", "transform" => tile_transform, "clip-path" => tile_clip_path) do |tile|
+              layer_xml.elements.each { |element| tile << element }
               case names.last
               when "Labels"
-                layer_xml.elements.each(".//pattern | .//path", &:remove)
-                layer_xml.deep_clone.tap do |copy|
-                  copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
-                end.elements.each { |element| tile << element }
+                tile.elements.each(".//pattern | .//path", &:remove)
               else
                 %w[stroke-width stroke-miterlimit stroke-dasharray].each do |name|
-                  REXML::XPath.each(layer_xml, ".//[@#{name}]/@#{name}") do |node|
+                  REXML::XPath.each(tile, ".//[@#{name}]/@#{name}") do |node|
                     node.element.attributes[node.name] = node.value.split(/[,\s]+/).map do |number|
                       number.to_f * map.scale / scale
                     end.join(?\s)
                   end
                 end if scale != map.scale
               end
-              layer_xml.elements.each { |element| tile << element }
             end if layer_xml and !layer_xml.elements.empty?
           end
         end

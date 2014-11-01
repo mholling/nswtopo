@@ -17,8 +17,9 @@ features:
     contours-20m-ancillary:
       name: Contour_20m
       definition: classsubtype = 3
-  ~:
+  0.7:
     spot-heights: SpotHeight
+  ~:
     ridges-beaches: Ridge_Beach
     cliffs-sand:
       name: Cliffs_Reefs_Mangroves

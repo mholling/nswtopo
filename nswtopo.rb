@@ -713,11 +713,26 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "expand" then { "widen" => args, "stretch" => args }
           else { command => args }
           end
+        end.tap do |commands|
+          commands.merge! "glow" => commands.delete("glow") if commands["glow"]
         end.inject({}) do |memo, (command, args)|
           memo.deep_merge case command
           when %r{\.//}  then { command => args }
           when "opacity" then { "self::/@style" => "opacity:#{args}" }
-          when "width" then { ".//[@stroke-width and not(self::text)]/@stroke-width" => args }
+          when "width"   then { ".//[@stroke-width and not(self::text)]/@stroke-width" => args }
+          when "glow"
+            { "./*" => lambda do |element|
+              element.deep_clone.tap do |copy|
+                copy.elements.each("descendant-or-self::text") do |text|
+                  case args
+                  when Float then text.add_attributes "fill" => "none", "stroke" => "white", "stroke-opacity" => 0.75, "stroke-width" => "#{args}em"
+                  else            text.add_attributes "fill" => "none", "stroke" => "white", "stroke-opacity" => 0.75, "stroke-width" => "0.1em"
+                  end
+                end
+                element.parent.insert_before element, copy
+                element.elements.each(".//font", &:remove)
+              end if args
+            end }
           when "stroke", "fill"
             case args
             when Hash
@@ -753,6 +768,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when Proc
               case node
               when REXML::Attribute then node.element.attributes[node.name] = args.(node.value)
+              when REXML::Element   then args.(node)
               end
             else
               case node
@@ -1172,8 +1188,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include ArcGIS
     DEFAULT_MM_PER_TILE = 200
     
-    def initialize(*args)
-      super(*args)
+    def initialize(layer_name, params)
+      super layer_name, { "labels" => { "glow" => true } }.deep_merge(params)
       @path = Pathname.pwd + "#{layer_name}.svg"
     end
     

@@ -21,7 +21,7 @@ features:
       definition: classsubtype = 6 AND operationalstatus NOT IN (3,8)
 text:
   0.5:
-  - Road Segment: roadnamebase NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamebase NOT LIKE "%AUSTRALIAN ALPS%" AND functionhierarchy NOT IN (6,7,10,11) AND operationalstatus NOT IN (3,8)
+  - Road Segment: roadnamebase NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamebase NOT LIKE '%AUSTRALIAN ALPS%' AND functionhierarchy NOT IN (6,7,10,11) AND operationalstatus NOT IN (3,8)
 order:
 - sealed
 - unsealed

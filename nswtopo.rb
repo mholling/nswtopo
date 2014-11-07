@@ -1734,12 +1734,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   middle = points.transpose.map { |values| 0.5 * values.inject(:+) }
                   angle = 180.0 * Math::atan2(*points[1].minus(points[0]).reverse) / Math::PI
                   transform = "translate(#{middle.join ?\s}) rotate(#{angle})"
-                  [ %w[white white], %w[black none] ].each do |fill, stroke|
-                    yield("labels").add_element("text", "transform" => transform, "dy" => 0.25 * fontsize, "stroke-width" => 0.15 * fontsize, "font-family" => fontfamily, "font-size" => fontsize, "fill" => fill, "stroke" => stroke, "text-anchor" => "middle") do |text|
-                      label_segments.each do |digits, percent|
-                        text.add_element("tspan", "font-size" => "#{percent}%") do |tspan|
-                          tspan.add_text(digits)
-                        end
+                  yield("labels").add_element("text", "transform" => transform, "dy" => 0.25 * fontsize, "font-family" => fontfamily, "font-size" => fontsize, "fill" => "black", "stroke" => "none", "text-anchor" => "middle") do |text|
+                    label_segments.each do |digits, percent|
+                      text.add_element("tspan", "font-size" => "#{percent}%") do |tspan|
+                        tspan.add_text(digits)
                       end
                     end
                   end
@@ -2163,6 +2161,8 @@ grid:
   label-spacing: 5
   fontsize: 7.8
   family: Arial Narrow
+  labels:
+    glow: 0.15
 declination:
   class: DeclinationSource
   spacing: 1000

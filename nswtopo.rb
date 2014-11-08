@@ -1196,11 +1196,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def get_tile_xml(tile_bounds, tile_sizes, options, *uniquifiers)
       tile_data = get_tile(tile_bounds, tile_sizes, options)
       raise BadLayerError.new(JSON.parse(tile_data)["error"]["message"]) if tile_data[0..8] == '{"error":'
-      tile_data.gsub! /ESRITransportation\&?Civic/, %Q['ESRI Transportation &amp; Civic']
-      tile_data.gsub!  /ESRIEnvironmental\&?Icons/, %Q['ESRI Environmental &amp; Icons']
-      tile_data.gsub! /Arial\s?MT/, "Arial"
-      tile_data.gsub! "ESRISDS1.951", %Q['ESRI SDS 1.95 1']
-      # TODO: can we do these subsitutions within the REXML::Document using xpath?
+      tile_data.gsub! /ESRITransportation\&Civic/, "ESRITransportation&amp;Civic"
+      tile_data.gsub! /ESRIEnvironmental\&Icons/,  "ESRIEnvironmental&amp;Icons"
       layer_ids = @service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
       [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
         tile_data.gsub! regex do |match|
@@ -1243,10 +1240,28 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         layers[sublayer_name]
       end
       
+      REXML::Element.new("defs").tap do |defs|
+        xml.elements.collect("//font", &:remove).group_by do |font|
+          [ font.elements["font-face"].attributes.keys, font.elements["font-face"].attributes.values.map(&:value) ].transpose
+        end.each do |fontface_attributes, fonts|
+          defs.add_element("font", fonts.first.attributes) do |font|
+            font.elements << fonts.first.elements["font-face"].remove
+            font.elements << fonts.first.elements["missing-glyph"].remove
+            fonts.map do |font|
+              font.elements.collect("glyph", &:remove)
+            end.flatten.group_by do |glyph|
+              glyph.attributes["unicode"]
+            end.sort_by(&:first).each do |unicode, glyphs|
+              font.elements << glyphs.first
+            end
+          end
+        end
+        xml.insert_before("/svg/defs", defs) unless defs.elements.empty?
+      end
+      
       xml.elements.each("//path[@d='']", &:remove)
       until xml.elements.each("/svg/g[@id]//g[not(*)]", &:remove).empty? do
       end
-      xml.elements["//defs"].remove unless xml.elements["/svg/g[*]"]
       
       Dir.mktmppath do |temp_dir|
         svg_path = temp_dir + "#{layer_name}.svg"
@@ -1411,8 +1426,27 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      xml.elements.each("/svg/defs[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
-      source.elements.each("/svg/defs") { |defs| xml.elements["/svg"].unshift defs }
+         xml.elements.each("/svg/defs[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
+      source.elements.each("/svg/defs[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]") { |defs| xml.elements["/svg"].unshift defs }
+      
+      font_defs = xml.elements["/svg/defs[font]"] || REXML::Element.new("defs").tap do |defs|
+        xml.insert_after("/svg/defs[last()]", defs)
+      end
+      
+      source.elements.collect("/svg/defs/font", &:remove).each do |font|
+        face_predicates = font.elements["font-face"].attributes.values.map { |attribute| "@#{attribute.to_string}" }
+        font_predicates = font.attributes.values.map { |attribute| "@#{attribute.to_string}" }
+        font_predicates << "font-face[#{face_predicates.join(' and ')}]"
+        font_defs.elements["font[#{font_predicates.join(' and ')}]"].tap do |existing_font|
+          font.elements.collect("glyph", &:remove).reject do |glyph|
+            unicode = glyph.attributes["unicode"]
+            existing_font.elements["glyph[@unicode='#{unicode}']"]
+          end.each do |glyph|
+            existing_font.elements << glyph
+          end if existing_font
+          font_defs.elements << font unless existing_font
+        end
+      end
     end
   end
   

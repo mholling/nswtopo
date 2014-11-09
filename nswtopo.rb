@@ -2351,6 +2351,10 @@ controls:
           end
         end
         
+        xml.elements.collect("/svg/defs/font", &:remove).each do |font|
+          xml.elements["/svg/defs"].elements << font
+        end
+        
         xml.elements.each("/svg/g[*]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
         
         if config["check-fonts"]

@@ -1418,7 +1418,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         id = layer.attributes["id"]
         layer.replace_with source.elements["/svg/g[@id='#{id}']"]
       end.empty?
-        source.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]", &block)
+        source.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]", &block)
         [ *params["exclude"] ].each do |sublayer_name|
           xml.elements.each("/svg/g[@id='#{[ layer_name, sublayer_name ].join SEGMENT}']", &:remove)
         end

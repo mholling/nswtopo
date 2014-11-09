@@ -25,7 +25,6 @@ dwellings:
   .//path[@fill]/@fill: black
   .//path[@stroke]/@stroke: none;
 other:
-  .//font: ~
   .//g[@font-family]: ~
   .//path[@fill='#FFFFFF']: ~
   .//path[@stroke]/@stroke: none

@@ -32,7 +32,6 @@ labels:
   colour:
     "#E60000": black
 sealed:
-  .//font: ~
   .//g[@font-family]: ~
   .//[@stroke!='#000000']:
     stroke-width: 1.5
@@ -40,7 +39,6 @@ sealed:
   .//[@stroke='#000000']:
     stroke-width: 3
 unsealed:
-  .//font: ~
   .//g[@font-family]: ~
   .//[@stroke!='#000000']:
     stroke-width: 1.5
@@ -59,7 +57,6 @@ vehicular-tracks-4wd:
     stroke-dasharray: "5.4, 1.8"
     stroke: "#FF7518"
 footpaths:
-  .//font: ~
   .//g[@font-family]: ~
   .//[@stroke='#000000']: ~
   .//[@stroke]:

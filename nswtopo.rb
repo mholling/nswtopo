@@ -578,6 +578,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "enable-background" => "new 0 0 #{millimetres[0]} #{millimetres[1]}",
         }
         xml.add_element("svg", attributes) do |svg|
+          svg.add_element("defs")
           svg.add_element("rect", "x" => 0, "y" => 0, "width" => millimetres[0], "height" => millimetres[1], "fill" => "white")
         end
       end
@@ -847,11 +848,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         old_layer ? old_layer.replace_with(layer) : yield(layer)
       end
       layer.add_attributes "id" => layer_name, "style" => "opacity:#{opacity}"
-      layer.add_element("defs", "id" => [ layer_name, "tiles" ].join(SEGMENT)) do |defs|
+      xml.elements["/svg/defs"].tap do |defs|
+        defs.elements.each("clipPath[starts-with(@id, '#{layer_name}#{SEGMENT}clip')]", &:remove)
         clip_paths(layer).each do |clippath|
           defs.elements << clippath
         end
-      end.elements.collect("./clipPath") do |clippath|
+      end.elements.collect("clipPath[starts-with(@id, '#{layer_name}#{SEGMENT}clip')]") do |clippath|
         clippath.attributes["id"]
       end.inject(layer) do |group, clip_id|
         group.add_element("g", "clip-path" => "url(##{clip_id})")
@@ -862,7 +864,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         "image-rendering" => "optimizeQuality",
         "xlink:href" => href,
       )
-      layer.elements.each("./defs[not(*)]", &:remove)
     end
   end
   
@@ -1221,7 +1222,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       layer_transform = map.svg_transform(1000.0 * resolution / map.scale)
       
       xml = map.xml
-      xml.elements["/svg"].add_element("defs", "id" => [ layer_name, "tiles" ].join(SEGMENT)) do |defs|
+      xml.elements["/svg/defs"].tap do |defs|
         tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
           defs.add_element("clipPath", "id" => [ layer_name, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
             clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
@@ -1240,23 +1241,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         layers[sublayer_name]
       end
       
-      REXML::Element.new("defs").tap do |defs|
-        xml.elements.collect("//font", &:remove).group_by do |font|
-          [ font.elements["font-face"].attributes.keys, font.elements["font-face"].attributes.values.map(&:value) ].transpose
-        end.each do |fontface_attributes, fonts|
-          defs.add_element("font", fonts.first.attributes) do |font|
-            font.elements << fonts.first.elements["font-face"].remove
-            font.elements << fonts.first.elements["missing-glyph"].remove
-            fonts.map do |font|
-              font.elements.collect("glyph", &:remove)
-            end.flatten.group_by do |glyph|
-              glyph.attributes["unicode"]
-            end.sort_by(&:first).each do |unicode, glyphs|
-              font.elements << glyphs.first
-            end
+      xml.elements.collect("//font", &:remove).group_by do |font|
+        [ font.elements["font-face"].attributes.keys, font.elements["font-face"].attributes.values.map(&:value) ].transpose
+      end.each do |fontface_attributes, fonts|
+        xml.elements["/svg/defs"].add_element("font", fonts.first.attributes) do |font|
+          font.elements << fonts.first.elements["font-face"].remove
+          font.elements << fonts.first.elements["missing-glyph"].remove
+          fonts.map do |font|
+            font.elements.collect("glyph", &:remove)
+          end.flatten.group_by do |glyph|
+            glyph.attributes["unicode"]
+          end.sort_by(&:first).each do |unicode, glyphs|
+            font.elements << glyphs.first
           end
         end
-        xml.insert_before("/svg/defs", defs) unless defs.elements.empty?
       end
       
       xml.elements.each("//path[@d='']", &:remove)
@@ -1426,25 +1424,21 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-         xml.elements.each("/svg/defs[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
-      source.elements.each("/svg/defs[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]") { |defs| xml.elements["/svg"].unshift defs }
-      
-      font_defs = xml.elements["/svg/defs[font]"] || REXML::Element.new("defs").tap do |defs|
-        xml.insert_after("/svg/defs[last()]", defs)
-      end
+         xml.elements.each("/svg/defs/[starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
+      source.elements.each("/svg/defs/[starts-with(@id,'#{layer_name}#{SEGMENT}')]") { |element| xml.elements["/svg/defs"].elements << element }
       
       source.elements.collect("/svg/defs/font", &:remove).each do |font|
         face_predicates = font.elements["font-face"].attributes.values.map { |attribute| "@#{attribute.to_string}" }
         font_predicates = font.attributes.values.map { |attribute| "@#{attribute.to_string}" }
         font_predicates << "font-face[#{face_predicates.join(' and ')}]"
-        font_defs.elements["font[#{font_predicates.join(' and ')}]"].tap do |existing_font|
+        xml.elements["/svg/defs/font[#{font_predicates.join(' and ')}]"].tap do |existing_font|
           font.elements.collect("glyph", &:remove).reject do |glyph|
             unicode = glyph.attributes["unicode"]
             existing_font.elements["glyph[@unicode='#{unicode}']"]
           end.each do |glyph|
             existing_font.elements << glyph
           end if existing_font
-          font_defs.elements << font unless existing_font
+          xml.elements["/svg/defs"].elements << font unless existing_font
         end
       end
     end

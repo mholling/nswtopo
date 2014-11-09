@@ -1,27 +1,27 @@
 class: ArcGISVector
-host: mapsq.six.nsw.gov.au
+host: maps.six.nsw.gov.au
 folder: sixmaps
 service: Guras
 features:
   ~:
     sealed:
-      name: Road Segment
+      name: RoadSegment
       definition: classsubtype IN (1,2,3,4) AND surface = 1 AND operationalstatus NOT IN (3,8)
     unsealed:
-      name: Road Segment
+      name: RoadSegment
       definition: classsubtype IN (1,2,3,4) AND surface > 1 AND operationalstatus NOT IN (3,8)
     vehicular-tracks:
-      name: Road Segment
+      name: RoadSegment
       definition: classsubtype = 5 AND surface = 2 AND operationalstatus NOT IN (3,8)
     vehicular-tracks-4wd:
-      name: Road Segment
+      name: RoadSegment
       definition: classsubtype = 5 AND surface IN (3,4) AND operationalstatus NOT IN (3,8)
     footpaths:
-      name: Road Segment
+      name: RoadSegment
       definition: classsubtype = 6 AND operationalstatus NOT IN (3,8)
 text:
   0.5:
-  - Road Segment: roadnamebase NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamebase NOT LIKE '%AUSTRALIAN ALPS%' AND functionhierarchy NOT IN (6,7,10,11) AND operationalstatus NOT IN (3,8)
+  - RoadSegment: roadnamebase NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamebase NOT LIKE '%AUSTRALIAN ALPS%' AND functionhierarchy NOT IN (6,7,10,11) AND operationalstatus NOT IN (3,8)
 order:
 - sealed
 - unsealed

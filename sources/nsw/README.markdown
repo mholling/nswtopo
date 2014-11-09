@@ -139,6 +139,6 @@ A few other, miscellaneous layers are also available:
 * `nsw/runways`: runways and airstrips
 * `nsw/state-border`: NSW state border
 * `nsw/survey`: trig stations
-* `nsw/road-labels`: alternative labels for roads and tracks
+* `nsw/roadnames`: alternative labels for roads and tracks
 
 (These may be useful when `lpimap` is not available.)

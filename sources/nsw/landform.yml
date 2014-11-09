@@ -31,13 +31,14 @@ text:
   - Contour_10m
   - Contour_20m
   - Contour_50m
-  - SpotHeight
   - Ridge_Beach: generalname <> 'GREAT DIVIDING RANGE'
   - Cliffs_Reefs_Mangroves: classsubtype IN (6,7,11)
   - CliffTop_Levee
   - RelativeHeight
   - Caves_Pinnacles
   - Mountains
+  0.4:
+  - SpotHeight
 intervals-contours:
   10:
   - contours-10m

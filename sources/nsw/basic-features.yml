@@ -23,34 +23,34 @@ features:
       definition: functionhierarchy_code = 9
     other-access-roads:
       name: Other_Access_Roads_and_Tracks
-      definition: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code < 2
+      definition: functionhierarchy_code IN ( 5, 6, 7 ) AND (surface_code NOT IN ( 2, 3, 4 ) OR surface_code IS NULL)
     other-access-roads-unsealed:
       name: Other_Access_Roads_and_Tracks
-      definition: functionhierarchy_code in ( 5, 6, 7 ) AND surface_code >= 2
+      definition: functionhierarchy_code IN ( 5, 6, 7 ) AND surface_code IN ( 2, 3, 4 )
     minor-roads:
       name: Minor_Roads
-      definition: surface_code < 2
+      definition: surface_code NOT IN ( 2, 3, 4 ) OR surface_code IS NULL
     minor-roads-unsealed:
       name: Minor_Roads
-      definition: surface_code >= 2
+      definition: surface_code IN ( 2, 3, 4 )
     major-roads:
       name: Major_Roads
-      definition: surface_code < 2
+      definition: surface_code NOT IN ( 2, 3, 4 ) OR surface_code IS NULL
     major-roads-unsealed:
       name: Major_Roads
-      definition: surface_code >= 2
+      definition: surface_code IN ( 2, 3, 4 )
     regional-roads:
       name: Regional_Roads
-      definition: surface_code < 2
+      definition: surface_code NOT IN ( 2, 3, 4 ) OR surface_code IS NULL
     regional-roads-unsealed:
       name: Regional_Roads
-      definition: surface_code >= 2
+      definition: surface_code IN ( 2, 3, 4 )
     highways:
       name: Highways
-      definition: surface_code < 2
+      definition: surface_code NOT IN ( 2, 3, 4 ) OR surface_code IS NULL
     highways-unsealed:
       name: Highways
-      definition: surface_code >= 2
+      definition: surface_code IN ( 2, 3, 4 )
 text:
   0.7:
     - Major_Rivers

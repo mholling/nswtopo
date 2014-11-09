@@ -2198,8 +2198,7 @@ declination:
   colour: black
 controls:
   class: ControlSource
-  colour: "#880088"
-  family: Arial
+  family: sans-serif
   fontsize: 14
   diameter: 7.0
   colour: "#880088"

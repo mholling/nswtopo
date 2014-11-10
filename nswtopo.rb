@@ -2293,7 +2293,8 @@ controls:
     xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
     
     removals = config["exclude"].select do |layer_name|
-      xml.elements["/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]"]
+      predicate = "@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')"
+      xml.elements["/svg/g[#{predicate}] | svg/defs/[#{predicate}]"]
     end
     
     updates = sources.reject do |source|
@@ -2329,11 +2330,15 @@ controls:
           end
         end
         
-        config["exclude"].select do |layer_name|
-          xml.elements["/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]"]
-        end.each do |layer_name|
+        config["exclude"].map do |layer_name|
+          predicate = "@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')"
+          xpath = "/svg/g[#{predicate}] | svg/defs/[#{predicate}]"
+          [ layer_name, xpath ]
+        end.select do |layer_name, xpath|
+          xml.elements[xpath]
+        end.each do |layer_name, xpath|
           puts "  Removing #{layer_name}"
-          xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
+          xml.elements.each(xpath, &:remove)
         end
         
         updates.each do |source|

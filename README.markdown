@@ -248,21 +248,17 @@ You can remove a layer that you previously included in the map. To do so, list t
 
 Run the script again to remove the layers from the composite SVG map. (The original source files will not be deleted.) Use this option with caution, as any changes you have made to the layer in the SVG file will be lost.
 
-Vector data sources can produce multiple sub-layers in your map. You can intermingle the order in which these sub-layers are composited. This is helpful if you are combining layers from more than one source. For example, to re-arrange label layers when using the separate `landform`/`hydrography`/`roads`/`buildings` sources:
+Vector data sources can produce multiple sub-layers in your map. You can intermingle the order in which these sub-layers are composited. This is helpful if you are combining layers from more than one source. Rearrange sub-layers using `above` or `below` directives; for example, to rearrange watercourses above vehicular tracks:
 
     include:
-    - nsw/landform
     - nsw/hydrography
     - nsw/roads
-    - nsw/buildings
     above:
-      nsw.roads.labels: nsw.buildings.labels
-      nsw.landform.labels: nsw.buildings.labels
-      nsw.hydrography.labels: nsw.buildings.labels
+      nsw.hydrography.watercourse: nsw.roads.vehicular-tracks
 
-This will reposition all label layers above the other feature layers. Likewise, a `below:` option can also be specified.
+It is also possible to manually reorder layers using Inkscape. (The new layer order is respected when re-running the script.)
 
-It is also possible to manually re-order layers using Inkscape. (The new layer order is respected when re-running the script.)
+By default, all label layers are reordered above all other feature layers. (You can turn off this behaviour with a `leave-labels: true` configuration line.)
 
 Overlays
 ========
@@ -559,4 +555,4 @@ Release History
   * 22/2/2014: version 0.7.1: used all tracks instead of just first when calculating bounds from a GPX/KML file; fixed bug preventing tiny maps from downloading; changed manner of specifying rendering options; added alternate source of basic contour/road/track/watercourse/label layers; reverted to flat layer structure for SVG file; changed HydroArea layer to perennial water areas only; changed to LPIMapLocal as default data source due to availability.
 * 3/7/2014: version 0.8: added RFS layers for stock dams and buildings; extracted various layer sources to external configuration files for greater flexibility; change way of specifying overlays; add ANC and water-drop icons for controls; add some SA and TAS map data sources.
   * 28/8/2014: version 0.8.1: change nsw/vegetation-2008-v2 woody vegetation colour; fix vegetation & relief rendering bug in Windows
-  * 9/11/2014: HEAD: add psd format output; fix bug in ArcGIS image servers; change to online source of 1-second SRTM relief data; apply median and bilateral filtering to shaded relief; fix label issues causing bad PhantomJS rasters.
+  * 10/11/2014: HEAD: add psd format output; fix bug in ArcGIS image servers; change to online source of 1-second SRTM relief data; apply median and bilateral filtering to shaded relief; fix label issues causing bad PhantomJS rasters; float vector label layers above feature layers.

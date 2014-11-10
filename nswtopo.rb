@@ -2300,6 +2300,10 @@ controls:
       xml.elements["/svg/g[@id='#{source.layer_name}' or starts-with(@id,'#{source.layer_name}#{SEGMENT}')]"] && FileUtils.uptodate?(svg_path, [ *source.path ])
     end
     
+    additions = updates.reject do |source|
+      xml.elements["/svg/g[@id='#{source.layer_name}' or starts-with(@id,'#{source.layer_name}#{SEGMENT}')]"]
+    end
+    
     Dir.mktmppath do |temp_dir|
       puts "Compositing layers to #{svg_name}:"
       tmp_svg_path = temp_dir + svg_name
@@ -2349,6 +2353,23 @@ controls:
             end
           end
         end
+        
+        REXML::XPath.match(xml, "/svg/g[@id]").select do |layer|
+          sources.any? do |source|
+            source.is_a?(ArcGISVector) && layer.attributes["id"] == "#{source.layer_name}#{SEGMENT}labels"
+          end
+        end.last.tap do |target|
+          additions.select do |source|
+            source.is_a?(ArcGISVector)
+          end.map do |source|
+            xml.elements["/svg/g[@id='#{source.layer_name}#{SEGMENT}labels']"]
+          end.compact.reject do |layer|
+            layer == target
+          end.each do |layer|
+            puts "  Moving #{layer.attributes['id']}" unless layer.elements.empty?
+            target.parent.insert_before target, layer.remove
+          end if target
+        end unless config["leave-labels"]
         
         xml.elements.collect("/svg/defs/font", &:remove).each do |font|
           xml.elements["/svg/defs"].elements << font

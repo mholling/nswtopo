@@ -1050,10 +1050,67 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   module ArcGIS
     UNDERSCORES = /[\s\(\)]/
     
+    def self.included(base)
+      attr_reader :service, :headers
+    end
+    
+    def export_uri(query)
+      service_type, function = params["image"] ? %w[ImageServer exportImage] : %w[MapServer export]
+      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type, function ].compact.join ?/
+      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
+    end
+    
+    def service_uri(query)
+      service_type = params["image"] ? "ImageServer" : "MapServer"
+      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type ].compact.join ?/
+      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
+    end
+    
+    def get_service
+      if params["cookie"]
+        cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
+        @headers = { "Cookie" => cookie }
+      end
+      @service = HTTP.get(service_uri("f" => "json"), headers) do |response|
+        JSON.parse(response.body).tap do |result|
+          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+        end
+      end
+      service["layers"].each { |layer| layer["name"] = layer["name"].gsub(UNDERSCORES, ?_) } if service["layers"]
+      service["mapName"] = service["mapName"].gsub(UNDERSCORES, ?_) if service["mapName"]
+    end
+  end
+  
+  module ArcGISTiled
     def initialize(*args)
       super(*args)
       params["tile_sizes"] ||= [ 2048, 2048 ]
       params["interval"] ||= 0.1
+    end
+    
+    def get_tile(bounds, sizes, options)
+      # TODO: we could tidy this up a bit...
+      srs = { "wkt" => options["wkt"] }.to_json
+      query = {
+        "bbox" => bounds.transpose.flatten.join(?,),
+        "bboxSR" => srs,
+        "imageSR" => srs,
+        "size" => sizes.join(?,),
+        "f" => "image"
+      }
+      if params["image"]
+        query["format"] = "png24",
+        query["interpolation"] = params["interpolation"] || "RSP_BilinearInterpolation"
+      else
+        %w[layers layerDefs dpi format dynamicLayers].each do |key|
+          query[key] = options[key] if options[key]
+        end
+        query["transparent"] = true
+      end
+      
+      HTTP.get(export_uri(query), headers) do |response|
+        block_given? ? yield(response.body) : response.body
+      end
     end
     
     def tiles(map, resolution, margin = 0)
@@ -1086,61 +1143,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         map.overlaps? bounds
       end
     end
-    
-    def export_uri(query)
-      service_type, function = params["image"] ? %w[ImageServer exportImage] : %w[MapServer export]
-      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type, function ].compact.join ?/
-      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
-    end
-    
-    def service_uri(query)
-      service_type = params["image"] ? "ImageServer" : "MapServer"
-      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type ].compact.join ?/
-      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
-    end
-    
-    def get_service
-      if params["cookie"]
-        cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
-        @headers = { "Cookie" => cookie }
-      end
-      @service = HTTP.get(service_uri("f" => "json"), @headers) do |response|
-        JSON.parse(response.body).tap do |result|
-          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
-        end
-      end
-      @service["layers"].each { |layer| layer["name"] = layer["name"].gsub(UNDERSCORES, ?_) } if @service["layers"]
-      @service["mapName"] = @service["mapName"].gsub(UNDERSCORES, ?_) if @service["mapName"]
-    end
-      
-    def get_tile(bounds, sizes, options)
-      # TODO: we could tidy this up a bit...
-      srs = { "wkt" => options["wkt"] }.to_json
-      query = {
-        "bbox" => bounds.transpose.flatten.join(?,),
-        "bboxSR" => srs,
-        "imageSR" => srs,
-        "size" => sizes.join(?,),
-        "f" => "image"
-      }
-      if params["image"]
-        query["format"] = "png24",
-        query["interpolation"] = params["interpolation"] || "RSP_BilinearInterpolation"
-      else
-        %w[layers layerDefs dpi format dynamicLayers].each do |key|
-          query[key] = options[key] if options[key]
-        end
-        query["transparent"] = true
-      end
-      
-      HTTP.get(export_uri(query), @headers) do |response|
-        block_given? ? yield(response.body) : response.body
-      end
-    end
   end
   
   class ArcGISRaster < Source
     include ArcGIS
+    include ArcGISTiled
     include RasterRenderer
     
     def get_raster(map, dimensions, resolution, temp_dir)
@@ -1187,6 +1194,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class ArcGISVector < Source
     include ArcGIS
+    include ArcGISTiled
     DEFAULT_MM_PER_TILE = 200
     
     def initialize(layer_name, params)
@@ -1199,11 +1207,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       raise BadLayerError.new(JSON.parse(tile_data)["error"]["message"]) if tile_data[0..8] == '{"error":'
       tile_data.gsub! /ESRITransportation\&Civic/, "ESRITransportation&amp;Civic"
       tile_data.gsub! /ESRIEnvironmental\&Icons/,  "ESRIEnvironmental&amp;Icons"
-      layer_ids = @service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
+      layer_ids = service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
       [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
         tile_data.gsub! regex do |match|
           case $1
-          when "Labels", @service["mapName"], *layer_ids then match
+          when "Labels", service["mapName"], *layer_ids then match
           else match.sub $1, [ layer_name, *uniquifiers, $1 ].compact.join(SEGMENT)
           end
         end
@@ -1286,7 +1294,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         when String, Array
           { map.scale => [ *params[type] ] }
         when true
-          { map.scale => @service["layers"].select { |layer| layer["parentLayerId"] == -1 }.map { |layer| layer["name"] } }
+          { map.scale => service["layers"].select { |layer| layer["parentLayerId"] == -1 }.map { |layer| layer["name"] } }
         end.map do |scale, layers|
           dpi = scale * 0.0254 / resolution
           if params["integer-dpi"]
@@ -1309,16 +1317,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when Hash                                    # key is a service layer name with definition
                 [ key.first.first, { "name" => key.first.first, "definition" => key.first.last } ]
               when Fixnum                                  # key is a service layer ID
-                layer = @service["layers"].find { |layer| layer["id"] == key }
+                layer = service["layers"].find { |layer| layer["id"] == key }
                 [ layer["name"], { "id" => layer["id"] } ]
               end
             end
           end.each do |sublayer_name, options|
             options["name"] = options["name"].gsub UNDERSCORES, ?_ if options["name"]
-            options["id"] ||= @service["layers"].find { |layer| layer["name"] == options["name"] }.fetch("id")
+            options["id"] ||= service["layers"].find { |layer| layer["name"] == options["name"] }.fetch("id")
             options["names"] = [ ].tap do |layers|
               begin
-                layers << @service["layers"].find do |layer|
+                layers << service["layers"].find do |layer|
                   layer["id"] == (layers.empty? ? options["id"] : layers.last["parentLayerId"])
                 end
               end while layers.last
@@ -1451,7 +1459,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       label_layer = yield "labels"
       
-      start_id = @service["layers"].map { |layer| layer["id"] }.max + 1
+      start_id = service["layers"].map { |layer| layer["id"] }.max + 1
       dynamic_layers = params["layers"].values.map.with_index do |layer, index|
         layer.merge("id" => start_id + index)
       end

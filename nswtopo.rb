@@ -1672,9 +1672,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class AnnotationSource < Source
-    include NoCreate
-    
+  module Annotation
     def svg_coords(coords, projection, map)
       projection.reproject_to(map.projection, coords).one_or_many do |easting, northing|
         [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
@@ -1699,7 +1697,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class DeclinationSource < AnnotationSource
+  class DeclinationSource < Source
+    include Annotation
+    include NoCreate
+    
     def draw(map)
       centre = map.wgs84_bounds.map { |bound| 0.5 * bound.inject(:+) }
       projection = Projection.transverse_mercator(centre.first, 1.0)
@@ -1723,7 +1724,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class GridSource < AnnotationSource
+  class GridSource < Source
+    include Annotation
+    include NoCreate
+    
     def self.zone(coords, projection)
       projection.reproject_to_wgs84(coords).one_or_many do |longitude, latitude|
         (longitude / 6).floor + 31
@@ -1794,7 +1798,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class ControlSource < AnnotationSource
+  class ControlSource < Source
+    include Annotation
+    include NoCreate
     include PathInParams
     
     def draw(map)
@@ -1850,7 +1856,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class OverlaySource < AnnotationSource
+  class OverlaySource < Source
+    include Annotation
+    include NoCreate
     include PathInParams
     
     def draw(map)

@@ -785,6 +785,31 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
+  module Annotation
+    def svg_coords(coords, projection, map)
+      projection.reproject_to(map.projection, coords).one_or_many do |easting, northing|
+        [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
+          1000.0 * metres / map.scale
+        end
+      end
+    end
+    
+    def render_svg(xml, map, &block)
+      layers = Hash.new do |layers, id|
+        layers[id] = REXML::Element.new("g").tap do |layer|
+          layer.add_attributes "id" => id, "style" => "opacity:1", "transform" => map.svg_transform(1)
+          xml.elements["/svg/g[@id='#{id}']"].tap do |old_layer|
+            old_layer ? old_layer.replace_with(layer) : yield(layer)
+          end
+        end
+      end
+      draw(map) do |sublayer_name|
+        id = [ layer_name, sublayer_name ].compact.join(SEGMENT)
+        layers[id]
+      end
+    end
+  end
+  
   module RasterRenderer
     def initialize(*args)
       super(*args)
@@ -1668,31 +1693,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       %x[gdalwarp -t_srs "#{map.projection}" -r bilinear #{source_path} #{tif_path}]
       temp_dir.join(path.basename).tap do |raster_path|
         %x[convert "#{tif_path}" -quiet "#{raster_path}"]
-      end
-    end
-  end
-  
-  module Annotation
-    def svg_coords(coords, projection, map)
-      projection.reproject_to(map.projection, coords).one_or_many do |easting, northing|
-        [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
-          1000.0 * metres / map.scale
-        end
-      end
-    end
-    
-    def render_svg(xml, map, &block)
-      layers = Hash.new do |layers, id|
-        layers[id] = REXML::Element.new("g").tap do |layer|
-          layer.add_attributes "id" => id, "style" => "opacity:1", "transform" => map.svg_transform(1)
-          xml.elements["/svg/g[@id='#{id}']"].tap do |old_layer|
-            old_layer ? old_layer.replace_with(layer) : yield(layer)
-          end
-        end
-      end
-      draw(map) do |sublayer_name|
-        id = [ layer_name, sublayer_name ].compact.join(SEGMENT)
-        layers[id]
       end
     end
   end

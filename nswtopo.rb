@@ -488,6 +488,10 @@ margin: 15
       @scale * 0.0254 / ppi
     end
     
+    def dimensions_in_mm
+      @extents.map { |extent| 1000.0 * extent / @scale }
+    end
+    
     def dimensions_at(ppi)
       @extents.map { |extent| (ppi * extent / @scale / 0.0254).floor }
     end
@@ -1583,7 +1587,47 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           paged = body["exceededTransferLimit"] && [ options["page-by"], features.last["attributes"][options["page-by"]] ].join(" > ")
         end while paged
         features.each do |feature|
-          feature["angle"] = 90 - feature["attributes"][options["rotate"]].to_i if options["rotate"]
+          attributes, geometry_type, geometry = feature.values_at "attributes", "geometryType", "geometry"
+          wkid = geometry.delete("spatialReference")["wkid"]
+          projection = Projection.new("epsg:#{wkid}")
+          case geometry_type
+          when "esriGeometryPoint"
+            geometry["x"], geometry["y"] = svg_coords(geometry.values_at("x", "y"), projection, map)
+            geometry["angle"] = 90 - attributes[options["rotate"]].to_i if options["rotate"]
+          when "esriGeometryPolyline"
+            geometry["paths"].map do |coords|
+              svg_coords(coords, projection, map)
+            end.select do |points|
+              points.length > 1
+            end.map do |points|
+              points.inject do |memo, point|
+                case memo.last
+                when Array   then memo << [ memo.last.last, point ]
+                when Numeric then [ [ memo, point ] ]
+                end
+              end
+            end.map do |segments|
+              segments.inject([[]]) do |memo, segment|
+                if [ segment.transpose, map.dimensions_in_mm ].transpose.any? do |values, dimension|
+                  values.all? { |value| value < 0 } || values.all? { |value| value > dimension }
+                end
+                  memo << [ ] unless memo.last.empty?
+                else
+                  memo.last << segment
+                end
+                memo
+              end.reject(&:empty?).map do |segments|
+                segments.map(&:first) << segments.last.last
+              end
+            end.inject(&:+).tap do |paths|
+              geometry["paths"] = paths
+            end
+          when "esriGeometryPolygon"
+            # TODO: trim off-map points from polygons (trickier!)
+            geometry["rings"].map! do |coords|
+              svg_coords(coords, projection, map)
+            end
+          end
         end
         puts " (#{features.length} feature#{?s unless features.one?})"
         [ sublayer_name, features ]
@@ -1609,30 +1653,25 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         puts "  ... #{sublayer_name}" unless features.empty?
         yield(sublayer_name).tap do |layer|
           features.map do |feature|
-            feature.values_at "geometryType", "geometry", "angle"
-          end.each do |geometry_type, geometry, angle|
-            projection = Projection.new("epsg:#{geometry['spatialReference']['wkid']}")
+            feature.values_at "geometryType", "geometry"
+          end.each do |geometry_type, geometry|
             case geometry_type
             when "esriGeometryPoint"
-              point = svg_coords geometry.values_at("x", "y"), projection, map
-              transforms = %W[translate(#{point.join ?\s})]
+              x, y, angle = geometry.values_at("x", "y", "angle")
+              transforms = %W[translate(#{x} #{y})]
               transforms << "rotate(#{angle})" if angle
               layer.add_element("g", "transform" => transforms.join(?\s))
             when "esriGeometryPolyline", "esriGeometryPolygon"
-              collection, glue, options = case geometry_type
+              collection, close, options = case geometry_type
                 when "esriGeometryPolyline" then [ "paths", nil, { "fill" => "none" }         ]
                 when "esriGeometryPolygon"  then [ "rings", ?Z,  { "fill-rule" => "evenodd" } ]
               end
-              geometry[collection].map do |coords|
-                svg_coords(coords, projection, map)
-              end.map do |points|
+              geometry[collection].map do |points|
                 points.inject do |memo, point|
                   [ *memo, ?L, *point ]
-                end.unshift ?M
-              end.inject do |memo, path|
-                [ *memo, *glue, *path ]
-              end.join(?\s).tap do |d|
-                layer.add_element "path", { "d" => d }.merge(options)
+                end.unshift(?M).push(*close)
+              end.inject(&:+).tap do |subpaths|
+                layer.add_element "path", { "d" => subpaths.join(?\s) }.merge(options) if subpaths
               end
             end
           end

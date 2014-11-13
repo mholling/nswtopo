@@ -1480,6 +1480,167 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
+  class ArcGISIdentify < Source
+    include Annotation
+    
+    def initialize(*args)
+      super(*args)
+      @path = Pathname.pwd + "#{layer_name}.json"
+    end
+    
+    def create(map)
+      puts "Downloading: #{layer_name}"
+      
+      %w[host instance folder service cookie].map do |key|
+        { key => params.delete(key) }
+      end.inject(&:merge).tap do |default|
+        params["sources"] = { "default" => default }
+      end unless params["sources"]
+      
+      sources = params["sources"].map do |name, source|
+        if source["cookie"]
+          cookie = HTTP.head(URI.parse source["cookie"]) { |response| response["Set-Cookie"] }
+          source["headers"] = { "Cookie" => cookie }
+        end
+        source["path"] = [ "", source["instance"] || "arcgis", "rest", "services", source["folder"], source["service"], "MapServer" ]
+        uri = URI::HTTP.build(:host => source["host"], :path => source["path"].join(?/), :query => "f=json")
+        source["service"] = HTTP.get(uri, source["headers"]) do |response|
+          JSON.parse(response.body).tap do |result|
+            raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+          end
+        end
+        { name => source }
+      end.inject(&:merge)
+      
+      params["features"].inject([]) do |memo, (key, value)|
+        case value
+        when Array then memo + value.map { |val| [ key, val ] }
+        else memo << [ key, value ]
+        end
+      end.map do |key, value|
+        case value
+        when Fixnum then [ key, { "id" => value } ]    # key is a sublayer name, value is a service layer name
+        when String then [ key, { "name" => value } ]  # key is a sublayer name, value is a service layer ID
+        when Hash   then [ key, value ]                # key is a sublayer name, value is layer options
+        when nil
+          case key
+          when String then [ key, { "name" => key } ]  # key is a service layer name
+          when Hash                                    # key is a service layer name with definition
+            [ key.first.first, { "name" => key.first.first, "definition" => key.first.last } ]
+          when Fixnum                                  # key is a service layer ID
+            [ sources.values.first["service"]["layers"].find { |layer| layer["id"] == key }.fetch("name"), { "id" => key } ]
+          end
+        end
+      end.map do |sublayer_name, options|
+        [ sources[options["source"] || sources.keys.first], sublayer_name, options ]
+      end.each do |source, sublayer_name, options|
+        options["id"] = source["service"]["layers"].find do |layer|
+          layer["name"] == options["name"]
+        end.fetch("id") unless options["id"]
+        URI::HTTP.build(:host => source["host"], :path => [ *source["path"], options["id"] ].join(?/), :query => "f=json").tap do |uri|
+          scales = HTTP.get(uri, source["headers"]) do |response|
+            JSON.parse(response.body).tap do |result|
+              raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+            end
+          end.values_at("minScale", "maxScale")
+          options["scale"] = scales.last.zero? ? scales.first.zero? ? map.scale : 2 * scales.first : scales.inject(&:+) / 2
+        end unless options["scale"]
+      end.map do |source, sublayer_name, options|
+        $stdout << "... #{sublayer_name}"
+        pixels = map.wgs84_bounds.map do |bound|
+          bound.reverse.inject(&:-) * 96 * 110000 / options["scale"] / 0.0254
+        end.map(&:round)
+        query = {
+          "f" => "json",
+          "sr" => 4326,
+          "geometryType" => "esriGeometryEnvelope",
+          "geometry" => map.wgs84_bounds.transpose.flatten.join(?,),
+          "layers" => "all:#{options['id']}",
+          "tolerance" => 0,
+          "mapExtent" => map.wgs84_bounds.transpose.flatten.join(?,),
+          "imageDisplay" => [ *pixels, 96 ].join(?,),
+          "returnGeometry" => true,
+        }
+        features = [ ]
+        begin
+          paged ||= nil
+          paged_query = case
+          when options["definition"] && paged then { "layerDefs" => [ options["id"], "(#{options['definition']}) AND #{paged}" ].join(?:) }
+          when options["definition"]          then { "layerDefs" => [ options["id"], options["definition"]                     ].join(?:) }
+          when paged                          then { "layerDefs" => [ options["id"], paged                                     ].join(?:) }
+          else                                { }
+          end.merge(query)
+          uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], "identify" ].join(?/), :query => URI.escape(paged_query.to_query)
+          body = HTTP.get(uri, source["headers"]) do |response|
+            JSON.parse(response.body).tap do |body|
+              raise Net::HTTPBadResponse.new(body["error"]["message"]) if body["error"]
+              raise ServerError.new("feature limit exceeded") if body["exceededTransferLimit"] && !options["page-by"] 
+            end
+          end
+          # TODO for ArcGIS server < 10.1, detect feature limiting some other way e.g. by testing with higher value for page attribute
+          # TODO: page-by option is probably per-souce, not per-layer
+          features += body.fetch("results", [ ])
+          paged = body["exceededTransferLimit"] && [ options["page-by"], features.last["attributes"][options["page-by"]] ].join(" > ")
+        end while paged
+        features.each do |feature|
+          feature["angle"] = 90 - feature["attributes"][options["rotate"]].to_i if options["rotate"]
+        end
+        puts " (#{features.length} feature#{?s unless features.one?})"
+        [ sublayer_name, features ]
+      end.inject({}) do |memo, (sublayer_name, features)|
+        memo[sublayer_name] ||= []
+        memo[sublayer_name] += features
+        memo
+      end.tap do |layers|
+        Dir.mktmppath do |temp_dir|
+          json_path = temp_dir + "#{layer_name}.json"
+          json_path.open("w") { |file| file << JSON.pretty_generate(layers) }
+          # json_path.open("w") { |file| file << layers.to_json }
+          FileUtils.cp json_path, path
+        end
+      end
+    end
+    
+    def draw(map)
+      raise BadLayerError.new("source file not found at #{path}") unless path.exist?
+      JSON.parse(path.read).reject do |sublayer_name, features|
+        params["exclude"].include? sublayer_name
+      end.map do |sublayer_name, features|
+        puts "  ... #{sublayer_name}" unless features.empty?
+        yield(sublayer_name).tap do |layer|
+          features.map do |feature|
+            feature.values_at "geometryType", "geometry", "angle"
+          end.each do |geometry_type, geometry, angle|
+            projection = Projection.new("epsg:#{geometry['spatialReference']['wkid']}")
+            case geometry_type
+            when "esriGeometryPoint"
+              point = svg_coords geometry.values_at("x", "y"), projection, map
+              transforms = %W[translate(#{point.join ?\s})]
+              transforms << "rotate(#{angle})" if angle
+              layer.add_element("g", "transform" => transforms.join(?\s))
+            when "esriGeometryPolyline", "esriGeometryPolygon"
+              collection, glue, options = case geometry_type
+                when "esriGeometryPolyline" then [ "paths", nil, { "fill" => "none" }         ]
+                when "esriGeometryPolygon"  then [ "rings", ?Z,  { "fill-rule" => "evenodd" } ]
+              end
+              geometry[collection].map do |coords|
+                svg_coords(coords, projection, map)
+              end.map do |points|
+                points.inject do |memo, point|
+                  [ *memo, ?L, *point ]
+                end.unshift ?M
+              end.inject do |memo, path|
+                [ *memo, *glue, *path ]
+              end.join(?\s).tap do |d|
+                layer.add_element "path", { "d" => d }.merge(options)
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  
   class ArcGISDynamic < ArcGISVector
     def download_layers(map, tile_list, resolution)
       feature_layers = params["layers"].keys.reverse.map do |sublayer_name|

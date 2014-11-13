@@ -774,6 +774,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             else
               case node
               when REXML::Attribute then node.element.attributes[node.name] = args
+              when REXML::Element   then [ *args ].each { |tag| node.add_element tag }
               when REXML::Text      then node.value = args
               end
             end

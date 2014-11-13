@@ -1598,6 +1598,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           attributes, geometry_type, geometry = feature.values_at "attributes", "geometryType", "geometry"
           wkid = geometry.delete("spatialReference")["wkid"]
           projection = Projection.new("epsg:#{wkid}")
+          feature["class"] = attributes.values_at(*options["class"])
           case geometry_type
           when "esriGeometryPoint"
             geometry["x"], geometry["y"] = svg_coords(geometry.values_at("x", "y"), projection, map)
@@ -1652,16 +1653,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         puts "  ... #{sublayer_name}" unless features.empty?
         yield(sublayer_name).tap do |layer|
           features.map do |feature|
-            feature.values_at "geometryType", "geometry"
-          end.each do |geometry_type, geometry|
+            feature.values_at "geometryType", "geometry", "class"
+          end.each do |geometry_type, geometry, klass|
+            class_options = { "class" => klass.join(?\s) }
             case geometry_type
             when "esriGeometryPoint"
               x, y, angle = geometry.values_at("x", "y", "angle")
               transforms = %W[translate(#{x} #{y})]
               transforms << "rotate(#{angle})" if angle
-              layer.add_element("g", "transform" => transforms.join(?\s))
+              layer.add_element "g", class_options.merge("transform" => transforms.join(?\s))
             when "esriGeometryPolyline", "esriGeometryPolygon"
-              collection, close, options = case geometry_type
+              collection, close, fill_options = case geometry_type
                 when "esriGeometryPolyline" then [ "paths", nil, { "fill" => "none" }         ]
                 when "esriGeometryPolygon"  then [ "rings", ?Z,  { "fill-rule" => "evenodd" } ]
               end
@@ -1670,7 +1672,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   [ *memo, ?L, *point ]
                 end.unshift(?M).push(*close)
               end.inject(&:+).tap do |subpaths|
-                layer.add_element "path", { "d" => subpaths.join(?\s) }.merge(options) if subpaths
+                layer.add_element "path", class_options.merge(fill_options).merge("d" => subpaths.join(?\s)) if subpaths
               end
             end
           end

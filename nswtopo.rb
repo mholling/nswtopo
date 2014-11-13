@@ -168,6 +168,14 @@ class Array
     else map(&block)
     end
   end
+  
+  def many?
+    length > 1
+  end
+  
+  def segments
+    self[0..-2].zip self[1..-1]
+  end
 end
 
 module NSWTopo
@@ -1597,16 +1605,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "esriGeometryPolyline"
             geometry["paths"].map do |coords|
               svg_coords(coords, projection, map)
-            end.select do |points|
-              points.length > 1
-            end.map do |points|
-              points.inject do |memo, point|
-                case memo.last
-                when Array   then memo << [ memo.last.last, point ]
-                when Numeric then [ [ memo, point ] ]
-                end
-              end
-            end.map do |segments|
+            end.select(&:many?).map(&:segments).map do |segments|
               segments.inject([[]]) do |memo, segment|
                 if [ segment.transpose, map.dimensions_in_mm ].transpose.any? do |values, dimension|
                   values.all? { |value| value < 0 } || values.all? { |value| value > dimension }

@@ -718,7 +718,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           commands.merge! "glow" => commands.delete("glow") if commands["glow"]
         end.inject({}) do |memo, (command, args)|
           memo.deep_merge case command
-          when %r{\.//}  then { command => args }
+          when %r{\./}  then { command => args }
           when "opacity" then { "self::/@style" => "opacity:#{args}" }
           when "width"   then { ".//[@stroke-width and not(self::text)]/@stroke-width" => args }
           when "glow"

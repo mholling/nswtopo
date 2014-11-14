@@ -717,7 +717,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
         id = layer.attributes["id"]
         sublayer_name = id.split(/^#{layer_name}#{SEGMENT}?/).last
-        puts "  ... #{id}" unless id == layer_name
+        puts "  ... #{sublayer_name}" unless id == layer_name
         (params["equivalences"] || {}).select do |group, sublayer_names|
           sublayer_names.include? sublayer_name
         end.map(&:first).push(sublayer_name).inject(params) do |memo, key|

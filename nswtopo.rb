@@ -707,11 +707,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           memo.deep_merge case command
           when "colour" then { "stroke" => args, "fill" => args }
           when "expand" then { "widen" => args, "stretch" => args }
-          when "dupe"
-            case args
-            when Hash then { "dupe" => args }
-            else           { "dupe" => { "dupe" => args } }
-            end
           else { command => args }
           end
         end.tap do |commands|
@@ -721,17 +716,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when %r{\./}   then memo << [ command, args ]
           when "opacity" then memo << [ "self::/@style", "opacity:#{args}" ]
           when "width"   then memo << [ ".//[@stroke-width and not(self::text)]/@stroke-width", args ]
-          when "dupe"
-            # TODO: would be better to insert all duplicated elements at the back somehow
-            args.each do |klass, xpath|
-              duplicate = lambda do |element|
-                element.deep_clone.tap do |dupe|
-                  dupe.add_attributes "class" => [ *dupe.attributes["class"], klass ].join(?\s)
-                  element.parent.insert_before element, dupe
-                end
-              end
-              memo << [ xpath, duplicate ]
-            end
           when "glow"
             memo << [ "./*", lambda do |element|
               element.deep_clone.tap do |copy|
@@ -773,7 +757,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when nil then node.remove
             when Hash
               case node
-              when REXML::Element   then node.add_attributes(args)
+              when REXML::Element
+                node.add_attributes args.except("dupe")
+                node.deep_clone.tap do |dupe|
+                  dupe.add_attributes "class" => [ *dupe.attributes["class"], args["dupe"] ].join(?\s)
+                  node.parent.insert_before node, dupe
+                end if args["dupe"]
               end
             when Proc
               case node

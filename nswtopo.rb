@@ -700,13 +700,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end.tap do |commands|
           commands.merge! "glow" => commands.delete("glow") if commands["glow"]
-        end.inject({}) do |memo, (command, args)|
-          memo.deep_merge case command
-          when %r{\./}  then { command => args }
-          when "opacity" then { "self::/@style" => "opacity:#{args}" }
-          when "width"   then { ".//[@stroke-width and not(self::text)]/@stroke-width" => args }
+        end.inject([]) do |memo, (command, args)|
+          case command
+          when %r{\./}   then memo << [ command, args ]
+          when "opacity" then memo << [ "self::/@style", "opacity:#{args}" ]
+          when "width"   then memo << [ ".//[@stroke-width and not(self::text)]/@stroke-width", args ]
           when "glow"
-            { "./*" => lambda do |element|
+            memo << [ "./*", lambda do |element|
               element.deep_clone.tap do |copy|
                 copy.elements.each("descendant-or-self::text") do |text|
                   case args
@@ -717,31 +717,29 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 element.parent.insert_before element, copy
                 element.elements.each(".//font", &:remove)
               end if args
-            end }
+            end ]
           when "stroke", "fill"
             case args
             when Hash
-              args.map { |colour, replacement|
-                { ".//[@#{command}='#{colour}']/@#{command}" => replacement }
-              }.inject(&:merge)
+              args.each { |colour, replacement|
+                memo << [ ".//[@#{command}='#{colour}']/@#{command}", replacement ]
+              }
             else
-              { ".//[@#{command}!='none']/@#{command}" => args }
+              memo << [ ".//[@#{command}!='none']/@#{command}", args ]
             end
           when "widen", "stretch", "expand-glyph"
             case command
             when "widen"        then %w[stroke-width stroke-miterlimit]
             when "stretch"      then %w[stroke-dasharray]
             when "expand-glyph" then %w[font-size]
-            end.map { |name| { ".//[@#{name}]/@#{name}" => scale_by.curry[args] } }.inject(&:merge)
+            end.each { |name| memo << [ ".//[@#{name}]/@#{name}", scale_by.curry[args] ] }
           when "dash"
             case args
-            when nil
-              { ".//[@stroke-dasharray]/@stroke-dasharray" => nil }
-            when String, Numeric
-              { ".//(path|polyline)" => { "stroke-dasharray" => args } }
+            when nil             then memo << [ ".//[@stroke-dasharray]/@stroke-dasharray", nil ]
+            when String, Numeric then memo << [ ".//(path|polyline)", { "stroke-dasharray" => args } ]
             end
-          else { }
           end
+          memo
         end.each do |xpath, args|
           REXML::XPath.each(layer, xpath) do |node|
             case args

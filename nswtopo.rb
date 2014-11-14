@@ -153,6 +153,14 @@ class Array
   def dot(other)
     [ self, other ].transpose.map { |values| values.inject(:*) }.inject(:+)
   end
+  
+  def times(scalar)
+    map { |value| value * scalar }
+  end
+  
+  def angle
+    Math::atan2 at(1), at(0)
+  end
 
   def norm
     Math::sqrt(dot self)
@@ -758,7 +766,30 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when Hash
               case node
               when REXML::Element
-                node.add_attributes args.except("dupe")
+                node.add_attributes args.except("dupe", "sample")
+                
+                node.attributes["d"].tap do |d|
+                  interval = args["sample"].to_f
+                  klass = [ *node.attributes["class"], "sample" ].join ?\s
+                  d.to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
+                    subpath.split(/\s*L\s*/i).map do |pair|
+                      pair.split(/\s+/).map(&:to_f)
+                    end.segments.inject(0.5) do |alpha, segment|
+                      angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
+                      while segment.inject(&:minus).norm > alpha * interval
+                        fraction = alpha * interval / segment.inject(&:minus).norm
+                        segment[0] = segment[1].times(fraction).plus segment[0].times(1.0 - fraction)
+                        REXML::Element.new("g").tap do |group|
+                          group.add_attributes "transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "class" => klass
+                          node.parent.insert_after node, group
+                        end
+                        alpha = 1.0
+                      end
+                      alpha - segment.inject(&:minus).norm / interval
+                    end
+                  end
+                end if args["sample"]
+                
                 node.deep_clone.tap do |dupe|
                   dupe.add_attributes "class" => [ *dupe.attributes["class"], args["dupe"] ].join(?\s)
                   node.parent.insert_before node, dupe

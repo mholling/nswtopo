@@ -669,36 +669,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  # class Colour
-  #   def initialize(hex)
-  #     r, g, b = rgb = hex.scan(/\h\h/).map(&:hex)
-  #     mx = rgb.max
-  #     mn = rgb.min
-  #     c  = mx - mn
-  #     @hue = c.zero? ? nil : mx == r ? 60 * (g - b) / c : mx == g ? 60 * (b - r) / c + 120 : 60 * (r - g) / c + 240
-  #     @lightness = 100 * (mx + mn) / 510
-  #     @saturation = c.zero? ? 0 : 10000 * c / (100 - (2 * @lightness - 100).abs) / 255
-  #   end
-  #   
-  #   attr_accessor :hue, :lightness, :saturation
-  #   
-  #   def to_s
-  #     c = (100 - (2 * @lightness - 100).abs) * @saturation * 255 / 10000
-  #     x = @hue && c * (60 - (@hue % 120 - 60).abs) / 60
-  #     m = 255 * @lightness / 100 - c / 2
-  #     rgb = case @hue
-  #     when   0..59  then [ m + c, m + x, m ]
-  #     when  60..119 then [ m + x, m + c, m ]
-  #     when 120..179 then [ m, m + c, m + x ]
-  #     when 180..239 then [ m, m + x, m + c ]
-  #     when 240..319 then [ m + x, m, m + c ]
-  #     when 320..360 then [ m + c, m, m + x ]
-  #     when nil      then [ 0, 0, 0 ]
-  #     end
-  #     "#%02x%02x%02x" % rgb
-  #   end
-  # end
-  
   class Source
     def initialize(layer_name, params)
       @layer_name = layer_name

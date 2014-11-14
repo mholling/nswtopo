@@ -1574,26 +1574,29 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "returnGeometry" => true,
         }
         features = [ ]
+        index_attribute = options["page-by"] || source["page-by"] || "OBJECTID"
+        paginate = nil
         begin
-          paged ||= nil
           paged_query = case
-          when options["definition"] && paged then { "layerDefs" => [ options["id"], "(#{options['definition']}) AND #{paged}" ].join(?:) }
-          when options["definition"]          then { "layerDefs" => [ options["id"], options["definition"]                     ].join(?:) }
-          when paged                          then { "layerDefs" => [ options["id"], paged                                     ].join(?:) }
-          else                                { }
+          when options["definition"] && paginate then { "layerDefs" => [ options["id"], "(#{options['definition']}) AND #{paginate}" ].join(?:) }
+          when options["definition"] || paginate then { "layerDefs" => [ options["id"], options["definition"] || paginate            ].join(?:) }
+          else                                        { }
           end.merge(query)
           uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], "identify" ].join(?/), :query => URI.escape(paged_query.to_query)
           body = HTTP.get(uri, source["headers"]) do |response|
             JSON.parse(response.body).tap do |body|
               raise Net::HTTPBadResponse.new(body["error"]["message"]) if body["error"]
-              raise ServerError.new("feature limit exceeded") if body["exceededTransferLimit"] && !options["page-by"] 
             end
           end
-          # TODO for ArcGIS server < 10.1, detect feature limiting some other way e.g. by testing with higher value for page attribute
-          # TODO: page-by option is probably per-souce, not per-layer
-          features += body.fetch("results", [ ])
-          paged = body["exceededTransferLimit"] && [ options["page-by"], features.last["attributes"][options["page-by"]] ].join(" > ")
-        end while paged
+          page = body.fetch("results", [ ])
+          page.map do |feature|
+            raise BadLayerError.new("no attribute available for pagination") unless feature["attributes"].has_key?(index_attribute)
+            feature["attributes"][index_attribute].to_i
+          end.max.tap do |value|
+            paginate = "#{index_attribute} > #{value}"
+          end
+          features += page
+        end while page.any?
         features.each do |feature|
           attributes, geometry_type, geometry = feature.values_at "attributes", "geometryType", "geometry"
           wkid = geometry.delete("spatialReference")["wkid"]

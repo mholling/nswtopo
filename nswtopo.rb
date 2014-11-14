@@ -1558,6 +1558,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             [ sources.values.first["service"]["layers"].find { |layer| layer["id"] == key }.fetch("name"), { "id" => key } ]
           end
         end
+      end.reject do |sublayer_name, options|
+        params["exclude"].include? sublayer_name
       end.map do |sublayer_name, options|
         [ sources[options["source"] || sources.keys.first], sublayer_name, options ]
       end.each do |source, sublayer_name, options|

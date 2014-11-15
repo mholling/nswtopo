@@ -770,7 +770,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 
                 node.attributes["d"].tap do |d|
                   interval = args["sample"].to_f
-                  klass = [ *node.attributes["class"], "sample" ].join ?\s
                   d.to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
                     subpath.split(/\s*L\s*/i).map do |pair|
                       pair.split(/\s+/).map(&:to_f)
@@ -780,7 +779,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                         fraction = alpha * interval / segment.inject(&:minus).norm
                         segment[0] = segment[1].times(fraction).plus segment[0].times(1.0 - fraction)
                         REXML::Element.new("g").tap do |group|
-                          group.add_attributes "transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "class" => klass
+                          group.add_attributes "transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "class" => "sample"
                           node.parent.insert_after node, group
                         end
                         alpha = 1.0
@@ -796,7 +795,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end if args["dupe"]
                 
                 node.attributes["d"].tap do |d|
-                  klass = [ *node.attributes["class"], args["endpoints"] ].join ?\s
                   d.to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
                     subpath.split(/\s*L\s*/i).values_at(0,1,-2,-1).map do |pair|
                       pair.split(/\s+/).map(&:to_f)
@@ -805,7 +803,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     end.each do |segment|
                       angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
                       REXML::Element.new("g").tap do |group|
-                        group.add_attributes "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "class" => klass
+                        group.add_attributes "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "class" => args["endpoints"]
                         node.parent.insert_after node, group
                       end
                     end

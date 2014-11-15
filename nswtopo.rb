@@ -1630,7 +1630,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             paginate = "#{index_attribute} > #{value}"
           end
           features += page
+          $stdout << "\r... #{sublayer_name} (#{features.length} feature#{?s unless features.one?})"
         end while page.any?
+        puts
         features.each do |feature|
           attributes, geometry_type, geometry = feature.values_at "attributes", "geometryType", "geometry"
           wkid = geometry.delete("spatialReference")["wkid"]
@@ -1666,7 +1668,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
         end
-        puts " (#{features.length} feature#{?s unless features.one?})"
         [ sublayer_name, features ]
       end.inject({}) do |memo, (sublayer_name, features)|
         memo[sublayer_name] ||= []

@@ -766,7 +766,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when Hash
               case node
               when REXML::Element
-                node.add_attributes args.except("dupe", "sample")
+                node.add_attributes args.except("dupe", "sample", "endpoints")
                 
                 node.attributes["d"].tap do |d|
                   interval = args["sample"].to_f
@@ -794,6 +794,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   dupe.add_attributes "class" => [ *dupe.attributes["class"], args["dupe"] ].join(?\s)
                   node.parent.insert_before node, dupe
                 end if args["dupe"]
+                
+                node.attributes["d"].tap do |d|
+                  klass = [ *node.attributes["class"], args["endpoints"] ].join ?\s
+                  d.to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
+                    subpath.split(/\s*L\s*/i).values_at(0,1,-2,-1).map do |pair|
+                      pair.split(/\s+/).map(&:to_f)
+                    end.segments.values_at(0,-1).zip([ :to_a, :reverse ]).map do |segment, order|
+                      segment.send order
+                    end.each do |segment|
+                      angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
+                      REXML::Element.new("g").tap do |group|
+                        group.add_attributes "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "class" => klass
+                        node.parent.insert_after node, group
+                      end
+                    end
+                  end
+                end if args["endpoints"]
               end
             when Proc
               case node

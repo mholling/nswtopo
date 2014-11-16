@@ -1611,12 +1611,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         }
         features = [ ]
         index_attribute = options["page-by"] || source["page-by"] || "OBJECTID"
+        definition, redefine, id = options.values_at("definition", "redefine", "id")
         paginate = nil
         begin
+          definitions = [ *options["definition"], *paginate ]
           paged_query = case
-          when options["definition"] && paginate then { "layerDefs" => [ options["id"], "(#{options['definition']}) AND #{paginate}" ].join(?:) }
-          when options["definition"] || paginate then { "layerDefs" => [ options["id"], options["definition"] || paginate            ].join(?:) }
-          else                                        { }
+          when definitions.any? && redefine then { "layerDefs" => "#{id}:1 < 0) OR ((#{definitions.join ') AND ('})" }
+          when redefine                     then { "layerDefs" => "#{id}:1 < 0) OR (1 > 0" }
+          when definitions.any?             then { "layerDefs" => "#{id}:(#{definitions.join ') AND ('})" }
+          else                                   { }
           end.merge(query)
           uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], "identify" ].join(?/), :query => URI.escape(paged_query.to_query)
           body = HTTP.get(uri, source["headers"]) do |response|

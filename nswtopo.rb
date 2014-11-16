@@ -184,6 +184,10 @@ class Array
   def segments
     self[0..-2].zip self[1..-1]
   end
+  
+  def ring
+    zip rotate
+  end
 end
 
 class Hash
@@ -1636,6 +1640,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           wkid = geometry.delete("spatialReference")["wkid"]
           projection = Projection.new("epsg:#{wkid}")
           feature["class"] = attributes.values_at(*options["class"])
+          dimensions = map.dimensions_in_mm
           case geometry_type
           when "esriGeometryPoint"
             geometry["x"], geometry["y"] = svg_coords(geometry.values_at("x", "y"), projection, map)
@@ -1645,7 +1650,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               svg_coords(coords, projection, map)
             end.select(&:many?).map(&:segments).map do |segments|
               segments.inject([[]]) do |memo, segment|
-                if [ segment.transpose, map.dimensions_in_mm ].transpose.any? do |values, dimension|
+                if [ segment.transpose, dimensions ].transpose.any? do |values, dimension|
                   values.all? { |value| value < 0 } || values.all? { |value| value > dimension }
                 end
                   memo << [ ] unless memo.last.empty?
@@ -1660,9 +1665,43 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               geometry["paths"] = paths
             end
           when "esriGeometryPolygon"
-            # TODO: trim off-map points from polygons (trickier!)
-            geometry["rings"].map! do |coords|
+            edges = [
+              [ [  0,  1 ], [ 0, 1 + dimensions[1] ] ],
+              [ [  1,  0 ], [ 1 + dimensions[0], 0 ] ],
+              [ [  0, -1 ], [ 0, -1 ] ],
+              [ [ -1,  0 ], [ -1, 0 ] ]
+            ]
+            geometry["rings"].map do |coords|
               svg_coords(coords, projection, map)
+            end.select(&:many?).map do |points|
+              index = points.index do |point|
+                edges.all? { |axis, offset| point.minus(offset).dot(axis) <= 0 }
+              end
+              points.rotate(index || 0)
+            end.map(&:ring).map do |segments|
+              edges.inject(segments) do |pruned, (axis, offset)|
+                pruned.inject([]) do |segments, segment|
+                  if segment[0].minus(offset).dot(axis) <= 0
+                    segments << segment
+                  elsif segment[1].minus(offset).dot(axis) <= 0
+                    segments << [ segments.last.last, segment.first ] if segments.any?
+                    segments << segment
+                  end
+                  segments
+                end
+              end
+            end.select(&:many?).map do |segments|
+              segments.map(&:first) << segments.last.last
+            end.map do |points|
+              points.map do |point|
+                edges.ring.inject(point) do |point, pair|
+                  pair.all? do |axis, offset|
+                    point.minus(offset).dot(axis) > 0
+                  end ? pair.map(&:last).inject(&:plus) : point
+                end
+              end
+            end.tap do |rings|
+              geometry["rings"] = rings
             end
           end
         end

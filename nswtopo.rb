@@ -1731,7 +1731,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         puts "  ... #{sublayer_name}" unless features.empty?
         yield(sublayer_name).tap do |layer|
           features.group_by do |feature|
-            feature["class"].join ?\s
+            feature["class"].reject(&:empty?).join ?\s
           end.each do |klass, grouped_features|
             layer.add_element("g", "class" => klass) do |group|
               grouped_features.map do |feature|

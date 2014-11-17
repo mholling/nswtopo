@@ -1677,33 +1677,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             geometry["rings"].map do |coords|
               svg_coords(coords, projection, map)
             end.select(&:many?).map do |points|
-              index = points.index do |point|
-                edges.all? { |axis, offset| point.minus(offset).dot(axis) <= 0 }
-              end
-              points.rotate(index || 0)
-            end.map(&:ring).map do |segments|
-              edges.inject(segments) do |pruned, (axis, offset)|
-                pruned.inject([]) do |segments, segment|
-                  if segment[0].minus(offset).dot(axis) <= 0
-                    segments << segment
-                  elsif segment[1].minus(offset).dot(axis) <= 0
-                    segments << [ segments.last.last, segment.first ] if segments.any?
-                    segments << segment
+              edges.inject(points) do |clipped, (axis, offset)|
+                clipped.ring.inject([]) do |clipped, segment|
+                  inside = segment.map { |point| point.minus(offset).dot(axis) <= 0 }
+                  case
+                  when inside[0] && inside[1]
+                    clipped << segment[1]
+                  when inside[0]
+                    clipped << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
+                  when inside[1]
+                    clipped << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
+                    clipped << segment[1]
                   end
-                  segments
+                  clipped
                 end
               end
-            end.select(&:many?).map do |segments|
-              segments.map(&:first) << segments.last.last
-            end.map do |points|
-              points.map do |point|
-                edges.ring.inject(point) do |point, pair|
-                  pair.all? do |axis, offset|
-                    point.minus(offset).dot(axis) > 0
-                  end ? pair.map(&:last).inject(&:plus) : point
-                end
-              end
-            end.tap do |rings|
+            end.select(&:many?).tap do |rings|
               geometry["rings"] = rings
             end
           end

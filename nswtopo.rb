@@ -1637,7 +1637,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           features += page
           $stdout << "\r... #{sublayer_name} (#{features.length} feature#{?s unless features.one?})"
         end while page.any?
-        puts
         dimensions = map.dimensions_in_mm
         edges = [
           [ [  0,  1 ], [ 0, 1 + dimensions[1] ] ],
@@ -1703,6 +1702,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
         end
+        puts
         [ sublayer_name, features ]
       end.inject({}) do |memo, (sublayer_name, features)|
         memo[sublayer_name] ||= []

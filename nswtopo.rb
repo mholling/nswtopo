@@ -1638,12 +1638,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           $stdout << "\r... #{sublayer_name} (#{features.length} feature#{?s unless features.one?})"
         end while page.any?
         puts
+        dimensions = map.dimensions_in_mm
+        edges = [
+          [ [  0,  1 ], [ 0, 1 + dimensions[1] ] ],
+          [ [  1,  0 ], [ 1 + dimensions[0], 0 ] ],
+          [ [  0, -1 ], [ 0, -1 ] ],
+          [ [ -1,  0 ], [ -1, 0 ] ]
+        ]
         features.each do |feature|
           attributes, geometry_type, geometry = feature.values_at "attributes", "geometryType", "geometry"
           wkid = geometry.delete("spatialReference")["wkid"]
           projection = Projection.new("epsg:#{wkid}")
           feature["class"] = attributes.values_at(*options["class"])
-          dimensions = map.dimensions_in_mm
           case geometry_type
           when "esriGeometryPoint"
             geometry["x"], geometry["y"] = svg_coords(geometry.values_at("x", "y"), projection, map)
@@ -1651,29 +1657,29 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "esriGeometryPolyline"
             geometry["paths"].map do |coords|
               svg_coords(coords, projection, map)
-            end.select(&:many?).map(&:segments).map do |segments|
-              segments.inject([[]]) do |memo, segment|
-                if [ segment.transpose, dimensions ].transpose.any? do |values, dimension|
-                  values.all? { |value| value < 0 } || values.all? { |value| value > dimension }
-                end
-                  memo << [ ] unless memo.last.empty?
-                else
-                  memo.last << segment
-                end
-                memo
-              end.reject(&:empty?).map do |segments|
-                segments.map(&:first) << segments.last.last
+            end.map do |path|
+              edges.inject([path]) do |subpaths, (axis, offset)|
+                subpaths.select(&:many?).map do |subpath|
+                  subpath.unshift(subpath[0]).segments.inject([[]]) do |memo, segment|
+                    inside = segment.map { |point| point.minus(offset).dot(axis) <= 0 }
+                    case
+                    when inside[0] && inside[1]
+                      memo.last << segment[1]
+                    when inside[0]
+                      memo.last << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
+                    when inside[1]
+                      memo << []
+                      memo.last << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
+                      memo.last << segment[1]
+                    end
+                    memo
+                  end.select(&:many?)
+                end.flatten(1)
               end
-            end.inject(&:+).tap do |paths|
+            end.flatten(1).reject(&:empty?).tap do |paths|
               geometry["paths"] = paths
             end
           when "esriGeometryPolygon"
-            edges = [
-              [ [  0,  1 ], [ 0, 1 + dimensions[1] ] ],
-              [ [  1,  0 ], [ 1 + dimensions[0], 0 ] ],
-              [ [  0, -1 ], [ 0, -1 ] ],
-              [ [ -1,  0 ], [ -1, 0 ] ]
-            ]
             geometry["rings"].map do |coords|
               svg_coords(coords, projection, map)
             end.select(&:many?).map do |points|

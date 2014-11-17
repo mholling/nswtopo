@@ -1,0 +1,734 @@
+class: ArcGISIdentify
+sources:
+  lpimap:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: LPIMap
+  plan_section_lot:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: Plan_Section_Lot
+  rfs:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: RFS
+  hydrography:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: Hydrography
+  survey:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: SurveyMarksPublic
+    page-by: msoid
+  act-basic:
+    host: actmapi.act.gov.au
+    instance: actmapi
+    folder: mga
+    service: basic
+features:
+  urban-areas: Urban
+  plantations:
+    # TODO: add other kinds of plantations
+    name: Building_Large
+    definition: classsubtype = 6 AND (generalculturaltype = 1 OR generalculturaltype = 3)
+  contours-10m:
+    name: Contour_10m
+    class:
+    - ClassSubtype
+    - relevance
+  contours-20m:
+    name: Contour_10m
+    class:
+    - ClassSubtype
+    - relevance
+  cliffs-rocks-sand:
+    name: Cliffs_Reefs_Mangroves
+    definition: classsubtype IN (6,7,11)
+    class: ClassSubtype
+  clifftops-levees-excavation:
+    name: CliffTop_Levee
+    definition: classsubtype IN (1,3,4)
+    class: ClassSubtype
+  caves-pinnacles:
+    name: Caves_Pinnacles
+    class: ClassSubtype
+  cadastre:
+  - source: plan_section_lot
+    name: Lot
+    definition: classsubtype = 1
+  - source: act-basic
+    name: Urban Registered
+  - source: act-basic
+    name: Rural Registered
+  building-areas:
+    # TODO: combine with buildings as single layer?
+    name: Building_Large
+    definition: classsubtype = 5
+  swamps-inundation:
+    name: Swamps_LSI
+    class: ClassSubtype
+  water-areas-non-perennial:
+    name: HydroArea
+    definition: perenniality IN (2,3)
+    class: Perenniality
+  watercourses:
+    source: hydrography
+    name: Hydroline
+    definition: classsubtype = 1 AND hydrotype <> 6
+    class:
+    - relevance
+    - hydrotype
+  stock-dams:
+    name: StockDams
+    class: hydrotype
+  pondage:
+    # TODO: mostly duplicates water-areas, do we need it?
+    name: Building_Large
+    definition: classsubtype = 9
+    class: generalculturaltype
+# TODO: where to find sewerage tanks, etc?
+  water-areas:
+    # TODO: add NOT (classsubtype = 1 AND hydrotype = 2) to exclude man-made water bodies?
+    name: HydroArea
+    definition: perenniality NOT IN (2,3) OR perenniality IS NULL
+    class:
+    - ClassSubtype
+    - hydrotype
+  dam-batters:
+    name: Building_Large
+    definition: classsubtype = 10
+  dam-walls-spillways:
+    name: Damwall_Racetrack
+    definition: classsubtype IN (4,7)
+    class:
+    - ClassSubtype
+    - alternativelabel
+  waterfalls:
+    name: Waterfalls_springs
+    redefine: true
+    definition: ancillaryhydrotype = 6
+    # TODO: add Bore(1)/Lock(2)/Rapids(3)/Spring(4)/Sink(13)
+    class: AncillaryHydroType
+    rotate: SymbolRotation
+  ocean:
+    name: Oceans_Bays
+    definition: classsubtype = 3
+    scale: 50000
+  reefs-mangroves-intertidal:
+    name: Cliffs_Reefs_Mangroves
+    definition: classsubtype IN (1,3,4,5)
+    class: ClassSubtype
+  wharves-ramps-slipways:
+    name: Wharfs_Ramps
+    class: ClassSubtype
+  breakwaters:
+    name: Damwall_Racetrack
+    definition: classsubtype = 5 AND generalculturaltype  = 0
+  road-tunnels:
+    source: rfs
+    name: RoadSegment
+    definition: operationalstatus NOT IN (3,8) AND roadontype = 3 AND classsubtype <> 8
+    class:
+    - ClassSubtype
+    - FunctionHierarchy
+    - surface
+  railway-tunnels:
+    name: Railway_intunnel_LS
+    definition: operationalstatus NOT IN (3,8)
+    class: ClassSubtype
+  runways:
+    name: Runway
+    class:
+    - RunwayDefinition
+    - RunwaySurface
+  recreational-perimeters:
+    name: Damwall_Racetrack
+    definition: classsubtype = 6
+    class:
+    - ClassSubtype
+    - generalculturaltype
+  roads:
+    source: rfs
+    name: RoadSegment
+    definition: operationalstatus NOT IN (3,8) AND roadontype <> 3 AND classsubtype <> 8
+    class:
+    - ClassSubtype
+    - FunctionHierarchy
+    - RoadOnType
+    - surface
+  railways:
+    name: Railway_onground_LS
+    definition: operationalstatus NOT IN (3,8)
+    class:
+    - ClassSubtype
+    - RailOnType
+  road-bridges:
+    source: rfs
+    name: RoadSegment
+    definition: operationalstatus NOT IN (3,8) AND roadontype = 2 AND classsubtype <> 8
+    class:
+    - ClassSubtype
+    - FunctionHierarchy
+    - surface
+  railway-bridges:
+    name: Railway_onbridge_LS
+    definition: operationalstatus NOT IN (3,8) AND railontype = 2
+    class: ClassSubtype
+  railway-stations:
+    source: rfs
+    name: TransportFacilityPoint
+    definition: classsubtype = 6
+    class: ClassSubtype
+  gates-grids:
+    # TODO: limit by relevance?
+    name: Gates_Grids
+    rotate: SymbolRotation
+    class: ClassSubtype
+  buildings: Dwellings_Buildings
+  tanks:
+    source: rfs
+    name: TankPoint
+    class: TankType
+  spot-heights: SpotHeight
+  trig-stations:
+    source: survey
+    name: SurveyMark
+    definition: marksymbol LIKE 'TS_'
+  state-border: State_Border
+
+  # LPIMap/Beacon_Tower (GeneralCulturalPoint)
+  # (classsubtype:generalculturaltype)
+  # 5:0 Building:Undefined
+  # 5:1 Building:Dwelling
+  # 1:1 GeneralRecreationPoint:CampingGround
+  # 1:5 GeneralRecreationPoint:Lookout
+  # 1:8 GeneralRecreationPoint:PicnicArea
+  # 1:10 GeneralRecreationPoint:ShipWreck
+  # 12:0 Beacon:Undefined
+  # 12:1 Beacon:Lighthouse (says not used)
+  # 7:0 Tower:Undefined
+  # 7:1 Tower:Communication
+  # 7:2 Tower:Observation
+  # 7:3 Tower:Intake
+  # 7:4 Tower:Chimney
+  # 7:0 Tower:WindGenerator
+  # 9:0-4 Pondage
+  # 4:11 generalindustry:Mine-Underground
+  # 4:12 GeneralIndustryPoint:Quarry-OpenCut
+  # 4:4 GeneralIndustryPoint:Silo-Farm
+  # 4:5 GeneralIndustryPoint:Silo-Commercial
+  # 4:6 GeneralIndustryPoint:StockSaleyard
+  # 4:8 GeneralIndustryPoint:WindPump
+  # 4:9 GeneralIndustryPoint:Yard-Rural
+  
+  # LPIMap/Building_Large (GeneralCulturalArea)
+  # (classsubtype:generalculturaltype)
+  # 3:0 RestrictedArea:Undefined
+  # 3:1 RestrictedArea:Defence
+  # 3:2 RestrictedArea:Catchment
+  # 3:3 RestrictedArea:SubmarineCableProtectionZone
+  # 6:0 Plantation:Horticulture-Orchard
+  # 6:2 Plantation:Horticulture-Vineyard
+  # 6:4 Plantation:Horticulture-Crop
+  # 6:1 Plantation:ForestryPlantation-Pine
+  # 6:3 Plantation:ForestryPlantation-Other
+
+  # LPIMap/Damwall_Racetrack (GeneralCulturalLine)
+  # (classsubtype:generalculturaltype)
+  # 2:0 Fence:Undefined
+  # 5:0 Breakwater:Undefined
+  # 1:0 ConveyorBelt:Undefined
+
+  # RFS/BuildingComplexPoint (BuildingComplexPoint)
+  # (classsubtype:generalculturaltype)
+  # (use for labeling only)
+  # 4:7 Homestead
+
+  # POI/POI (PointOfInterest)
+  # (poigroup:poitype)
+  # (use for labelling only, except lighthouse?)
+  # 1:Homestead
+  # 1:Lighthouse 
+  # 3:Lookout
+  # 3:Observation Tower
+  # 3:Picnic Area
+  # 3:Ship Wreck
+  # 4:Railway Station
+  # 5:Wind Power Station
+  # 6:Bay / Inlet / Basin
+  # 6:Beach
+  # 6:Bore
+  # 6:Breakwater
+  # 6:Dam Wall
+  # 6:Island
+  # 6:Lock
+  # 6:Manmade Waterbody
+  # 6:Natural Waterbody
+  # 6:Rapids
+  # 6:Reach / River Bend
+  # 6:Reef
+  # 6:Rock Awash
+  # 6:Sandbar / Shoal
+  # 6:Spring
+  # 6:Swamp
+  # 6:Waterfall
+  # 7:Cave
+  # 7:Cliff
+  # 7:Gap / Pass / Saddle
+  # 7:Headland
+  # 7:Mountain/Hill/Peak 
+  # 7:Peninsula / Spit
+  # 7:Plateau / Tableland
+  
+  # # DLSLine / CliffTop_Levee
+  # rock-awash-line: 5 (e.g. rocky shoreline)
+  # rock-inland-line: 6 (e.g. ???)
+  
+  # # DLSPoint / Caves_Pinnacles
+  # Reef: 4
+  # Rock-Awash: 5
+  # Rock-Inland: 6
+  
+intervals-contours:
+  10: contours-10m
+  20: contours-20m
+
+./g:
+  stroke: none
+  fill: none
+  stroke-linecap: butt
+urban-areas:
+  ./g:
+    stroke: none
+    fill: "#FFFABD"
+plantations:
+  # TODO: add appropriate pattern fills
+  ./g:
+    stroke: none
+    fill: "#80D19B"
+contours-10m:
+  ./g:
+    stroke: "#805100"
+    stroke-width: 0.12
+  ./g[contains(@class,'1') | contains(@class,'2')][not(contains(@class,'10'))][not(contains(@class,'DepressionContour'))]:
+    stroke-width: 0.24
+  ./g[contains(@class,'DepressionContour')]/path:
+    sample: 2.0
+  ./g[contains(@class,'DepressionContour')]/g[contains(@class,'sample')]: line
+  ./g[contains(@class,'DepressionContour')]/g[contains(@class,'sample')]/line:
+    y2: 0.5
+  ./g[contains(@class,'AncillaryContour')]:
+    stroke-dasharray: 3 1
+    stroke-width: 0.1
+contours-20m:
+  ./g:
+    stroke: "#805100"
+    stroke-width: 0.12
+  ./g[contains(@class,'1') | contains(@class,'2')][not(contains(@class,'10'))][not(contains(@class,'DepressionContour'))]:
+    stroke-width: 0.24
+  ./g[contains(@class,'DepressionContour')]/path:
+    sample: 2.0
+  ./g[contains(@class,'DepressionContour')]/g[contains(@class,'sample')]: line
+  ./g[contains(@class,'DepressionContour')]/g[contains(@class,'sample')]/line:
+    y2: 0.5
+  ./g[contains(@class,'AncillaryContour')]:
+    stroke-dasharray: 3 1
+    stroke-width: 0.1
+cliffs-rocks-sand:
+  ./g:
+    stroke: none
+  ./g[contains(@class,'CliffArea')]:
+    fill: "#C8C8C8"
+  # TODO: add dotted fill patterns for sand, rock
+  ./g[contains(@class,'Rock-Inland')]:
+    fill: none
+  ./g[contains(@class,'Sand')]:
+    fill: "#FFF2CC"
+clifftops-levees-excavation:
+  ./g[contains(@class,'CliffTop')]:
+    stroke: "#B04BA9"
+    stroke-width: 0.2
+  ./g[contains(@class,'CliffTop')]/path:
+    sample: 1.0
+  ./g[contains(@class,'CliffTop')]/g[contains(@class,'sample')]: line
+  ./g[contains(@class,'CliffTop')]/g[contains(@class,'sample')]/line:
+    y2: 0.5
+  ./g[contains(@class,'Levee')]:
+    stroke: black
+    stroke-width: 0.1
+    dupe: hatching
+  ./g[contains(@class,'Levee')][contains(@class,'hatching')]:
+    stroke-width: 1.0
+    stroke-dasharray: 0.1 0.5
+  ./g[contains(@class,'ExcavationFace')]:
+    stroke: black
+    stroke-width: 0.12
+  ./g[contains(@class,'ExcavationFace')]/path:
+    sample: 1.2
+  ./g[contains(@class,'ExcavationFace')]/g[contains(@class,'sample')]: line
+  ./g[contains(@class,'ExcavationFace')]/g[contains(@class,'sample')]/line:
+    y2: 0.6
+caves-pinnacles:
+  ./g[contains(@class,'Pinnacle')]:
+    stroke: "#B04BA9"
+    stroke-width: 0.1
+    fill: none
+  ./g[contains(@class,'Pinnacle')]/g: path
+  ./g[contains(@class,'Pinnacle')]/g/path:
+    d: M -0.5 0 L 0.5 0 M 0 -0.5 L 0 0.5 M -0.35 -0.35 L 0.35 0.35 M -0.35 0.35 L 0.35 -0.35
+  # TODO: how to render caves? maybe as a black semicircle?
+  ./g[contains(@class,'Cave')]:
+    stroke: "#513300"
+    stroke-width: 0.2
+    fill: white
+  ./g[contains(@class,'Cave')]/g: circle
+  ./g[contains(@class,'Cave')]/g/circle:
+    r: 0.3
+cadastre:
+  opacity: 0.5
+  ./g:
+    stroke: "#777777"
+    stroke-width: 0.05
+    fill: none
+building-areas:
+  ./g:
+    fill: "#808080"
+    stroke: none
+swamps-inundation:
+  # TODO: add fill patterns
+  opacity: 0.5
+  ./g:
+    stroke: none
+  ./g[contains(@class,'Swamp-Wet')]:
+    fill: blue
+  ./g[contains(@class,'LandSubjectToInundation')]:
+    fill: cyan
+water-areas-non-perennial:
+  # TODO: add dot fill pattern instead of opacity,
+  # and combine with water-areas as single layer
+  ./g:
+    fill: '#B3E6E4'
+    stroke: "#4985DF"
+    stroke-width: 0.2
+  ./g[contains(@class,'NonPerennial')]:
+    stroke-opacity: 0.5
+    fill-opacity: 0.5
+  ./g[contains(@class,'MainlyDry')]:
+    stroke-opacity: 0.25
+    fill-opacity: 0.25
+watercourses:
+  ./g:
+    stroke: "#4985DF"
+  ./g[contains(@class,'1') | contains(@class,'2') | contains(@class,'3') | contains(@class,'4')]:
+    stroke-width: 0.3
+  ./g[contains(@class,'5') | contains(@class,'6') | contains(@class,'7')]:
+    stroke-width: 0.2
+  ./g[contains(@class,'8') | contains(@class,'9') | contains(@class,'10')]:
+    stroke-width: 0.12
+  ./g[contains(@class,'Spillway')]:
+    stroke: none
+stock-dams:
+  ./g[contains(@class,'ManMadeWaterBody')]:
+    stroke: none
+    fill: "#4985DF"
+  ./g[contains(@class,'ManMadeWaterBody')]/g: rect
+  ./g[contains(@class,'ManMadeWaterBody')]/g/rect:
+    width: 0.6
+    height: 0.6
+    x: -0.3
+    y: -0.3
+  ./g[contains(@class,'NaturalWaterBody')]:
+    stroke: "#4985DF"
+    stroke-width: 0.1
+    fill: "#B3E6E4"
+  ./g[contains(@class,'NaturalWaterBody')]/g: circle
+  ./g[contains(@class,'NaturalWaterBody')]/g/circle:
+    r: 0.3
+pondage:
+  # TODO: render with different outline?
+  ./g:
+    fill: '#B3E6E4'
+    stroke: "#4985DF"
+    stroke-width: 0.2
+water-areas:
+  ./g:
+    fill: "#B3E6E4"
+    stroke: "#4985DF"
+    stroke-width: 0.2
+dam-batters:
+  ./g:
+    stroke: none
+    fill: "#C0C0C0"
+dam-walls-spillways:
+  ./g:
+    stroke: black
+  ./g[contains(@class,'DamWall')]:
+    stroke-width: 0.7
+  ./g[contains(@class,'WEIR')]:
+    stroke-width: 0.4
+  ./g[contains(@class,'SpillwayEdge')]:
+    stroke-width: 0.15
+  ./g[contains(@class,'SpillwayEdge')]/path:
+    sample: 0.8
+  ./g[contains(@class,'SpillwayEdge')]/g[contains(@class,'sample')]: line
+  ./g[contains(@class,'SpillwayEdge')]/g[contains(@class,'sample')]/line:
+    y1: -0.15
+    y2: 0.15
+waterfalls:
+  ./g:
+    stroke: "#4985DF"
+    stroke-width: 0.25
+  ./g[contains(@class,'Waterfall')]/g: line
+  ./g[contains(@class,'Waterfall')]/g/line:
+    x1: -0.6
+    x2: 0.6
+ocean:
+  ./g:
+    stroke: none
+    fill: '#B3E6E4'
+reefs-mangroves-intertidal:
+  # TODO: add fill patterns!
+  ./g:
+    stroke: none
+  ./g[contains(@class,'Mangrove')]:
+    fill: pink
+  ./g[contains(@class,'IntertidalFlat')]:
+    fill: purple
+  ./g[contains(@class,'Reef')]:
+    fill: cyan
+  ./g[contains(@class,'Rock-Awash')]:
+    fill: brown
+wharves-ramps-slipways:
+  ./g:
+    stroke: black
+    stroke-width: 0.25
+breakwaters:
+  ./g:
+    stroke: black
+    stroke-width: 0.5
+    stroke-dasharray: 0.2 0.5
+    stroke-linecap: round
+road-tunnels:
+  ./g:
+    stroke-width: 0.2
+    fill: none
+  ./g[contains(@class,'Motorway') | contains(@class,'PrimaryRoad') | contains(@class,'ArterialRoad')]:
+    stroke-width: 0.3
+  ./g[contains(@class,'SubArterialRoad') | contains(@class,'DistributorRoad')]:
+    stroke-width: 0.25
+  ./g[contains(@class,'LocalRoad')]:
+    stroke-width: 0.2
+  ./g[contains(@class,'UrbanServiceLane')]:
+    stroke-width: 0.1
+  ./g[contains(@class,'AccessWay')]:
+    stroke: none
+  ./g[contains(@class,'Path')]:
+    stroke-width: 0.2
+  ./g/path:
+    stroke: "#404040"
+    stroke-dasharray: 0.5 0.5
+  ./g[not(contains(@class,'Path'))]/path:
+    endpoints: entrance
+  ./g/g[contains(@class,'entrance')]: path
+  ./g/g[contains(@class,'entrance')]/path:
+    stroke: black
+    stroke-width: 0.2
+    d: M -0.4 0.6 L 0.1 0.4 L 0.1 -0.4 L -0.4 -0.6
+railway-tunnels:
+  ./g:
+    fill: none
+    stroke-width: 0.2
+  ./g[contains(@class,'Heavy')]:
+    stroke-width: 0.25
+  ./g[contains(@class,'Light')]:
+    stroke-width: 0.2
+  ./g/path:
+    stroke: "#404040"
+    stroke-dasharray: 0.6 0.6
+    endpoints: entrance
+  ./g/g[contains(@class,'entrance')]: path
+  ./g/g[contains(@class,'entrance')]/path:
+    stroke-width: 0.2
+    stroke: black
+    d: M -0.6 0.6 A 0.6 0.6 0 0 0 -0.6 -0.6
+runways:
+  ./g[contains(@class,'RunwayPerimeter')]:
+    stroke: black
+    stroke-width: 0.15
+    stroke-dasharray: 0.8 0.2
+  ./g[contains(@class,'RunwayCentreline')]:
+    stroke: "#989898"
+    stroke-width: 0.7
+  ./g[contains(@class,'LandingGround')]:
+    stroke: "#A8A8A8"
+    stroke-width: 0.7
+  # TODO: sample line to add plane symbol
+  # ./g[contains(@class,'LandingGround')]:
+recreational-perimeters:
+  ./g:
+    stroke: black
+    stroke-width: 0.15
+    stroke-dasharray: 0.8 0.2
+roads:
+  # TODO: add rendering for OnCulvert (blue outline?)
+  ./g:
+    stroke: none
+    stroke-width: 0.4
+  ./g[contains(@class,'Sealed') | contains(@class,'Unknown')]:
+    stroke: red
+  ./g[contains(@class,'Unsealed')]:
+    stroke: "#FF7518"
+  ./g[contains(@class,'Path')]:
+    stroke: black
+    stroke-width: 0.25
+    stroke-dasharray: 1.4 0.7
+  ./g[contains(@class,'VehicularTrack')]:
+    stroke-width: 0.4
+    stroke-dasharray: 3 1
+  ./g[contains(@class,'4WD')]:
+    stroke-width: 0.3
+    stroke-dasharray: 1.8 0.6
+  ./g[contains(@class,'Motorway') | contains(@class,'PrimaryRoad') | contains(@class,'ArterialRoad')]:
+    stroke-width: 0.6
+  ./g[contains(@class,'SubArterialRoad') | contains(@class,'DistributorRoad')]:
+    stroke-width: 0.5
+  ./g[contains(@class,'LocalRoad')]:
+    stroke-width: 0.4
+  ./g[contains(@class,'UrbanServiceLane')]:
+    stroke-width: 0.25
+  ./g[contains(@class,'AccessWay')]:
+    stroke: none
+  ./g[contains(@class,'OnFloodway')][not(contains(@class,'Vehicular'))]:
+    dupe: hatching
+  ./g[contains(@class,'hatching')]:
+    stroke: black
+    stroke-dasharray: 0.5 0.4
+    stroke-width: 0.9
+  ./g[contains(@class,'hatching')][contains(@class,'Motorway') | contains(@class,'PrimaryRoad') | contains(@class,'ArterialRoad')]:
+    stroke-width: 1.1
+  ./g[contains(@class,'hatching')][contains(@class,'SubArterialRoad') | contains(@class,'DistributorRoad')]:
+    stroke-width: 1.0
+railways:
+  ./g:
+    stroke: black
+    stroke-width: 0.2
+    dupe: hatching
+  ./g[contains(@class,'Heavy')]:
+    stroke-width: 0.25
+  ./g[contains(@class,'Light')]:
+    stroke-width: 0.2
+  ./g[contains(@class,'Heavy')][contains(@class,'hatching')]:
+    stroke-width: 0.8
+    stroke-dasharray: 0.25 2.5
+  ./g[contains(@class,'Light')][contains(@class,'hatching')]:
+    stroke-width: 0.6
+    stroke-dasharray: 0.2 4
+road-bridges:
+  # TODO: add bridge endpoints?
+  ./g:
+    stroke: none
+    stroke-width: 0.4
+    stroke-linecap: square
+  ./g[contains(@class,'Sealed') | contains(@class,'Unknown')]:
+    stroke: red
+  ./g[contains(@class,'Unsealed')]:
+    stroke: "#FF7518"
+  ./g[contains(@class,'Path')]:
+    stroke: white
+    stroke-width: 0.25
+    stroke-linecap: butt
+  ./g[contains(@class,'Motorway') | contains(@class,'PrimaryRoad') | contains(@class,'ArterialRoad')]:
+    stroke-width: 0.6
+  ./g[contains(@class,'SubArterialRoad') | contains(@class,'DistributorRoad')]:
+    stroke-width: 0.5
+  ./g[contains(@class,'LocalRoad')]:
+    stroke-width: 0.4
+  ./g[@class]:
+    dupe: outline
+  ./g[contains(@class,'outline')]:
+    stroke: black
+    stroke-width: 0.6
+    stroke-linecap: butt
+  ./g[contains(@class,'outline')][contains(@class,'Path')]:
+    stroke: black
+    stroke-width: 0.5
+  ./g[contains(@class,'outline')][contains(@class,'Motorway') | contains(@class,'PrimaryRoad') | contains(@class,'ArterialRoad')]:
+    stroke-width: 0.8
+  ./g[contains(@class,'outline')][contains(@class,'SubArterialRoad') | contains(@class,'DistributorRoad')]:
+    stroke-width: 0.7
+railway-bridges:
+  # TODO: these look crummy, do we even need them?
+  ./g:
+    stroke: white
+    stroke-width: 0.2
+    dupe: outline
+  ./g[contains(@class,'outline')]:
+    stroke: black
+    stroke-width: 0.8
+railway-stations:
+  ./g[contains(@class,'RailwayStation')]:
+    stroke: black
+    fill: red
+    stroke-width: 0.15
+  ./g[contains(@class,'RailwayStation')]/g: circle
+  ./g[contains(@class,'RailwayStation')]/g/circle:
+    r: 0.4
+gates-grids:
+  # TODO: render differently if no rotation available?
+  ./g/g: path
+  ./g/g/path:
+    stroke: black
+    stroke-width: 0.1
+    fill: none
+  ./g[contains(@class,'Gate')]/g/path:
+    d: M -0.6 -0.4 L 0.6 0.4 L 0.6 -0.4 L -0.6 0.4 Z
+  ./g[contains(@class,'CattleGrid')]/g/path:
+    d: M -0.6 -0.4 L 0.6 -0.4 L 0.6 0.4 L -0.6 0.4 Z M -0.6 0.0 L 0.6 0.0
+buildings:
+  ./g/g: rect
+  ./g/g/rect:
+    width: 0.5
+    height: 0.5
+    x: -0.25
+    y: -0.25
+    stroke: none
+    fill: black
+tanks:
+  ./g:
+    stroke: black
+    fill: white
+    stroke-width: 0.1
+  ./g/g: circle
+  ./g/g/circle:
+    r: 0.3
+spot-heights:
+  ./g:
+    stroke: none
+    fill: black
+  ./g/g: circle
+  ./g/g/circle:
+    r: 0.2
+trig-stations:
+  ./g/g:
+  - path
+  - circle
+  ./g/g/path:
+    d: M 0 -0.9238 L 0.8 0.4619 L -0.8 0.4619 Z
+    stroke: none
+    fill: black
+  ./g/g/circle:
+    r: 0.38
+    stroke: none
+    fill: white
+state-border:
+  ./g:
+    stroke: "#707070"
+    stroke-width: 0.3
+    stroke-dasharray: 3 1 10 1
+    dupe: hatching
+  ./g[contains(@class,'hatching')]:
+    stroke-width: 1.5
+    stroke-dasharray: 0.3 14.7
+    stroke-dashoffset: 13.8
+

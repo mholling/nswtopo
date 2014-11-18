@@ -768,7 +768,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when nil
             REXML.each(layer, xpath, &:remove)
           when Hash
-            sample, dupe, endpoints = %w[sample dupe endpoints].map { |key| args.delete key }
+            sample, dupe, endpoints, pattern = %w[sample dupe endpoints pattern].map { |key| args.delete key }
             REXML::XPath.each(layer, xpath) do |node|
               case node
               when REXML::Element
@@ -812,6 +812,28 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     end
                   end
                 end if endpoints
+                [ id, "pattern", pattern["id"] || xpath.hash].join(SEGMENT).tap do |pattern_id|
+                  REXML::Element.new("pattern").tap do |pattern_element|
+                    pattern_element.add_attributes "id" => pattern_id, "patternUnits" => "userSpaceOnUse"
+                    pattern.each do |key, value|
+                      case key
+                      when "content"
+                        case value
+                        when Array then value.map(&:to_a).inject(&:+)
+                        when Hash  then value.map(&:to_a)
+                        else            [ ]
+                        end.each do |name, attributes|
+                          pattern_element.add_element name, attributes
+                        end
+                      when "id"
+                      else
+                        pattern_element.add_attribute key, value
+                      end
+                    end
+                    xml.elements["/svg/defs"].elements << pattern_element
+                  end unless xml.elements["/svg/defs/pattern[@id='#{pattern_id}']"]
+                  node.add_attribute "fill", "url(##{pattern_id})"
+                end if pattern
               end
             end
           when Proc

@@ -52,6 +52,8 @@ features:
     class: ClassSubtype
   caves-pinnacles:
     name: Caves_Pinnacles
+    redefine: true
+    definition: classsubtype IN (1,2,6)
     class: ClassSubtype
   cadastre:
   - source: plan_section_lot
@@ -119,12 +121,21 @@ features:
     name: Cliffs_Reefs_Mangroves
     definition: classsubtype IN (1,3,4,5)
     class: ClassSubtype
+  rocky-shore:
+    name: CliffTop_Levee
+    definition: classsubtype = 5
+  breakwaters:
+    name: Damwall_Racetrack
+    definition: classsubtype = 5
+    class: ClassSubtype
+  rocks-reefs:
+    name: Caves_Pinnacles
+    redefine: true
+    definition: classsubtype IN (4,5)
+    class: ClassSubtype
   wharves-ramps-slipways:
     name: Wharfs_Ramps
     class: ClassSubtype
-  breakwaters:
-    name: Damwall_Racetrack
-    definition: classsubtype = 5 AND generalculturaltype  = 0
   road-tunnels:
     source: rfs
     name: RoadSegment
@@ -185,11 +196,11 @@ features:
     name: Gates_Grids
     rotate: SymbolRotation
     class: ClassSubtype
-  buildings: Dwellings_Buildings
   tanks:
     source: rfs
     name: TankPoint
     class: TankType
+  buildings: Dwellings_Buildings
   spot-heights: SpotHeight
   trig-stations:
     source: survey
@@ -237,25 +248,17 @@ features:
   # LPIMap/Damwall_Racetrack (GeneralCulturalLine)
   # (classsubtype:generalculturaltype)
   # 2:0 Fence:Undefined
-  # 5:0 Breakwater:Undefined
   # 1:0 ConveyorBelt:Undefined
-
-  # RFS/BuildingComplexPoint (BuildingComplexPoint)
-  # (classsubtype:generalculturaltype)
-  # (use for labeling only)
-  # 4:7 Homestead
 
   # POI/POI (PointOfInterest)
   # (poigroup:poitype)
-  # (use for labelling only, except lighthouse?)
+  # (use for labelling and specific point feature icons)
   # 1:Homestead
-  # 1:Lighthouse 
+  # 1:Lighthouse
+  # 3:Camping Ground
   # 3:Lookout
   # 3:Observation Tower
   # 3:Picnic Area
-  # 3:Ship Wreck
-  # 4:Railway Station
-  # 5:Wind Power Station
   # 6:Bay / Inlet / Basin
   # 6:Beach
   # 6:Bore
@@ -281,19 +284,9 @@ features:
   # 7:Peninsula / Spit
   # 7:Plateau / Tableland
   
-  # # DLSLine / CliffTop_Levee
-  # rock-awash-line: 5 (e.g. rocky shoreline)
-  # rock-inland-line: 6 (e.g. ???)
-  
-  # # DLSPoint / Caves_Pinnacles
-  # Reef: 4
-  # Rock-Awash: 5
-  # Rock-Inland: 6
-  
 intervals-contours:
   10: contours-10m
   20: contours-20m
-
 ./g:
   stroke: none
   fill: none
@@ -342,7 +335,7 @@ cliffs-rocks-sand:
     fill: "#C8C8C8"
   # TODO: add dotted fill patterns for sand, rock
   ./g[contains(@class,'Rock-Inland')]:
-    fill: none
+    fill: brown
   ./g[contains(@class,'Sand')]:
     fill: "#FFF2CC"
 clifftops-levees-excavation:
@@ -370,12 +363,12 @@ clifftops-levees-excavation:
   ./g[contains(@class,'ExcavationFace')]/g[contains(@class,'sample')]/line:
     y2: 0.6
 caves-pinnacles:
-  ./g[contains(@class,'Pinnacle')]:
+  ./g[contains(@class,'Pinnacle') | contains(@class,'Rock-Inland')]:
     stroke: "#B04BA9"
     stroke-width: 0.1
     fill: none
-  ./g[contains(@class,'Pinnacle')]/g: path
-  ./g[contains(@class,'Pinnacle')]/g/path:
+  ./g[contains(@class,'Pinnacle') | contains(@class,'Rock-Inland')]/g: path
+  ./g[contains(@class,'Pinnacle') | contains(@class,'Rock-Inland')]/g/path:
     d: M -0.5 0 L 0.5 0 M 0 -0.5 L 0 0.5 M -0.35 -0.35 L 0.35 0.35 M -0.35 0.35 L 0.35 -0.35
   # TODO: how to render caves? maybe as a black semicircle?
   ./g[contains(@class,'Cave')]:
@@ -484,6 +477,8 @@ waterfalls:
     x1: -0.6
     x2: 0.6
 ocean:
+  # TODO: this overlaps with water-areas sometimes; either limit
+  # by classsubtype = SeaLike or move layer under water-areas
   ./g:
     stroke: none
     fill: '#B3E6E4'
@@ -498,17 +493,45 @@ reefs-mangroves-intertidal:
   ./g[contains(@class,'Reef')]:
     fill: cyan
   ./g[contains(@class,'Rock-Awash')]:
-    fill: brown
+    fill: orange
+rocky-shore:
+  ./g:
+    stroke: "#404040"
+    stroke-width: 0.1
+    fill: "#E0E0E0"
+  ./g/path:
+    stroke: none
+    fill: none
+    sample: 2.0
+  ./g/g[contains(@class,'sample')]: path
+  ./g/g[contains(@class,'sample')]/path:
+    d: M -0.8 -0.5 L -1.0 -0.1 L -0.8 0.1 L -0.6 -0.1 L -0.4 0.3 L 0.0 0.1 L -0.2 -0.7 L -0.4 -0.5 Z M 0.2 -0.5 L 0.0 -0.3 L 0.2 -0.1 L 0.0 0.3 L 0.4 0.5 L 0.6 0.1 L 0.6 -0.1 L 0.4 -0.5 Z M 0.8 -0.5 L 0.6 -0.3 L 0.8 -0.1 L 1.0 -0.3 Z
+breakwaters:
+  ./g:
+    stroke: "#404040"
+    stroke-width: 0.1
+    fill: "#E0E0E0"
+  ./g/path:
+    stroke: none
+    fill: none
+    sample: 1.5
+  ./g/g[contains(@class,'sample')]: path
+  ./g/g[contains(@class,'sample')]/path:
+    d: M -0.8 -0.5 L -1.0 -0.1 L -0.8 0.1 L -0.6 -0.1 L -0.4 0.3 L 0.0 0.1 L -0.2 -0.7 L -0.4 -0.5 Z M 0.2 -0.5 L 0.0 -0.3 L 0.2 -0.1 L 0.0 0.3 L 0.4 0.5 L 0.6 0.1 L 0.6 -0.1 L 0.4 -0.5 Z M 0.8 -0.5 L 0.6 -0.3 L 0.8 -0.1 L 1.0 -0.3 Z
+rocks-reefs:
+  ./g[contains(@class,'Rock-Awash')]:
+    stroke: "#505050"
+    stroke-width: 0.1
+  ./g[contains(@class,'Reef')]:
+    stroke: "#4985DF"
+    stroke-width: 0.1
+  ./g/g: path
+  ./g/g/path:
+    d: M -0.5 0 L 0.5 0 M 0 -0.5 L 0 0.5 M -0.35 -0.35 L 0.35 0.35 M -0.35 0.35 L 0.35 -0.35
 wharves-ramps-slipways:
   ./g:
     stroke: black
     stroke-width: 0.25
-breakwaters:
-  ./g:
-    stroke: black
-    stroke-width: 0.5
-    stroke-dasharray: 0.2 0.5
-    stroke-linecap: round
 road-tunnels:
   ./g:
     stroke-width: 0.2

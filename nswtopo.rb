@@ -764,16 +764,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
           memo
         end.each do |xpath, args|
-          REXML::XPath.each(layer, xpath) do |node|
-            case args
-            when nil then node.remove
-            when Hash
+          case args
+          when nil
+            REXML.each(layer, xpath, &:remove)
+          when Hash
+            sample, dupe, endpoints = %w[sample dupe endpoints].map { |key| args.delete key }
+            REXML::XPath.each(layer, xpath) do |node|
               case node
               when REXML::Element
-                node.add_attributes args.except("dupe", "sample", "endpoints")
-                
+                node.add_attributes args
                 node.attributes["d"].tap do |d|
-                  interval = args["sample"].to_f
+                  interval = sample.to_f
                   d.to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
                     subpath.split(/\s*L\s*/i).map do |pair|
                       pair.split(/\s+/).map(&:to_f)
@@ -791,13 +792,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                       alpha - segment.inject(&:minus).norm / interval
                     end
                   end
-                end if args["sample"]
-                
-                node.deep_clone.tap do |dupe|
-                  dupe.add_attributes "class" => [ *dupe.attributes["class"], args["dupe"] ].join(?\s)
-                  node.parent.insert_before node, dupe
-                end if args["dupe"]
-                
+                end if sample
+                node.deep_clone.tap do |copy|
+                  copy.add_attributes "class" => [ *copy.attributes["class"], dupe ].join(?\s).strip
+                  node.parent.insert_before node, copy
+                end if dupe
                 node.attributes["d"].tap do |d|
                   d.to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
                     subpath.split(/\s*L\s*/i).values_at(0,1,-2,-1).map do |pair|
@@ -807,19 +806,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     end.each do |segment|
                       angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
                       REXML::Element.new("g").tap do |group|
-                        group.add_attributes "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "class" => args["endpoints"]
+                        group.add_attributes "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "class" => endpoints
                         node.parent.insert_after node, group
                       end
                     end
                   end
-                end if args["endpoints"]
+                end if endpoints
               end
-            when Proc
+            end
+          when Proc
+            REXML::XPath.each(layer, xpath) do |node|
               case node
               when REXML::Attribute then node.element.attributes[node.name] = args.(node.value)
               when REXML::Element   then args.(node)
               end
-            else
+            end
+          else
+            REXML::XPath.each(layer, xpath) do |node|
               case node
               when REXML::Attribute then node.element.attributes[node.name] = args
               when REXML::Element   then [ *args ].each { |tag| node.add_element tag }

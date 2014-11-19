@@ -527,6 +527,18 @@ margin: 15
       @extents.map { |extent| (ppi * extent / @scale / 0.0254).floor }
     end
     
+    def corners
+      @extents.map do |extent|
+        [ -0.5 * extent, 0.5 * extent ]
+      end.inject(&:product).values_at(0,1,3,2).map do |point|
+        @centre.plus point.rotate_by(@rotation * Math::PI / 180.0)
+      end
+    end
+    
+    def wgs84_corners
+      @projection.reproject_to_wgs84 corners
+    end
+    
     def overlaps?(bounds)
       axes = [ [ 1, 0 ], [ 0, 1 ] ].map { |axis| axis.rotate_by(@rotation * Math::PI / 180.0) }
       bounds.inject(&:product).map do |corner|
@@ -1634,8 +1646,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         query = {
           "f" => "json",
           "sr" => 4326,
-          "geometryType" => "esriGeometryEnvelope",
-          "geometry" => map.wgs84_bounds.transpose.flatten.join(?,),
+          "geometryType" => "esriGeometryPolygon",
+          "geometry" => { "rings" => [ map.wgs84_corners << map.wgs84_corners.first ] }.to_json,
           "layers" => "all:#{options['id']}",
           "tolerance" => 0,
           "mapExtent" => map.wgs84_bounds.transpose.flatten.join(?,),

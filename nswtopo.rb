@@ -884,6 +884,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def render_svg(xml, map, &block)
+      xml.elements.each("/svg/defs/[starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
       layers = Hash.new do |layers, id|
         layers[id] = REXML::Element.new("g").tap do |layer|
           layer.add_attributes "id" => id, "style" => "opacity:1", "transform" => map.svg_transform(1)

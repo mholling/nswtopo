@@ -1649,7 +1649,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "imageDisplay" => [ *pixels, 96 ].join(?,),
           "returnGeometry" => true,
         }
-        features = [ ]
+        results = [ ]
         index_attribute = options["page-by"] || source["page-by"] || "OBJECTID"
         definition, redefine, id = options.values_at("definition", "redefine", "id")
         paginate = nil
@@ -1674,20 +1674,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.max.tap do |value|
             paginate = "#{index_attribute} > #{value}"
           end
-          features += page
-          $stdout << "\r... #{sublayer_name} (#{features.length} feature#{?s unless features.one?})"
+          results += page
+          $stdout << "\r... #{sublayer_name} (#{results.length} feature#{?s unless results.one?})"
         end while page.any?
         
         edges = map.edges(0.001 * map.scale)
-        features.each do |feature|
-          attributes, geometry_type, geometry = feature.values_at "attributes", "geometryType", "geometry"
-          wkid = geometry.delete("spatialReference")["wkid"]
+        features = results.map do |result|
+          attributes, geometry_type, geometry = result.values_at "attributes", "geometryType", "geometry"
+          wkid = geometry["spatialReference"]["wkid"]
           projection = Projection.new("epsg:#{wkid}")
-          feature["class"] = attributes.values_at(*options["class"])
-          case geometry_type
+          klass = attributes.values_at(*options["class"])
+          data = case geometry_type
           when "esriGeometryPoint"
-            geometry["x"], geometry["y"] = svg_coords(geometry.values_at("x", "y"), projection, map)
-            geometry["angle"] = 90 - attributes[options["rotate"]].to_i if options["rotate"]
+            angle = 90 - attributes[options["rotate"]].to_i if options["rotate"]
+            svg_coords(geometry.values_at("x", "y"), projection, map).push(*angle)
           when "esriGeometryPolyline"
             geometry["paths"].map do |path|
               projection.reproject_to map.projection, path
@@ -1712,8 +1712,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end.flatten(1).reject(&:empty?).map do |path|
               map.coords_to_mm path
-            end.tap do |paths|
-              geometry["paths"] = paths
             end
           when "esriGeometryPolygon"
             geometry["rings"].map do |ring|
@@ -1736,10 +1734,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end.select(&:many?).map do |ring|
               map.coords_to_mm ring
-            end.tap do |rings|
-              geometry["rings"] = rings
             end
           end
+          { "geometryType" => geometry_type, "class" => klass, "data" => data }
         end
         puts
         [ sublayer_name, features ]
@@ -1750,8 +1747,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.tap do |layers|
         Dir.mktmppath do |temp_dir|
           json_path = temp_dir + "#{layer_name}.json"
-          json_path.open("w") { |file| file << JSON.pretty_generate(layers) }
-          # json_path.open("w") { |file| file << layers.to_json }
+          # json_path.open("w") { |file| file << JSON.pretty_generate(layers) }
+          json_path.open("w") { |file| file << layers.to_json }
           FileUtils.cp json_path, path
         end
       end
@@ -1769,20 +1766,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.each do |klass, grouped_features|
             layer.add_element("g", "class" => klass) do |group|
               grouped_features.map do |feature|
-                feature.values_at "geometryType", "geometry"
-              end.each do |geometry_type, geometry|
+                feature.values_at "geometryType", "data"
+              end.each do |geometry_type, data|
                 case geometry_type
                 when "esriGeometryPoint"
-                  x, y, angle = geometry.values_at("x", "y", "angle")
+                  x, y, angle = data
                   transforms = %W[translate(#{x} #{y})]
                   transforms << "rotate(#{angle})" if angle
                   group.add_element "g", "transform" => transforms.join(?\s)
                 when "esriGeometryPolyline", "esriGeometryPolygon"
-                  collection, close, fill_options = case geometry_type
-                    when "esriGeometryPolyline" then [ "paths", nil, { "fill" => "none" }         ]
-                    when "esriGeometryPolygon"  then [ "rings", ?Z,  { "fill-rule" => "evenodd" } ]
+                  close, fill_options = case geometry_type
+                    when "esriGeometryPolyline" then [ nil, { "fill" => "none" }         ]
+                    when "esriGeometryPolygon"  then [ ?Z,  { "fill-rule" => "evenodd" } ]
                   end
-                  geometry[collection].map do |points|
+                  data.map do |points|
                     points.inject do |memo, point|
                       [ *memo, ?L, *point ]
                     end.unshift(?M).push(*close)

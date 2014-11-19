@@ -828,7 +828,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end if endpoints
                 [ id, "pattern", pattern["id"] || xpath.hash].join(SEGMENT).tap do |pattern_id|
                   REXML::Element.new("pattern").tap do |pattern_element|
-                    pattern_element.add_attributes "id" => pattern_id, "patternUnits" => "userSpaceOnUse"
+                    pattern_element.add_attributes "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})"
                     pattern.each do |key, value|
                       case key
                       when "content"
@@ -1772,9 +1772,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 case geometry_type
                 when "esriGeometryPoint"
                   x, y, angle = data
-                  transforms = %W[translate(#{x} #{y})]
-                  transforms << "rotate(#{angle})" if angle
-                  group.add_element "g", "transform" => transforms.join(?\s)
+                  angle ||= 0
+                  transform = "translate(#{x} #{y}) rotate(#{angle - map.rotation})"
+                  group.add_element "g", "transform" => transform
                 when "esriGeometryPolyline", "esriGeometryPolygon"
                   close, fill_options = case geometry_type
                     when "esriGeometryPolyline" then [ nil, { "fill" => "none" }         ]

@@ -1687,7 +1687,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           klass = attributes.values_at(*options["class"])
           data = case geometry_type
           when "esriGeometryPoint"
-            angle = 90 - attributes[options["rotate"]].to_i if options["rotate"]
+            angle = 90 - attributes[options["rotate"]].to_i
+            angle = nil if angle == 90
             svg_coords(geometry.values_at("x", "y"), projection, map).push(*angle)
           when "esriGeometryPolyline"
             geometry["paths"].map do |path|
@@ -1772,9 +1773,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 case geometry_type
                 when "esriGeometryPoint"
                   x, y, angle = data
-                  angle ||= 0
-                  transform = "translate(#{x} #{y}) rotate(#{angle - map.rotation})"
-                  group.add_element "g", "transform" => transform
+                  transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
+                  group.add_element("g", "transform" => transform).tap do |g|
+                    g.add_attribute "class", "rotated" if angle
+                  end
                 when "esriGeometryPolyline", "esriGeometryPolygon"
                   close, fill_options = case geometry_type
                     when "esriGeometryPolyline" then [ nil, { "fill" => "none" }         ]

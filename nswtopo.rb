@@ -741,6 +741,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 element.elements.each(".//font", &:remove)
               end if args
             end ]
+          when "order"
+            args.map do |klass|
+              "./[starts-with(@class,'#{klass}')]"
+            end.each do |xpath|
+              layer.elements.each(xpath) do |element|
+                layer.elements << element.remove
+              end
+            end
           when "stroke", "fill"
             case args
             when Hash

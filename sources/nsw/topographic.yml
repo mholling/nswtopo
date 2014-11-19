@@ -487,7 +487,10 @@ pondage:
     stroke-width: 0.12
 water-areas:
   # TODO: how does this look for non-perennial stock dams?
-  # TODO: we need to specify the order of perennial & non-perennial; requires new code
+  order:
+    - MainlyDry
+    - NonPerennial
+    - Perennial
   ./g[not(contains(@class,'NonPerennial'))][not(contains(@class,'MainlyDry'))]:
     fill: "#B3E6E4"
     dupe: outline

@@ -519,24 +519,35 @@ margin: 15
       @scale * 0.0254 / ppi
     end
     
-    def dimensions_in_mm
-      @extents.map { |extent| 1000.0 * extent / @scale }
-    end
-    
     def dimensions_at(ppi)
       @extents.map { |extent| (ppi * extent / @scale / 0.0254).floor }
     end
     
-    def corners
+    def corners(margin = 0)
       @extents.map do |extent|
-        [ -0.5 * extent, 0.5 * extent ]
-      end.inject(&:product).values_at(0,1,3,2).map do |point|
+        [ -0.5 * extent - margin, 0.5 * extent + margin ]
+      end.inject(&:product).values_at(1,3,2,0).map do |point|
         @centre.plus point.rotate_by(@rotation * Math::PI / 180.0)
       end
     end
     
-    def wgs84_corners
-      @projection.reproject_to_wgs84 corners
+    def wgs84_corners(margin = 0)
+      @projection.reproject_to_wgs84 corners(margin)
+    end
+    
+    def edges(margin)
+      axes = [ 180, 90, 0, -90 ].map do |angle|
+        [ 1, 0 ].rotate_by((@rotation + angle) * Math::PI / 180.0)
+      end
+      [ axes, corners(margin) ].transpose
+    end
+    
+    def coords_to_mm(coords)
+      coords.one_or_many do |easting, northing|
+        [ easting - bounds.first.first, bounds.last.last - northing ].map do |metres|
+          1000.0 * metres / scale
+        end
+      end
     end
     
     def overlaps?(bounds)
@@ -555,12 +566,6 @@ margin: 15
     
     def write_oziexplorer_map(path, name, image, ppi)
       dimensions = dimensions_at(ppi)
-      corners = @extents.map do |extent|
-        [ -0.5 * extent, 0.5 * extent ]
-      end.inject(:product).map do |offsets|
-        [ @centre, offsets.rotate_by(rotation * Math::PI / 180.0) ].transpose.map { |coord, offset| coord + offset }
-      end
-      wgs84_corners = @projection.reproject_to_wgs84(corners).values_at(1,3,2,0)
       pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
       calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
         dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
@@ -881,6 +886,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   module Annotation
     def svg_coords(coords, projection, map)
+      # map.coords_to_mm projection.reproject_to(map.projection, coords) # TODO: make this conversion?
       projection.reproject_to(map.projection, coords).one_or_many do |easting, northing|
         [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
           1000.0 * metres / map.scale
@@ -1682,13 +1688,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           features += page
           $stdout << "\r... #{sublayer_name} (#{features.length} feature#{?s unless features.one?})"
         end while page.any?
-        dimensions = map.dimensions_in_mm
-        edges = [
-          [ [  0,  1 ], [ 0, 1 + dimensions[1] ] ],
-          [ [  1,  0 ], [ 1 + dimensions[0], 0 ] ],
-          [ [  0, -1 ], [ 0, -1 ] ],
-          [ [ -1,  0 ], [ -1, 0 ] ]
-        ]
+        
+        edges = map.edges(0.001 * map.scale)
         features.each do |feature|
           attributes, geometry_type, geometry = feature.values_at "attributes", "geometryType", "geometry"
           wkid = geometry.delete("spatialReference")["wkid"]
@@ -1699,8 +1700,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             geometry["x"], geometry["y"] = svg_coords(geometry.values_at("x", "y"), projection, map)
             geometry["angle"] = 90 - attributes[options["rotate"]].to_i if options["rotate"]
           when "esriGeometryPolyline"
-            geometry["paths"].map do |coords|
-              svg_coords(coords, projection, map)
+            geometry["paths"].map do |path|
+              projection.reproject_to map.projection, path
             end.map do |path|
               edges.inject([path]) do |subpaths, (axis, offset)|
                 subpaths.select(&:many?).map do |subpath|
@@ -1720,14 +1721,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   end.select(&:many?)
                 end.flatten(1)
               end
-            end.flatten(1).reject(&:empty?).tap do |paths|
+            end.flatten(1).reject(&:empty?).map do |path|
+              map.coords_to_mm path
+            end.tap do |paths|
               geometry["paths"] = paths
             end
           when "esriGeometryPolygon"
-            geometry["rings"].map do |coords|
-              svg_coords(coords, projection, map)
-            end.select(&:many?).map do |points|
-              edges.inject(points) do |clipped, (axis, offset)|
+            geometry["rings"].map do |ring|
+              projection.reproject_to map.projection, ring
+            end.select(&:many?).map do |ring|
+              edges.inject(ring) do |clipped, (axis, offset)|
                 clipped.ring.inject([]) do |clipped, segment|
                   inside = segment.map { |point| point.minus(offset).dot(axis) <= 0 }
                   case
@@ -1742,7 +1745,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   clipped
                 end
               end
-            end.select(&:many?).tap do |rings|
+            end.select(&:many?).map do |ring|
+              map.coords_to_mm ring
+            end.tap do |rings|
               geometry["rings"] = rings
             end
           end

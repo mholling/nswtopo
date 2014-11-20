@@ -777,7 +777,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
           memo
-        end.each do |xpath, args|
+        end.each.with_index do |(xpath, args), index|
           case args
           when nil
             REXML.each(layer, xpath, &:remove)
@@ -787,9 +787,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               case node
               when REXML::Element
                 node.add_attributes args
-                node.attributes["d"].tap do |d|
-                  interval = sample.to_f
-                  d.to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
+                [ id, "sample", sample["id"] || index ].join(SEGMENT).tap do |sample_id|
+                  REXML::Element.new("g").tap do |group|
+                    group.add_attributes "id" => sample_id
+                    case sample["content"]
+                    when Array then sample["content"].map(&:to_a).inject(&:+)
+                    when Hash  then sample["content"].map(&:to_a)
+                    else            [ ]
+                    end.each do |name, attributes|
+                      group.add_element name, attributes
+                    end
+                    xml.elements["/svg/defs"].elements << group
+                  end unless xml.elements["/svg/defs/g[@id='#{sample_id}']"]
+                  interval = sample["interval"]
+                  node.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
                     subpath.split(/\s*L\s*/i).map do |pair|
                       pair.split(/\s+/).map(&:to_f)
                     end.segments.inject(0.5) do |alpha, segment|
@@ -797,9 +808,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                       while segment.inject(&:minus).norm > alpha * interval
                         fraction = alpha * interval / segment.inject(&:minus).norm
                         segment[0] = segment[1].times(fraction).plus segment[0].times(1.0 - fraction)
-                        REXML::Element.new("g").tap do |group|
-                          group.add_attributes "transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "class" => "sample"
-                          node.parent.insert_after node, group
+                        REXML::Element.new("use").tap do |use|
+                          use.add_attributes "transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{sample_id}"
+                          node.parent.insert_after node, use
                         end
                         alpha = 1.0
                       end
@@ -826,7 +837,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     end
                   end
                 end if endpoints
-                [ id, "pattern", pattern["id"] || xpath.hash].join(SEGMENT).tap do |pattern_id|
+                [ id, "pattern", pattern["id"] || index ].join(SEGMENT).tap do |pattern_id|
                   REXML::Element.new("pattern").tap do |pattern_element|
                     pattern_element.add_attributes "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})"
                     pattern.each do |key, value|

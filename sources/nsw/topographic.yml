@@ -332,10 +332,11 @@ contours-10m:
   ./g[contains(@class,'1') | contains(@class,'2')][not(contains(@class,'10'))][not(contains(@class,'DepressionContour'))]:
     stroke-width: 0.24
   ./g[contains(@class,'DepressionContour')]/path:
-    sample: 2.0
-  ./g[contains(@class,'DepressionContour')]/g[contains(@class,'sample')]: line
-  ./g[contains(@class,'DepressionContour')]/g[contains(@class,'sample')]/line:
-    y2: 0.5
+    sample:
+      interval: 2.0
+      content:
+        line:
+          y2: 0.5
   ./g[contains(@class,'AncillaryContour')]:
     stroke-dasharray: 3 1
     stroke-width: 0.1
@@ -346,10 +347,11 @@ contours-20m:
   ./g[contains(@class,'1') | contains(@class,'2')][not(contains(@class,'10'))][not(contains(@class,'DepressionContour'))]:
     stroke-width: 0.24
   ./g[contains(@class,'DepressionContour')]/path:
-    sample: 2.0
-  ./g[contains(@class,'DepressionContour')]/g[contains(@class,'sample')]: line
-  ./g[contains(@class,'DepressionContour')]/g[contains(@class,'sample')]/line:
-    y2: 0.5
+    sample:
+      interval: 2.0
+      content:
+        line:
+          y2: 0.5
   ./g[contains(@class,'AncillaryContour')]:
     stroke-dasharray: 3 1
     stroke-width: 0.1
@@ -381,10 +383,11 @@ clifftops-levees-excavation:
     stroke: "#B04BA9"
     stroke-width: 0.2
   ./g[contains(@class,'CliffTop')]/path:
-    sample: 1.0
-  ./g[contains(@class,'CliffTop')]/g[contains(@class,'sample')]: line
-  ./g[contains(@class,'CliffTop')]/g[contains(@class,'sample')]/line:
-    y2: 0.5
+    sample:
+      interval: 1.0
+      content:
+        line:
+          y2: 0.5
   ./g[contains(@class,'Levee')]:
     stroke: black
     stroke-width: 0.1
@@ -396,10 +399,11 @@ clifftops-levees-excavation:
     stroke: black
     stroke-width: 0.12
   ./g[contains(@class,'ExcavationFace')]/path:
-    sample: 1.2
-  ./g[contains(@class,'ExcavationFace')]/g[contains(@class,'sample')]: line
-  ./g[contains(@class,'ExcavationFace')]/g[contains(@class,'sample')]/line:
-    y2: 0.6
+    sample:
+      interval: 1.2
+      content:
+        line:
+          y2: 0.6
 caves-pinnacles:
   ./g[contains(@class,'Pinnacle') | contains(@class,'Rock-Inland')]:
     stroke: "#B04BA9"
@@ -547,11 +551,12 @@ dam-walls-spillways:
   ./g[contains(@class,'SpillwayEdge')]:
     stroke-width: 0.15
   ./g[contains(@class,'SpillwayEdge')]/path:
-    sample: 0.8
-  ./g[contains(@class,'SpillwayEdge')]/g[contains(@class,'sample')]: line
-  ./g[contains(@class,'SpillwayEdge')]/g[contains(@class,'sample')]/line:
-    y1: -0.15
-    y2: 0.15
+    sample:
+      interval: 0.8
+      content:
+        line:
+          y1: -0.15
+          y2: 0.15
 waterfalls:
   ./g[contains(@class,'Waterfall')]/g[@class='rotated']: line
   ./g[contains(@class,'Waterfall')]/g[@class='rotated']/line:
@@ -614,10 +619,11 @@ rocky-shore:
   ./g/path:
     stroke: none
     fill: none
-    sample: 2.0
-  ./g/g[contains(@class,'sample')]: path
-  ./g/g[contains(@class,'sample')]/path:
-    d: M -0.8 -0.5 L -1.0 -0.1 L -0.8 0.1 L -0.6 -0.1 L -0.4 0.3 L 0.0 0.1 L -0.2 -0.7 L -0.4 -0.5 Z M 0.2 -0.5 L 0.0 -0.3 L 0.2 -0.1 L 0.0 0.3 L 0.4 0.5 L 0.6 0.1 L 0.6 -0.1 L 0.4 -0.5 Z M 0.8 -0.5 L 0.6 -0.3 L 0.8 -0.1 L 1.0 -0.3 Z
+    sample:
+      interval: 2.0
+      content:
+        path:
+          d: M -0.8 -0.5 L -1.0 -0.1 L -0.8 0.1 L -0.6 -0.1 L -0.4 0.3 L 0.0 0.1 L -0.2 -0.7 L -0.4 -0.5 Z M 0.2 -0.5 L 0.0 -0.3 L 0.2 -0.1 L 0.0 0.3 L 0.4 0.5 L 0.6 0.1 L 0.6 -0.1 L 0.4 -0.5 Z M 0.8 -0.5 L 0.6 -0.3 L 0.8 -0.1 L 1.0 -0.3 Z
 breakwaters:
   ./g:
     stroke: "#404040"
@@ -626,10 +632,11 @@ breakwaters:
   ./g/path:
     stroke: none
     fill: none
-    sample: 1.5
-  ./g/g[contains(@class,'sample')]: path
-  ./g/g[contains(@class,'sample')]/path:
-    d: M -0.8 -0.5 L -1.0 -0.1 L -0.8 0.1 L -0.6 -0.1 L -0.4 0.3 L 0.0 0.1 L -0.2 -0.7 L -0.4 -0.5 Z M 0.2 -0.5 L 0.0 -0.3 L 0.2 -0.1 L 0.0 0.3 L 0.4 0.5 L 0.6 0.1 L 0.6 -0.1 L 0.4 -0.5 Z M 0.8 -0.5 L 0.6 -0.3 L 0.8 -0.1 L 1.0 -0.3 Z
+    sample:
+      interval: 1.5
+      content:
+        path:
+          d: M -0.8 -0.5 L -1.0 -0.1 L -0.8 0.1 L -0.6 -0.1 L -0.4 0.3 L 0.0 0.1 L -0.2 -0.7 L -0.4 -0.5 Z M 0.2 -0.5 L 0.0 -0.3 L 0.2 -0.1 L 0.0 0.3 L 0.4 0.5 L 0.6 0.1 L 0.6 -0.1 L 0.4 -0.5 Z M 0.8 -0.5 L 0.6 -0.3 L 0.8 -0.1 L 1.0 -0.3 Z
 rocks-reefs:
   ./g[contains(@class,'Rock-Awash')]:
     stroke: "#505050"

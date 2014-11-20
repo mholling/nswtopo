@@ -1440,11 +1440,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             options["name"] = options["name"].gsub UNDERSCORES, ?_ if options["name"]
             options["id"] ||= service["layers"].find { |layer| layer["name"] == options["name"] }.fetch("id")
             options["names"] = [ ].tap do |layers|
-              begin
+              loop do
                 layers << service["layers"].find do |layer|
                   layer["id"] == (layers.empty? ? options["id"] : layers.last["parentLayerId"])
                 end
-              end while layers.last
+                break unless layers.last
+              end
             end.compact.reverse.map do |layer|
               layer["name"].gsub(UNDERSCORES, ?_)
             end
@@ -1654,7 +1655,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         index_attribute = options["page-by"] || source["page-by"] || "OBJECTID"
         definition, redefine, id = options.values_at("definition", "redefine", "id")
         paginate = nil
-        begin
+        loop do
           definitions = [ *options["definition"], *paginate ]
           paged_query = case
           when definitions.any? && redefine then { "layerDefs" => "#{id}:1 < 0) OR ((#{definitions.join ') AND ('})" }
@@ -1677,7 +1678,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
           results += page
           $stdout << "\r... #{sublayer_name} (#{results.length} feature#{?s unless results.one?})"
-        end while page.any?
+          break unless page.any?
+        end
         
         edges = map.edges(0.001 * map.scale)
         features = results.map do |result|

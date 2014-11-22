@@ -870,6 +870,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
             end
+          when Proc
+            # TODO: needed for "glow" command; remove later
+            REXML::XPath.each(layer, xpath) do |node|
+              case node
+              when REXML::Attribute then node.element.attributes[node.name] = args.(node.value)
+              when REXML::Element   then args.(node)
+              end
+            end
           else
             REXML::XPath.each(layer, xpath) do |node|
               case node

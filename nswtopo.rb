@@ -710,13 +710,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def rerender(xml, map)
-      scale_by = lambda do |factor, string|
-        string.split(/[,\s]+/).map { |number| factor * number.to_f }.join(?\s)
-      end
       xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
-        id = layer.attributes["id"]
-        sublayer_name = id.split(/^#{layer_name}#{SEGMENT}?/).last
-        puts "  ... #{sublayer_name}" unless id == layer_name
+        layer_id = layer.attributes["id"]
+        sublayer_name = layer_id.split(/^#{layer_name}#{SEGMENT}?/).last
+        puts "  ... #{sublayer_name}" unless layer_id == layer_name
         (params["equivalences"] || {}).select do |group, sublayer_names|
           sublayer_names.include? sublayer_name
         end.map(&:first).push(sublayer_name).inject(params) do |memo, key|
@@ -725,13 +722,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           memo.deep_merge case command
           when "colour" then { "stroke" => args, "fill" => args }
           when "expand" then { "widen" => args, "stretch" => args }
+          when "symbol" then { "symbols" => { "" => args } }
           else { command => args }
           end
         end.tap do |commands|
           commands.merge! "glow" => commands.delete("glow") if commands["glow"]
         end.inject([]) do |memo, (command, args)|
           case command
-          when %r{\./}   then memo << [ command, args ]
+          when %r{^\./}   then memo << [ command, args ]
           when "opacity" then memo << [ "self::/@style", "opacity:#{args}" ]
           when "width"   then memo << [ ".//[@stroke-width and not(self::text)]/@stroke-width", args ]
           when "glow"
@@ -748,8 +746,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end if args
             end ]
           when "order"
-            args.map do |klass|
-              "./[starts-with(@class,'#{klass}')]"
+            args.map do |categories|
+              "./[starts-with(@class,'#{categories}')]"
             end.each do |xpath|
               layer.elements.each(xpath) do |element|
                 layer.elements << element.remove
@@ -758,9 +756,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "stroke", "fill"
             case args
             when Hash
-              args.each { |colour, replacement|
+              args.each do |colour, replacement|
                 memo << [ ".//[@#{command}='#{colour}']/@#{command}", replacement ]
-              }
+              end
             else
               memo << [ ".//[@#{command}!='none']/@#{command}", args ]
             end
@@ -775,97 +773,111 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when nil             then memo << [ ".//[@stroke-dasharray]/@stroke-dasharray", nil ]
             when String, Numeric then memo << [ ".//(path|polyline)", { "stroke-dasharray" => args } ]
             end
+          when "symbols"
+            args.each do |categories, elements|
+              [ *categories ].select do |category|
+                layer.elements["./g[starts-with(@class,'#{category}')]"]
+              end.each do |category|
+                id = [ layer_id, *category.split(?\s), "symbol" ].join SEGMENT
+                memo << [ "//svg/defs", { "g" => { "id" => id } } ]
+                memo << [ "//svg/defs/g[@id='#{id}']", elements ]
+                memo << [ "./g[starts-with(@class,'#{category}')]/use", { "xlink:href" => "##{id}"} ]
+              end
+            end
           end
           memo
         end.each.with_index do |(xpath, args), index|
           case args
           when nil
             REXML.each(layer, xpath, &:remove)
-          when Hash
-            sample, dupe, endpoints, pattern = %w[sample dupe endpoints pattern].map { |key| args.delete key }
+          when Hash, Array
             REXML::XPath.each(layer, xpath) do |node|
               case node
               when REXML::Element
-                node.add_attributes args
-                [ id, "sample", sample["id"] || index ].join(SEGMENT).tap do |sample_id|
-                  REXML::Element.new("g").tap do |group|
-                    group.add_attributes "id" => sample_id
-                    case sample["content"]
-                    when Array then sample["content"].map(&:to_a).inject(&:+)
-                    when Hash  then sample["content"].map(&:to_a)
-                    else            [ ]
-                    end.each do |name, attributes|
-                      group.add_element name, attributes
-                    end
-                    xml.elements["/svg/defs"].elements << group
-                  end unless xml.elements["/svg/defs/g[@id='#{sample_id}']"]
-                  interval = sample["interval"]
-                  node.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
-                    subpath.split(/\s*L\s*/i).map do |pair|
-                      pair.split(/\s+/).map(&:to_f)
-                    end.segments.inject(0.5) do |alpha, segment|
-                      angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
-                      while segment.inject(&:minus).norm > alpha * interval
-                        fraction = alpha * interval / segment.inject(&:minus).norm
-                        segment[0] = segment[1].times(fraction).plus segment[0].times(1.0 - fraction)
-                        REXML::Element.new("use").tap do |use|
-                          use.add_attributes "transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{sample_id}"
-                          node.parent.insert_after node, use
-                        end
-                        alpha = 1.0
+                case args
+                when Array then args.map(&:to_a).inject(&:+)
+                when Hash  then args
+                end.each do |key, value|
+                  case key
+                  when "sample"
+                    sample_id = [ layer_id, "sample", value["id"] || index ].join(SEGMENT)
+                    content, interval = value.values_at("content", "interval")
+                    REXML::Element.new("g").tap do |group|
+                      group.add_attributes "id" => sample_id
+                      case content
+                      when Array then content.map(&:to_a).inject(&:+)
+                      when Hash  then content.map(&:to_a)
+                      else            [ ]
+                      end.each do |name, attributes|
+                        group.add_element name, attributes
                       end
-                      alpha - segment.inject(&:minus).norm / interval
+                      xml.elements["/svg/defs"].elements << group
+                    end unless xml.elements["/svg/defs/g[@id='#{sample_id}']"]
+                    node.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
+                      subpath.split(/\s*L\s*/i).map do |pair|
+                        pair.split(/\s+/).map(&:to_f)
+                      end.segments.inject(0.5) do |alpha, segment|
+                        angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
+                        while segment.inject(&:minus).norm > alpha * interval
+                          fraction = alpha * interval / segment.inject(&:minus).norm
+                          segment[0] = segment[1].times(fraction).plus segment[0].times(1.0 - fraction)
+                          REXML::Element.new("use").tap do |use|
+                            use.add_attributes "transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{sample_id}"
+                            node.parent.insert_after node, use
+                          end
+                          alpha = 1.0
+                        end
+                        alpha - segment.inject(&:minus).norm / interval
+                      end
+                    end
+                  when "dupe"
+                    node.deep_clone.tap do |dupe|
+                      dupe.add_attributes "class" => [ *dupe.attributes["class"], value ].join(?\s).strip
+                      node.parent.insert_before node, dupe
+                    end
+                  when "endpoints"
+                    node.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
+                      subpath.split(/\s*L\s*/i).values_at(0,1,-2,-1).map do |pair|
+                        pair.split(/\s+/).map(&:to_f)
+                      end.segments.values_at(0,-1).zip([ :to_a, :reverse ]).map do |segment, order|
+                        segment.send order
+                      end.each do |segment|
+                        angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
+                        REXML::Element.new("g").tap do |group|
+                          group.add_attributes "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "class" => value
+                          node.parent.insert_after node, group
+                        end
+                      end
+                    end
+                  when "pattern"
+                    pattern_id = [ layer_id, "pattern", value["id"] || index ].join(SEGMENT)
+                    REXML::Element.new("pattern").tap do |pattern_element|
+                      pattern_element.add_attributes "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})"
+                      value.each do |key, value|
+                        case key
+                        when "content"
+                          case value
+                          when Array then value.map(&:to_a).inject(&:+)
+                          when Hash  then value.map(&:to_a)
+                          else            [ ]
+                          end.each do |name, attributes|
+                            pattern_element.add_element name, attributes
+                          end
+                        when "id"
+                        else
+                          pattern_element.add_attribute key, value
+                        end
+                      end
+                      xml.elements["/svg/defs"].elements << pattern_element
+                    end unless xml.elements["/svg/defs/pattern[@id='#{pattern_id}']"]
+                    node.add_attribute "fill", "url(##{pattern_id})"
+                  else
+                    case value
+                    when Hash then node.add_element key, value
+                    else           node.add_attribute key, value
                     end
                   end
-                end if sample
-                node.deep_clone.tap do |copy|
-                  copy.add_attributes "class" => [ *copy.attributes["class"], dupe ].join(?\s).strip
-                  node.parent.insert_before node, copy
-                end if dupe
-                node.attributes["d"].tap do |d|
-                  d.to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
-                    subpath.split(/\s*L\s*/i).values_at(0,1,-2,-1).map do |pair|
-                      pair.split(/\s+/).map(&:to_f)
-                    end.segments.values_at(0,-1).zip([ :to_a, :reverse ]).map do |segment, order|
-                      segment.send order
-                    end.each do |segment|
-                      angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
-                      REXML::Element.new("g").tap do |group|
-                        group.add_attributes "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "class" => endpoints
-                        node.parent.insert_after node, group
-                      end
-                    end
-                  end
-                end if endpoints
-                [ id, "pattern", pattern["id"] || index ].join(SEGMENT).tap do |pattern_id|
-                  REXML::Element.new("pattern").tap do |pattern_element|
-                    pattern_element.add_attributes "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})"
-                    pattern.each do |key, value|
-                      case key
-                      when "content"
-                        case value
-                        when Array then value.map(&:to_a).inject(&:+)
-                        when Hash  then value.map(&:to_a)
-                        else            [ ]
-                        end.each do |name, attributes|
-                          pattern_element.add_element name, attributes
-                        end
-                      when "id"
-                      else
-                        pattern_element.add_attribute key, value
-                      end
-                    end
-                    xml.elements["/svg/defs"].elements << pattern_element
-                  end unless xml.elements["/svg/defs/pattern[@id='#{pattern_id}']"]
-                  node.add_attribute "fill", "url(##{pattern_id})"
-                end if pattern
-              end
-            end
-          when Proc
-            REXML::XPath.each(layer, xpath) do |node|
-              case node
-              when REXML::Attribute then node.element.attributes[node.name] = args.(node.value)
-              when REXML::Element   then args.(node)
+                end
               end
             end
           else
@@ -1697,11 +1709,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           attributes, geometry_type, geometry = result.values_at "attributes", "geometryType", "geometry"
           wkid = geometry["spatialReference"]["wkid"]
           projection = Projection.new("epsg:#{wkid}")
-          klass = attributes.values_at(*options["class"])
+          category = attributes.values_at(*options["category"])
           data = case geometry_type
           when "esriGeometryPoint"
-            angle = 90 - attributes[options["rotate"]].to_i
-            angle = nil if angle == 90
+            angle = 90 - attributes[options["rotate"]].to_i if options["rotate"]
+            category.push angle == 90 ? "no-angle" : "angle" if options["rotate"]
             svg_coords(geometry.values_at("x", "y"), projection, map).push(*angle)
           when "esriGeometryPolyline"
             geometry["paths"].map do |path|
@@ -1751,7 +1763,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               map.coords_to_mm ring
             end
           end
-          { "geometryType" => geometry_type, "class" => klass, "data" => data }
+          { "geometryType" => geometry_type, "category" => category, "data" => data }
         end
         puts
         [ sublayer_name, features ]
@@ -1777,30 +1789,34 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         puts "  ... #{sublayer_name}" unless features.empty?
         yield(sublayer_name).tap do |layer|
           features.group_by do |feature|
-            feature["class"].compact.reject(&:empty?).join ?\s
-          end.each do |klass, grouped_features|
-            layer.add_element("g", "class" => klass) do |group|
-              grouped_features.map do |feature|
-                feature.values_at "geometryType", "data"
-              end.each do |geometry_type, data|
+            feature["category"].compact.reject(&:empty?)
+          end.each do |category, grouped_features|
+            layer.add_element("g") do |group|
+              group.add_attribute "class", category.join(?\s)
+              grouped_features.group_by do |feature|
+                feature["geometryType"]
+              end.each do |geometry_type, grouped_features|
                 case geometry_type
                 when "esriGeometryPoint"
-                  x, y, angle = data
-                  transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
-                  group.add_element("g", "transform" => transform).tap do |g|
-                    g.add_attribute "class", "rotated" if angle
+                  grouped_features.map do |feature|
+                    feature["data"]
+                  end.each do |x, y, angle|
+                    transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
+                    group.add_element "use", "transform" => transform
                   end
                 when "esriGeometryPolyline", "esriGeometryPolygon"
                   close, fill_options = case geometry_type
                     when "esriGeometryPolyline" then [ nil, { "fill" => "none" }         ]
                     when "esriGeometryPolygon"  then [ ?Z,  { "fill-rule" => "evenodd" } ]
                   end
-                  data.map do |points|
-                    points.inject do |memo, point|
-                      [ *memo, ?L, *point ]
-                    end.unshift(?M).push(*close)
-                  end.inject(&:+).tap do |subpaths|
-                    group.add_element "path", fill_options.merge("d" => subpaths.join(?\s)) if subpaths
+                  grouped_features.each do |feature|
+                    feature["data"].map do |points|
+                      points.inject do |memo, point|
+                        [ *memo, ?L, *point ]
+                      end.unshift(?M).push(*close)
+                    end.inject(&:+).tap do |subpaths|
+                      group.add_element "path", fill_options.merge("d" => subpaths.join(?\s)) if subpaths
+                    end
                   end
                 end
               end

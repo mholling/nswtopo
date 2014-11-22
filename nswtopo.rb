@@ -720,9 +720,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           params[key] ? memo.deep_merge(params[key]) : memo
         end.inject({}) do |memo, (command, args)|
           memo.deep_merge case command
-          when "colour" then { "stroke" => args, "fill" => args }
-          when "expand" then { "widen" => args, "stretch" => args }
-          when "symbol" then { "symbols" => { "" => args } }
+          when "colour"  then { "stroke" => args, "fill" => args }
+          when "expand"  then { "widen" => args, "stretch" => args }
+          when "symbol"  then { "symbols" => { "" => args } }
+          when "pattern" then { "patterns" => { "" => args } }
           else { command => args }
           end
         end.tap do |commands|
@@ -782,6 +783,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 memo << [ "//svg/defs", { "g" => { "id" => id } } ]
                 memo << [ "//svg/defs/g[@id='#{id}']", elements ]
                 memo << [ "./g[starts-with(@class,'#{category}')]/use", { "xlink:href" => "##{id}"} ]
+              end
+            end
+          when "patterns"
+            args.each do |categories, elements|
+              [ *categories ].select do |category|
+                layer.elements["./g[starts-with(@class,'#{category}')]"]
+              end.each do |category|
+                id = [ layer_id, *category.split(?\s), "pattern" ].join SEGMENT
+                memo << [ "//svg/defs", { "pattern" => { "id" => id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})" } } ]
+                memo << [ "//svg/defs/pattern[@id='#{id}']", elements ]
+                memo << [ "./g[starts-with(@class,'#{category}')]", { "fill" => "url(##{id})"} ]
               end
             end
           end
@@ -849,28 +861,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                         end
                       end
                     end
-                  when "pattern"
-                    pattern_id = [ layer_id, "pattern", value["id"] || index ].join(SEGMENT)
-                    REXML::Element.new("pattern").tap do |pattern_element|
-                      pattern_element.add_attributes "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})"
-                      value.each do |key, value|
-                        case key
-                        when "content"
-                          case value
-                          when Array then value.map(&:to_a).inject(&:+)
-                          when Hash  then value.map(&:to_a)
-                          else            [ ]
-                          end.each do |name, attributes|
-                            pattern_element.add_element name, attributes
-                          end
-                        when "id"
-                        else
-                          pattern_element.add_attribute key, value
-                        end
-                      end
-                      xml.elements["/svg/defs"].elements << pattern_element
-                    end unless xml.elements["/svg/defs/pattern[@id='#{pattern_id}']"]
-                    node.add_attribute "fill", "url(##{pattern_id})"
                   else
                     case value
                     when Hash then node.add_element key, value

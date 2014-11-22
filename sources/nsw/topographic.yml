@@ -148,6 +148,11 @@ features:
     category:
     - ClassSubtype
     - generalculturaltype
+  floodways:
+    source: rfs
+    name: RoadSegment
+    definition: operationalstatus NOT IN (3,8) AND roadontype = 4 AND classsubtype <> 8 AND functionhierarchy IN (1,2,3,4,5,6)
+    category: FunctionHierarchy
   roads:
     source: rfs
     name: RoadSegment
@@ -367,8 +372,9 @@ clifftops-levees-excavation:
   ./g[contains(@class,'Levee')]:
     stroke: black
     stroke-width: 0.1
-    dupe: hatching
-  ./g[contains(@class,'Levee')][contains(@class,'hatching')]:
+  dupes:
+    Levee: hatching
+  ./g/[contains(@class,'hatching')]:
     stroke-width: 1.0
     stroke-dasharray: 0.1 0.5
   ./g[contains(@class,'ExcavationFace')]:
@@ -482,8 +488,9 @@ water-areas:
     - Perennial
   ./g[not(contains(@class,'NonPerennial'))][not(contains(@class,'MainlyDry'))]:
     fill: "#B3E6E4"
-    dupe: outline
-  ./g[contains(@class,'outline')]:
+  dupes:
+    Perennial: outline
+  ./g/[contains(@class,'outline')]:
     stroke: "#4985DF"
     stroke-width: 0.24
     fill: none
@@ -682,6 +689,16 @@ recreational-perimeters:
     stroke: black
     stroke-width: 0.15
     stroke-dasharray: 0.8 0.2
+floodways:
+  ./g:
+    stroke: black
+    stroke-dasharray: 0.5 0.4
+    stroke-width: 0.9
+    stroke-linecap: butt
+  ./g[contains(@class,'Motorway') | contains(@class,'PrimaryRoad') | contains(@class,'ArterialRoad')]:
+    stroke-width: 1.1
+  ./g[contains(@class,'SubArterialRoad') | contains(@class,'DistributorRoad')]:
+    stroke-width: 1.0
 roads:
   # TODO: add rendering for OnCulvert (blue outline?)
   order:
@@ -722,31 +739,20 @@ roads:
     stroke-width: 0.25
   ./g[contains(@class,'AccessWay')]:
     stroke: none
-  ./g[contains(@class,'OnFloodway')][not(contains(@class,'Vehicular'))]:
-    dupe: hatching
-  ./g[contains(@class,'hatching')]:
-    stroke: black
-    stroke-dasharray: 0.5 0.4
-    stroke-width: 0.9
-    stroke-linecap: butt
-  ./g[contains(@class,'hatching')][contains(@class,'Motorway') | contains(@class,'PrimaryRoad') | contains(@class,'ArterialRoad')]:
-    stroke-width: 1.1
-  ./g[contains(@class,'hatching')][contains(@class,'SubArterialRoad') | contains(@class,'DistributorRoad')]:
-    stroke-width: 1.0
 railways:
   ./g:
     stroke: black
     stroke-width: 0.2
-    dupe: hatching
   ./g[contains(@class,'Heavy')]:
     stroke-width: 0.25
   ./g[contains(@class,'Light')]:
     stroke-width: 0.2
-  ./g[contains(@class,'Heavy')][contains(@class,'hatching')]:
+  dupe: hatching
+  ./g/[contains(@class,'Heavy')][contains(@class,'hatching')]:
     stroke-width: 0.8
     stroke-dasharray: 0.25 2.5
     stroke-dashoffset: 1.25
-  ./g[contains(@class,'Light')][contains(@class,'hatching')]:
+  ./g/[contains(@class,'Light')][contains(@class,'hatching')]:
     stroke-width: 0.6
     stroke-dasharray: 0.2 4
     stroke-dashoffset: 2
@@ -769,43 +775,42 @@ road-bridges:
     stroke-width: 0.5
   ./g[contains(@class,'LocalRoad')]:
     stroke-width: 0.4
-  ./g[@class]:
-    dupe: outline
-  ./g[contains(@class,'outline')]:
+  dupe: outline
+  ./g/[contains(@class,'outline')]:
     stroke: black
     stroke-width: 0.6
     stroke-linecap: butt
-  ./g[contains(@class,'outline')][contains(@class,'Path')]:
+  ./g/[contains(@class,'outline')][contains(@class,'Path')]:
     stroke: black
     stroke-width: 0.5
-  ./g[contains(@class,'outline')][contains(@class,'Motorway') | contains(@class,'PrimaryRoad') | contains(@class,'ArterialRoad')]:
+  ./g/[contains(@class,'outline')][contains(@class,'Motorway') | contains(@class,'PrimaryRoad') | contains(@class,'ArterialRoad')]:
     stroke-width: 0.8
-  ./g[contains(@class,'outline')][contains(@class,'SubArterialRoad') | contains(@class,'DistributorRoad')]:
+  ./g/[contains(@class,'outline')][contains(@class,'SubArterialRoad') | contains(@class,'DistributorRoad')]:
     stroke-width: 0.7
 railway-bridges:
   ./g:
     stroke: black
     stroke-width: 0.2
-    dupe: hatching
+  dupe:
+  - blockout
+  - hatching
   ./g[contains(@class,'Heavy')]:
     stroke-width: 0.25
   ./g[contains(@class,'Light')]:
     stroke-width: 0.2
-  ./g[contains(@class,'hatching')]:
-    dupe: blockout
-  ./g[contains(@class,'Heavy')][contains(@class,'hatching')]:
+  ./g/[contains(@class,'Heavy')][contains(@class,'hatching')]:
     stroke-width: 0.8
     stroke-dasharray: 0.25 2.5
     stroke-dashoffset: 1.25
-  ./g[contains(@class,'Light')][contains(@class,'hatching')]:
+  ./g/[contains(@class,'Light')][contains(@class,'hatching')]:
     stroke-width: 0.6
     stroke-dasharray: 0.2 4
     stroke-dashoffset: 2
-  ./g[contains(@class,'Heavy')][contains(@class,'blockout')]:
+  ./g/[contains(@class,'Heavy')][contains(@class,'blockout')]:
     stroke-width: 0.9
     stroke-dasharray: none
     stroke: white
-  ./g[contains(@class,'Light')][contains(@class,'blockout')]:
+  ./g/[contains(@class,'Light')][contains(@class,'blockout')]:
     stroke-width: 0.7
     stroke-dasharray: none
     stroke: white
@@ -915,8 +920,8 @@ state-border:
     stroke: black
     stroke-width: 0.3
     stroke-dasharray: 3 1 10 1
-    dupe: hatching
-  ./g[contains(@class,'hatching')]:
+  dupe: hatching
+  ./g/[contains(@class,'hatching')]:
     stroke-width: 1.5
     stroke-dasharray: 0.3 14.7
     stroke-dashoffset: 13.8

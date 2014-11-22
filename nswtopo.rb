@@ -724,6 +724,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "expand"  then { "widen" => args, "stretch" => args }
           when "symbol"  then { "symbols" => { "" => args } }
           when "pattern" then { "patterns" => { "" => args } }
+          when "dupe"    then { "dupes" => { "" => args } }
           else { command => args }
           end
         end.tap do |commands|
@@ -796,6 +797,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 memo << [ "./g[starts-with(@class,'#{category}')]", { "fill" => "url(##{id})"} ]
               end
             end
+          when "dupes"
+            args.each do |categories, names|
+              [ *categories ].each do |category|
+                layer.elements.each("./g[starts-with(@class,'#{category}')]") do |group|
+                  classes = group.attributes["class"].split(?\s)
+                  id = [ layer_id, *classes, "original" ].join SEGMENT
+                  elements = group.elements.map(&:remove)
+                  [ *names ].each do |name|
+                    group.add_element "use", "xlink:href" => "##{id}", "class" => [ name, *classes ].join(?\s)
+                  end
+                  original = group.add_element("g", "id" => id)
+                  elements.each do |element|
+                    original.elements << element
+                  end
+                end
+              end
+            end
           end
           memo
         end.each.with_index do |(xpath, args), index|
@@ -841,11 +859,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                         end
                         alpha - segment.inject(&:minus).norm / interval
                       end
-                    end
-                  when "dupe"
-                    node.deep_clone.tap do |dupe|
-                      dupe.add_attributes "class" => [ *dupe.attributes["class"], value ].join(?\s).strip
-                      node.parent.insert_before node, dupe
                     end
                   when "endpoints"
                     node.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|

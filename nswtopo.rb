@@ -1747,7 +1747,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "esriGeometryPoint"
             angle = 90 - attributes[options["rotate"]].to_i if options["rotate"]
             category.push angle == 90 ? "no-angle" : "angle" if options["rotate"]
-            svg_coords(geometry.values_at("x", "y"), projection, map).push(*angle)
+            projection.reproject_to(map.projection, geometry.values_at("x", "y")).push(*angle)
           when "esriGeometryPolyline"
             geometry["paths"].map do |path|
               projection.reproject_to map.projection, path
@@ -1770,9 +1770,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   end.select(&:many?)
                 end.flatten(1)
               end
-            end.flatten(1).reject(&:empty?).map do |path|
-              map.coords_to_mm path
-            end
+            end.flatten(1).reject(&:empty?)
           when "esriGeometryPolygon"
             geometry["rings"].map do |ring|
               projection.reproject_to map.projection, ring
@@ -1792,9 +1790,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   clipped
                 end
               end
-            end.select(&:many?).map do |ring|
-              map.coords_to_mm ring
-            end
+            end.select(&:many?)
           end
           { "geometryType" => geometry_type, "category" => category, "data" => data }
         end
@@ -1832,7 +1828,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 case geometry_type
                 when "esriGeometryPoint"
                   grouped_features.map do |feature|
-                    feature["data"]
+                    [ *map.coords_to_mm(feature["data"].take(2)), *feature["data"][2] ]
                   end.each do |x, y, angle|
                     transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
                     group.add_element "use", "transform" => transform
@@ -1843,7 +1839,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     when "esriGeometryPolygon"  then [ ?Z,  { "fill-rule" => "evenodd" } ]
                   end
                   grouped_features.each do |feature|
-                    feature["data"].map do |points|
+                    feature["data"].map do |coords|
+                      map.coords_to_mm coords
+                    end.map do |points|
                       points.inject do |memo, point|
                         [ *memo, ?L, *point ]
                       end.unshift(?M).push(*close)

@@ -723,13 +723,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           params[key] ? memo.deep_merge(params[key]) : memo
         end.inject({}) do |memo, (command, args)|
           memo.deep_merge case command
-          when "colour"  then { "stroke" => args, "fill" => args }
-          when "expand"  then { "widen" => args, "stretch" => args }
-          when "symbol"  then { "symbols" => { "" => args } }
-          when "pattern" then { "patterns" => { "" => args } }
-          when "dupe"    then { "dupes" => { "" => args } }
-          when "style"   then { "styles" => { "" => args } }
-          when "sample"  then { "samples" => { "" => args } }
+          when "colour"   then { "stroke" => args, "fill" => args }
+          when "expand"   then { "widen" => args, "stretch" => args }
+          when "symbol"   then { "symbols" => { "" => args } }
+          when "pattern"  then { "patterns" => { "" => args } }
+          when "dupe"     then { "dupes" => { "" => args } }
+          when "style"    then { "styles" => { "" => args } }
+          when "sample"   then { "samples" => { "" => args } }
+          when "endpoint" then { "endpoints" => { "" => args } }
           else { command => args }
           end
         end.tap do |commands|
@@ -828,7 +829,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "samples"
             args.each do |categories, attributes|
               [ *categories ].select do |category|
-                layer.elements[".//[@class][starts-with(@class,'#{category}')]"]
+                layer.elements[".//g[@class][starts-with(@class,'#{category}')]/path"]
               end.each do |category|
                 id = [ layer_id, *category.split(?\s), "symbol" ].join SEGMENT
                 elements = case attributes
@@ -839,7 +840,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 elements.reject!(&:empty?)
                 memo << [ "//svg/defs", { "g" => { "id" => id } } ]
                 memo << [ "//svg/defs/g[@id='#{id}']", elements ]
-                layer.elements.each(".//[@class][starts-with(@class,'#{category}')]/path") do |path|
+                layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path") do |path|
                   uses = []
                   path.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
                     subpath.split(/\s*L\s*/i).map do |pair|
@@ -849,13 +850,37 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                       while segment.inject(&:minus).norm > alpha * interval
                         fraction = alpha * interval / segment.inject(&:minus).norm
                         segment[0] = segment[1].times(fraction).plus segment[0].times(1.0 - fraction)
-                        uses << { "use" => {"transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{id}"} }
+                        uses << { "use" => {"transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{id}" } }
                         alpha = 1.0
                       end
                       alpha - segment.inject(&:minus).norm / interval
                     end
                   end
-                  memo << [ ".//[@class][starts-with(@class,'#{category}')]", uses ]
+                  memo << [ ".//g[@class][starts-with(@class,'#{category}')]", uses ]
+                end
+              end
+            end
+          when "endpoints"
+            args.each do |categories, attributes|
+              [ *categories ].select do |category|
+                layer.elements[".//g[@class][starts-with(@class,'#{category}')]/path"]
+              end.each do |category|
+                id = [ layer_id, *category.split(?\s), "endpoint" ].join SEGMENT
+                memo << [ "//svg/defs", { "g" => { "id" => id } } ]
+                memo << [ "//svg/defs/g[@id='#{id}']", attributes ]
+                layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path") do |path|
+                  uses = []
+                  path.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
+                    subpath.split(/\s*L\s*/i).values_at(0,1,-2,-1).map do |pair|
+                      pair.split(/\s+/).map(&:to_f)
+                    end.segments.values_at(0,-1).zip([ :to_a, :reverse ]).map do |segment, order|
+                      segment.send order
+                    end.each do |segment|
+                      angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
+                      uses << { "use" => { "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "xlink:href" => "##{id}" } }
+                    end
+                  end
+                  memo << [ ".//g[@class][starts-with(@class,'#{category}')]", uses ]
                 end
               end
             end
@@ -873,26 +898,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 when Array then args.map(&:to_a).inject(&:+)
                 when Hash  then args
                 end.each do |key, value|
-                  case key
-                  when "endpoints"
-                    node.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
-                      subpath.split(/\s*L\s*/i).values_at(0,1,-2,-1).map do |pair|
-                        pair.split(/\s+/).map(&:to_f)
-                      end.segments.values_at(0,-1).zip([ :to_a, :reverse ]).map do |segment, order|
-                        segment.send order
-                      end.each do |segment|
-                        angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
-                        REXML::Element.new("g").tap do |group|
-                          group.add_attributes "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "class" => value
-                          node.parent.insert_after node, group
-                        end
-                      end
-                    end
-                  else
-                    case value
-                    when Hash then node.add_element key, value
-                    else           node.add_attribute key, value
-                    end
+                  case value
+                  when Hash then node.add_element key, value
+                  else           node.add_attribute key, value
                   end
                 end
               end

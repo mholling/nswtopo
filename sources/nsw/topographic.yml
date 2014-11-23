@@ -127,10 +127,7 @@ features:
     source: rfs
     name: RoadSegment
     definition: operationalstatus NOT IN (3,8) AND roadontype = 3 AND classsubtype <> 8
-    category:
-    - ClassSubtype
-    - FunctionHierarchy
-    - surface
+    category: FunctionHierarchy
   railway-tunnels:
     name: Railway_intunnel_LS
     definition: operationalstatus NOT IN (3,8)
@@ -638,22 +635,18 @@ road-tunnels:
       stroke-width: 0.25
     LocalRoad:
       stroke-width: 0.2
-    UrbanServiceLane:
+    [ UrbanServiceLane, AccessWay ]:
       stroke-width: 0.1
-    AccessWay:
-      stroke: none
     Path:
       stroke-width: 0.2
-  # TODO:
-  ./g[not(contains(@class,'Path'))]/path:
-    endpoints: entrance
-  ./g/g[contains(@class,'entrance')]: path
-  ./g/g[contains(@class,'entrance')]/path:
-    stroke-dasharray: none
-    stroke: black
-    stroke-width: 0.2
-    fill: none
-    d: M -0.4 0.6 L 0.1 0.4 L 0.1 -0.4 L -0.4 -0.6
+  endpoints:
+    [ Motorway, PrimaryRoad, ArterialRoad, SubArterialRoad, DistributorRoad, LocalRoad ]:
+      path:
+        stroke-dasharray: none
+        stroke: black
+        stroke-width: 0.2
+        fill: none
+        d: M -0.4 0.6 L 0.1 0.4 L 0.1 -0.4 L -0.4 -0.6
 railway-tunnels:
   styles:
     "":
@@ -664,16 +657,13 @@ railway-tunnels:
       stroke-width: 0.25
     LightRail:
       stroke-width: 0.2
-  # TODO:
-  ./g/path:
-    endpoints: entrance
-  ./g/g[contains(@class,'entrance')]: path
-  ./g/g[contains(@class,'entrance')]/path:
-    stroke-dasharray: none
-    stroke-width: 0.2
-    stroke: black
-    fill: none
-    d: M -0.6 0.6 A 0.6 0.6 0 0 0 -0.6 -0.6
+  endpoint:
+    path:
+      stroke-dasharray: none
+      stroke-width: 0.2
+      stroke: black
+      fill: none
+      d: M -0.6 0.6 A 0.6 0.6 0 0 0 -0.6 -0.6
 building-areas:
   style:
     fill: "#808080"

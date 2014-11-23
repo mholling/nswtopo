@@ -530,6 +530,8 @@ dam-batters:
     stroke: none
     fill: "#C0C0C0"
 dam-walls-spillways:
+  dupes:
+    SpillwayEdge: hatching
   styles:
     "":
       stroke: black
@@ -539,12 +541,10 @@ dam-walls-spillways:
       stroke-width: 0.4
     SpillwayEdge:
       stroke-width: 0.15
-  samples:
-    SpillwayEdge:
-      interval: 0.8
-      line:
-        y1: -0.15
-        y2: 0.15
+    hatching SpillwayEdge:
+      stroke-width: 0.3
+      stroke-dasharray: 0.15 0.65
+      stroke-dashoffset: 0.475
 waterfalls:
   symbols:
     angle:

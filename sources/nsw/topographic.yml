@@ -352,6 +352,12 @@ cliffs-rocks-sand:
     Rock-Inland:
       width: 14
       height: 14
+      rect:
+        width: 14
+        height: 14
+        stroke: none
+        fill: "#75422D"
+        fill-opacity: 0.05
       path:
         stroke: "#75422D"
         stroke-width: 0.35

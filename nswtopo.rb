@@ -710,6 +710,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def rerender(xml, map)
+      scale_by = lambda do |factor, string|
+        string.split(/[,\s]+/).map { |number| factor * number.to_f }.join(?\s)
+      end
       xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
         layer_id = layer.attributes["id"]
         sublayer_name = layer_id.split(/^#{layer_name}#{SEGMENT}?/).last

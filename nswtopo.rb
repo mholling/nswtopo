@@ -716,7 +716,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
         layer_id = layer.attributes["id"]
         sublayer_name = layer_id.split(/^#{layer_name}#{SEGMENT}?/).last
-        puts "  ... #{sublayer_name}" unless layer_id == layer_name
+        puts "... #{sublayer_name}" unless layer_id == layer_name
         (params["equivalences"] || {}).select do |group, sublayer_names|
           sublayer_names.include? sublayer_name
         end.map(&:first).push(sublayer_name).inject(params) do |memo, key|
@@ -1811,7 +1811,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       JSON.parse(path.read).reject do |sublayer_name, features|
         params["exclude"].include? sublayer_name
       end.map do |sublayer_name, features|
-        puts "  ... #{sublayer_name}" unless features.empty?
+        puts "... #{sublayer_name}" unless features.empty?
         yield(sublayer_name).tap do |layer|
           features.group_by do |feature|
             feature["category"].compact.reject(&:empty?)
@@ -2697,7 +2697,6 @@ controls:
     end
     
     Dir.mktmppath do |temp_dir|
-      puts "Compositing layers to #{svg_name}:"
       tmp_svg_path = temp_dir + svg_name
       tmp_svg_path.open("w") do |file|
         updates.each do |source|
@@ -2711,11 +2710,11 @@ controls:
             end
           end.compact.first
           begin
-            puts "  Compositing #{source.layer_name}"
+            puts "Compositing #{source.layer_name}"
             source.render_svg(xml, map) do |layer|
               neighbour ? xml.elements["/svg"].insert_before(neighbour, layer) : xml.elements["/svg"].add_element(layer)
             end
-            puts "  Styling #{source.layer_name}"
+            puts "Styling #{source.layer_name}"
             source.rerender(xml, map)
           rescue BadLayerError => e
             puts "Failed to render #{source.layer_name}: #{e.message}"

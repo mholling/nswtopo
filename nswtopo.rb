@@ -820,10 +820,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when "styles"
             args.each do |categories, attributes|
-              [ *categories ].map do |category|
-                ".//[@class][contains(@class,'#{category}')]"
-              end.each do |xpath|
-                memo << [ xpath, attributes ]
+              [ *categories ].each do |category|
+                memo << [ ".//[@class][contains(@class,'#{category}')]", attributes ]
               end
             end
           end

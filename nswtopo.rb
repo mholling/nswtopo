@@ -772,11 +772,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when String, Numeric then memo << [ ".//(path|polyline)", { "stroke-dasharray" => args } ]
             end
           when "order"
-            args.map do |categories|
+            args.reverse.map do |categories|
               "./[starts-with(@class,'#{categories}')]"
             end.each do |xpath|
-              layer.elements.each(xpath) do |element|
-                layer.elements << element.remove
+              layer.elements.collect(xpath, &:remove).reverse.each do |element|
+                layer.unshift element
               end
             end
           when "symbols"

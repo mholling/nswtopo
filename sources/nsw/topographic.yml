@@ -726,6 +726,10 @@ floodways:
 roads:
   # TODO: add rendering for OnCulvert (blue outline?)
   order:
+  - UnknownSurface Pathway
+  - UnsealedSurface Pathway
+  - SealedSurface Pathway
+  - UnknownSurface
   - SF_Unsealed4WDSurface
   - Unsealed4WDSurface
   - UnsealedSurface

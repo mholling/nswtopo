@@ -725,6 +725,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "symbol"  then { "symbols" => { "" => args } }
           when "pattern" then { "patterns" => { "" => args } }
           when "dupe"    then { "dupes" => { "" => args } }
+          when "style"   then { "styles" => { "" => args } }
           else { command => args }
           end
         end.tap do |commands|
@@ -747,14 +748,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 element.elements.each(".//font", &:remove)
               end if args
             end ]
-          when "order"
-            args.map do |categories|
-              "./[starts-with(@class,'#{categories}')]"
-            end.each do |xpath|
-              layer.elements.each(xpath) do |element|
-                layer.elements << element.remove
-              end
-            end
           when "stroke", "fill"
             case args
             when Hash
@@ -775,33 +768,41 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when nil             then memo << [ ".//[@stroke-dasharray]/@stroke-dasharray", nil ]
             when String, Numeric then memo << [ ".//(path|polyline)", { "stroke-dasharray" => args } ]
             end
+          when "order"
+            args.map do |categories|
+              "./[starts-with(@class,'#{categories}')]"
+            end.each do |xpath|
+              layer.elements.each(xpath) do |element|
+                layer.elements << element.remove
+              end
+            end
           when "symbols"
             args.each do |categories, elements|
               [ *categories ].select do |category|
-                layer.elements["./g[starts-with(@class,'#{category}')]"]
+                layer.elements[".//[@class][starts-with(@class,'#{category}')]"]
               end.each do |category|
                 id = [ layer_id, *category.split(?\s), "symbol" ].join SEGMENT
                 memo << [ "//svg/defs", { "g" => { "id" => id } } ]
                 memo << [ "//svg/defs/g[@id='#{id}']", elements ]
-                memo << [ "./g[starts-with(@class,'#{category}')]/use", { "xlink:href" => "##{id}"} ]
+                memo << [ ".//[@class][starts-with(@class,'#{category}')]/use", { "xlink:href" => "##{id}"} ]
               end
             end
           when "patterns"
             args.each do |categories, elements|
               [ *categories ].select do |category|
-                layer.elements["./g[starts-with(@class,'#{category}')]"]
+                layer.elements[".//[@class][starts-with(@class,'#{category}')]"]
               end.each do |category|
                 id = [ layer_id, *category.split(?\s), "pattern" ].join SEGMENT
                 memo << [ "//svg/defs", { "pattern" => { "id" => id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})" } } ]
                 memo << [ "//svg/defs/pattern[@id='#{id}']", elements ]
-                memo << [ "./g[starts-with(@class,'#{category}')]", { "fill" => "url(##{id})"} ]
+                memo << [ ".//[@class][starts-with(@class,'#{category}')]", { "fill" => "url(##{id})"} ]
               end
             end
           when "dupes"
             args.each do |categories, names|
               [ *categories ].each do |category|
-                layer.elements.each("./g[starts-with(@class,'#{category}')]") do |group|
-                  classes = group.attributes["class"].split(?\s)
+                layer.elements.each(".//[@class][starts-with(@class,'#{category}')]") do |group|
+                  classes = group.attributes["class"].to_s.split(?\s)
                   id = [ layer_id, *classes, "original" ].join SEGMENT
                   elements = group.elements.map(&:remove)
                   [ *names ].each do |name|
@@ -812,6 +813,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     original.elements << element
                   end
                 end
+              end
+            end
+          when "styles"
+            args.each do |categories, attributes|
+              [ *categories ].map do |category|
+                ".//[@class][contains(@class,'#{category}')]"
+              end.each do |xpath|
+                memo << [ xpath, attributes ]
               end
             end
           end

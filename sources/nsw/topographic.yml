@@ -382,7 +382,6 @@ clifftops-excavation:
       line:
         y2: 0.6
 caves-pinnacles:
-  # TODO: how to render caves? maybe as a black semicircle?
   symbols:
     [ Pinnacle, Rock-Inland ]:
       path:
@@ -391,11 +390,11 @@ caves-pinnacles:
         fill: none
         d: M -0.5 0 L 0.5 0 M -0.25 0.433 L 0.25 -0.433 M -0.25 -0.433 L 0.25 0.433
     Cave:
-      circle:
-        stroke: "#513300"
+      path:
+        stroke: black
         stroke-width: 0.2
-        fill: white
-        r: 0.3
+        fill: none
+        d: M 0.4 0.4 A 0.4 0.8 0 0 0 -0.4 0.4
 cadastre:
   opacity: 0.5
   style:

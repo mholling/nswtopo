@@ -321,13 +321,13 @@ contours-10m:
     AncillaryContour:
       stroke-dasharray: 3 1
       stroke-width: 0.1
-  # TODO:
-  ./g[contains(@class,'DepressionContour')]/path:
-    sample:
+  samples:
+    DepressionContour:
       interval: 2.0
-      content:
-        line:
-          y2: 0.5
+      line:
+        stroke: "#805100"
+        stroke-width: 0.12
+        y2: 0.4
 contours-20m:
   styles:
     [ 1, 2 ]:
@@ -339,13 +339,13 @@ contours-20m:
     AncillaryContour:
       stroke-dasharray: 3 1
       stroke-width: 0.1
-  # TODO:
-  ./g[contains(@class,'DepressionContour')]/path:
-    sample:
+  samples:
+    DepressionContour:
       interval: 2.0
-      content:
-        line:
-          y2: 0.5
+      line:
+        stroke: "#805100"
+        stroke-width: 0.12
+        y2: 0.4
 cliffs-rocks-sand:
   styles:
     CliffArea:
@@ -375,20 +375,15 @@ clifftops-excavation:
     ExcavationFace:
       stroke: black
       stroke-width: 0.12
-  # TODO:
-  ./g[contains(@class,'CliffTop')]/path:
-    sample:
+  samples:  
+    CliffTop:
       interval: 1.0
-      content:
-        line:
-          y2: 0.5
-  # TODO:
-  ./g[contains(@class,'ExcavationFace')]/path:
-    sample:
+      line:
+        y2: 0.5
+    ExcavationFace:
       interval: 1.2
-      content:
-        line:
-          y2: 0.6
+      line:
+        y2: 0.6
 caves-pinnacles:
   # TODO: how to render caves? maybe as a black semicircle?
   symbols:
@@ -541,14 +536,12 @@ dam-walls-spillways:
       stroke-width: 0.4
     SpillwayEdge:
       stroke-width: 0.15
-  # TODO:
-  ./g[contains(@class,'SpillwayEdge')]/path:
-    sample:
+  samples:
+    SpillwayEdge:
       interval: 0.8
-      content:
-        line:
-          y1: -0.15
-          y2: 0.15
+      line:
+        y1: -0.15
+        y2: 0.15
 waterfalls:
   symbols:
     angle:
@@ -604,29 +597,23 @@ reefs-mangroves-intertidal:
 rocky-shore:
   style:
     stroke: none
-  # TODO:
-  ./g/path:
-    sample:
-      interval: 2.0
-      content:
-        path:
-          stroke: "#404040"
-          stroke-width: 0.1
-          fill: "#E0E0E0"
-          d: M -0.8 -0.5 L -1.0 -0.1 L -0.8 0.1 L -0.6 -0.1 L -0.4 0.3 L 0.0 0.1 L -0.2 -0.7 L -0.4 -0.5 Z M 0.2 -0.5 L 0.0 -0.3 L 0.2 -0.1 L 0.0 0.3 L 0.4 0.5 L 0.6 0.1 L 0.6 -0.1 L 0.4 -0.5 Z M 0.8 -0.5 L 0.6 -0.3 L 0.8 -0.1 L 1.0 -0.3 Z
+  sample:
+    interval: 2.0
+    path:
+      stroke: "#404040"
+      stroke-width: 0.1
+      fill: "#E0E0E0"
+      d: M -0.8 -0.5 L -1.0 -0.1 L -0.8 0.1 L -0.6 -0.1 L -0.4 0.3 L 0.0 0.1 L -0.2 -0.7 L -0.4 -0.5 Z M 0.2 -0.5 L 0.0 -0.3 L 0.2 -0.1 L 0.0 0.3 L 0.4 0.5 L 0.6 0.1 L 0.6 -0.1 L 0.4 -0.5 Z M 0.8 -0.5 L 0.6 -0.3 L 0.8 -0.1 L 1.0 -0.3 Z
 breakwaters:
   style:
     stroke: none
-  # TODO:
-  ./g/path:
-    sample:
-      interval: 1.5
-      content:
-        path:
-          stroke: "#404040"
-          stroke-width: 0.1
-          fill: "#E0E0E0"
-          d: M -0.8 -0.5 L -1.0 -0.1 L -0.8 0.1 L -0.6 -0.1 L -0.4 0.3 L 0.0 0.1 L -0.2 -0.7 L -0.4 -0.5 Z M 0.2 -0.5 L 0.0 -0.3 L 0.2 -0.1 L 0.0 0.3 L 0.4 0.5 L 0.6 0.1 L 0.6 -0.1 L 0.4 -0.5 Z M 0.8 -0.5 L 0.6 -0.3 L 0.8 -0.1 L 1.0 -0.3 Z
+  sample:
+    interval: 1.5
+    path:
+      stroke: "#404040"
+      stroke-width: 0.1
+      fill: "#E0E0E0"
+      d: M -0.8 -0.5 L -1.0 -0.1 L -0.8 0.1 L -0.6 -0.1 L -0.4 0.3 L 0.0 0.1 L -0.2 -0.7 L -0.4 -0.5 Z M 0.2 -0.5 L 0.0 -0.3 L 0.2 -0.1 L 0.0 0.3 L 0.4 0.5 L 0.6 0.1 L 0.6 -0.1 L 0.4 -0.5 Z M 0.8 -0.5 L 0.6 -0.3 L 0.8 -0.1 L 1.0 -0.3 Z
 rocks-reefs:
   symbols:
     Rock-Awash:

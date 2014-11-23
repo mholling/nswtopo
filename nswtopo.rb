@@ -833,7 +833,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.each do |category|
                 id = [ layer_id, *category.split(?\s), "symbol" ].join SEGMENT
                 elements = case attributes
-                when Array then attributes.map(&:to_a).inject(&:+)
+                when Array then attributes.map(&:to_a).inject(&:+) || []
                 when Hash  then attributes.map(&:to_a)
                 end.map { |key, value| { key => value } }
                 interval = elements.find { |hash| hash["interval"] }.delete("interval")
@@ -895,7 +895,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               case node
               when REXML::Element
                 case args
-                when Array then args.map(&:to_a).inject(&:+)
+                when Array then args.map(&:to_a).inject(&:+) || []
                 when Hash  then args
                 end.each do |key, value|
                   case value

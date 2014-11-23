@@ -561,6 +561,12 @@ reefs-mangroves-intertidal:
     Mangrove:
       width: 11.1
       height: 11.1
+      rect:
+        width: 11.1
+        height: 11.1
+        stroke: none
+        fill: lightgreen
+        fill-opacity: 0.2
       path:
         stroke: darkgreen
         stroke-width: 0.25

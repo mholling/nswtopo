@@ -831,15 +831,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               [ *categories ].select do |category|
                 layer.elements[".//g[@class][starts-with(@class,'#{category}')]/path"]
               end.each do |category|
-                id = [ layer_id, *category.split(?\s), "symbol" ].join SEGMENT
                 elements = case attributes
                 when Array then attributes.map(&:to_a).inject(&:+) || []
                 when Hash  then attributes.map(&:to_a)
                 end.map { |key, value| { key => value } }
                 interval = elements.find { |hash| hash["interval"] }.delete("interval")
                 elements.reject!(&:empty?)
-                memo << [ "//svg/defs", { "g" => { "id" => id } } ]
-                memo << [ "//svg/defs/g[@id='#{id}']", elements ]
+                ids = elements.map.with_index do |element, index|
+                  [ layer_id, *category.split(?\s), "symbol", *(index if elements.many?) ].join(SEGMENT).tap do |id|
+                    memo << [ "//svg/defs", { "g" => { "id" => id } } ]
+                    memo << [ "//svg/defs/g[@id='#{id}']", element ]
+                  end
+                end
                 layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path") do |path|
                   uses = []
                   path.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
@@ -850,7 +853,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                       while segment.inject(&:minus).norm > alpha * interval
                         fraction = alpha * interval / segment.inject(&:minus).norm
                         segment[0] = segment[1].times(fraction).plus segment[0].times(1.0 - fraction)
-                        uses << { "use" => {"transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{id}" } }
+                        uses << { "use" => {"transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{ids.sample}" } }
                         alpha = 1.0
                       end
                       alpha - segment.inject(&:minus).norm / interval

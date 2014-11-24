@@ -1796,7 +1796,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.select(&:many?)
           end
           { "geometryType" => geometry_type, "data" => data }.tap do |feature|
-            feature.merge! "category" => category if category.any?
+            feature["category"] = category if category.any?
+            feature["label"] = attributes.values_at(*options["label"]).compact.reject(&:empty?).join(?\s) if options["label"]
           end
         end
         puts

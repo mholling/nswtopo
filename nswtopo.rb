@@ -1795,7 +1795,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end.select(&:many?)
           end
-          { "geometryType" => geometry_type, "category" => category, "data" => data }
+          { "geometryType" => geometry_type, "data" => data }.tap do |feature|
+            feature.merge! "category" => category if category.any?
+          end
         end
         puts
         [ sublayer_name, features ]
@@ -1821,7 +1823,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         puts "... #{sublayer_name}" unless features.empty?
         yield(sublayer_name).tap do |layer|
           features.group_by do |feature|
-            feature["category"].compact.reject(&:empty?)
+            [ *feature["category"] ].compact.reject(&:empty?)
           end.each do |category, grouped_features|
             layer.add_element("g") do |group|
               group.add_attribute "class", category.join(?\s)

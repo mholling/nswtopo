@@ -1748,9 +1748,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           category = attributes.values_at(*options["category"])
           data = case geometry_type
           when "esriGeometryPoint"
-            angle = 90 - attributes[options["rotate"]].to_i if options["rotate"]
-            category.push angle == 90 ? "no-angle" : "angle" if options["rotate"]
-            projection.reproject_to(map.projection, geometry.values_at("x", "y")).push(*angle)
+            projection.reproject_to(map.projection, geometry.values_at("x", "y"))
           when "esriGeometryPolyline"
             geometry["paths"].map do |path|
               projection.reproject_to map.projection, path
@@ -1795,7 +1793,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end.select(&:many?)
           end
+          if attributes[options["rotate"]].to_i.zero?
+            category << "no-angle"
+          else
+            category << "angle"
+            angle = 90 - attributes[options["rotate"]].to_i
+          end if options["rotate"]
           { "geometryType" => geometry_type, "data" => data }.tap do |feature|
+            feature["angle"] = angle if angle
             feature["category"] = category if category.any?
             feature["label"] = attributes.values_at(*options["label"]).compact.reject(&:empty?).join(?\s) if options["label"]
           end
@@ -1834,9 +1839,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 case geometry_type
                 when "esriGeometryPoint"
                   grouped_features.map do |feature|
-                    [ *map.coords_to_mm(feature["data"].take(2)), *feature["data"][2] ]
-                  end.each do |x, y, angle|
-                    transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
+                    x, y = map.coords_to_mm feature["data"]
+                    angle = feature["angle"]
+                    "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
+                  end.each do |transform|
                     group.add_element "use", "transform" => transform
                   end
                 when "esriGeometryPolyline", "esriGeometryPolygon"

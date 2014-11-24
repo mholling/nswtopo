@@ -1730,7 +1730,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
           page = body.fetch("results", [ ])
           page.map do |feature|
-            raise BadLayerError.new("no attribute available for pagination") unless feature["attributes"].has_key?(index_attribute)
+            raise BadLayerError.new("no attribute available for pagination (try: #{feature['attributes'].keys.join(', ')})") unless feature["attributes"].has_key?(index_attribute)
             feature["attributes"][index_attribute].to_i
           end.max.tap do |value|
             paginate = "#{index_attribute} > #{value}"

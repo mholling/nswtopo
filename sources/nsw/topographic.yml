@@ -816,8 +816,6 @@ roads:
       stroke: red
     [ UnsealedSurface, Unsealed4WDSurface, SF_Unsealed4WDSurface ]:
       stroke: "#FF7518"
-    ThroughWater:
-      stroke: "#4985DF"
     Path:
       stroke: black
       stroke-width: 0.25
@@ -838,6 +836,8 @@ roads:
       stroke-width: 0.25
     AccessWay:
       stroke-dasharray: 1.8 0.6
+    ThroughWater:
+      stroke: "#4985DF"
 railways:
   dupe: hatching
   styles:

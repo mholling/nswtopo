@@ -33,6 +33,13 @@ features:
     definition: classsubtype = 6 AND generalculturaltype IN (0,1,2,4)
     category: generalculturaltype
   urban-areas: Urban
+  contours-4m:
+    name: Contour_10m
+    redefine: true
+    definition: sourceprogram = 2 AND mod(elevation,4) = 0
+    category:
+    - ClassSubtype
+    - relevance
   contours-10m:
     name: Contour_10m
     category:
@@ -266,6 +273,7 @@ features:
 # Coastline
   
 intervals-contours:
+  4: contours-4m
   10: contours-10m
   20: contours-20m
 relief-clips:
@@ -306,6 +314,24 @@ urban-areas:
   style:
     stroke: none
     fill: "#FFFABD"
+contours-4m:
+  styles:
+    [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]:
+      stroke: "#805100"
+      stroke-width: 0.24
+    10:
+      stroke: "#805100"
+      stroke-width: 0.12
+    AncillaryContour:
+      stroke-dasharray: 3 1
+      stroke-width: 0.1
+  samples:
+    DepressionContour:
+      interval: 2.0
+      line:
+        stroke: "#805100"
+        stroke-width: 0.12
+        y2: 0.5
 contours-10m:
   styles:
     [ 1, 2 ]:

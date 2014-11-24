@@ -2658,8 +2658,6 @@ controls:
     
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
-      # TODO: generalise this!
-      abort "Error: invalid contour interval specified (must be 10 or 20)" unless [ 10, 20 ].include? interval
       layers.each do |layer_name, params|
         params["exclude"] = [ *params["exclude"] ]
         [ *params["intervals-contours"] ].select do |candidate, sublayer|

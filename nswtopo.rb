@@ -1942,98 +1942,91 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      names_features.inject([]) do |memo, (sublayer_name, features)|
-        memo + features.select do |feature|
-          feature.key? "label"
-        end.each do |feature|
-          feature["category"].unshift sublayer_name
+      point_features, line_features = %w[esriGeometryPoint esriGeometryPolyline].map do |geometry_type|
+        names_features.inject([]) do |memo, (sublayer_name, features)|
+          memo + features.select do |feature|
+            feature.key?("label") && feature["geometryType"] == geometry_type
+          end.each do |feature|
+            feature["category"].unshift sublayer_name
+          end
         end
-      end.tap do |features|
-        puts "... labels" unless features.empty?
+      end
+      
+      labels_bounds = point_features.map.with_index do |feature, index|
+        lines          = feature["label"].in_two
+        font_size      = feature["font-size"]      || 1.5
+        letter_spacing = feature["letter-spacing"] || 0
+        margin         = feature["margin"]         || 0
+        width = lines.map(&:length).max * (font_size * 0.7 + letter_spacing)
+        height = lines.length * font_size
+        point = map.coords_to_mm(feature["data"])
+        rotated = point.rotate_by(map.rotation * Math::PI / 180.0)
+        feature["position"].map do |position|
+          bounds = case position
+          when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
+          when 1 then [ [ 0, width + margin ], [ -0.5 * height, 0.5 * height ] ]
+          when 2 then [ [ -0.5 * width, 0.5 * width ], [ 0, height + margin ] ]
+          when 3 then [ [ -0.5 * width, 0.5 * width ], [ -(height + margin), 0 ] ]
+          when 4 then [ [ -(width + margin), 0 ], [ -0.5 * height, 0.5 * height ] ]
+          end.zip(rotated).map do |offsets, centre|
+            offsets.map { |offset| offset + centre }
+          end
+          { [ index, position ] => bounds }
+        end.inject(&:merge) || {}
+      end.inject(&:merge) || {}
+      
+      labels_conflicts = labels_bounds.map do |label, bounds|
+        conflicts = labels_bounds.map do |other_label, other_bounds|
+          overlaps = bounds.zip(other_bounds).map do |bound, other_bound|
+            case
+            when other_label == label then nil
+            when bound.max < other_bound.min then nil
+            when bound.min > other_bound.max then nil
+            else [ bound[1], other_bound[1] ].min - [ bound[0], other_bound[0] ].max
+            end
+          end
+          overlaps.all? ? { other_label => overlaps.inject(&:*) } : { }
+        end.inject(&:merge) || {}
+        { label => conflicts }
+      end.inject(&:merge) || {}
+      
+      solve(labels_conflicts).map do |index, position|
+        point_features[index].merge("position" => position)
       end.group_by do |feature|
-        feature["geometryType"]
-      end.sort_by(&:first).each do |geometry_type, features|
-        case geometry_type
-        when "esriGeometryPoint"
-          labels_bounds = features.map.with_index do |feature, index|
-            lines          = feature["label"].in_two
-            font_size      = feature["font-size"]      || 1.5
-            letter_spacing = feature["letter-spacing"] || 0
-            margin         = feature["margin"]         || 0
-            width = lines.map(&:length).max * (font_size * 0.7 + letter_spacing)
-            height = lines.length * font_size
-            point = map.coords_to_mm(feature["data"])
-            rotated = point.rotate_by(map.rotation * Math::PI / 180.0)
-            feature["position"].map do |position|
-              bounds = case position
-              when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
-              when 1 then [ [ 0, width + margin ], [ -0.5 * height, 0.5 * height ] ]
-              when 2 then [ [ -0.5 * width, 0.5 * width ], [ 0, height + margin ] ]
-              when 3 then [ [ -0.5 * width, 0.5 * width ], [ -(height + margin), 0 ] ]
-              when 4 then [ [ -(width + margin), 0 ], [ -0.5 * height, 0.5 * height ] ]
-              end.zip(rotated).map do |offsets, centre|
-                offsets.map { |offset| offset + centre }
-              end
-              { [ index, position ] => bounds }
-            end.inject(&:merge) || {}
-          end.inject(&:merge) || {}
-          
-          labels_conflicts = labels_bounds.map do |label, bounds|
-            conflicts = labels_bounds.map do |other_label, other_bounds|
-              overlaps = bounds.zip(other_bounds).map do |bound, other_bound|
-                case
-                when other_label == label then nil
-                when bound.max < other_bound.min then nil
-                when bound.min > other_bound.max then nil
-                else [ bound[1], other_bound[1] ].min - [ bound[0], other_bound[0] ].max
+        feature["category"].reject(&:empty?)
+      end.each do |category, grouped_features|
+        letter_spacing = grouped_features[0]["letter-spacing"]
+        font_size      = grouped_features[0]["font-size"] || 1.5
+        margin         = grouped_features[0]["margin"]    || 0
+        yield("labels").add_element("g", "class" => category.join(?\s), "font-size" => font_size) do |group|
+          group.add_attribute("letter-spacing", letter_spacing) if letter_spacing
+          grouped_features.each do |feature|
+            lines = feature["label"].in_two
+            point = map.coords_to_mm feature["data"]
+            transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
+            text_anchor = case feature["position"]
+            when 0, 2, 3 then "middle"
+            when 1 then "start"
+            when 4 then "end"
+            end
+            group.add_element("text", "text-anchor" => text_anchor, "transform" => transform) do |text|
+              lines.each.with_index do |line, index|
+                y = (lines.one? ? 0.5 : index) * font_size + case feature["position"]
+                when 0, 1, 4 then 0.0
+                when 2 then  margin + 0.5 * lines.length * font_size
+                when 3 then -margin - 0.5 * lines.length * font_size
+                end - 0.15 * font_size
+                x = case feature["position"]
+                when 0, 2, 3 then 0.0
+                when 1 then  margin
+                when 4 then -margin
                 end
-              end
-              overlaps.all? ? { other_label => overlaps.inject(&:*) } : { }
-            end.inject(&:merge) || {}
-            { label => conflicts }
-          end.inject(&:merge) || {}
-          
-          solve(labels_conflicts).map do |index, position|
-            features[index].merge("position" => position)
-          end.group_by do |feature|
-            feature["category"].reject(&:empty?)
-          end.each do |category, grouped_features|
-            letter_spacing = grouped_features[0]["letter-spacing"]
-            font_size      = grouped_features[0]["font-size"] || 1.5
-            margin         = grouped_features[0]["margin"]    || 0
-            yield("labels").add_element("g", "class" => category.join(?\s), "font-size" => font_size) do |group|
-              group.add_attribute("letter-spacing", letter_spacing) if letter_spacing
-              grouped_features.each do |feature|
-                lines = feature["label"].in_two
-                point = map.coords_to_mm feature["data"]
-                transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-                text_anchor = case feature["position"]
-                when 0, 2, 3 then "middle"
-                when 1 then "start"
-                when 4 then "end"
-                end
-                group.add_element("text", "text-anchor" => text_anchor, "transform" => transform) do |text|
-                  lines.each.with_index do |line, index|
-                    y = (lines.one? ? 0.5 : index) * font_size + case feature["position"]
-                    when 0, 1, 4 then 0.0
-                    when 2 then  margin + 0.5 * lines.length * font_size
-                    when 3 then -margin - 0.5 * lines.length * font_size
-                    end - 0.15 * font_size
-                    x = case feature["position"]
-                    when 0, 2, 3 then 0.0
-                    when 1 then  margin
-                    when 4 then -margin
-                    end
-                    text.add_element("tspan", "x" => x, "y" => y) do |tspan|
-                      tspan.add_text line
-                    end
-                  end
+                text.add_element("tspan", "x" => x, "y" => y) do |tspan|
+                  tspan.add_text line
                 end
               end
             end
           end
-        when "esriGeometryPolyline"
-          # TODO: code for line labeling
         end
       end
     end

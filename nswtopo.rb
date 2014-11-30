@@ -190,6 +190,17 @@ class Array
   end
 end
 
+class String
+  def in_two
+    words = split ?\s
+    (1...words.length).map do |index|
+      [ words[0 ... index].join(?\s), words[index ... words.length].join(?\s) ]
+    end.min_by do |lines|
+      lines.map(&:length).max
+    end || [ dup ]
+  end
+end
+
 module NSWTopo
   SEGMENT = ?.
   
@@ -1745,7 +1756,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           attributes, geometry_type, geometry = result.values_at "attributes", "geometryType", "geometry"
           wkid = geometry["spatialReference"]["wkid"]
           projection = Projection.new("epsg:#{wkid}")
-          category = attributes.values_at(*options["category"])
           data = case geometry_type
           when "esriGeometryPoint"
             projection.reproject_to(map.projection, geometry.values_at("x", "y"))
@@ -1793,16 +1803,31 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end.select(&:many?)
           end
-          if attributes[options["rotate"]].to_i.zero?
+          category = [ *options["category"] ].map do |field|
+            attributes[field] || field
+          end.map do |string|
+            string.gsub /\W+/, ?-
+          end
+          case attributes[options["rotate"]].to_i
+          when 0
             category << "no-angle"
           else
             category << "angle"
             angle = 90 - attributes[options["rotate"]].to_i
           end if options["rotate"]
-          { "geometryType" => geometry_type, "data" => data }.tap do |feature|
-            feature["angle"] = angle if angle
-            feature["category"] = category if category.any?
-            feature["label"] = attributes.values_at(*options["label"]).compact.reject(&:empty?).join(?\s) if options["label"]
+          { "geometryType" => geometry_type, "data" => data, "category" => category }.tap do |feature|
+            if options["label"]
+              fields = attributes.values_at *options["label"]
+              format = options["format"] || (%w[%s] * fields.length).join(?\s)
+              unless fields.map(&:to_s).all?(&:empty?)
+                feature["label"] = format % fields
+                feature["position"] = [ *options["position"] ]
+                feature["size"]    = options["size"]    if options["size"]
+                feature["spacing"] = options["spacing"] if options["spacing"]
+                feature["margin"]  = options["margin"]  if options["margin"]
+              end
+            end
+            feature["label-only"] = options["label-only"] if options["label-only"]
           end
         end
         puts
@@ -1821,15 +1846,64 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
+    def solve(labels_conflicts)
+      pending, completed = labels_conflicts.dup, [ ]
+      while pending.any?
+        pending.min_by do |(index, _), conflicts|
+          remaining = pending.select do |other_index, _|
+            other_index == index
+          end
+          [ conflicts.length, remaining.length ]
+        end.tap do |label, conflicts|
+          conflicts.keys.each do |conflicting_label|
+            pending.delete conflicting_label
+          end
+          pending.delete label
+          completed << label
+        end
+      end
+      pending = labels_conflicts.keys.map(&:first).uniq - completed.map(&:first)
+      while pending.any?
+        pending.each do |index|
+          labels_conflicts.select do |(other_index, _), _|
+            other_index == index
+          end.min_by do |(_, position), conflicts|
+            overlaps = conflicts.select do |other_label, _|
+              completed.include? other_label
+            end.map(&:last)
+            [ overlaps.inject(&:+) || 0, position ]
+          end.tap do |label, _|
+            completed << label
+          end
+          pending.delete index
+        end
+      end
+      5.times do
+        completed.each do |label|
+          candidates = labels_conflicts.select do |(other_index, other_position), _|
+            other_index == label[0]
+          end.map do |(_, other_position), conflicts|
+            [ conflicts.values_at(*(completed - [label])).compact.inject(&:+) || 0, other_position ]
+          end
+          label[1] = candidates.min.last # unless candidates.map(&:first).all?(&:zero?)
+        end
+      end
+      completed.to_enum
+    end
+    
     def draw(map)
       raise BadLayerError.new("source file not found at #{path}") unless path.exist?
-      JSON.parse(path.read).reject do |sublayer_name, features|
+      names_features = JSON.parse(path.read).reject do |sublayer_name, features|
         params["exclude"].include? sublayer_name
-      end.map do |sublayer_name, features|
+      end
+      
+      names_features.map do |sublayer_name, features|
+        [ sublayer_name, features.reject { |feature| feature["label-only"] } ]
+      end.each do |sublayer_name, features|
         puts "... #{sublayer_name}" unless features.empty?
         yield(sublayer_name).tap do |layer|
           features.group_by do |feature|
-            [ *feature["category"] ].compact.reject(&:empty?)
+            [ *feature["category"] ].reject(&:empty?)
           end.each do |category, grouped_features|
             layer.add_element("g") do |group|
               group.add_attribute "class", category.join(?\s)
@@ -1865,6 +1939,101 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
           end
+        end
+      end
+      
+      names_features.inject([]) do |memo, (sublayer_name, features)|
+        memo + features.select do |feature|
+          feature.key? "label"
+        end.each do |feature|
+          feature["category"].unshift sublayer_name
+        end
+      end.tap do |features|
+        puts "... labels" unless features.empty?
+      end.group_by do |feature|
+        feature["geometryType"]
+      end.sort_by(&:first).each do |geometry_type, features|
+        case geometry_type
+        when "esriGeometryPoint"
+          labels_bounds = features.map.with_index do |feature, index|
+            lines    = feature["label"].in_two
+            size     = feature["size"]    || 1.5
+            spacing  = feature["spacing"] || 0
+            margin   = feature["margin"]  || 0
+            width = lines.map(&:length).max * (size * 0.7 + spacing)
+            height = lines.length * size
+            point = map.coords_to_mm(feature["data"])
+            rotated = point.rotate_by(map.rotation * Math::PI / 180.0)
+            feature["position"].map do |position|
+              bounds = case position
+              when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
+              when 1 then [ [ 0, width + margin ], [ -0.5 * height, 0.5 * height ] ]
+              when 2 then [ [ -0.5 * width, 0.5 * width ], [ 0, height + margin ] ]
+              when 3 then [ [ -0.5 * width, 0.5 * width ], [ -(height + margin), 0 ] ]
+              when 4 then [ [ -(width + margin), 0 ], [ -0.5 * height, 0.5 * height ] ]
+              end.zip(rotated).map do |offsets, centre|
+                offsets.map { |offset| offset + centre }
+              end
+              { [ index, position ] => bounds }
+            end.inject(&:merge) || {}
+          end.inject(&:merge) || {}
+          
+          labels_conflicts = labels_bounds.map do |label, bounds|
+            conflicts = labels_bounds.map do |other_label, other_bounds|
+              overlaps = bounds.zip(other_bounds).map do |bound, other_bound|
+                case
+                when other_label == label then nil
+                when bound.max < other_bound.min then nil
+                when bound.min > other_bound.max then nil
+                else [ bound[1], other_bound[1] ].min - [ bound[0], other_bound[0] ].max
+                end
+              end
+              overlaps.all? ? { other_label => overlaps.inject(&:*) } : { }
+            end.inject(&:merge) || {}
+            { label => conflicts }
+          end.inject(&:merge) || {}
+          
+          solve(labels_conflicts).map do |index, position|
+            features[index].merge("position" => position)
+          end.group_by do |feature|
+            feature["category"].reject(&:empty?)
+          end.each do |category, grouped_features|
+            spacing  = grouped_features[0]["spacing"]
+            size     = grouped_features[0]["size"]   || 1.5
+            margin   = grouped_features[0]["margin"] || 0
+            yield("labels").add_element("g", "class" => category.join(?\s), "font-size" => size) do |group|
+              group.add_attribute("letter-spacing", spacing) if spacing
+              grouped_features.each do |feature|
+                lines = feature["label"].in_two
+                point = map.coords_to_mm feature["data"]
+                transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
+                text_anchor = case feature["position"]
+                when 0, 2, 3 then "middle"
+                when 1 then "start"
+                when 4 then "end"
+                end
+                group.add_element("text", "text-anchor" => text_anchor, "transform" => transform) do |text|
+                  lines.each.with_index do |line, index|
+                    y = (lines.one? ? 0.5 : index) * size + case feature["position"]
+                    when 0, 1, 4 then 0.0
+                    when 2 then  margin + 0.5 * lines.length * size
+                    when 3 then -margin - 0.5 * lines.length * size
+                    end - 0.15 * size
+                    x = case feature["position"]
+                    when 0, 2, 3 then 0.0
+                    when 1 then  margin
+                    when 4 then -margin
+                    end
+                    text.add_element("tspan", "x" => x, "y" => y) do |tspan|
+                      tspan.add_text line
+                    end
+                  end
+                end
+              end
+            end
+          end
+        when "esriGeometryPolyline"
+          # TODO: code for line labeling
         end
       end
     end

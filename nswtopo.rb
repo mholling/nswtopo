@@ -2730,8 +2730,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     config["include"] = [ *config["include"] ]
     if config["include"].empty?
-      config["include"] << "nsw/lpimap"
-      puts "No layers specified. Adding nsw/lpimap by default."
+      config["include"] << "nsw/topographic"
+      puts "No layers specified. Adding nsw/topographic by default."
     end
     
     %w[controls.gpx controls.kml].map do |filename|

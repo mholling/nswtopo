@@ -1822,9 +1822,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               unless fields.map(&:to_s).all?(&:empty?)
                 feature["label"] = format % fields
                 feature["position"] = [ *options["position"] ]
-                feature["size"]    = options["size"]    if options["size"]
-                feature["spacing"] = options["spacing"] if options["spacing"]
-                feature["margin"]  = options["margin"]  if options["margin"]
+                feature["font-size"]      = options["font-size"]      if options["font-size"]
+                feature["letter-spacing"] = options["letter-spacing"] if options["letter-spacing"]
+                feature["margin"]         = options["margin"]         if options["margin"]
               end
             end
             feature["label-only"] = options["label-only"] if options["label-only"]
@@ -1839,8 +1839,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.tap do |layers|
         Dir.mktmppath do |temp_dir|
           json_path = temp_dir + "#{layer_name}.json"
-          # json_path.open("w") { |file| file << JSON.pretty_generate(layers) }
-          json_path.open("w") { |file| file << layers.to_json }
+          json_path.open("w") { |file| file << JSON.pretty_generate(layers) }
+          # json_path.open("w") { |file| file << layers.to_json }
           FileUtils.cp json_path, path
         end
       end
@@ -1956,12 +1956,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         case geometry_type
         when "esriGeometryPoint"
           labels_bounds = features.map.with_index do |feature, index|
-            lines    = feature["label"].in_two
-            size     = feature["size"]    || 1.5
-            spacing  = feature["spacing"] || 0
-            margin   = feature["margin"]  || 0
-            width = lines.map(&:length).max * (size * 0.7 + spacing)
-            height = lines.length * size
+            lines          = feature["label"].in_two
+            font_size      = feature["font-size"]      || 1.5
+            letter_spacing = feature["letter-spacing"] || 0
+            margin         = feature["margin"]         || 0
+            width = lines.map(&:length).max * (font_size * 0.7 + letter_spacing)
+            height = lines.length * font_size
             point = map.coords_to_mm(feature["data"])
             rotated = point.rotate_by(map.rotation * Math::PI / 180.0)
             feature["position"].map do |position|
@@ -1998,11 +1998,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.group_by do |feature|
             feature["category"].reject(&:empty?)
           end.each do |category, grouped_features|
-            spacing  = grouped_features[0]["spacing"]
-            size     = grouped_features[0]["size"]   || 1.5
-            margin   = grouped_features[0]["margin"] || 0
-            yield("labels").add_element("g", "class" => category.join(?\s), "font-size" => size) do |group|
-              group.add_attribute("letter-spacing", spacing) if spacing
+            letter_spacing = grouped_features[0]["letter-spacing"]
+            font_size      = grouped_features[0]["font-size"] || 1.5
+            margin         = grouped_features[0]["margin"]    || 0
+            yield("labels").add_element("g", "class" => category.join(?\s), "font-size" => font_size) do |group|
+              group.add_attribute("letter-spacing", letter_spacing) if letter_spacing
               grouped_features.each do |feature|
                 lines = feature["label"].in_two
                 point = map.coords_to_mm feature["data"]
@@ -2014,11 +2014,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
                 group.add_element("text", "text-anchor" => text_anchor, "transform" => transform) do |text|
                   lines.each.with_index do |line, index|
-                    y = (lines.one? ? 0.5 : index) * size + case feature["position"]
+                    y = (lines.one? ? 0.5 : index) * font_size + case feature["position"]
                     when 0, 1, 4 then 0.0
-                    when 2 then  margin + 0.5 * lines.length * size
-                    when 3 then -margin - 0.5 * lines.length * size
-                    end - 0.15 * size
+                    when 2 then  margin + 0.5 * lines.length * font_size
+                    when 3 then -margin - 0.5 * lines.length * font_size
+                    end - 0.15 * font_size
                     x = case feature["position"]
                     when 0, 2, 3 then 0.0
                     when 1 then  margin

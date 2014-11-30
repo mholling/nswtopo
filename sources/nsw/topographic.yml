@@ -74,7 +74,7 @@ features:
     category: ClassSubtype
     label: generalname
     position: [ 1, 2, 3, 4 ]
-    size: 1.4
+    font-size: 1.4
     margin: 1.0
   cadastre:
   - source: plan_section_lot
@@ -127,7 +127,7 @@ features:
     rotate: SymbolRotation
     label: generalname
     position: [ 1, 2, 3, 4 ]
-    size: 1.3
+    font-size: 1.3
     margin: 1.0
   ocean:
     # TODO: extract POI labels from feature-names into here?
@@ -230,7 +230,7 @@ features:
     label: poiname
     format: "'%s'"
     position: [ 1, 2, 3, 4 ]
-    size: 1.5
+    font-size: 1.5
     margin: 1.0
   railway-stations:
     source: rfs
@@ -239,7 +239,7 @@ features:
   spot-heights:
     name: SpotHeight
     label: elevation
-    size: 1.4
+    font-size: 1.4
     margin: 0.7
     position: [ 1, 2, 3, 4 ]
   trig-stations:
@@ -265,7 +265,7 @@ features:
     label-only: true
     label: relativeheight
     format: "%sr"
-    size: 1.4
+    font-size: 1.4
     margin: 0.5
     position: [ 0, 1, 2, 3, 4 ]
   feature-names:
@@ -276,9 +276,9 @@ features:
     label-only: true
     label: poiname
     position: [ 0, 1, 2, 3, 4 ]
-    size: 1.8
+    font-size: 1.8
     margin: 0.7
-    spacing: 0.1
+    letter-spacing: 0.1
   - name: Mountains
     redefine: true
     # TODO: include fuzzypointfeaturetype = 9 (LandcoverLike)?
@@ -287,9 +287,9 @@ features:
     label-only: true
     label: generalname
     position: [ 0, 1, 2, 3, 4 ]
-    size: 1.8
+    font-size: 1.8
     margin: 0.7
-    spacing: 0.1
+    letter-spacing: 0.1
     category: fuzzypointfeaturetype
   place-names:
     source: poi
@@ -299,9 +299,9 @@ features:
     label-only: true
     label: poiname
     position: [ 0, 1, 2, 3, 4 ]
-    size: 1.6
+    font-size: 1.6
     margin: 0.7
-    spacing: 0.2
+    letter-spacing: 0.2
 
 # LPIMap/Building_Large (GeneralCulturalArea)
 # (classsubtype:generalculturaltype)

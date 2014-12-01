@@ -1901,48 +1901,36 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       raise BadLayerError.new("source file not found at #{path}") unless path.exist?
       names_features = JSON.parse(path.read).reject do |sublayer_name, features|
         params["exclude"].include? sublayer_name
+      end.reject do |sublayer_name, features|
+        features.empty?
       end
       
       names_features.map do |sublayer_name, features|
         [ sublayer_name, features.reject { |feature| feature["label-only"] } ]
       end.each do |sublayer_name, features|
-        puts "... #{sublayer_name}" unless features.empty?
-        yield(sublayer_name).tap do |layer|
-          features.group_by do |feature|
-            [ *feature["category"] ].reject(&:empty?)
-          end.each do |category, grouped_features|
-            layer.add_element("g") do |group|
-              group.add_attribute "class", category.join(?\s)
-              grouped_features.group_by do |feature|
-                feature["geometryType"]
-              end.each do |geometry_type, grouped_features|
-                case geometry_type
-                when "esriGeometryPoint"
-                  grouped_features.map do |feature|
-                    x, y = map.coords_to_mm feature["data"]
-                    angle = feature["angle"]
-                    "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
-                  end.each do |transform|
-                    group.add_element "use", "transform" => transform
-                  end
-                when "esriGeometryPolyline", "esriGeometryPolygon"
-                  close, fill_options = case geometry_type
-                    when "esriGeometryPolyline" then [ nil, { "fill" => "none" }         ]
-                    when "esriGeometryPolygon"  then [ ?Z,  { "fill-rule" => "evenodd" } ]
-                  end
-                  grouped_features.each do |feature|
-                    feature["data"].map do |coords|
-                      map.coords_to_mm coords
-                    end.map do |points|
-                      points.inject do |memo, point|
-                        [ *memo, ?L, *point ]
-                      end.unshift(?M).push(*close)
-                    end.inject(&:+).tap do |subpaths|
-                      group.add_element "path", fill_options.merge("d" => subpaths.join(?\s)) if subpaths
-                    end
-                  end
-                end
-              end
+        puts "... #{sublayer_name}"
+        features.each do |feature|
+          categories = feature["category"].reject(&:empty?).join(?\s)
+          geometry_type = feature["geometryType"]
+          case geometry_type
+          when "esriGeometryPoint"
+            x, y = map.coords_to_mm feature["data"]
+            angle = feature["angle"]
+            transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
+            yield(sublayer_name).add_element "use", "transform" => transform, "class" => categories
+          when "esriGeometryPolyline", "esriGeometryPolygon"
+            close, fill_options = case geometry_type
+              when "esriGeometryPolyline" then [ nil, { "fill" => "none" }         ]
+              when "esriGeometryPolygon"  then [ ?Z,  { "fill-rule" => "evenodd" } ]
+            end
+            feature["data"].map do |coords|
+              map.coords_to_mm coords
+            end.map do |points|
+              points.inject do |memo, point|
+                [ *memo, ?L, *point ]
+              end.unshift(?M).push(*close)
+            end.inject(&:+).tap do |subpaths|
+              yield(sublayer_name).add_element "path", fill_options.merge("d" => subpaths.join(?\s), "class" => categories) if subpaths
             end
           end
         end
@@ -1999,39 +1987,49 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       solve(labels_conflicts).map do |index, position|
         point_features[index].merge("position" => position)
-      end.group_by do |feature|
-        feature["category"].reject(&:empty?)
-      end.each do |category, grouped_features|
-        letter_spacing = grouped_features[0]["letter-spacing"]
-        font_size      = grouped_features[0]["font-size"] || 1.5
-        margin         = grouped_features[0]["margin"]    || 0
-        yield("labels").add_element("g", "class" => category.join(?\s), "font-size" => font_size) do |group|
-          group.add_attribute("letter-spacing", letter_spacing) if letter_spacing
-          grouped_features.each do |feature|
-            lines = feature["label"].in_two
-            point = map.coords_to_mm feature["data"]
-            transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-            text_anchor = case feature["position"]
-            when 0, 2, 3 then "middle"
-            when 1 then "start"
-            when 4 then "end"
+      end.each do |feature|
+        categories     = feature["category"].reject(&:empty?).join(?\s)
+        letter_spacing = feature["letter-spacing"]
+        font_size      = feature["font-size"] || 1.5
+        margin         = feature["margin"]    || 0
+        lines = feature["label"].in_two
+        point = map.coords_to_mm feature["data"]
+        transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
+        text_anchor = case feature["position"]
+        when 0, 2, 3 then "middle"
+        when 1 then "start"
+        when 4 then "end"
+        end
+        yield("labels").add_element("text", "font-size" => font_size, "text-anchor" => text_anchor, "transform" => transform, "class" => categories) do |text|
+          text.add_attribute "letter-spacing", letter_spacing if letter_spacing
+          lines.each.with_index do |line, index|
+            y = (lines.one? ? 0.5 : index) * font_size + case feature["position"]
+            when 0, 1, 4 then 0.0
+            when 2 then  margin + 0.5 * lines.length * font_size
+            when 3 then -margin - 0.5 * lines.length * font_size
+            end - 0.15 * font_size
+            x = case feature["position"]
+            when 0, 2, 3 then 0.0
+            when 1 then  margin
+            when 4 then -margin
             end
-            group.add_element("text", "text-anchor" => text_anchor, "transform" => transform) do |text|
-              lines.each.with_index do |line, index|
-                y = (lines.one? ? 0.5 : index) * font_size + case feature["position"]
-                when 0, 1, 4 then 0.0
-                when 2 then  margin + 0.5 * lines.length * font_size
-                when 3 then -margin - 0.5 * lines.length * font_size
-                end - 0.15 * font_size
-                x = case feature["position"]
-                when 0, 2, 3 then 0.0
-                when 1 then  margin
-                when 4 then -margin
-                end
-                text.add_element("tspan", "x" => x, "y" => y) do |tspan|
-                  tspan.add_text line
-                end
-              end
+            text.add_element("tspan", "x" => x, "y" => y) do |tspan|
+              tspan.add_text line
+            end
+          end
+        end
+      end
+      
+      names_features.reject do |sublayer_name, features|
+        features.all? { |feature| feature["label-only"] }
+      end.map(&:first).push("labels").each do |sublayer_name|
+        yield(sublayer_name).elements.collect(&:remove).group_by do |element|
+          element.attributes["class"]
+        end.each do |category, elements|
+          yield(sublayer_name).add_element("g", "class" => category) do |group|
+            elements.each do |element|
+              element.attributes.delete "class"
+              group.elements << element
             end
           end
         end

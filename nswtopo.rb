@@ -165,6 +165,10 @@ class Array
   def norm
     Math::sqrt(dot self)
   end
+  
+  def normalised
+    times(1.0 / norm)
+  end
 
   def proj(other)
     dot(other) / other.norm
@@ -1640,6 +1644,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class ArcGISIdentify < Source
     include Annotation
+    FONT_ASPECT = 0.7
     
     def initialize(*args)
       super(*args)
@@ -1824,6 +1829,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 feature["position"] = [ *options["position"] ]
                 feature["font-size"]      = options["font-size"]      if options["font-size"]
                 feature["letter-spacing"] = options["letter-spacing"] if options["letter-spacing"]
+                feature["word-spacing"]   = options["word-spacing"]   if options["word-spacing"]
                 feature["margin"]         = options["margin"]         if options["margin"]
               end
             end
@@ -1942,6 +1948,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
+      puts "... labels"
       point_features, line_features = %w[esriGeometryPoint esriGeometryPolyline].map do |geometry_type|
         names_features.inject([]) do |memo, (sublayer_name, features)|
           memo + features.select do |feature|
@@ -1957,7 +1964,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         font_size      = feature["font-size"]      || 1.5
         letter_spacing = feature["letter-spacing"] || 0
         margin         = feature["margin"]         || 0
-        width = lines.map(&:length).max * (font_size * 0.7 + letter_spacing)
+        width = lines.map(&:length).max * (font_size * FONT_ASPECT + letter_spacing)
         height = lines.length * font_size
         point = map.coords_to_mm(feature["data"])
         rotated = point.rotate_by(map.rotation * Math::PI / 180.0)

@@ -137,10 +137,17 @@ class Array
     sin = Math::sin(angle)
     [ self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos ]
   end
-  # TODO: add rotate_by_degrees
 
   def rotate_by!(angle)
     self[0], self[1] = rotate_by(angle)
+  end
+  
+  def rotate_by_degrees(angle)
+    rotate_by(angle * Math::PI / 180.0)
+  end
+  
+  def rotate_by_degrees!(angle)
+    self[0], self[1] = rotate_by_degrees(angle)
   end
   
   def plus(other)
@@ -493,13 +500,13 @@ margin: 15
           @rotation = config["rotation"]
           abort "Error: map rotation must be between -45 and +45 degrees" unless rotation.abs <= 45
           @centre, @extents = bounding_points.map do |point|
-            point.rotate_by(-rotation * Math::PI / 180.0)
+            point.rotate_by_degrees(-rotation)
           end.transpose.map do |coords|
             [ coords.max, coords.min ]
           end.map do |max, min|
             [ 0.5 * (max + min), max - min ]
           end.transpose
-          @centre.rotate_by!(rotation * Math::PI / 180.0)
+          @centre.rotate_by_degrees!(rotation)
         end
         @extents.map! { |extent| extent + 2 * config["margin"] * 0.001 * @scale } if config["bounds"]
       end
@@ -532,7 +539,7 @@ margin: 15
       @extents.map do |extent|
         [ -0.5 * extent - margin, 0.5 * extent + margin ]
       end.inject(&:product).values_at(1,3,2,0).map do |point|
-        @centre.plus point.rotate_by(@rotation * Math::PI / 180.0)
+        @centre.plus point.rotate_by_degrees(@rotation)
       end
     end
     
@@ -542,7 +549,7 @@ margin: 15
     
     def edges(margin)
       axes = [ 180, 90, 0, -90 ].map do |angle|
-        [ 1, 0 ].rotate_by((@rotation + angle) * Math::PI / 180.0)
+        [ 1, 0 ].rotate_by_degrees(@rotation + angle)
       end
       [ axes, corners(margin) ].transpose
     end
@@ -556,7 +563,7 @@ margin: 15
     end
     
     def overlaps?(bounds)
-      axes = [ [ 1, 0 ], [ 0, 1 ] ].map { |axis| axis.rotate_by(@rotation * Math::PI / 180.0) }
+      axes = [ [ 1, 0 ], [ 0, 1 ] ].map { |axis| axis.rotate_by_degrees(@rotation) }
       bounds.inject(&:product).map do |corner|
         axes.map { |axis| corner.minus(@centre).dot(axis) }
       end.transpose.zip(@extents).none? do |projections, extent|
@@ -565,7 +572,7 @@ margin: 15
     end
     
     def write_world_file(path, resolution)
-      topleft = [ @centre, @extents.rotate_by(-@rotation * Math::PI / 180.0), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
+      topleft = [ @centre, @extents.rotate_by_degrees(-@rotation), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
       WorldFile.write topleft, resolution, @rotation, path
     end
     
@@ -1962,7 +1969,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         width = lines.map(&:length).max * (font_size * FONT_ASPECT + letter_spacing)
         height = lines.length * font_size
         point = map.coords_to_mm(feature["data"])
-        rotated = point.rotate_by(map.rotation * Math::PI / 180.0)
+        rotated = point.rotate_by_degrees(map.rotation)
         [ *feature["position"] ].map do |position|
           bounds = case position
           when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
@@ -2112,7 +2119,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         margin = feature["margin"]
         id = [ layer_name, "labels", "path", index, position ].join SEGMENT
         section = points[candidates[position]]
-        left_to_right = section[-1].minus(section[0]).rotate_by(-map.rotation * Math::PI / 180.0).first > 0
+        left_to_right = section[-1].minus(section[0]).rotate_by_degrees(-map.rotation).first > 0
         d = case feature["orientation"]
         when "uphill" then section
         when "downhill" then section.reverse
@@ -2499,7 +2506,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when :triangle, :square
               angles = type == :triangle ? [ -90, -210, -330 ] : [ -45, -135, -225, -315 ]
               points = angles.map do |angle|
-                [ radius, 0 ].rotate_by(angle * Math::PI / 180.0)
+                [ radius, 0 ].rotate_by_degrees(angle)
               end.map { |vertex| vertex.join ?, }.join ?\s
               rotated.add_element("polygon", "points" => points, "fill" => "none", "stroke" => "black", "stroke-width" => 0.2)
             when :water

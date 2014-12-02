@@ -181,7 +181,7 @@ class Array
   def normalised
     times(1.0 / norm)
   end
-
+  
   def proj(other)
     dot(other) / other.norm
   end
@@ -2051,44 +2051,57 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       
       labels_conflicts = {}
-      features_candidates_points = line_features.inject([]) do |features, feature|
+      features_sections = line_features.inject([]) do |features, feature|
         text           = feature["label"]
+        margin         = feature["margin"]
         font_size      = feature["font-size"]      || 1.5
         letter_spacing = feature["letter-spacing"] || 0
         word_spacing   = feature["word-spacing"]   || 0
         interval       = feature["interval"]       || 150
         length = text.length * (font_size * FONT_ASPECT + letter_spacing) + text.count(?\s) * word_spacing
+        shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
         feature.delete("data").map do |coords|
           points = map.coords_to_mm coords
           from_start = points.segments.inject([0]) do |memo, segment|
             memo << memo.last + segment.inject(&:minus).norm
           end
+          perpendiculars = points.segments.map do |segment|
+            [ segment[0][1] - segment[1][1], segment[1][0] - segment[0][0] ]
+          end
           candidates = from_start.length.times.inject([]) do |memo, finish|
-            finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
+            start = finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
               from_start[finish] - from_start[start] >= length
-            end.tap do |start|
-              memo << (start..finish) if start
             end
-            memo
+            start ? memo << (start..finish) : memo
           end.reject do |range|
-            # TODO: make this smoothness factor a feature property:
+            # TODO: make this straightness factor a feature property?
             points[range.first].minus(points[range.last]).norm < 0.9 * length
           end.reject do |range|
             points[range].cosines.any? { |cosine| cosine < 0.707 }
-          # end.reject do |range|
-          #   # TODO: reject candidates which cross point-feature labels
-          # end.reject do |range|
-          #   # TODO: reject candidates adjacent to the ends of the line
-          #   from_start[range.first] < 2 || from_start[range.last] > from_start.last - 2
-          end.sort_by do |range|
-            range.count < 3 ? 0.0 : 1.0 - points[range].cosines.mean
+          end.map do |range|
+            offset = perpendiculars[range.first...range.last].inject(&:plus).normalised.times(shift)
+            section = case feature["orientation"]
+            when "uphill"
+              points[range].map { |point| point.minus offset }
+            when "downhill"
+              points[range].map { |point| point.plus  offset }.reverse
+            else
+              points[range.last].minus(points[range.first]).rotate_by_degrees(map.rotation).first > 0 ?
+                points[range].map { |point| point.minus offset } :
+                points[range].map { |point| point.plus  offset }.reverse
+            end
+            [ range, section ]
+          # end.reject do |range, section|
+          #   # TODO: reject candidate sections which cross point-feature labels
+          end.sort_by do |range, section|
+            section.length < 3 ? 0.0 : 1.0 - section.cosines.mean
           end
           if candidates.any?
             feature_index = features.length
-            candidates.each.with_index do |range1, index1|
+            candidates.each.with_index do |(range1, section1), index1|
               label1 = [ feature_index, index1 ]
               labels_conflicts[label1] = {}
-              candidates.each.with_index do |range2, index2|
+              candidates.each.with_index do |(range2, section2), index2|
                 label2 = [ feature_index, index2 ]
                 case
                 # TODO: check proximity between start and end points
@@ -2102,7 +2115,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
             end
-            features << [ feature, candidates, points ]
+            features << [ feature, candidates.map(&:last) ]
           end
         end
         features
@@ -2120,27 +2133,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       solve(labels_conflicts).uniq.each do |index, position|
         # TODO: uniq should not be needed; solve is returning dupes!
-        feature, candidates, points = features_candidates_points[index]
+        feature, sections = features_sections[index]
         categories = feature["category"].reject(&:empty?).join(?\s)
         font_size = feature["font-size"] || 1.5
-        margin = feature["margin"]
         id = [ layer_name, "labels", "path", index, position ].join SEGMENT
-        section = points[candidates[position]]
-        left_to_right = section[-1].minus(section[0]).rotate_by_degrees(map.rotation).first > 0
-        d = case feature["orientation"]
-        when "uphill" then section
-        when "downhill" then section.reverse
-        else left_to_right ? section : section.reverse
-        end.to_path_data
-        dy = margin ? margin < 0 ? font_size + margin : -margin : 0.35 * font_size
+        d = sections[position].to_path_data
         yield("labels").elements["//svg/defs"].add_element("path", "id" => id, "d" => d)
         yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
           text.add_attribute "letter-spacing", feature["letter-spacing"] if feature["letter-spacing"]
           text.add_attribute "word-spacing", feature["word-spacing"] if feature["word-spacing"]
           text.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%") do |text_path|
-            text_path.add_element("tspan", "dy" => dy) do |tspan|
-              tspan.add_text feature["label"]
-            end
+            text_path.add_text feature["label"]
           end
         end
       end

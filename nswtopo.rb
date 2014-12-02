@@ -137,6 +137,7 @@ class Array
     sin = Math::sin(angle)
     [ self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos ]
   end
+  # TODO: add rotate_by_degrees
 
   def rotate_by!(angle)
     self[0], self[1] = rotate_by(angle)
@@ -1826,11 +1827,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               format = options["format"] || (%w[%s] * fields.length).join(?\s)
               unless fields.map(&:to_s).all?(&:empty?)
                 feature["label"] = format % fields
-                feature["position"] = [ *options["position"] ]
-                feature["font-size"]      = options["font-size"]      if options["font-size"]
-                feature["letter-spacing"] = options["letter-spacing"] if options["letter-spacing"]
-                feature["word-spacing"]   = options["word-spacing"]   if options["word-spacing"]
-                feature["margin"]         = options["margin"]         if options["margin"]
+                [ *options["label-by"] ].map do |field, field_options|
+                  field_options.select do |field_value, opts|
+                    [ *field_value ].include? attributes[field]
+                  end.map(&:last)
+                end.flatten.unshift(options).inject(&:merge).tap do |opts|
+                  %w[font-size letter-spacing word-spacing margin orientation position interval].each do |name|
+                    feature[name] = opts[name] if opts[name]
+                  end
+                end
               end
             end
             feature["label-only"] = options["label-only"] if options["label-only"]
@@ -1853,6 +1858,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def solve(labels_conflicts)
+      # TODO: currently returning repeated labels, this is BAD!
+      # also, very slow, needs optimising
       pending, completed = labels_conflicts.dup, [ ]
       while pending.any?
         pending.min_by do |(index, _), conflicts|
@@ -1894,7 +1901,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           label[1] = candidates.min.last # unless candidates.map(&:first).all?(&:zero?)
         end
       end
-      completed.to_enum
+      completed
     end
     
     def draw(map)
@@ -1908,7 +1915,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       names_features.map do |sublayer_name, features|
         [ sublayer_name, features.reject { |feature| feature["label-only"] } ]
       end.each do |sublayer_name, features|
-        puts "... #{sublayer_name}"
+        puts "... #{sublayer_name}" if features.any?
         features.each do |feature|
           categories = feature["category"].reject(&:empty?).join(?\s)
           geometry_type = feature["geometryType"]
@@ -1956,7 +1963,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         height = lines.length * font_size
         point = map.coords_to_mm(feature["data"])
         rotated = point.rotate_by(map.rotation * Math::PI / 180.0)
-        feature["position"].map do |position|
+        [ *feature["position"] ].map do |position|
           bounds = case position
           when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
           when 1 then [ [ 0, width + margin ], [ -0.5 * height, 0.5 * height ] ]
@@ -2015,6 +2022,112 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
             text.add_element("tspan", "x" => x, "y" => y) do |tspan|
               tspan.add_text line
+            end
+          end
+        end
+      end
+      
+      labels_conflicts = {}
+      features_candidates_points = line_features.inject([]) do |features, feature|
+        text           = feature["label"]
+        font_size      = feature["font-size"]      || 1.5
+        letter_spacing = feature["letter-spacing"] || 0
+        word_spacing   = feature["word-spacing"]   || 0
+        interval       = feature["interval"]       || 150
+        length = text.length * (font_size * FONT_ASPECT + letter_spacing) + text.count(?\s) * word_spacing
+        feature.delete("data").map do |coords|
+          points = map.coords_to_mm coords
+          from_start = points.segments.inject([0]) do |memo, segment|
+            memo << memo.last + segment.inject(&:minus).norm
+          end
+          from_centre = from_start.map do |distance|
+            (distance - 0.5 * from_start.last).abs
+          end
+          candidates = from_start.length.times.inject([]) do |memo, finish|
+            finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
+              from_start[finish] - from_start[start] >= length
+            end.tap do |start|
+              memo << (start..finish) if start
+            end
+            memo
+          end.reject do |range|
+            # TODO: make this smoothness factor a feature property:
+            points[range.first].minus(points[range.last]).norm < 0.9 * length
+          end.reject do |range|
+            points[range].segments.map do |segment|
+              segment.inject(&:minus).normalised
+            end.segments.any? do |segment|
+              # TODO: make this cosine(angle) a feature property:
+              segment.inject(&:dot) < 0.707
+            end
+          # end.reject do |range|
+          #   # TODO: reject candidates which cross point-feature labels
+          # end.reject do |range|
+          #   # TODO: reject candidates adjacent to the ends of the line
+          #   from_start[range.first] < 2 || from_start[range.last] > from_start.last - 2
+          end.sort_by do |range|
+            # TODO: can we sort by path smoothness, maximum turn angle, some other criteria?
+            from_centre[range].max
+          end
+          if candidates.any?
+            feature_index = features.length
+            candidates.each.with_index do |range1, index1|
+              label1 = [ feature_index, index1 ]
+              labels_conflicts[label1] = {}
+              candidates.each.with_index do |range2, index2|
+                label2 = [ feature_index, index2 ]
+                case
+                # TODO: check proximity between start and end points
+                when index1 == index2
+                when from_start[range2.first] - from_start[range1.last] > interval
+                when from_start[range1.first] - from_start[range2.last] > interval
+                else
+                  # TODO: instead set a fraction according to closeness of conflicting label
+                  # e.g. (interval - separation) / interval
+                  labels_conflicts[label1][label2] = 1
+                end
+              end
+            end
+            features << [ feature, candidates, points ]
+          end
+        end
+        features
+      end
+      
+      # # TODO: add conflicts between different features!
+      # features.each.with_index do |feature1, index1|
+      #   features.each.with_index do |feature2, index2|
+      #     case
+      #     when index1 == index2
+      #     else
+      #     end
+      #   end
+      # end
+      
+      solve(labels_conflicts).uniq.each do |index, position|
+        # TODO: uniq should not be needed; solve is returning dupes!
+        feature, candidates, points = features_candidates_points[index]
+        categories = feature["category"].reject(&:empty?).join(?\s)
+        font_size = feature["font-size"] || 1.5
+        margin = feature["margin"]
+        id = [ layer_name, "labels", "path", index, position ].join SEGMENT
+        section = points[candidates[position]]
+        left_to_right = section[-1].minus(section[0]).rotate_by(-map.rotation * Math::PI / 180.0).first > 0
+        d = case feature["orientation"]
+        when "uphill" then section
+        when "downhill" then section.reverse
+        else left_to_right ? section : section.reverse
+        end.inject do |memo, point|
+          [ *memo, ?L, *point ]
+        end.unshift(?M).join(?\s)
+        dy = margin ? margin < 0 ? font_size + margin : -margin : 0.35 * font_size
+        yield("labels").elements["//svg/defs"].add_element("path", "id" => id, "d" => d)
+        yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
+          text.add_attribute "letter-spacing", feature["letter-spacing"] if feature["letter-spacing"]
+          text.add_attribute "word-spacing", feature["word-spacing"] if feature["word-spacing"]
+          text.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%") do |text_path|
+            text_path.add_element("tspan", "dy" => dy) do |tspan|
+              tspan.add_text feature["label"]
             end
           end
         end

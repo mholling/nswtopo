@@ -200,6 +200,12 @@ class Array
   def ring
     zip rotate
   end
+  
+  def to_path_data(*close)
+    self.inject do |memo, point|
+      [ *memo, ?L, *point ]
+    end.unshift(?M).push(*close).join(?\s)
+  end
 end
 
 class String
@@ -1937,14 +1943,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when "esriGeometryPolyline" then [ nil, { "fill" => "none" }         ]
               when "esriGeometryPolygon"  then [ ?Z,  { "fill-rule" => "evenodd" } ]
             end
-            feature["data"].map do |coords|
+            feature["data"].reject(&:empty?).map do |coords|
               map.coords_to_mm coords
             end.map do |points|
-              points.inject do |memo, point|
-                [ *memo, ?L, *point ]
-              end.unshift(?M).push(*close)
-            end.inject(&:+).tap do |subpaths|
-              yield(sublayer_name).add_element "path", fill_options.merge("d" => subpaths.join(?\s), "class" => categories) if subpaths
+              points.to_path_data(*close)
+            end.tap do |subpaths|
+              yield(sublayer_name).add_element "path", fill_options.merge("d" => subpaths.join(?\s), "class" => categories) if subpaths.any?
             end
           end
         end
@@ -2124,9 +2128,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         when "uphill" then section
         when "downhill" then section.reverse
         else left_to_right ? section : section.reverse
-        end.inject do |memo, point|
-          [ *memo, ?L, *point ]
-        end.unshift(?M).join(?\s)
+        end.to_path_data
         dy = margin ? margin < 0 ? font_size + margin : -margin : 0.35 * font_size
         yield("labels").elements["//svg/defs"].add_element("path", "id" => id, "d" => d)
         yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
@@ -2396,9 +2398,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ eastings, northings ].transpose
       end.map do |line|
         svg_coords(line, projection, map)
-      end.map do |line|
-        "M%f %f L%f %f" % line.flatten
-      end.each do |d|
+      end.map(&:to_path_data).each do |d|
         yield.add_element("path", "d" => d, "stroke" => "black", "stroke-width" => "0.1")
       end
     end
@@ -2438,11 +2438,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ grid, grid.transpose ].each.with_index do |gridlines, index|
           gridlines.each do |gridline|
             line = gridline.select(&:first).map(&:last)
-            svg_coords(line, projection, map).map do |point|
-              point.join ?\s
-            end.join(" L").tap do |d|
-              yield("lines").add_element("path", "d" => "M#{d}", "stroke-width" => "0.1", "stroke" => "black")
-            end
+            d = svg_coords(line, projection, map).to_path_data
+            yield("lines").add_element("path", "d" => d, "stroke-width" => "0.1", "stroke" => "black")
             if line[0] && line[0][index] % label_interval == 0 
               coord = line[0][index]
               label_segments = [ [ "%d", (coord / 100000), 80 ], [ "%02d", (coord / 1000) % 100, 100 ] ]

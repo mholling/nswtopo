@@ -132,6 +132,10 @@ class Array
     sort[length / 2]
   end
   
+  def mean
+    empty? ? nil : inject(&:+) / length
+  end
+  
   def rotate_by(angle)
     cos = Math::cos(angle)
     sin = Math::sin(angle)
@@ -199,6 +203,14 @@ class Array
   
   def ring
     zip rotate
+  end
+  
+  def cosines
+    segments.map do |segment|
+      segment.inject(&:minus).normalised
+    end.segments.map do |segment|
+      segment.inject(&:dot)
+    end
   end
   
   def to_path_data(*close)
@@ -2051,9 +2063,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           from_start = points.segments.inject([0]) do |memo, segment|
             memo << memo.last + segment.inject(&:minus).norm
           end
-          from_centre = from_start.map do |distance|
-            (distance - 0.5 * from_start.last).abs
-          end
           candidates = from_start.length.times.inject([]) do |memo, finish|
             finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
               from_start[finish] - from_start[start] >= length
@@ -2065,20 +2074,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             # TODO: make this smoothness factor a feature property:
             points[range.first].minus(points[range.last]).norm < 0.9 * length
           end.reject do |range|
-            points[range].segments.map do |segment|
-              segment.inject(&:minus).normalised
-            end.segments.any? do |segment|
-              # TODO: make this cosine(angle) a feature property:
-              segment.inject(&:dot) < 0.707
-            end
+            points[range].cosines.any? { |cosine| cosine < 0.707 }
           # end.reject do |range|
           #   # TODO: reject candidates which cross point-feature labels
           # end.reject do |range|
           #   # TODO: reject candidates adjacent to the ends of the line
           #   from_start[range.first] < 2 || from_start[range.last] > from_start.last - 2
           end.sort_by do |range|
-            # TODO: can we sort by path smoothness, maximum turn angle, some other criteria?
-            from_centre[range].max
+            range.count < 3 ? 0.0 : 1.0 - points[range].cosines.mean
           end
           if candidates.any?
             feature_index = features.length

@@ -2123,7 +2123,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         margin = feature["margin"]
         id = [ layer_name, "labels", "path", index, position ].join SEGMENT
         section = points[candidates[position]]
-        left_to_right = section[-1].minus(section[0]).rotate_by_degrees(-map.rotation).first > 0
+        left_to_right = section[-1].minus(section[0]).rotate_by_degrees(map.rotation).first > 0
         d = case feature["orientation"]
         when "uphill" then section
         when "downhill" then section.reverse

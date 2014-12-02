@@ -2062,15 +2062,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
         feature.delete("data").map do |coords|
           points = map.coords_to_mm coords
-          from_start = points.segments.inject([0]) do |memo, segment|
+          start_end_distance = points.values_at(0, -1).inject(&:minus).norm
+          cumulative = points.segments.inject([start_end_distance]) do |memo, segment|
             memo << memo.last + segment.inject(&:minus).norm
           end
           perpendiculars = points.segments.map do |segment|
             [ segment[0][1] - segment[1][1], segment[1][0] - segment[0][0] ]
           end
-          candidates = from_start.length.times.inject([]) do |memo, finish|
+          candidates = cumulative.length.times.inject([]) do |memo, finish|
             start = finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
-              from_start[finish] - from_start[start] >= length
+              cumulative[finish] - cumulative[start] >= length
             end
             start ? memo << (start..finish) : memo
           end.reject do |range|
@@ -2104,13 +2105,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               candidates.each.with_index do |(range2, section2), index2|
                 label2 = [ feature_index, index2 ]
                 case
-                # TODO: check proximity between start and end points
                 when index1 == index2
-                when from_start[range2.first] - from_start[range1.last] > interval
-                when from_start[range1.first] - from_start[range2.last] > interval
+                when cumulative[range2.first] - cumulative[range1.last] > interval && cumulative[range1.first] + cumulative.last - cumulative[range2.last] > interval
+                when cumulative[range1.first] - cumulative[range2.last] > interval && cumulative[range2.first] + cumulative.last - cumulative[range1.last] > interval
                 else
-                  # TODO: instead set a fraction according to closeness of conflicting label
-                  # e.g. (interval - separation) / interval
                   labels_conflicts[label1][label2] = 1
                 end
               end

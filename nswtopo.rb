@@ -1852,11 +1852,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               format = options["format"] || (%w[%s] * fields.length).join(?\s)
               unless fields.map(&:to_s).all?(&:empty?)
                 feature["label"] = format % fields
-                [ *options["label-by"] ].map do |field, field_options|
-                  field_options.select do |field_value, opts|
-                    [ *field_value ].include? attributes[field]
-                  end.map(&:last)
-                end.flatten.unshift(options).inject(&:merge).tap do |opts|
+                [ *options["label-by-category"] ].select do |categories, opts|
+                  (attributes.values_at(*options["category"]).compact & [ *categories ].map(&:to_s)).any?
+                end.map(&:last).unshift(options).inject(&:merge).tap do |opts|
                   %w[font-size letter-spacing word-spacing margin orientation position interval].each do |name|
                     feature[name] = opts[name] if opts[name]
                   end

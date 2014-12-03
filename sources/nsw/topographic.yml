@@ -30,6 +30,10 @@ sources:
     host: mapsq.six.nsw.gov.au
     folder: sixmaps
     service: Landform
+  lpi-raster-labels:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: LPI_RasterLabels_1
   poi:
     host: maps.six.nsw.gov.au
     folder: sixmaps
@@ -49,15 +53,31 @@ features:
     - ClassSubtype
     - relevance
   contours-10m:
-    name: Contour_10m
+  - name: Contour_10m
     category:
     - ClassSubtype
     - relevance
+  - name: Contour_10m
+    definition: mod(elevation,50) = 0
+    label-only: true
+    label: elevation
+    orientation: uphill
+    font-size: 1.4
+    letter-spacing: 0.05
+    interval: 120
   contours-20m:
-    name: Contour_10m
+  - name: Contour_20m
     category:
     - ClassSubtype
     - relevance
+  - name: Contour_20m
+    definition: relevance IN (1,2)
+    label-only: true
+    label: elevation
+    orientation: uphill
+    font-size: 1.4
+    letter-spacing: 0.05
+    interval: 120
   cliffs-rocks-sand:
     # TODO: extract POI labels from feature-names into here?
     name: Cliffs_Reefs_Mangroves
@@ -89,13 +109,32 @@ features:
     name: Swamps_LSI
     category: ClassSubtype
   watercourses:
-    source: hydrography
+  - source: hydrography
     name: Hydroline
     definition: classsubtype = 1 AND hydrotype NOT IN (5, 6)
     category:
     - relevance
     - hydrotype
     # TODO: include Perenniality and render accordingly?
+  - source: lpimap
+    name: Stream_Names
+    label-only: true
+    label: hydronamestring
+    category: relevance
+    letter-spacing: 0.1
+    word-spacing: 2.0
+    label-by-category:
+      [ 1, 2 ]:
+        font-size: 1.9
+      [ 3, 4 ]:
+        font-size: 1.7
+        margin: 0.5
+      [ 5, 6, 7 ]:
+        font-size: 1.5
+        margin: 0.5
+      [ 8, 9, 10 ]:
+        margin: 0.5
+        font-size: 1.4
   stock-dams:
     name: StockDams
     category: hydrotype
@@ -187,7 +226,7 @@ features:
     definition: operationalstatus NOT IN (3,8) AND roadontype = 4 AND classsubtype <> 8 AND functionhierarchy IN (1,2,3,4,5,6)
     category: FunctionHierarchy
   roads:
-    source: rfs
+  - source: rfs
     name: RoadSegment
     definition: operationalstatus NOT IN (3,8) AND roadontype <> 3 AND classsubtype <> 8
     category:
@@ -195,6 +234,25 @@ features:
     - ClassSubtype
     - FunctionHierarchy
     - RoadOnType
+  - source: lpi-raster-labels
+    name: Raster_Road_Labels
+    definition: functionhierarchy NOT IN (6,7,10,11)
+    category: functionhierarchy
+    label-only: true
+    label: roadnamestring
+    font-size: 1.4
+    letter-spacing: 0.1
+    label-by-category:
+      [ Path, Track-Vehicular ]:
+        font-size: 1.4
+        margin: 0.45
+      [ SubArterialRoad, DistributorRoad ]:
+        font-size: 1.6
+        margin: 0.5
+      [ Motorway, PrimaryRoad, ArterialRoad ]:
+        font-size: 1.8
+        margin: 0.55
+        word-spacing: 1.0
   railways:
     name: Railway_onground_LS
     definition: operationalstatus NOT IN (3,8)
@@ -266,7 +324,7 @@ features:
     label: relativeheight
     format: "%sr"
     font-size: 1.4
-    margin: 0.5
+    margin: 0.8
     position: [ 0, 1, 2, 3, 4 ]
   feature-names:
   - source: poi
@@ -282,8 +340,7 @@ features:
   - name: Mountains
     redefine: true
     # TODO: include fuzzypointfeaturetype = 9 (LandcoverLike)?
-    # TODO: remove 3/DuneLike once we have line labels
-    definition: fuzzypointfeaturetype IN (3,4)
+    definition: fuzzypointfeaturetype = 4
     label-only: true
     label: generalname
     position: [ 0, 1, 2, 3, 4 ]
@@ -291,6 +348,19 @@ features:
     margin: 0.7
     letter-spacing: 0.1
     category: fuzzypointfeaturetype
+  - name: Ridge_Beach
+    definition: generalname <> 'GREAT DIVIDING RANGE'
+    label-only: true
+    label: generalname
+    font-size: 1.8
+    word-spacing: 3
+    letter-spacing: 0.5
+    category: fuzzylinefeaturetype
+    label-by-category:
+      Beach:
+        margin: 0.7
+      ValleyLike:
+        margin: 0.7
   place-names:
     source: poi
     name: Points Of Interest
@@ -323,9 +393,6 @@ features:
 # 3:Lookout
 # 3:Observation Tower
 # 3:Picnic Area
-
-# LPIMap/Ridge_Beach (FuzzyLineFeature)
-# Beach, DuneLike, RangeLike, ValleyLike
 
 # missing:
 # TankArea
@@ -1098,6 +1165,8 @@ labels:
       font-family: Arial, Helvetica, sans-serif
     buildings:
       font-family: Cambria, Times, serif
+    watercourses:
+      fill: "#1667DF"
     waterfalls:
       fill: "#1667DF"
     feature-names:

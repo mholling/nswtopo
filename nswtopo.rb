@@ -1884,41 +1884,41 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       # pending, completed = conflicts.dup, [ ]
       pending, completed = Marshal.load(Marshal.dump(conflicts)), [ ] # TODO: this is stop-gap, need a Hash#deep_clone
       while pending.any?
-        pending.map do |index, positions_conflicts|
-          positions_conflicts.map do |position, conflicts|
-            [ [ index, position ], conflicts, [ conflicts.length, pending[index].length ] ]
+        pending.map do |feature, conflicts|
+          conflicts.map do |candidate, conflicts|
+            [ [ feature, candidate ], conflicts, [ conflicts.length, pending[feature].length ] ]
           end
         end.flatten(1).min_by(&:last).tap do |label, conflicts, _|
-          conflicts.keys.each do |index, position|
-            pending[index].delete(position) if pending[index]
+          conflicts.keys.each do |feature, candidate|
+            pending[feature].delete(candidate) if pending[feature]
           end
-          index, position = label
-          pending[index].delete(position) if pending[index]
+          feature, candidate = label
+          pending[feature].delete(candidate) if pending[feature]
           completed << label
         end
-        pending.reject! do |index, positions_conflicts|
-          positions_conflicts.empty?
+        pending.reject! do |feature, conflicts|
+          conflicts.empty?
         end
       end
       pending = conflicts.keys - completed.map(&:first)
       while pending.any?
-        pending.each do |index|
-          conflicts[index].min_by do |position, conflicts|
+        pending.each do |feature|
+          conflicts[feature].min_by do |candidate, conflicts|
             overlaps = conflicts.select do |label, _|
               completed.include? label
             end.map(&:last)
-            [ overlaps.inject(&:+) || 0, position ]
-          end.tap do |position, _|
-            completed << [ index, position ]
+            [ overlaps.inject(&:+) || 0, candidate ]
+          end.tap do |candidate, _|
+            completed << [ feature, candidate ]
           end
-          pending.delete index
+          pending.delete feature
         end
       end
       # # TODO: reinstate local search algorithm
       # 5.times do
       #   completed.each do |label|
-      #     conflicts[label[0]].map do |position, conflicts|
-      #       [ conflicts.values_at(*completed).compact.inject(&:+) || 0, position ]
+      #     conflicts[label[0]].map do |candidate, conflicts|
+      #       [ conflicts.values_at(*completed).compact.inject(&:+) || 0, candidate ]
       #     end
       #     label[1] = candidates.min.last # unless candidates.map(&:first).all?(&:zero?)
       #   end
@@ -1973,7 +1973,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      bounds = point_features.map.with_index do |feature, index|
+      bounds = point_features.map.with_index do |feature, feature_index|
         lines          = feature["label"].in_two
         font_size      = feature["font-size"]      || 1.5
         letter_spacing = feature["letter-spacing"] || 0
@@ -1982,7 +1982,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         height = lines.length * font_size
         point = map.coords_to_mm(feature["data"])
         rotated = point.rotate_by_degrees(map.rotation)
-        bounds = [ *feature["position"] ].map do |position|
+        bounds = [ *feature["position"] ].map.with_index do |position, position_index|
           bounds = case position
           when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
           when 1 then [ [ 0, width + margin ], [ -0.5 * height, 0.5 * height ] ]
@@ -1992,35 +1992,36 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.zip(rotated).map do |offsets, centre|
             offsets.map { |offset| offset + centre }
           end
-          [ position, bounds ]
+          [ position_index, bounds ]
         end
-        [ index, bounds ]
+        [ feature_index, bounds ]
       end
       
       conflicts = {}
-      bounds.each do |index1, bounds1|
-        conflicts[index1] = {}
-        bounds1.each do |position1, bounds1|
-          conflicts[index1][position1] = {}
-          bounds.each do |index2, bounds2|
-            bounds2.each do |position2, bounds2|
+      bounds.each do |feature1, bounds1|
+        conflicts[feature1] = {}
+        bounds1.each do |candidate1, bounds1|
+          conflicts[feature1][candidate1] = {}
+          bounds.each do |feature2, bounds2|
+            bounds2.each do |candidate2, bounds2|
               overlaps = bounds1.zip(bounds2).map do |bound1, bound2|
                 case
-                when index1 == index2 && position1 == position2
+                when feature1 == feature2 && candidate1 == candidate2
                 when bound1.max < bound2.min
                 when bound1.min > bound2.max
                 else [ bound1[1], bound2[1] ].min - [ bound1[0], bound2[0] ].max
                 end
               end
-              label2 = [ index2, position2 ]
-              conflicts[index1][position1][label2] = overlaps.inject(&:*) if overlaps.all?
+              label2 = [ feature2, candidate2 ]
+              conflicts[feature1][candidate1][label2] = overlaps.inject(&:*) if overlaps.all?
             end
           end
         end
       end
       
-      solve(conflicts).each do |index, position|
-        feature = point_features[index]
+      solve(conflicts).each do |feature_index, candidate_index|
+        feature = point_features[feature_index]
+        position = [ *feature["position"] ][candidate_index]
         categories     = feature["category"].reject(&:empty?).join(?\s)
         letter_spacing = feature["letter-spacing"]
         font_size      = feature["font-size"] || 1.5
@@ -2093,18 +2094,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             section.length < 3 ? 0.0 : 1.0 - section.cosines.mean
           end
           if candidates.any?
-            index = collection.length
-            conflicts[index] = {}
-            candidates.each.with_index do |(range1, section1), position1|
-              conflicts[index][position1] = {}
-              candidates.each.with_index do |(range2, section2), position2|
-                label2 = [ index, position2 ]
+            feature_index = collection.length
+            conflicts[feature_index] = {}
+            candidates.each.with_index do |(range1, section1), candidate1|
+              conflicts[feature_index][candidate1] = {}
+              candidates.each.with_index do |(range2, section2), candidate2|
+                label2 = [ feature_index, candidate2 ]
                 case
-                when position1 == position2
+                when candidate1 == candidate2
                 when cumulative[range2.first] - cumulative[range1.last] > interval && cumulative[range1.first] + cumulative.last - cumulative[range2.last] > interval
                 when cumulative[range1.first] - cumulative[range2.last] > interval && cumulative[range2.first] + cumulative.last - cumulative[range1.last] > interval
                 else
-                  conflicts[index][position1][label2] = 1
+                  conflicts[feature_index][candidate1][label2] = 1
                 end
               end
             end
@@ -2124,13 +2125,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       #   end
       # end
       
-      solve(conflicts).uniq.with_progress("... plotting labels").each do |index, position|
+      solve(conflicts).uniq.with_progress("... plotting labels").each do |feature_index, candidate_index|
         # TODO: this is a lot slower than it should be!
-        feature, sections = features_sections[index]
+        feature, sections = features_sections[feature_index]
         categories = feature["category"].reject(&:empty?).join(?\s)
         font_size = feature["font-size"] || 1.5
-        id = [ layer_name, "labels", "path", index, position ].join SEGMENT
-        d = sections[position].to_path_data
+        id = [ layer_name, "labels", "path", feature_index, candidate_index ].join SEGMENT
+        d = sections[candidate_index].to_path_data
         yield("labels").elements["//svg/defs"].add_element("path", "id" => id, "d" => d)
         yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
           text.add_attribute "letter-spacing", feature["letter-spacing"] if feature["letter-spacing"]

@@ -2013,9 +2013,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         { label => conflicts }
       end.inject(&:merge) || {}
       
-      solve(labels_conflicts).map do |index, position|
-        point_features[index].merge("position" => position)
-      end.each do |feature|
+      solve(labels_conflicts).each do |index, position|
+        feature = point_features[index]
         categories     = feature["category"].reject(&:empty?).join(?\s)
         letter_spacing = feature["letter-spacing"]
         font_size      = feature["font-size"] || 1.5
@@ -2023,24 +2022,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         lines = feature["label"].in_two
         point = map.coords_to_mm feature["data"]
         transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-        text_anchor = case feature["position"]
-        when 0, 2, 3 then "middle"
-        when 1 then "start"
-        when 4 then "end"
-        end
+        text_anchor = position == 1 ? "start" : position == 4 ? "end" : "middle"
         yield("labels").add_element("text", "font-size" => font_size, "text-anchor" => text_anchor, "transform" => transform, "class" => categories) do |text|
           text.add_attribute "letter-spacing", letter_spacing if letter_spacing
           lines.each.with_index do |line, index|
-            y = (lines.one? ? 0.5 : index) * font_size + case feature["position"]
+            y = (lines.one? ? 0.5 : index) * font_size + case position
             when 0, 1, 4 then 0.0
             when 2 then  margin + 0.5 * lines.length * font_size
             when 3 then -margin - 0.5 * lines.length * font_size
             end - 0.15 * font_size
-            x = case feature["position"]
-            when 0, 2, 3 then 0.0
-            when 1 then  margin
-            when 4 then -margin
-            end
+            x = position == 1 ? margin : position == 4 ? -margin : 0
             text.add_element("tspan", "x" => x, "y" => y) do |tspan|
               tspan.add_text line
             end

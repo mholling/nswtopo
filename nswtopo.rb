@@ -1880,50 +1880,49 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def solve(labels_conflicts)
-      # TODO: currently returning repeated labels, this is BAD!
-      # also, very slow, needs optimising
-      pending, completed = labels_conflicts.dup, [ ]
+    def solve(conflicts)
+      # pending, completed = conflicts.dup, [ ]
+      pending, completed = Marshal.load(Marshal.dump(conflicts)), [ ] # TODO: this is stop-gap, need a Hash#deep_clone
       while pending.any?
-        pending.min_by do |(index, _), conflicts|
-          remaining = pending.select do |other_index, _|
-            other_index == index
+        pending.map do |index, positions_conflicts|
+          positions_conflicts.map do |position, conflicts|
+            [ [ index, position ], conflicts, [ conflicts.length, pending[index].length ] ]
           end
-          [ conflicts.length, remaining.length ]
-        end.tap do |label, conflicts|
-          conflicts.keys.each do |conflicting_label|
-            pending.delete conflicting_label
+        end.flatten(1).min_by(&:last).tap do |label, conflicts, _|
+          conflicts.keys.each do |index, position|
+            pending[index].delete(position) if pending[index]
           end
-          pending.delete label
+          index, position = label
+          pending[index].delete(position) if pending[index]
           completed << label
         end
+        pending.reject! do |index, positions_conflicts|
+          positions_conflicts.empty?
+        end
       end
-      pending = labels_conflicts.keys.map(&:first).uniq - completed.map(&:first)
+      pending = conflicts.keys - completed.map(&:first)
       while pending.any?
         pending.each do |index|
-          labels_conflicts.select do |(other_index, _), _|
-            other_index == index
-          end.min_by do |(_, position), conflicts|
-            overlaps = conflicts.select do |other_label, _|
-              completed.include? other_label
+          conflicts[index].min_by do |position, conflicts|
+            overlaps = conflicts.select do |label, _|
+              completed.include? label
             end.map(&:last)
             [ overlaps.inject(&:+) || 0, position ]
-          end.tap do |label, _|
-            completed << label
+          end.tap do |position, _|
+            completed << [ index, position ]
           end
           pending.delete index
         end
       end
-      5.times do
-        completed.each do |label|
-          candidates = labels_conflicts.select do |(other_index, other_position), _|
-            other_index == label[0]
-          end.map do |(_, other_position), conflicts|
-            [ conflicts.values_at(*(completed - [label])).compact.inject(&:+) || 0, other_position ]
-          end
-          label[1] = candidates.min.last # unless candidates.map(&:first).all?(&:zero?)
-        end
-      end
+      # # TODO: reinstate local search algorithm
+      # 5.times do
+      #   completed.each do |label|
+      #     conflicts[label[0]].map do |position, conflicts|
+      #       [ conflicts.values_at(*completed).compact.inject(&:+) || 0, position ]
+      #     end
+      #     label[1] = candidates.min.last # unless candidates.map(&:first).all?(&:zero?)
+      #   end
+      # end
       completed
     end
     
@@ -1964,7 +1963,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      puts "... labels"
       point_features, line_features = %w[esriGeometryPoint esriGeometryPolyline].map do |geometry_type|
         names_features.inject([]) do |memo, (sublayer_name, features)|
           memo + features.select do |feature|
@@ -1975,7 +1973,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      labels_bounds = point_features.map.with_index do |feature, index|
+      bounds = point_features.map.with_index do |feature, index|
         lines          = feature["label"].in_two
         font_size      = feature["font-size"]      || 1.5
         letter_spacing = feature["letter-spacing"] || 0
@@ -1984,7 +1982,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         height = lines.length * font_size
         point = map.coords_to_mm(feature["data"])
         rotated = point.rotate_by_degrees(map.rotation)
-        [ *feature["position"] ].map do |position|
+        bounds = [ *feature["position"] ].map do |position|
           bounds = case position
           when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
           when 1 then [ [ 0, width + margin ], [ -0.5 * height, 0.5 * height ] ]
@@ -1994,26 +1992,34 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.zip(rotated).map do |offsets, centre|
             offsets.map { |offset| offset + centre }
           end
-          { [ index, position ] => bounds }
-        end.inject(&:merge) || {}
-      end.inject(&:merge) || {}
+          [ position, bounds ]
+        end
+        [ index, bounds ]
+      end
       
-      labels_conflicts = labels_bounds.map do |label, bounds|
-        conflicts = labels_bounds.map do |other_label, other_bounds|
-          overlaps = bounds.zip(other_bounds).map do |bound, other_bound|
-            case
-            when other_label == label then nil
-            when bound.max < other_bound.min then nil
-            when bound.min > other_bound.max then nil
-            else [ bound[1], other_bound[1] ].min - [ bound[0], other_bound[0] ].max
+      conflicts = {}
+      bounds.each do |index1, bounds1|
+        conflicts[index1] = {}
+        bounds1.each do |position1, bounds1|
+          conflicts[index1][position1] = {}
+          bounds.each do |index2, bounds2|
+            bounds2.each do |position2, bounds2|
+              overlaps = bounds1.zip(bounds2).map do |bound1, bound2|
+                case
+                when index1 == index2 && position1 == position2
+                when bound1.max < bound2.min
+                when bound1.min > bound2.max
+                else [ bound1[1], bound2[1] ].min - [ bound1[0], bound2[0] ].max
+                end
+              end
+              label2 = [ index2, position2 ]
+              conflicts[index1][position1][label2] = overlaps.inject(&:*) if overlaps.all?
             end
           end
-          overlaps.all? ? { other_label => overlaps.inject(&:*) } : { }
-        end.inject(&:merge) || {}
-        { label => conflicts }
-      end.inject(&:merge) || {}
+        end
+      end
       
-      solve(labels_conflicts).each do |index, position|
+      solve(conflicts).each do |index, position|
         feature = point_features[index]
         categories     = feature["category"].reject(&:empty?).join(?\s)
         letter_spacing = feature["letter-spacing"]
@@ -2039,8 +2045,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      labels_conflicts = {}
-      features_sections = line_features.inject([]) do |features, feature|
+      conflicts = {}
+      features_sections = line_features.with_progress("... generating labels").inject([]) do |collection, feature|
         text           = feature["label"]
         margin         = feature["margin"]
         font_size      = feature["font-size"]      || 1.5
@@ -2087,25 +2093,25 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             section.length < 3 ? 0.0 : 1.0 - section.cosines.mean
           end
           if candidates.any?
-            feature_index = features.length
-            candidates.each.with_index do |(range1, section1), index1|
-              label1 = [ feature_index, index1 ]
-              labels_conflicts[label1] = {}
-              candidates.each.with_index do |(range2, section2), index2|
-                label2 = [ feature_index, index2 ]
+            index = collection.length
+            conflicts[index] = {}
+            candidates.each.with_index do |(range1, section1), position1|
+              conflicts[index][position1] = {}
+              candidates.each.with_index do |(range2, section2), position2|
+                label2 = [ index, position2 ]
                 case
-                when index1 == index2
+                when position1 == position2
                 when cumulative[range2.first] - cumulative[range1.last] > interval && cumulative[range1.first] + cumulative.last - cumulative[range2.last] > interval
                 when cumulative[range1.first] - cumulative[range2.last] > interval && cumulative[range2.first] + cumulative.last - cumulative[range1.last] > interval
                 else
-                  labels_conflicts[label1][label2] = 1
+                  conflicts[index][position1][label2] = 1
                 end
               end
             end
-            features << [ feature, candidates.map(&:last) ]
+            collection << [ feature, candidates.map(&:last) ]
           end
         end
-        features
+        collection
       end
       
       # # TODO: add conflicts between different features!
@@ -2118,8 +2124,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       #   end
       # end
       
-      solve(labels_conflicts).uniq.each do |index, position|
-        # TODO: uniq should not be needed; solve is returning dupes!
+      solve(conflicts).uniq.with_progress("... plotting labels").each do |index, position|
+        # TODO: this is a lot slower than it should be!
         feature, sections = features_sections[index]
         categories = feature["category"].reject(&:empty?).join(?\s)
         font_size = feature["font-size"] || 1.5

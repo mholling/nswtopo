@@ -209,9 +209,10 @@ class Array
     [ -self[1], self[0] ]
   end
   
-  def clip(points)
-    [ ring.map { |p1, p2| p2.minus p1 }.map(&:perp), self ].transpose.inject(points) do |points, (axis, offset)|
-      (points + [ points.last ]).segments.inject([]) do |clipped, segment|
+  def clip(points, closed = true)
+    [ ring.map { |p1, p2| p2.minus(p1).perp }, self ].transpose.inject(points) do |points, (axis, offset)|
+      point_segments = closed ? points.ring : [ *points, points.last ].segments
+      point_segments.inject([]) do |clipped, segment|
         inside = segment.map { |point| point.minus(offset).dot(axis) <= 0 }
         case
         when inside[0] && inside[1]
@@ -1822,10 +1823,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "esriGeometryPoint"
             projection.reproject_to(map.projection, geometry.values_at("x", "y"))
           when "esriGeometryPolyline", "esriGeometryPolygon"
-            geometry[geometry_type == "esriGeometryPolyline" ? "paths" : "rings"].map do |path|
+            closed = geometry_type == "esriGeometryPolygon"
+            geometry[closed ? "rings" : "paths"].map do |path|
               projection.reproject_to map.projection, path
             end.select(&:many?).map do |path|
-              map.coord_corners(1.0).clip path
+              map.coord_corners(1.0).clip(path, closed)
             end.select(&:many?)
           end
           category = [ *options["category"] ].map do |field|

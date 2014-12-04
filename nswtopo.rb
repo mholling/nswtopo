@@ -575,16 +575,23 @@ margin: 15
       @extents.map { |extent| (ppi * extent / @scale / 0.0254).floor }
     end
     
-    def corners(margin = 0)
+    def coord_corners(margin_in_mm = 0)
+      metres = margin_in_mm * 0.001 * @scale
       @extents.map do |extent|
-        [ -0.5 * extent - margin, 0.5 * extent + margin ]
+        [ -0.5 * extent - metres, 0.5 * extent + metres ]
       end.inject(&:product).values_at(1,3,2,0).map do |point|
         @centre.plus point.rotate_by_degrees(@rotation)
       end
     end
     
-    def wgs84_corners(margin = 0)
-      @projection.reproject_to_wgs84 corners(margin)
+    def wgs84_corners
+      @projection.reproject_to_wgs84 coord_corners
+    end
+    
+    def mm_corners(margin_in_mm = 0)
+      @extents.map do |extent|
+        [ -margin_in_mm, 1000 * extent / @scale + margin_in_mm ]
+      end.inject(*:product).values_at(1,3,2,0)
     end
     
     def coords_to_mm(coords)
@@ -1797,7 +1804,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           break unless page.any?
         end
         
-        corners = map.corners(0.001 * map.scale)
         features = results.map do |result|
           attributes, geometry_type, geometry = result.values_at "attributes", "geometryType", "geometry"
           wkid = geometry["spatialReference"]["wkid"]
@@ -1809,7 +1815,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             geometry[geometry_type == "esriGeometryPolyline" ? "paths" : "rings"].map do |path|
               projection.reproject_to map.projection, path
             end.select(&:many?).map do |path|
-              corners.clip path
+              map.coord_corners(1.0).clip path
             end.select(&:many?)
           end
           category = [ *options["category"] ].map do |field|
@@ -2053,6 +2059,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             points[range.first].minus(points[range.last]).norm < 0.9 * length
           end.reject do |range|
             points[range].cosines.any? { |cosine| cosine < 0.707 }
+          end.reject do |range|
+            points[range] != map.mm_corners(-5).clip(points[range])
           end.map do |range|
             offset = perpendiculars[range.first...range.last].inject(&:plus).normalised.times(shift)
             section = case feature["orientation"]

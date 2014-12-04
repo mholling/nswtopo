@@ -205,6 +205,28 @@ class Array
     zip rotate
   end
   
+  def perp
+    [ -self[1], self[0] ]
+  end
+  
+  def clip(points)
+    [ ring.map { |p1, p2| p2.minus p1 }.map(&:perp), self ].transpose.inject(points) do |points, (axis, offset)|
+      (points + [ points.last ]).segments.inject([]) do |clipped, segment|
+        inside = segment.map { |point| point.minus(offset).dot(axis) <= 0 }
+        case
+        when inside[0] && inside[1]
+          clipped << segment[0]
+        when inside[0]
+          clipped << segment[0]
+          clipped << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
+        when inside[1]
+          clipped << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
+        end
+        clipped
+      end
+    end
+  end
+  
   def cosines
     segments.map do |segment|
       segment.inject(&:minus).normalised
@@ -563,13 +585,6 @@ margin: 15
     
     def wgs84_corners(margin = 0)
       @projection.reproject_to_wgs84 corners(margin)
-    end
-    
-    def edges(margin)
-      axes = [ 180, 90, 0, -90 ].map do |angle|
-        [ 1, 0 ].rotate_by_degrees(@rotation + angle)
-      end
-      [ axes, corners(margin) ].transpose
     end
     
     def coords_to_mm(coords)
@@ -1782,7 +1797,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           break unless page.any?
         end
         
-        edges = map.edges(0.001 * map.scale)
+        corners = map.corners(0.001 * map.scale)
         features = results.map do |result|
           attributes, geometry_type, geometry = result.values_at "attributes", "geometryType", "geometry"
           wkid = geometry["spatialReference"]["wkid"]
@@ -1790,48 +1805,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           data = case geometry_type
           when "esriGeometryPoint"
             projection.reproject_to(map.projection, geometry.values_at("x", "y"))
-          when "esriGeometryPolyline"
-            geometry["paths"].map do |path|
+          when "esriGeometryPolyline", "esriGeometryPolygon"
+            geometry[geometry_type == "esriGeometryPolyline" ? "paths" : "rings"].map do |path|
               projection.reproject_to map.projection, path
-            end.map do |path|
-              edges.inject([path]) do |subpaths, (axis, offset)|
-                subpaths.select(&:many?).map do |subpath|
-                  subpath.unshift(subpath[0]).segments.inject([[]]) do |memo, segment|
-                    inside = segment.map { |point| point.minus(offset).dot(axis) <= 0 }
-                    case
-                    when inside[0] && inside[1]
-                      memo.last << segment[1]
-                    when inside[0]
-                      memo.last << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
-                    when inside[1]
-                      memo << []
-                      memo.last << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
-                      memo.last << segment[1]
-                    end
-                    memo
-                  end.select(&:many?)
-                end.flatten(1)
-              end
-            end.flatten(1).reject(&:empty?)
-          when "esriGeometryPolygon"
-            geometry["rings"].map do |ring|
-              projection.reproject_to map.projection, ring
-            end.select(&:many?).map do |ring|
-              edges.inject(ring) do |clipped, (axis, offset)|
-                clipped.ring.inject([]) do |clipped, segment|
-                  inside = segment.map { |point| point.minus(offset).dot(axis) <= 0 }
-                  case
-                  when inside[0] && inside[1]
-                    clipped << segment[1]
-                  when inside[0]
-                    clipped << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
-                  when inside[1]
-                    clipped << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
-                    clipped << segment[1]
-                  end
-                  clipped
-                end
-              end
+            end.select(&:many?).map do |path|
+              corners.clip path
             end.select(&:many?)
           end
           category = [ *options["category"] ].map do |field|

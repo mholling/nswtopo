@@ -227,6 +227,16 @@ class Array
     end
   end
   
+  def clips?(points)
+    # TODO: optimise?
+    clip(points) != points
+  end
+  
+  def intersects?(points)
+    # TODO: optimise?
+    clip(points).any?
+  end
+  
   def cosines
     segments.map do |segment|
       segment.inject(&:minus).normalised
@@ -1957,7 +1967,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      bounds = point_features.map.with_index do |feature, feature_index|
+      bounds = point_features.map do |feature|
         lines          = feature["label"].in_two
         font_size      = feature["font-size"]      || 1.5
         letter_spacing = feature["letter-spacing"] || 0
@@ -1966,7 +1976,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         height = lines.length * font_size
         point = map.coords_to_mm(feature["data"])
         rotated = point.rotate_by_degrees(map.rotation)
-        bounds = [ *feature["position"] ].map.with_index do |position, position_index|
+        bounds = [ *feature["position"] ].map do |position|
           bounds = case position
           when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
           when 1 then [ [ 0, width + margin ], [ -0.5 * height, 0.5 * height ] ]
@@ -1976,18 +1986,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.zip(rotated).map do |offsets, centre|
             offsets.map { |offset| offset + centre }
           end
-          [ position_index, bounds ]
         end
-        [ feature_index, bounds ]
       end
       
       conflicts = {}
-      bounds.each do |feature1, bounds1|
+      bounds.each.with_index do |bounds1, feature1|
         conflicts[feature1] = {}
-        bounds1.each do |candidate1, bounds1|
+        bounds1.each.with_index do |bounds1, candidate1|
           conflicts[feature1][candidate1] = {}
-          bounds.each do |feature2, bounds2|
-            bounds2.each do |candidate2, bounds2|
+          bounds.each.with_index do |bounds2, feature2|
+            bounds2.each.with_index do |bounds2, candidate2|
               overlaps = bounds1.zip(bounds2).map do |bound1, bound2|
                 case
                 when feature1 == feature2 && candidate1 == candidate2
@@ -2003,7 +2011,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      solve(conflicts).each do |feature_index, candidate_index|
+      avoid = solve(conflicts).each do |feature_index, candidate_index|
         feature = point_features[feature_index]
         position = [ *feature["position"] ][candidate_index]
         categories     = feature["category"].reject(&:empty?).join(?\s)
@@ -2028,10 +2036,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
         end
+      end.map do |feature_index, candidate_index|
+        bounds[feature_index][candidate_index].map do |bound|
+          bound.plus [ -1.0, 1.0 ]
+        end
+      end.map do |bounds|
+        bounds.inject(&:product).values_at(1,3,2,0)
+      end.map do |corners|
+        corners.map { |corner| corner.rotate_by_degrees -map.rotation }
       end
       
       conflicts = {}
-      features_sections = line_features.with_progress("... generating labels").inject([]) do |collection, feature|
+      features_sections = line_features.with_progress("... placing labels").inject([]) do |collection, feature|
         text           = feature["label"]
         margin         = feature["margin"]
         font_size      = feature["font-size"]      || 1.5
@@ -2060,7 +2076,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.reject do |range|
             points[range].cosines.any? { |cosine| cosine < 0.707 }
           end.reject do |range|
-            points[range] != map.mm_corners(-5).clip(points[range])
+            map.mm_corners(-10).clips? points[range]
           end.map do |range|
             offset = perpendiculars[range.first...range.last].inject(&:plus).normalised.times(shift)
             section = case feature["orientation"]
@@ -2074,8 +2090,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 points[range].map { |point| point.plus  offset }.reverse
             end
             [ range, section ]
-          # end.reject do |range, section|
-          #   # TODO: reject candidate sections which cross point-feature labels
+          end.reject do |range, section|
+            # TODO: better to expand line section to a polygon estimate
+            avoid.any? { |polygon| polygon.intersects? section }
           end.sort_by do |range, section|
             section.length < 3 ? 0.0 : 1.0 - section.cosines.mean
           end

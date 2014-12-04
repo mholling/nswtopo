@@ -251,6 +251,33 @@ class Array
       [ *memo, ?L, *point ]
     end.unshift(?M).push(*close).join(?\s)
   end
+  
+  def convex_hull
+    seed = inject do |point, candidate|
+      point[1] > candidate[1] ? candidate : point[1] < candidate[1] ? point : point[0] < candidate[0] ? point : candidate
+    end
+
+    sorted = reject do |point|
+      point == seed
+    end.sort_by do |point|
+      vector = point.minus seed
+      vector[0] / vector.norm
+    end
+    sorted.unshift seed
+
+    result = [ seed, sorted.pop ]
+    while sorted.length > 1
+      u = sorted[-2].minus result.last
+      v = sorted[-1].minus result.last
+      if u[0] * v[1] >= u[1] * v[0]
+        sorted.pop
+        sorted << result.pop
+      else
+        result << sorted.pop
+      end
+    end
+    result
+  end
 end
 
 class String
@@ -284,35 +311,8 @@ margin: 15
 ]
   
   module BoundingBox
-    def self.convex_hull(points)
-      seed = points.inject do |point, candidate|
-        point[1] > candidate[1] ? candidate : point[1] < candidate[1] ? point : point[0] < candidate[0] ? point : candidate
-      end
-  
-      sorted = points.reject do |point|
-        point == seed
-      end.sort_by do |point|
-        vector = point.minus seed
-        vector[0] / vector.norm
-      end
-      sorted.unshift seed
-  
-      result = [ seed, sorted.pop ]
-      while sorted.length > 1
-        u = sorted[-2].minus result.last
-        v = sorted[-1].minus result.last
-        if u[0] * v[1] >= u[1] * v[0]
-          sorted.pop
-          sorted << result.pop
-        else
-          result << sorted.pop 
-        end
-      end
-      result
-    end
-
     def self.minimum_bounding_box(points)
-      polygon = convex_hull(points)
+      polygon = points.convex_hull
       indices = [ [ :min_by, :max_by ], [ 0, 1 ] ].inject(:product).map do |min, axis|
         polygon.map.with_index.send(min) { |point, index| point[axis] }.last
       end

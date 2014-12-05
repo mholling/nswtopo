@@ -2134,7 +2134,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         categories = feature["category"].reject(&:empty?).join(?\s)
         font_size = feature["font-size"] || 1.5
         id = [ layer_name, "labels", "path", feature_index, candidate_index ].join SEGMENT
-        yield("labels").elements["//svg/defs"].add_element("path", "id" => id, "d" => d)
+        yield("labels").elements["//svg/defs"].add_element("path", "id" => id, "d" => baseline.to_path_data)
         yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
           text.add_attribute "letter-spacing", feature["letter-spacing"] if feature["letter-spacing"]
           text.add_attribute "word-spacing", feature["word-spacing"] if feature["word-spacing"]

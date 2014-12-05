@@ -209,8 +209,14 @@ class Array
     [ -self[1], self[0] ]
   end
   
+  def perps
+    ring.map do |p1, p2|
+      p2.minus(p1).perp
+    end
+  end
+  
   def clip(points, closed = true)
-    [ ring.map { |p1, p2| p2.minus(p1).perp }, self ].transpose.inject(points) do |points, (axis, offset)|
+    [ perps, self ].transpose.inject(points) do |points, (axis, offset)|
       point_segments = closed ? points.ring : [ *points, points.last ].segments
       point_segments.inject([]) do |clipped, segment|
         inside = segment.map { |point| point.minus(offset).dot(axis) <= 0 }
@@ -233,9 +239,12 @@ class Array
     clip(points) != points
   end
   
-  def intersects?(points)
-    # TODO: optimise?
-    clip(points).any?
+  def avoids?(points)
+    [ self, perps ].transpose.any? do |vertex, perp|
+      points.all? do |point|
+        point.minus(vertex).dot(perp) >= 0
+      end
+    end
   end
   
   def cosines
@@ -253,30 +262,15 @@ class Array
   end
   
   def convex_hull
-    seed = inject do |point, candidate|
-      point[1] > candidate[1] ? candidate : point[1] < candidate[1] ? point : point[0] < candidate[0] ? point : candidate
-    end
-
-    sorted = reject do |point|
-      point == seed
-    end.sort_by do |point|
-      vector = point.minus seed
-      vector[0] / vector.norm
-    end
-    sorted.unshift seed
-
-    result = [ seed, sorted.pop ]
-    while sorted.length > 1
-      u = sorted[-2].minus result.last
-      v = sorted[-1].minus result.last
-      if u[0] * v[1] >= u[1] * v[0]
-        sorted.pop
-        sorted << result.pop
-      else
-        result << sorted.pop
+    start = min_by(&:reverse)
+    (self - [ start ]).sort_by do |point|
+      start.minus(point).normalised.first
+    end.inject([start]) do |memo, point|
+      while memo.many? && point.minus(memo[-1]).perp.dot(point.minus memo[-2]) >= 0
+        memo.pop
       end
+      memo << point
     end
-    result
   end
 end
 
@@ -2039,17 +2033,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end
       end.map do |feature_index, candidate_index|
-        bounds[feature_index][candidate_index].map do |bound|
-          bound.plus [ -1.0, 1.0 ]
-        end
-      end.map do |bounds|
-        bounds.inject(&:product).values_at(1,3,2,0)
+        bounds[feature_index][candidate_index].inject(&:product).values_at(1,3,2,0)
       end.map do |corners|
         corners.map { |corner| corner.rotate_by_degrees -map.rotation }
       end
       
       conflicts = {}
-      features_sections = line_features.with_progress("... placing labels").inject([]) do |collection, feature|
+      features_candidates = line_features.with_progress("... generating label positions").inject([]) do |collection, feature|
         text           = feature["label"]
         margin         = feature["margin"]
         font_size      = feature["font-size"]      || 1.5
@@ -2057,7 +2047,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         word_spacing   = feature["word-spacing"]   || 0
         interval       = feature["interval"]       || 150
         length = text.length * (font_size * FONT_ASPECT + letter_spacing) + text.count(?\s) * word_spacing
-        shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
+        baseline_shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
         feature.delete("data").map do |coords|
           points = map.coords_to_mm coords
           start_end_distance = points.values_at(0, -1).inject(&:minus).norm
@@ -2074,69 +2064,76 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             start ? memo << (start..finish) : memo
           end.reject do |range|
             # TODO: make this straightness factor a feature property?
-            points[range.first].minus(points[range.last]).norm < 0.9 * length
+            points[range.first].minus(points[range.last]).norm < 0.98 * length
           end.reject do |range|
-            points[range].cosines.any? { |cosine| cosine < 0.707 }
+            points[range].cosines.any? { |cosine| cosine < 0.866 }
           end.reject do |range|
             map.mm_corners(-10).clips? points[range]
           end.map do |range|
-            offset = perpendiculars[range.first...range.last].inject(&:plus).normalised.times(shift)
-            section = case feature["orientation"]
-            when "uphill"
-              points[range].map { |point| point.minus offset }
-            when "downhill"
-              points[range].map { |point| point.plus  offset }.reverse
-            else
-              points[range.last].minus(points[range.first]).rotate_by_degrees(map.rotation).first > 0 ?
-                points[range].map { |point| point.minus offset } :
+            perp = perpendiculars[range.first...range.last].inject(&:plus).normalised
+            baseline, top, bottom = [ baseline_shift, baseline_shift + font_size + 1, baseline_shift - 1 ].map do |shift|
+              perp.times shift
+            end.map do |offset|
+              case feature["orientation"]
+              when "uphill"
+                points[range].map { |point| point.minus offset }
+              when "downhill"
                 points[range].map { |point| point.plus  offset }.reverse
+              else
+                points[range.last].minus(points[range.first]).rotate_by_degrees(map.rotation).first > 0 ?
+                  points[range].map { |point| point.minus offset } :
+                  points[range].map { |point| point.plus  offset }.reverse
+              end
             end
-            [ range, section ]
-          end.reject do |range, section|
-            # TODO: better to expand line section to a polygon estimate
-            avoid.any? { |polygon| polygon.intersects? section }
-          end.sort_by do |range, section|
-            section.length < 3 ? 0.0 : 1.0 - section.cosines.mean
+            hull = (top + bottom.reverse).convex_hull.reverse
+            [ range, baseline, hull ]
+          end.select do |range, baseline, hull|
+            avoid.all? { |polygon| polygon.avoids? hull }
+          end.sort_by do |range, baseline, hull|
+            baseline.length < 3 ? 0.0 : 1.0 - baseline.cosines.mean
           end
           if candidates.any?
             feature_index = collection.length
             conflicts[feature_index] = {}
-            candidates.each.with_index do |(range1, section1), candidate1|
+            candidates.each.with_index do |(range1, _, _), candidate1|
               conflicts[feature_index][candidate1] = {}
-              candidates.each.with_index do |(range2, section2), candidate2|
+              candidates.each.with_index do |(range2, _, _), candidate2|
                 label2 = [ feature_index, candidate2 ]
                 case
-                when candidate1 == candidate2
                 when cumulative[range2.first] - cumulative[range1.last] > interval && cumulative[range1.first] + cumulative.last - cumulative[range2.last] > interval
                 when cumulative[range1.first] - cumulative[range2.last] > interval && cumulative[range2.first] + cumulative.last - cumulative[range1.last] > interval
-                else
-                  conflicts[feature_index][candidate1][label2] = 1
-                end
+                else conflicts[feature_index][candidate1][label2] = 1
+                end unless candidate1 == candidate2
               end
             end
-            collection << [ feature, candidates.map(&:last) ]
+            collection << [ feature, candidates ]
           end
         end
         collection
       end
       
-      # # TODO: add conflicts between different features!
-      # features.each.with_index do |feature1, index1|
-      #   features.each.with_index do |feature2, index2|
-      #     case
-      #     when index1 == index2
-      #     else
-      #     end
-      #   end
-      # end
+      features_candidates.with_progress("... removing label conflicts").each.with_index do |(_, candidates1), feature1|
+        features_candidates.each.with_index do |(_, candidates2), feature2|
+          candidates1.each.with_index do |(_, _, hull1), candidate1|
+            candidates2.each.with_index do |(_, _, hull2), candidate2|
+              unless hull1.avoids? hull2
+                label1 = [ feature1, candidate1 ]
+                label2 = [ feature2, candidate2 ]
+                conflicts[feature1][candidate1][label2] = 1
+                conflicts[feature2][candidate2][label1] = 1
+              end
+            end
+          end unless feature2 <= feature1
+        end
+      end
       
-      solve(conflicts).uniq.with_progress("... plotting labels").each do |feature_index, candidate_index|
+      solve(conflicts).with_progress("... plotting labels").each do |feature_index, candidate_index|
         # TODO: this is a lot slower than it should be!
-        feature, sections = features_sections[feature_index]
+        feature, candidates  = features_candidates[feature_index]
+        range, baseline, hull = candidates[candidate_index]
         categories = feature["category"].reject(&:empty?).join(?\s)
         font_size = feature["font-size"] || 1.5
         id = [ layer_name, "labels", "path", feature_index, candidate_index ].join SEGMENT
-        d = sections[candidate_index].to_path_data
         yield("labels").elements["//svg/defs"].add_element("path", "id" => id, "d" => d)
         yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
           text.add_attribute "letter-spacing", feature["letter-spacing"] if feature["letter-spacing"]

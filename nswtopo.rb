@@ -1941,10 +1941,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           [ *feature["position"] ].map do |position|
             case position
             when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
-            when 1 then [ [ 0, width + margin ], [ -0.5 * height, 0.5 * height ] ]
-            when 2 then [ [ -0.5 * width, 0.5 * width ], [ 0, height + margin ] ]
-            when 3 then [ [ -0.5 * width, 0.5 * width ], [ -(height + margin), 0 ] ]
-            when 4 then [ [ -(width + margin), 0 ], [ -0.5 * height, 0.5 * height ] ]
+            when 1 then [ [ margin, width + margin ], [ -0.5 * height, 0.5 * height ] ]
+            when 2 then [ [ -0.5 * width, 0.5 * width ], [ margin, height + margin ] ]
+            when 3 then [ [ -0.5 * width, 0.5 * width ], [ -(height + margin), -margin ] ]
+            when 4 then [ [ -(width + margin), -margin ], [ -0.5 * height, 0.5 * height ] ]
             end.inject(&:product).values_at(1,3,2,0).map do |corner|
               corner.rotate_by_degrees(-map.rotation).plus(point)
             end

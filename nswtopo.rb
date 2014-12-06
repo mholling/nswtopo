@@ -1870,52 +1870,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def solve(conflicts)
-      # pending, completed = conflicts.dup, [ ]
-      pending, completed = Marshal.load(Marshal.dump(conflicts)), [ ] # TODO: this is stop-gap, need a Hash#deep_clone
-      while pending.any?
-        pending.map do |feature, conflicts|
-          conflicts.map do |candidate, conflicts|
-            [ [ feature, candidate ], conflicts, [ conflicts.length, pending[feature].length ] ]
-          end
-        end.flatten(1).min_by(&:last).tap do |label, conflicts, _|
-          conflicts.keys.each do |feature, candidate|
-            pending[feature].delete(candidate) if pending[feature]
-          end
-          feature, candidate = label
-          pending[feature].delete(candidate) if pending[feature]
-          completed << label
-        end
-        pending.reject! do |feature, conflicts|
-          conflicts.empty?
-        end
-      end
-      pending = conflicts.keys - completed.map(&:first)
-      while pending.any?
-        pending.each do |feature|
-          conflicts[feature].min_by do |candidate, conflicts|
-            overlaps = conflicts.select do |label, _|
-              completed.include? label
-            end.map(&:last)
-            [ overlaps.inject(&:+) || 0, candidate ]
-          end.tap do |candidate, _|
-            completed << [ feature, candidate ]
-          end
-          pending.delete feature
-        end
-      end
-      # # TODO: reinstate local search algorithm
-      # 5.times do
-      #   completed.each do |label|
-      #     conflicts[label[0]].map do |candidate, conflicts|
-      #       [ conflicts.values_at(*completed).compact.inject(&:+) || 0, candidate ]
-      #     end
-      #     label[1] = candidates.min.last # unless candidates.map(&:first).all?(&:zero?)
-      #   end
-      # end
-      completed
-    end
-    
     def draw(map)
       raise BadLayerError.new("source file not found at #{path}") unless path.exist?
       names_features = JSON.parse(path.read).reject do |sublayer_name, features|
@@ -1953,103 +1907,58 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      point_features, line_features = %w[esriGeometryPoint esriGeometryPolyline].map do |geometry_type|
-        names_features.inject([]) do |memo, (sublayer_name, features)|
-          memo + features.select do |feature|
-            feature.key?("label") && feature["geometryType"] == geometry_type
-          end.each do |feature|
-            feature["category"].unshift sublayer_name
-          end
-        end
-      end
-      
-      bounds = point_features.map do |feature|
-        lines          = feature["label"].in_two
-        font_size      = feature["font-size"]      || 1.5
-        letter_spacing = feature["letter-spacing"] || 0
-        margin         = feature["margin"]         || 0
-        width = lines.map(&:length).max * (font_size * FONT_ASPECT + letter_spacing)
-        height = lines.length * font_size
-        point = map.coords_to_mm(feature["data"])
-        rotated = point.rotate_by_degrees(map.rotation)
-        bounds = [ *feature["position"] ].map do |position|
-          bounds = case position
-          when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
-          when 1 then [ [ 0, width + margin ], [ -0.5 * height, 0.5 * height ] ]
-          when 2 then [ [ -0.5 * width, 0.5 * width ], [ 0, height + margin ] ]
-          when 3 then [ [ -0.5 * width, 0.5 * width ], [ -(height + margin), 0 ] ]
-          when 4 then [ [ -(width + margin), 0 ], [ -0.5 * height, 0.5 * height ] ]
-          end.zip(rotated).map do |offsets, centre|
-            offsets.map { |offset| offset + centre }
-          end
-        end
-      end
-      
-      conflicts = {}
-      bounds.each.with_index do |bounds1, feature1|
-        conflicts[feature1] = {}
-        bounds1.each.with_index do |bounds1, candidate1|
-          conflicts[feature1][candidate1] = {}
-          bounds.each.with_index do |bounds2, feature2|
-            bounds2.each.with_index do |bounds2, candidate2|
-              overlaps = bounds1.zip(bounds2).map do |bound1, bound2|
-                case
-                when feature1 == feature2 && candidate1 == candidate2
-                when bound1.max < bound2.min
-                when bound1.min > bound2.max
-                else [ bound1[1], bound2[1] ].min - [ bound1[0], bound2[0] ].max
-                end
-              end
-              label2 = [ feature2, candidate2 ]
-              conflicts[feature1][candidate1][label2] = overlaps.inject(&:*) if overlaps.all?
+      features = names_features.inject([]) do |memo, (sublayer_name, features)|
+        memo + features.select do |feature|
+          feature.key?("label")
+        end.each do |feature|
+          feature["category"].unshift sublayer_name
+        end.inject([]) do |memo, feature|
+          case feature["geometryType"]
+          when "esriGeometryPoint"
+            feature["point"] = map.coords_to_mm feature.delete("data")
+            memo << feature
+          when "esriGeometryPolyline"
+            feature.delete("data").each do |coords|
+              points = map.coords_to_mm coords
+              memo << feature.dup.merge("points" => points)
             end
           end
+          memo
         end
       end
       
-      avoid = solve(conflicts).each do |feature_index, candidate_index|
-        feature = point_features[feature_index]
-        position = [ *feature["position"] ][candidate_index]
-        categories     = feature["category"].reject(&:empty?).join(?\s)
-        letter_spacing = feature["letter-spacing"]
-        font_size      = feature["font-size"] || 1.5
-        margin         = feature["margin"]    || 0
-        lines = feature["label"].in_two
-        point = map.coords_to_mm feature["data"]
-        transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-        text_anchor = position == 1 ? "start" : position == 4 ? "end" : "middle"
-        yield("labels").add_element("text", "font-size" => font_size, "text-anchor" => text_anchor, "transform" => transform, "class" => categories) do |text|
-          text.add_attribute "letter-spacing", letter_spacing if letter_spacing
-          lines.each.with_index do |line, index|
-            y = (lines.one? ? 0.5 : index) * font_size + case position
-            when 0, 1, 4 then 0.0
-            when 2 then  margin + 0.5 * lines.length * font_size
-            when 3 then -margin - 0.5 * lines.length * font_size
-            end - 0.15 * font_size
-            x = position == 1 ? margin : position == 4 ? -margin : 0
-            text.add_element("tspan", "x" => x, "y" => y) do |tspan|
-              tspan.add_text line
-            end
-          end
-        end
-      end.map do |feature_index, candidate_index|
-        bounds[feature_index][candidate_index].inject(&:product).values_at(1,3,2,0)
-      end.map do |corners|
-        corners.map { |corner| corner.rotate_by_degrees -map.rotation }
-      end
-      
-      conflicts = {}
-      features_candidates = line_features.with_progress("... generating label positions").inject([]) do |collection, feature|
+      candidates = features.with_progress("... generating label positions").map do |feature|
         text           = feature["label"]
-        margin         = feature["margin"]
         font_size      = feature["font-size"]      || 1.5
         letter_spacing = feature["letter-spacing"] || 0
         word_spacing   = feature["word-spacing"]   || 0
-        interval       = feature["interval"]       || 150
-        length = text.length * (font_size * FONT_ASPECT + letter_spacing) + text.count(?\s) * word_spacing
-        baseline_shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
-        feature.delete("data").map do |coords|
-          points = map.coords_to_mm coords
+        case feature["geometryType"]
+        when "esriGeometryPoint"
+          margin = feature["margin"] || 0
+          lines = text.in_two
+          width = lines.map(&:length).max * (font_size * FONT_ASPECT + letter_spacing)
+          height = lines.length * font_size
+          point = feature["point"]
+          rotated = point.rotate_by_degrees(map.rotation)
+          [ *feature["position"] ].map do |position|
+            case position
+            when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
+            when 1 then [ [ 0, width + margin ], [ -0.5 * height, 0.5 * height ] ]
+            when 2 then [ [ -0.5 * width, 0.5 * width ], [ 0, height + margin ] ]
+            when 3 then [ [ -0.5 * width, 0.5 * width ], [ -(height + margin), 0 ] ]
+            when 4 then [ [ -(width + margin), 0 ], [ -0.5 * height, 0.5 * height ] ]
+            end.inject(&:product).values_at(1,3,2,0).map do |corner|
+              corner.rotate_by_degrees(-map.rotation).plus(point)
+            end
+          end
+        when "esriGeometryPolyline"
+          margin = feature["margin"]
+          interval = feature["interval"] || 150
+          length = text.length * (font_size * FONT_ASPECT + letter_spacing) + text.count(?\s) * word_spacing
+          baseline_shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
+          feature["baselines"] = []
+          feature["endpoints"] = []
+          points = feature["points"]
           start_end_distance = points.values_at(0, -1).inject(&:minus).norm
           cumulative = points.segments.inject([start_end_distance]) do |memo, segment|
             memo << memo.last + segment.inject(&:minus).norm
@@ -2057,22 +1966,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           perpendiculars = points.segments.map do |segment|
             [ segment[0][1] - segment[1][1], segment[1][0] - segment[0][0] ]
           end
-          candidates = cumulative.length.times.inject([]) do |memo, finish|
+          cumulative.length.times.inject([]) do |memo, finish|
             start = finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
               cumulative[finish] - cumulative[start] >= length
             end
             start ? memo << (start..finish) : memo
           end.reject do |range|
             # TODO: make this straightness factor a feature property?
-            points[range.first].minus(points[range.last]).norm < 0.98 * length
+            points[range.first].minus(points[range.last]).norm < 0.9 * length
           end.reject do |range|
-            points[range].cosines.any? { |cosine| cosine < 0.866 }
-          end.reject do |range|
-            map.mm_corners(-10).clips? points[range]
+            points[range].cosines.any? { |cosine| cosine < 0.707 }
+          end.sort_by do |range|
+            points[range].length < 3 ? 0.0 : 1.0 - points[range].cosines.mean
           end.map do |range|
             perp = perpendiculars[range.first...range.last].inject(&:plus).normalised
-            baseline, top, bottom = [ baseline_shift, baseline_shift + font_size + 1, baseline_shift - 1 ].map do |shift|
-              perp.times shift
+            baseline, top, bottom = [ 0.0, font_size + 1.0, -1.0 ].map do |shift|
+              perp.times(baseline_shift + shift)
             end.map do |offset|
               case feature["orientation"]
               when "uphill"
@@ -2085,63 +1994,143 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   points[range].map { |point| point.plus  offset }.reverse
               end
             end
-            hull = (top + bottom.reverse).convex_hull.reverse
-            [ range, baseline, hull ]
-          end.select do |range, baseline, hull|
-            avoid.all? { |polygon| polygon.avoids? hull }
-          end.sort_by do |range, baseline, hull|
-            baseline.length < 3 ? 0.0 : 1.0 - baseline.cosines.mean
+            feature["baselines"] << baseline
+            feature["endpoints"] << [ cumulative[range.first] / interval, cumulative[range.last] / interval, cumulative.last / interval ]
+            (top + bottom.reverse).convex_hull.reverse
           end
-          if candidates.any?
-            feature_index = collection.length
-            conflicts[feature_index] = {}
-            candidates.each.with_index do |(range1, _, _), candidate1|
-              conflicts[feature_index][candidate1] = {}
-              candidates.each.with_index do |(range2, _, _), candidate2|
-                label2 = [ feature_index, candidate2 ]
-                case
-                when cumulative[range2.first] - cumulative[range1.last] > interval && cumulative[range1.first] + cumulative.last - cumulative[range2.last] > interval
-                when cumulative[range1.first] - cumulative[range2.last] > interval && cumulative[range2.first] + cumulative.last - cumulative[range1.last] > interval
-                else conflicts[feature_index][candidate1][label2] = 1
+        end.map.with_index.reject do |hull, candidate|
+          map.mm_corners(-10).clips? hull
+        end
+      end
+      
+      conflicts = {}
+      candidates.each.with_index do |hulls, feature|
+        hulls.each do |_, candidate|
+          conflicts[feature] ||= {}
+          conflicts[feature][candidate] = {}
+        end
+      end
+      
+      candidates.with_progress("... removing label conflicts").each.with_index do |hulls1, feature1|
+        candidates.each.with_index do |hulls2, feature2|
+          hulls1.each do |hull1, candidate1|
+            hulls2.each do |hull2, candidate2|
+              label1 = [ feature1, candidate1 ]
+              label2 = [ feature2, candidate2 ]
+              case
+              when feature1 == feature2
+                case features[feature1]["geometryType"]
+                when "esriGeometryPoint"
+                  conflicts[feature1][candidate1][label2] = true
+                when "esriGeometryPolyline"
+                  start1, finish1, total = features[feature1]["endpoints"][candidate1]
+                  start2, finish2, total = features[feature1]["endpoints"][candidate2]
+                  case
+                  when start2 - finish1 > 1 && start1 + total - finish2 > 1
+                  when start1 - finish2 > 1 && start2 + total - finish1 > 1
+                  else
+                    conflicts[feature1][candidate1][label2] = true
+                    conflicts[feature2][candidate2][label1] = true
+                  end
                 end unless candidate1 == candidate2
+              when hull1.avoids?(hull2)
+              else
+                conflicts[feature1][candidate1][label2] = true
+                conflicts[feature2][candidate2][label1] = true
               end
             end
-            collection << [ feature, candidates ]
-          end
-        end
-        collection
-      end
-      
-      features_candidates.with_progress("... removing label conflicts").each.with_index do |(_, candidates1), feature1|
-        features_candidates.each.with_index do |(_, candidates2), feature2|
-          candidates1.each.with_index do |(_, _, hull1), candidate1|
-            candidates2.each.with_index do |(_, _, hull2), candidate2|
-              unless hull1.avoids? hull2
-                label1 = [ feature1, candidate1 ]
-                label2 = [ feature2, candidate2 ]
-                conflicts[feature1][candidate1][label2] = 1
-                conflicts[feature2][candidate2][label1] = 1
-              end
-            end
-          end unless feature2 <= feature1
+          end if feature2 >= feature1
         end
       end
       
-      solve(conflicts).with_progress("... plotting labels").each do |feature_index, candidate_index|
-        # TODO: this is a lot slower than it should be!
-        feature, candidates  = features_candidates[feature_index]
-        range, baseline, hull = candidates[candidate_index]
-        categories = feature["category"].reject(&:empty?).join(?\s)
-        font_size = feature["font-size"] || 1.5
-        id = [ layer_name, "labels", "path", feature_index, candidate_index ].join SEGMENT
-        yield("labels").elements["//svg/defs"].add_element("path", "id" => id, "d" => baseline.to_path_data)
-        yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
-          text.add_attribute "letter-spacing", feature["letter-spacing"] if feature["letter-spacing"]
-          text.add_attribute "word-spacing", feature["word-spacing"] if feature["word-spacing"]
-          text.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%") do |text_path|
-            text_path.add_text feature["label"]
+      labels = [ ]
+      pending = conflicts.map do |feature, positions|
+        { feature => positions.map do |position, label_conflicts|
+          { position => label_conflicts.dup }
+        end.inject(&:merge) }
+      end.inject(&:merge) || { }
+      
+      while pending.any?
+        pending.map do |feature, positions|
+          positions.map do |candidate, label_conflicts|
+            [ [ feature, candidate ], label_conflicts, [ label_conflicts.length, pending[feature].length ] ]
+          end
+        end.flatten(1).min_by(&:last).tap do |label, label_conflicts, _|
+          [ label, *label_conflicts.keys ].each do |feature, candidate|
+            pending[feature].delete(candidate) if pending[feature]
+          end
+          labels << label
+        end
+        pending.reject! do |feature, positions|
+          positions.empty?
+        end
+      end
+      
+      pending = conflicts.keys - labels.map(&:first)
+      while pending.any?
+        pending.each do |feature|
+          conflicts[feature].min_by do |candidate, conflicts|
+            [ conflicts.values_at(*labels).compact.count, candidate ]
+          end.tap do |candidate, _|
+            labels << [ feature, candidate ]
+          end
+          pending.delete feature
+        end
+      end
+      
+      # # TODO: reinstate local search algorithm
+      # # (need work; currently collapses multiple labels per line feature into one)
+      # 5.times do
+      #   labels.each do |label|
+      #     counts_candidates = conflicts[label[0]].map do |candidate, conflicts|
+      #       [ conflicts.values_at(*labels).compact.count, candidate ]
+      #     end
+      #     label[1] = counts_candidates.min.last unless counts_candidates.map(&:first).all?(&:zero?)
+      #   end
+      # end
+      
+      labels.with_progress("... plotting labels").each do |index, candidate|
+        feature = features[index]
+        letter_spacing = feature["letter-spacing"]
+        word_spacing   = feature["word-spacing"]
+        font_size      = feature["font-size"] || 1.5
+        categories     = feature["category"].reject(&:empty?).join(?\s)
+        case feature["geometryType"]
+        when "esriGeometryPoint"
+          position = [ *feature["position"] ][candidate]
+          margin = feature["margin"] || 0
+          lines = feature["label"].in_two
+          point = feature["point"]
+          transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
+          text_anchor = position == 1 ? "start" : position == 4 ? "end" : "middle"
+          yield("labels").add_element("text", "font-size" => font_size, "text-anchor" => text_anchor, "transform" => transform, "class" => categories) do |text|
+            text.add_attribute "letter-spacing", letter_spacing if letter_spacing
+            lines.each.with_index do |line, count|
+              y = (lines.one? ? 0.5 : count) * font_size + case position
+              when 0, 1, 4 then 0.0
+              when 2 then  margin + 0.5 * lines.length * font_size
+              when 3 then -margin - 0.5 * lines.length * font_size
+              end - 0.15 * font_size
+              x = position == 1 ? margin : position == 4 ? -margin : 0
+              text.add_element("tspan", "x" => x, "y" => y) do |tspan|
+                tspan.add_text line
+              end
+            end
+          end
+        when "esriGeometryPolyline"
+          d = feature["baselines"][candidate].to_path_data
+          id = [ layer_name, "labels", "path", index, candidate ].join SEGMENT
+          yield("labels").elements["//svg/defs"].add_element "path", "id" => id, "d" => d
+          yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
+            text.add_attribute "letter-spacing", letter_spacing if letter_spacing
+            text.add_attribute "word-spacing", word_spacing if word_spacing
+            text.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%") do |text_path|
+              text_path.add_text feature["label"]
+            end
           end
         end
+        hull = candidates[index].find { |hull, candidate_index| candidate == candidate_index }.first
+        yield("debug").add_element "path", "stroke" => "blue", "stroke-width" => 0.12, "fill" => "none", "d" => hull.to_path_data(?Z)
       end
       
       names_features.reject do |sublayer_name, features|

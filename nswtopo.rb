@@ -593,18 +593,16 @@ margin: 15
       @projection.reproject_to_wgs84 coord_corners
     end
     
-    def mm_corners(margin_in_mm = 0)
-      @extents.map do |extent|
-        [ -margin_in_mm, 1000 * extent / @scale + margin_in_mm ]
-      end.inject(*:product).values_at(1,3,2,0)
-    end
-    
     def coords_to_mm(coords)
       coords.one_or_many do |easting, northing|
         [ easting - bounds.first.first, bounds.last.last - northing ].map do |metres|
           1000.0 * metres / scale
         end
       end
+    end
+    
+    def mm_corners(*args)
+      coords_to_mm coord_corners(*args).reverse
     end
     
     def overlaps?(bounds)

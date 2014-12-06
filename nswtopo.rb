@@ -1843,7 +1843,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 [ *options["label-by-category"] ].select do |categories, opts|
                   (attributes.values_at(*options["category"]).compact & [ *categories ].map(&:to_s)).any?
                 end.map(&:last).unshift(options).inject(&:merge).tap do |opts|
-                  %w[font-size letter-spacing word-spacing margin orientation position interval].each do |name|
+                  %w[font-size letter-spacing word-spacing margin orientation position interval sigma].each do |name|
                     feature[name] = opts[name] if opts[name]
                   end
                 end
@@ -1952,7 +1952,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         when "esriGeometryPolyline"
           margin = feature["margin"]
           interval = feature["interval"] || 150
-          length = text.length * (font_size * FONT_ASPECT + letter_spacing) + text.count(?\s) * word_spacing
+          sigma = feature["sigma"] || 5
+          text_length = text.length * (font_size * FONT_ASPECT + letter_spacing) + text.count(?\s) * word_spacing
           baseline_shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
           feature["baselines"] = []
           feature["endpoints"] = []
@@ -1966,17 +1967,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
           cumulative.length.times.inject([]) do |memo, finish|
             start = finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
-              cumulative[finish] - cumulative[start] >= length
+              cumulative[finish] - cumulative[start] >= text_length
             end
             start ? memo << (start..finish) : memo
-          end.reject do |range|
-            # TODO: make this straightness factor a feature property?
-            points[range.first].minus(points[range.last]).norm < 0.9 * length
-          end.reject do |range|
-            points[range].cosines.any? { |cosine| cosine < 0.707 }
-          end.sort_by do |range|
-            points[range].length < 3 ? 0.0 : 1.0 - points[range].cosines.mean
           end.map do |range|
+            means = points[range].transpose.map(&:mean)
+            deviations = points[range].transpose.zip(means).map do |values, mean|
+              values.map { |value| value - mean }
+            end
+            a00, a01, a11 = [ [0, 0], [0, 1], [1, 1] ].map do |axes|
+              deviations.values_at(*axes).transpose.map { |d1, d2| d1 * d2 }.inject(&:+)
+            end
+            eigenvalue = 0.5 * (a00 + a11 - Math::sqrt(a00**2 + 4 * a01**2 - 2 * a00 * a11 + a11**2))
+            [ range, eigenvalue ]
+          end.reject do |range, eigenvalue|
+            eigenvalue > sigma**2
+          end.sort_by(&:last).map do |range, eigenvalue|
             perp = perpendiculars[range.first...range.last].inject(&:plus).normalised
             baseline, top, bottom = [ 0.0, font_size + 1.0, -1.0 ].map do |shift|
               perp.times(baseline_shift + shift)
@@ -2127,6 +2133,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
         end
+        # TODO: remove!
         hull = candidates[index].find { |hull, candidate_index| candidate == candidate_index }.first
         yield("debug").add_element "path", "stroke" => "blue", "stroke-width" => 0.12, "fill" => "none", "d" => hull.to_path_data(?Z)
       end

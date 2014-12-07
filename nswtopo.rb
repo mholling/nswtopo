@@ -247,14 +247,6 @@ class Array
     end
   end
   
-  def cosines
-    segments.map do |segment|
-      segment.inject(&:minus).normalised
-    end.segments.map do |segment|
-      segment.inject(&:dot)
-    end
-  end
-  
   def to_path_data(*close)
     self.inject do |memo, point|
       [ *memo, ?L, *point ]
@@ -271,6 +263,21 @@ class Array
       end
       memo << point
     end
+  end
+  
+  def smooth(arc_limit)
+    segments.segments.chunk do |segment1, segment2|
+      segment1.inject(&:minus).perp.dot(segment2.inject(&:minus)) > 0
+    end.map do |leftwards, pairs|
+      arc_length = pairs.map(&:first).map { |p1, p2| p2.minus(p1).norm }.inject(&:+)
+      pairs.map do |segment1, segment2|
+        arc_length < arc_limit ? segment1.first.plus(segment2.last).times(0.5) : segment1.last
+      end
+    end.flatten(1).unshift(first).push(last)
+  end
+  
+  def smooth!(*args)
+    replace smooth(*args)
   end
 end
 
@@ -1818,7 +1825,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             closed = geometry_type == "esriGeometryPolygon"
             geometry[closed ? "rings" : "paths"].map do |path|
               projection.reproject_to map.projection, path
-            end.select(&:many?).map do |path|
+            end.map do |path|
               map.coord_corners(1.0).clip(path, closed)
             end.select(&:many?)
           end
@@ -1843,7 +1850,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 [ *options["label-by-category"] ].select do |categories, opts|
                   (attributes.values_at(*options["category"]).compact & [ *categories ].map(&:to_s)).any?
                 end.map(&:last).unshift(options).inject(&:merge).tap do |opts|
-                  %w[font-size letter-spacing word-spacing margin orientation position interval sigma].each do |name|
+                  %w[font-size letter-spacing word-spacing margin orientation position interval sigma smooth].each do |name|
                     feature[name] = opts[name] if opts[name]
                   end
                 end
@@ -1924,6 +1931,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           memo
         end
       end
+      
+      10.times.to_a.with_progress("... smoothing label lines").each do
+        features.map do |feature|
+          [ feature, feature["geometryType"] == "esriGeometryPolyline" && feature["smooth"] ]
+        end.select(&:last).each do |feature, mm|
+          feature["points"].smooth!(mm)
+        end
+      end if features.any? { |feature| feature["geometryType"] == "esriGeometryPolyline" && feature["smooth"] }
       
       candidates = features.with_progress("... generating label positions").map do |feature|
         text           = feature["label"]

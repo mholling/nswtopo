@@ -1932,7 +1932,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      10.times.to_a.with_progress("... smoothing label lines").each do
+      20.times.to_a.with_progress("... smoothing label lines").each do
         features.map do |feature|
           [ feature, feature["geometryType"] == "esriGeometryPolyline" && feature["smooth"] ]
         end.select(&:last).each do |feature, mm|

@@ -2041,6 +2041,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 case features[feature1]["geometryType"]
                 when "esriGeometryPoint"
                   conflicts[feature1][candidate1][label2] = true
+                  conflicts[feature2][candidate2][label1] = true
                 when "esriGeometryPolyline"
                   start1, finish1, total = features[feature1]["endpoints"][candidate1]
                   start2, finish2, total = features[feature1]["endpoints"][candidate2]

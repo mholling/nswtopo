@@ -395,15 +395,17 @@ class Array
     end
   end
   
-  def smooth(arc_limit)
-    segments.segments.chunk do |segment1, segment2|
-      segment1.inject(&:minus).perp.dot(segment2.inject(&:minus)) > 0
-    end.map do |leftwards, pairs|
-      arc_length = pairs.map(&:first).map { |p1, p2| p2.minus(p1).norm }.inject(&:+)
-      pairs.map do |segment1, segment2|
-        arc_length < arc_limit ? segment1.first.plus(segment2.last).times(0.5) : segment1.last
-      end
-    end.flatten(1).unshift(first).push(last)
+  def smooth(arc_limit, iterations)
+    iterations.times.inject(self) do |points|
+      points.segments.segments.chunk do |segment1, segment2|
+        segment1.inject(&:minus).perp.dot(segment2.inject(&:minus)) > 0
+      end.map do |leftwards, pairs|
+        arc_length = pairs.map(&:first).map { |p1, p2| p2.minus(p1).norm }.inject(&:+)
+        pairs.map do |segment1, segment2|
+          arc_length < arc_limit ? segment1.first.plus(segment2.last).times(0.5) : segment1.last
+        end
+      end.flatten(1).unshift(points.first).push(points.last)
+    end
   end
   
   def smooth!(*args)
@@ -2084,13 +2086,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       
       puts "... generating labels"
-      20.times do
-        features.map do |feature|
-          [ feature, feature["geometryType"] == "esriGeometryPolyline" && feature["smooth"] ]
-        end.select(&:last).each do |feature, mm|
-          feature["points"].smooth!(mm)
-        end
-      end if features.any? { |feature| feature["geometryType"] == "esriGeometryPolyline" && feature["smooth"] }
+      features.map do |feature|
+        [ feature, feature["geometryType"] == "esriGeometryPolyline" && feature["smooth"] ]
+      end.select(&:last).each do |feature, mm|
+        feature["points"].smooth!(mm, 20)
+      end
       
       candidates = features.map do |feature|
         text           = feature["label"]
@@ -2153,6 +2153,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             [ range, eigenvalue ]
           end.reject do |range, eigenvalue|
             eigenvalue > sigma**2
+            # TODO: sort by something other than the eigenvalue? maybe sinuosity of candidate range?
           end.sort_by(&:last).map do |range, eigenvalue|
             perp = perpendiculars[range.first...range.last].inject(&:plus).normalised
             baseline, top, bottom = [ 0.0, font_size + 1.0, -1.0 ].map do |shift|

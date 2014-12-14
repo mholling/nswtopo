@@ -328,6 +328,14 @@ class Array
     zip rotate
   end
   
+  def cosines
+    segments.map do |segment|
+      segment.inject(&:minus).normalised
+    end.segments.map do |vectors|
+      vectors.inject(&:dot)
+    end
+  end
+  
   def perp
     [ -self[1], self[0] ]
   end
@@ -2131,6 +2139,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             start ? memo << (start..finish) : memo
           end.reject do |range|
             points[range.last].minus(points[range.first]).norm < 0.8 * text_length
+          end.reject do |range|
+            points[range].cosines.any? { |cosine| cosine < 0.9 }
           end.map do |range|
             means = points[range].transpose.map(&:mean)
             deviations = points[range].transpose.zip(means).map do |values, mean|

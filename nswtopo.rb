@@ -357,13 +357,15 @@ class Array
     end
   end
   
-  def clips?(points)
-    clip(points) != points
-  end
-  
   def disjoint_from?(points)
     [ self, perps ].transpose.any? do |vertex, perp|
       points.all? { |point| point.minus(vertex).dot(perp) >= 0 }
+    end
+  end
+  
+  def surrounds?(points)
+    [ self, perps ].transpose.all?  do |vertex, perp|
+      points.all? { |point| point.minus(vertex).dot(perp) < 0 }
     end
   end
   
@@ -2161,8 +2163,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             feature["endpoints"] << [ cumulative[range.first] / interval, cumulative[range.last] / interval, cumulative.last / interval ]
             (top + bottom.reverse).convex_hull.reverse
           end
-        end.map.with_index.reject do |hull, candidate|
-          map.mm_corners(-5).clips? hull
+        end.map.with_index.select do |hull, candidate|
+          map.mm_corners(-5).surrounds? hull
         end
       end
       

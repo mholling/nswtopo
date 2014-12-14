@@ -127,6 +127,129 @@ module Enumerable
   end
 end
 
+class AVLTree
+  include Enumerable
+  attr_accessor :value, :left, :right, :height
+  
+  def initialize(&block)
+    empty!
+  end
+  
+  def empty?
+    @value.nil?
+  end
+  
+  def empty!
+    @value, @left, @right, @height = nil, nil, nil, 0
+  end
+  
+  def leaf?
+    [ @left, @right ].all?(&:empty?)
+  end
+  
+  def replace_with(node)
+    @value, @left, @right, @height = node.value, node.left, node.right, node.height
+  end
+  
+  def balance
+    empty? ? 0 : @left.height - @right.height
+  end
+  
+  def update_height
+    @height = empty? ? 0 : [ @left, @right ].map(&:height).max + 1
+  end
+  
+  def first_node
+    empty? || @left.empty? ? self : @left.first_node
+  end
+  
+  def last_node
+    empty? || @right.empty? ? self : @right.last_node
+  end
+  
+  def ancestors(node)
+    node.empty? ? [] : case @value <=> node.value
+    when +1 then [ *@left.ancestors(node), self ]
+    when  0 then [ ]
+    when -1 then [ *@right.ancestors(node), self ]
+    end
+  end
+  
+  def rotate_left
+    a, b, c, v, @value = @left, @right.left, @right.right, @value, @right.value
+    @left = @right
+    @left.value, @left.left, @left.right, @right = v, a, b, c
+    [ @left, self ].each(&:update_height)
+  end
+  
+  def rotate_right
+    a, b, c, v, @value = @left.left, @left.right, @right, @value, @left.value
+    @right = @left
+    @left.value, @left, @right.left, @right.right = v, a, b, c
+    [ @right, self ].each(&:update_height)
+  end
+  
+  def rebalance
+    update_height
+    case balance
+    when +2
+      @left.rotate_left if @left.balance == -1
+      rotate_right
+    when -2
+      @right.rotate_right if @right.balance == 1
+      rotate_left
+    end unless empty?
+  end
+  
+  def insert(value)
+    if empty?
+      @value, @left, @right = value, AVLTree.new, AVLTree.new
+    else
+      case @value <=> value
+      when +1 then @left.insert value
+      when  0 then @value = value
+      when -1 then @right.insert value
+      end
+    end
+    rebalance
+  end
+  
+  def delete(value)
+    case @value <=> value
+    when +1 then @left.delete value
+    when 0
+      @value.tap do
+        case
+        when leaf? then empty!
+        when @left.empty?
+          node = @right.first_node
+          @value = node.value
+          node.replace_with node.right
+          ancestors(node).each(&:rebalance) unless node.empty?
+        else
+          node = @left.last_node
+          @value = node.value
+          node.replace_with node.left
+          ancestors(node).each(&:rebalance) unless node.empty?
+        end
+      end
+    when -1 then @right.delete value
+    end.tap { rebalance } unless empty?
+  end
+  
+  def pop
+    delete first_node.value unless empty?
+  end
+  
+  def each(&block)
+    unless empty?
+      @left.each &block
+      block.call @value
+      @right.each &block
+    end
+  end
+end
+
 class Array
   def median
     sort[length / 2]
@@ -216,18 +339,18 @@ class Array
   end
   
   def clip(points, closed = true)
-    [ perps, self ].transpose.inject(points) do |points, (axis, offset)|
+    [ self, perps ].transpose.inject(points) do |points, (vertex, perp)|
       point_segments = closed ? points.ring : [ *points, points.last ].segments
       point_segments.inject([]) do |clipped, segment|
-        inside = segment.map { |point| point.minus(offset).dot(axis) <= 0 }
+        inside = segment.map { |point| point.minus(vertex).dot(perp) <= 0 }
         case
-        when inside[0] && inside[1]
+        when inside.all?
           clipped << segment[0]
         when inside[0]
           clipped << segment[0]
-          clipped << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
+          clipped << (segment[1].times(segment[0].minus(vertex).dot perp).minus segment[0].times(segment[1].minus(vertex).dot perp)).times(1.0 / segment.inject(&:minus).dot(perp))
         when inside[1]
-          clipped << (segment[1].times(segment[0].minus(offset).dot axis).minus segment[0].times(segment[1].minus(offset).dot axis)).times(1.0 / segment.inject(&:minus).dot(axis))
+          clipped << (segment[1].times(segment[0].minus(vertex).dot perp).minus segment[0].times(segment[1].minus(vertex).dot perp)).times(1.0 / segment.inject(&:minus).dot(perp))
         end
         clipped
       end
@@ -235,15 +358,12 @@ class Array
   end
   
   def clips?(points)
-    # TODO: optimise?
     clip(points) != points
   end
   
-  def avoids?(points)
+  def disjoint_from?(points)
     [ self, perps ].transpose.any? do |vertex, perp|
-      points.all? do |point|
-        point.minus(vertex).dot(perp) >= 0
-      end
+      points.all? { |point| point.minus(vertex).dot(perp) >= 0 }
     end
   end
   
@@ -257,7 +377,7 @@ class Array
     start = min_by(&:reverse)
     (self - [ start ]).sort_by do |point|
       start.minus(point).normalised.first
-    end.inject([start]) do |memo, point|
+    end.inject([ start ]) do |memo, point|
       while memo.many? && point.minus(memo[-1]).perp.dot(point.minus memo[-2]) >= 0
         memo.pop
       end
@@ -278,6 +398,27 @@ class Array
   
   def smooth!(*args)
     replace smooth(*args)
+  end
+  
+  def overlaps
+    events, sweep, results = AVLTree.new, AVLTree.new, []
+    each.with_index do |hull, index|
+      events.insert [ hull.min, index, :start ]
+      events.insert [ hull.max, index, :stop  ]
+    end
+    until events.empty? do
+      point, index, event = events.pop
+      case event
+      when :start
+        sweep.each do |other|
+          results << [ index, other ] unless self[index].disjoint_from? self[other]
+        end
+        sweep.insert index
+      when :stop
+        sweep.delete index
+      end
+    end
+    results
   end
 end
 
@@ -1932,7 +2073,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      20.times.to_a.with_progress("... smoothing label lines").each do
+      puts "... generating labels"
+      20.times do
         features.map do |feature|
           [ feature, feature["geometryType"] == "esriGeometryPolyline" && feature["smooth"] ]
         end.select(&:last).each do |feature, mm|
@@ -1940,7 +2082,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end if features.any? { |feature| feature["geometryType"] == "esriGeometryPolyline" && feature["smooth"] }
       
-      candidates = features.with_progress("... generating label positions").map do |feature|
+      candidates = features.map do |feature|
         text           = feature["label"]
         font_size      = feature["font-size"]      || 1.5
         letter_spacing = feature["letter-spacing"] || 0
@@ -1985,6 +2127,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               cumulative[finish] - cumulative[start] >= text_length
             end
             start ? memo << (start..finish) : memo
+          end.reject do |range|
+            points[range.last].minus(points[range.first]).norm < 0.8 * text_length
           end.map do |range|
             means = points[range].transpose.map(&:mean)
             deviations = points[range].transpose.zip(means).map do |values, mean|
@@ -2018,48 +2162,51 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             (top + bottom.reverse).convex_hull.reverse
           end
         end.map.with_index.reject do |hull, candidate|
-          map.mm_corners(-10).clips? hull
+          map.mm_corners(-5).clips? hull
         end
       end
       
+      puts "... resolving labels"
       conflicts = {}
       candidates.each.with_index do |hulls, feature|
-        hulls.each do |_, candidate|
+        hulls.map(&:last).each do |candidate|
           conflicts[feature] ||= {}
           conflicts[feature][candidate] = {}
         end
       end
       
-      candidates.with_progress("... removing label conflicts").each.with_index do |hulls1, feature1|
-        candidates.each.with_index do |hulls2, feature2|
-          hulls1.each do |hull1, candidate1|
-            hulls2.each do |hull2, candidate2|
-              label1 = [ feature1, candidate1 ]
-              label2 = [ feature2, candidate2 ]
+      hulls, labels = candidates.map.with_index do |hulls, feature|
+        hulls.map { |hull, candidate| [ hull, [ feature, candidate ] ] }
+      end.flatten(1).transpose
+      
+      hulls.overlaps.each do |index1, index2|
+        feature1, candidate1 = label1 = labels[index1]
+        feature2, candidate2 = label2 = labels[index2]
+        conflicts[feature1][candidate1][label2] = true
+        conflicts[feature2][candidate2][label1] = true
+      end
+      
+      candidates.each.with_index do |hulls, feature|
+        hulls.map(&:last).each do |candidate1|
+          label1 = [ feature, candidate1 ]
+          hulls.map(&:last).each do |candidate2|
+            label2 = [ feature, candidate2 ]
+            case features[feature]["geometryType"]
+            when "esriGeometryPoint"
+              conflicts[feature][candidate1][label2] = true
+              conflicts[feature][candidate2][label1] = true
+            when "esriGeometryPolyline"
+              start1, finish1, total = features[feature]["endpoints"][candidate1]
+              start2, finish2, total = features[feature]["endpoints"][candidate2]
               case
-              when feature1 == feature2
-                case features[feature1]["geometryType"]
-                when "esriGeometryPoint"
-                  conflicts[feature1][candidate1][label2] = true
-                  conflicts[feature2][candidate2][label1] = true
-                when "esriGeometryPolyline"
-                  start1, finish1, total = features[feature1]["endpoints"][candidate1]
-                  start2, finish2, total = features[feature1]["endpoints"][candidate2]
-                  case
-                  when start2 - finish1 > 1 && start1 + total - finish2 > 1
-                  when start1 - finish2 > 1 && start2 + total - finish1 > 1
-                  else
-                    conflicts[feature1][candidate1][label2] = true
-                    conflicts[feature2][candidate2][label1] = true
-                  end
-                end unless candidate1 == candidate2
-              when hull1.avoids?(hull2)
+              when start2 - finish1 > 1 && start1 + total - finish2 > 1
+              when start1 - finish2 > 1 && start2 + total - finish1 > 1
               else
-                conflicts[feature1][candidate1][label2] = true
-                conflicts[feature2][candidate2][label1] = true
+                conflicts[feature][candidate1][label2] = true
+                conflicts[feature][candidate2][label1] = true
               end
-            end
-          end if feature2 >= feature1
+            end unless candidate2 >= candidate1
+          end
         end
       end
       
@@ -2109,7 +2256,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       #   end
       # end
       
-      labels.with_progress("... plotting labels").each do |index, candidate|
+      puts "... drawing labels"
+      labels.each do |index, candidate|
         feature = features[index]
         letter_spacing = feature["letter-spacing"]
         word_spacing   = feature["word-spacing"]

@@ -2156,7 +2156,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             # TODO: sort by something other than the eigenvalue? maybe sinuosity of candidate range?
           end.sort_by(&:last).map do |range, eigenvalue|
             perp = perpendiculars[range.first...range.last].inject(&:plus).normalised
-            baseline, top, bottom = [ 0.0, font_size + 1.0, -1.0 ].map do |shift|
+            baseline, top, bottom = [ 0.0, font_size + 0.5, -0.5 ].map do |shift|
               perp.times(baseline_shift + shift)
             end.map do |offset|
               case feature["orientation"]
@@ -2258,16 +2258,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      # # TODO: reinstate local search algorithm
-      # # (need work; currently collapses multiple labels per line feature into one)
-      # 5.times do
-      #   labels.each do |label|
-      #     counts_candidates = conflicts[label[0]].map do |candidate, conflicts|
-      #       [ conflicts.values_at(*labels).compact.count, candidate ]
-      #     end
-      #     label[1] = counts_candidates.min.last unless counts_candidates.map(&:first).all?(&:zero?)
-      #   end
-      # end
+      5.times do
+        labels.select do |feature, candidate|
+          features[feature]["geometryType"] == "esriGeometryPoint"
+        end.each do |label|
+          feature, candidate = label
+          counts_candidates = conflicts[feature].map do |candidate, conflicts|
+            [ (labels & conflicts.keys - [ label ]).count, candidate ]
+          end
+          label[1] = counts_candidates.min.last
+        end
+      end
       
       puts "... drawing labels"
       labels.each do |index, candidate|

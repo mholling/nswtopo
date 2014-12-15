@@ -2138,8 +2138,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
             start ? memo << (start..finish) : memo
           end.reject do |range|
-            points[range.last].minus(points[range.first]).norm < 0.8 * text_length
-          end.reject do |range|
             points[range].cosines.any? { |cosine| cosine < 0.9 }
           end.map do |range|
             means = points[range].transpose.map(&:mean)
@@ -2150,11 +2148,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               deviations.values_at(*axes).transpose.map { |d1, d2| d1 * d2 }.inject(&:+)
             end
             eigenvalue = 0.5 * (a00 + a11 - Math::sqrt(a00**2 + 4 * a01**2 - 2 * a00 * a11 + a11**2))
-            [ range, eigenvalue ]
-          end.reject do |range, eigenvalue|
-            eigenvalue > sigma**2
-            # TODO: sort by something other than the eigenvalue? maybe sinuosity of candidate range?
-          end.sort_by(&:last).map do |range, eigenvalue|
+            sinuosity = (cumulative[range.last] - cumulative[range.first]) / points[range.last].minus(points[range.first]).norm
+            [ range, eigenvalue, sinuosity ]
+          end.reject do |range, eigenvalue, sinuosity|
+            eigenvalue > sigma**2 || sinuosity > 1.25
+          end.sort_by(&:last).map(&:first).map do |range|
             perp = perpendiculars[range.first...range.last].inject(&:plus).normalised
             baseline, top, bottom = [ 0.0, font_size + 0.5, -0.5 ].map do |shift|
               perp.times(baseline_shift + shift)

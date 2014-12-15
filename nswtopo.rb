@@ -1178,9 +1178,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end
       end
+      defs = xml.elements["/svg/defs"]
       draw(map) do |sublayer_name|
-        id = [ layer_name, sublayer_name ].compact.join(SEGMENT)
-        layers[id]
+        case sublayer_name
+        when :defs then defs
+        else
+          id = [ layer_name, sublayer_name ].compact.join(SEGMENT)
+          layers[id]
+        end
       end
     end
   end
@@ -2267,7 +2272,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      puts "... drawing labels"
       labels.each do |index, candidate|
         feature = features[index]
         letter_spacing = feature["letter-spacing"]
@@ -2299,7 +2303,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         when "esriGeometryPolyline"
           d = feature["baselines"][candidate].to_path_data
           id = [ layer_name, "labels", "path", index, candidate ].join SEGMENT
-          yield("labels").elements["//svg/defs"].add_element "path", "id" => id, "d" => d
+          yield(:defs).add_element "path", "id" => id, "d" => d
           yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
             text.add_attribute "letter-spacing", letter_spacing if letter_spacing
             text.add_attribute "word-spacing", word_spacing if word_spacing

@@ -2244,15 +2244,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      pending = conflicts.keys - labels.map(&:first)
-      while pending.any?
-        pending.each do |feature|
-          conflicts[feature].min_by do |candidate, conflicts|
-            [ conflicts.values_at(*labels).compact.count, candidate ]
-          end.tap do |candidate, _|
-            labels << [ feature, candidate ]
+      (conflicts.keys - labels.map(&:first)).each do |feature|
+        conflicts[feature].min_by do |candidate, conflicts|
+          [ (conflicts.keys & labels).count, candidate ]
+        end.tap do |candidate, conflicts|
+          labels.reject! do |label|
+            conflicts[label] && labels.map(&:first).count(label[0]) > 1
           end
-          pending.delete feature
+          labels << [ feature, candidate ]
         end
       end
       

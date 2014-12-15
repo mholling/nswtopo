@@ -2308,9 +2308,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
         end
-        # TODO: remove!
-        hull = candidates[index].find { |hull, candidate_index| candidate == candidate_index }.first
-        yield("debug").add_element "path", "stroke" => "blue", "stroke-width" => 0.12, "fill" => "none", "d" => hull.to_path_data(?Z)
       end
       
       names_features.reject do |sublayer_name, features|

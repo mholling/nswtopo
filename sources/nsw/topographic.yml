@@ -58,26 +58,28 @@ features:
     - ClassSubtype
     - relevance
   - name: Contour_10m
-    definition: mod(elevation,50) = 0
+    definition: mod(elevation,50) = 0 AND shape_Length > 1000
     label-only: true
     label: elevation
     orientation: uphill
     font-size: 1.4
     letter-spacing: 0.05
     interval: 120
+    deviation: 0.1
   contours-20m:
   - name: Contour_20m
     category:
     - ClassSubtype
     - relevance
   - name: Contour_20m
-    definition: relevance IN (1,2)
+    definition: relevance IN (1,2) AND shape_Length > 2000
     label-only: true
     label: elevation
     orientation: uphill
     font-size: 1.4
     letter-spacing: 0.05
     interval: 120
+    deviation: 0.1
   cliffs-rocks-sand:
     # TODO: extract POI labels from feature-names into here?
     name: Cliffs_Reefs_Mangroves
@@ -118,22 +120,25 @@ features:
     # TODO: include Perenniality and render accordingly?
   - source: lpimap
     name: Stream_Names
+    category: relevance
     label-only: true
     label: hydronamestring
-    category: relevance
+    smooth: 8.0
+    deviation: 3.0
+    interval: 100
+    margin: 2.5
     letter-spacing: 0.1
     word-spacing: 2.0
     label-by-category:
       [ 1, 2 ]:
         font-size: 1.9
+        interval: 150
       [ 3, 4 ]:
         font-size: 1.7
-        margin: 0.5
+        interval: 150
       [ 5, 6, 7 ]:
         font-size: 1.5
-        margin: 0.5
       [ 8, 9, 10 ]:
-        margin: 0.5
         font-size: 1.4
   stock-dams:
     name: StockDams
@@ -237,21 +242,23 @@ features:
   - source: lpi-raster-labels
     name: Raster_Road_Labels
     definition: functionhierarchy NOT IN (6,7,10,11)
+    # TODO: specify by relevance instead of by function hierarchy?
     category: functionhierarchy
     label-only: true
     label: roadnamestring
+    smooth: 5.0
+    deviation: 2.0
     font-size: 1.4
     letter-spacing: 0.1
+    margin: 1.2
     label-by-category:
       [ Path, Track-Vehicular ]:
         font-size: 1.4
-        margin: 0.45
+        margin: 0.8
       [ SubArterialRoad, DistributorRoad ]:
         font-size: 1.6
-        margin: 0.5
       [ Motorway, PrimaryRoad, ArterialRoad ]:
         font-size: 1.8
-        margin: 0.55
         word-spacing: 1.0
   railways:
     name: Railway_onground_LS
@@ -325,7 +332,7 @@ features:
     format: "%sr"
     font-size: 1.4
     margin: 0.8
-    position: [ 0, 1, 2, 3, 4 ]
+    position: [ 1, 2, 3, 4, 0 ]
   feature-names:
   - source: poi
     name: Points Of Interest
@@ -350,8 +357,8 @@ features:
     category: fuzzypointfeaturetype
   - name: Ridge_Beach
     definition: generalname <> 'GREAT DIVIDING RANGE'
-    label-only: true
     label: generalname
+    smooth: 12
     font-size: 1.8
     word-spacing: 3
     letter-spacing: 0.5
@@ -361,6 +368,9 @@ features:
         margin: 0.7
       ValleyLike:
         margin: 0.7
+        font-size: 2.2
+      RangeLike:
+        font-size: 2.2
   place-names:
     source: poi
     name: Points Of Interest
@@ -1172,6 +1182,9 @@ labels:
     feature-names:
       font-family: Calibri, Arial, Helvetica, sans-serif
       font-style: normal
+    [ feature-names RangeLike, feature-names ValleyLike ]:
+      fill: "#404040"
+      opacity: 0.7
     outline:
       # TODO: this glow does not render in Safari (unless SVG is pretty-printed!)
       stroke: white

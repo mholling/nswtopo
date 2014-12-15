@@ -2003,7 +2003,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 [ *options["label-by-category"] ].select do |categories, opts|
                   (attributes.values_at(*options["category"]).compact & [ *categories ].map(&:to_s)).any?
                 end.map(&:last).unshift(options).inject(&:merge).tap do |opts|
-                  %w[font-size letter-spacing word-spacing margin orientation position interval sigma smooth].each do |name|
+                  %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth].each do |name|
                     feature[name] = opts[name] if opts[name]
                   end
                 end
@@ -2119,7 +2119,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         when "esriGeometryPolyline"
           margin = feature["margin"]
           interval = feature["interval"] || 150
-          sigma = feature["sigma"] || 5
+          deviation = feature["deviation"] || 5
           text_length = text.length * (font_size * FONT_ASPECT + letter_spacing) + text.count(?\s) * word_spacing
           baseline_shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
           feature["baselines"] = []
@@ -2151,7 +2151,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             sinuosity = (cumulative[range.last] - cumulative[range.first]) / points[range.last].minus(points[range.first]).norm
             [ range, eigenvalue, sinuosity ]
           end.reject do |range, eigenvalue, sinuosity|
-            eigenvalue > sigma**2 || sinuosity > 1.25
+            eigenvalue > deviation**2 || sinuosity > 1.25
           end.sort_by(&:last).map(&:first).map do |range|
             perp = perpendiculars[range.first...range.last].inject(&:plus).normalised
             baseline, top, bottom = [ 0.0, font_size + 0.5, -0.5 ].map do |shift|

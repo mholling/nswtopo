@@ -287,12 +287,12 @@ features:
     name: TankPoint
   buildings:
   - name: Dwellings_Buildings
-  # TODO: add hut names with poigroup = 1 AND poitype = 'Community Facility' AND poiname LIKE '% HUT'
   - source: poi
     name: Points Of Interest
-    definition: poigroup = 1 AND poitype = 'Homestead'
+    definition: poigroup = 1 AND (poitype = 'Homestead' OR (poitype = 'Community Facility' AND poiname LIKE '% HUT'))
     category: poitype
     label: poiname
+    label-only: true
     format: "'%s'"
     position: [ 1, 2, 3, 4 ]
     font-size: 1.5
@@ -374,7 +374,7 @@ features:
   place-names:
     source: poi
     name: Points Of Interest
-    definition: poigroup = 8
+    definition: poigroup = 8 AND poiname NOT LIKE '% HUT'
     category: poitype
     label-only: true
     label: poiname

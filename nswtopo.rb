@@ -1010,7 +1010,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "symbols"
             args.each do |categories, elements|
               [ *categories ].select do |category|
-                layer.elements[".//[@class][starts-with(@class,'#{category}')]"]
+                layer.elements[".//[@class][starts-with(@class,'#{category}')]/use[not(xlink:href)]"]
               end.each do |category|
                 id = [ layer_id, *category.split(?\s), "symbol" ].join SEGMENT
                 memo << [ "//svg/defs", { "g" => { "id" => id } } ]
@@ -1021,7 +1021,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "patterns"
             args.each do |categories, elements|
               [ *categories ].select do |category|
-                layer.elements[".//[@class][starts-with(@class,'#{category}')]"]
+                layer.elements[".//[@class][starts-with(@class,'#{category}')]/path[not(@fill='none')]"]
               end.each do |category|
                 id = [ layer_id, *category.split(?\s), "pattern" ].join SEGMENT
                 memo << [ "//svg/defs", { "pattern" => { "id" => id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})" } } ]
@@ -1055,7 +1055,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "samples"
             args.each do |categories, attributes|
               [ *categories ].select do |category|
-                layer.elements[".//g[@class][starts-with(@class,'#{category}')]/path"]
+                layer.elements[".//g[@class][starts-with(@class,'#{category}')]/path[@fill='none']"]
               end.each do |category|
                 elements = case attributes
                 when Array then attributes.map(&:to_a).inject(&:+) || []
@@ -1069,7 +1069,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     memo << [ "//svg/defs/g[@id='#{id}']", element ]
                   end
                 end
-                layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path") do |path|
+                layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path[@fill='none']") do |path|
                   uses = []
                   path.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
                     subpath.split(/\s*L\s*/i).map do |pair|
@@ -1092,12 +1092,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "endpoints"
             args.each do |categories, attributes|
               [ *categories ].select do |category|
-                layer.elements[".//g[@class][starts-with(@class,'#{category}')]/path"]
+                layer.elements[".//g[@class][starts-with(@class,'#{category}')]/path[@fill='none']"]
               end.each do |category|
                 id = [ layer_id, *category.split(?\s), "endpoint" ].join SEGMENT
                 memo << [ "//svg/defs", { "g" => { "id" => id } } ]
                 memo << [ "//svg/defs/g[@id='#{id}']", attributes ]
-                layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path") do |path|
+                layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path[@fill='none']") do |path|
                   uses = []
                   path.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
                     subpath.split(/\s*L\s*/i).values_at(0,1,-2,-1).map do |pair|
@@ -2015,6 +2015,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
             feature["label-only"] = options["label-only"] if options["label-only"]
+            feature["angle"] = angle if angle
           end
         end
         puts

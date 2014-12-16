@@ -936,9 +936,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def rerender(xml, map)
-      scale_by = lambda do |factor, string|
-        string.split(/[,\s]+/).map { |number| factor * number.to_f }.join(?\s)
-      end
       xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
         layer_id = layer.attributes["id"]
         sublayer_name = layer_id.split(/^#{layer_name}#{SEGMENT}?/).last
@@ -950,7 +947,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.inject({}) do |memo, (command, args)|
           memo.deep_merge case command
           when "colour"   then { "stroke" => args, "fill" => args }
-          when "expand"   then { "widen" => args, "stretch" => args }
           when "symbol"   then { "symbols" => { "" => args } }
           when "pattern"  then { "patterns" => { "" => args } }
           when "dupe"     then { "dupes" => { "" => args } }
@@ -959,26 +955,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "endpoint" then { "endpoints" => { "" => args } }
           else { command => args }
           end
-        end.tap do |commands|
-          commands.merge! "glow" => commands.delete("glow") if commands["glow"]
         end.inject([]) do |memo, (command, args)|
           case command
           when %r{^\./}   then memo << [ command, args ]
           when "opacity" then memo << [ "self::/@style", "opacity:#{args}" ]
           when "width"   then memo << [ ".//[@stroke-width and not(self::text)]/@stroke-width", args ]
-          when "glow"
-            memo << [ "./*", lambda do |element|
-              element.deep_clone.tap do |copy|
-                copy.elements.each("descendant-or-self::text") do |text|
-                  case args
-                  when Float then text.add_attributes "fill" => "none", "stroke" => "white", "stroke-opacity" => 0.75, "stroke-width" => "#{args}em"
-                  else            text.add_attributes "fill" => "none", "stroke" => "white", "stroke-opacity" => 0.75, "stroke-width" => "0.1em"
-                  end
-                end
-                element.parent.insert_before element, copy
-                element.elements.each(".//font", &:remove)
-              end if args
-            end ]
           when "stroke", "fill"
             case args
             when Hash
@@ -988,12 +969,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             else
               memo << [ ".//[@#{command}!='none']/@#{command}", args ]
             end
-          when "widen", "stretch", "expand-glyph"
-            case command
-            when "widen"        then %w[stroke-width stroke-miterlimit]
-            when "stretch"      then %w[stroke-dasharray]
-            when "expand-glyph" then %w[font-size]
-            end.each { |name| memo << [ ".//[@#{name}]/@#{name}", scale_by.curry[args] ] }
           when "dash"
             case args
             when nil             then memo << [ ".//[@stroke-dasharray]/@stroke-dasharray", nil ]
@@ -1132,14 +1107,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   else           node.add_attribute key, value
                   end
                 end
-              end
-            end
-          when Proc
-            # TODO: needed for "glow" command; remove later
-            REXML::XPath.each(layer, xpath) do |node|
-              case node
-              when REXML::Attribute then node.element.attributes[node.name] = args.(node.value)
-              when REXML::Element   then args.(node)
               end
             end
           else
@@ -2284,11 +2251,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           in_zone = GridSource.zone(column, projection).map { |candidate| candidate == zone }
           [ in_zone, column ].transpose
         end
+        lines = yield("lines").add_element("g", "class" => "", "stroke-width" => "0.1", "stroke" => "black")
+        labels = yield("labels").add_element("g", "class" => "", "font-family" => fontfamily, "font-size" => fontsize, "fill" => "black", "stroke" => "none", "text-anchor" => "middle")
         [ grid, grid.transpose ].each.with_index do |gridlines, index|
           gridlines.each do |gridline|
             line = gridline.select(&:first).map(&:last)
             d = svg_coords(line, projection, map).to_path_data
-            yield("lines").add_element("path", "d" => d, "stroke-width" => "0.1", "stroke" => "black")
+            lines.add_element("path", "d" => d)
             if line[0] && line[0][index] % label_interval == 0 
               coord = line[0][index]
               label_segments = [ [ "%d", (coord / 100000), 80 ], [ "%02d", (coord / 1000) % 100, 100 ] ]
@@ -2300,7 +2269,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   middle = points.transpose.map { |values| 0.5 * values.inject(:+) }
                   angle = 180.0 * Math::atan2(*points[1].minus(points[0]).reverse) / Math::PI
                   transform = "translate(#{middle.join ?\s}) rotate(#{angle})"
-                  yield("labels").add_element("text", "transform" => transform, "dy" => 0.25 * fontsize, "font-family" => fontfamily, "font-size" => fontsize, "fill" => "black", "stroke" => "none", "text-anchor" => "middle") do |text|
+                  labels.add_element("text", "transform" => transform, "dy" => 0.25 * fontsize) do |text|
                     label_segments.each do |digits, percent|
                       text.add_element("tspan", "font-size" => "#{percent}%") do |tspan|
                         tspan.add_text(digits)
@@ -2730,9 +2699,15 @@ grid:
   interval: 1000
   label-spacing: 5
   fontsize: 7.8
-  family: Arial Narrow
+  family: "'Arial Narrow', sans-serif"
   labels:
-    glow: 0.15
+    dupe: outline
+    styles:
+      outline:
+        stroke: white
+        fill: none
+        stroke-width: 0.3
+        stroke-opacity: 0.75
 declination:
   class: DeclinationSource
   spacing: 1000
@@ -2916,10 +2891,6 @@ controls:
           end if target
         end unless config["leave-labels"]
         
-        xml.elements.collect("/svg/defs/font", &:remove).each do |font|
-          xml.elements["/svg/defs"].elements << font
-        end
-        
         xml.elements.each("/svg/g[*]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
         
         if config["check-fonts"]
@@ -3017,5 +2988,4 @@ end
 # TODO: switch to Open3 for shelling out
 # TODO: add nodata transparency in vegetation source?
 # TODO: remove linked images from PDF output?
-# TODO: put glow on control labels?
 # TODO: check georeferencing of aerial-google, aerial-nokia

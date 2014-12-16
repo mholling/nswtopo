@@ -328,10 +328,20 @@ class Array
     zip rotate
   end
   
+  def difference
+    last.minus first
+  end
+  
+  def distance
+    difference.norm
+  end
+  
+  def along(fraction)
+    self[1].times(fraction).plus self[0].times(1.0 - fraction)
+  end
+  
   def cosines
-    segments.map do |segment|
-      segment.inject(&:minus).normalised
-    end.segments.map do |vectors|
+    segments.map(&:difference).map(&:normalised).segments.map do |vectors|
       vectors.inject(&:dot)
     end
   end
@@ -341,9 +351,7 @@ class Array
   end
   
   def perps
-    ring.map do |p1, p2|
-      p2.minus(p1).perp
-    end
+    ring.map(&:difference).map(&:perp)
   end
   
   def clip(points, closed = true)
@@ -356,9 +364,9 @@ class Array
           clipped << segment[0]
         when inside[0]
           clipped << segment[0]
-          clipped << (segment[1].times(segment[0].minus(vertex).dot perp).minus segment[0].times(segment[1].minus(vertex).dot perp)).times(1.0 / segment.inject(&:minus).dot(perp))
+          clipped << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
         when inside[1]
-          clipped << (segment[1].times(segment[0].minus(vertex).dot perp).minus segment[0].times(segment[1].minus(vertex).dot perp)).times(1.0 / segment.inject(&:minus).dot(perp))
+          clipped << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
         end
         clipped
       end
@@ -398,9 +406,9 @@ class Array
   def smooth(arc_limit, iterations)
     iterations.times.inject(self) do |points|
       points.segments.segments.chunk do |segment1, segment2|
-        segment1.inject(&:minus).perp.dot(segment2.inject(&:minus)) > 0
+        segment1.difference.perp.dot(segment2.difference) > 0
       end.map do |leftwards, pairs|
-        arc_length = pairs.map(&:first).map { |p1, p2| p2.minus(p1).norm }.inject(&:+)
+        arc_length = pairs.map(&:first).map(&:distance).inject(&:+)
         pairs.map do |segment1, segment2|
           arc_length < arc_limit ? segment1.first.plus(segment2.last).times(0.5) : segment1.last
         end
@@ -1050,14 +1058,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     subpath.split(/\s*L\s*/i).map do |pair|
                       pair.split(/\s+/).map(&:to_f)
                     end.segments.inject(0.5) do |alpha, segment|
-                      angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
-                      while segment.inject(&:minus).norm > alpha * interval
-                        fraction = alpha * interval / segment.inject(&:minus).norm
-                        segment[0] = segment[1].times(fraction).plus segment[0].times(1.0 - fraction)
+                      angle = 180.0 * segment.difference.angle / Math::PI
+                      while alpha * interval < segment.distance
+                        segment[0] = segment.along(alpha * interval / segment.distance)
                         uses << { "use" => {"transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{ids.sample}" } }
                         alpha = 1.0
                       end
-                      alpha - segment.inject(&:minus).norm / interval
+                      alpha - segment.distance / interval
                     end
                   end
                   memo << [ ".//g[@class][starts-with(@class,'#{category}')]", uses ]
@@ -1080,7 +1087,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     end.segments.values_at(0,-1).zip([ :to_a, :reverse ]).map do |segment, order|
                       segment.send order
                     end.each do |segment|
-                      angle = 180.0 * segment[1].minus(segment[0]).angle / Math::PI
+                      angle = 180.0 * segment.difference.angle / Math::PI
                       uses << { "use" => { "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "xlink:href" => "##{id}" } }
                     end
                   end
@@ -1823,9 +1830,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           feature["baselines"] = []
           feature["endpoints"] = []
           points = feature["points"]
-          start_end_distance = points.values_at(0, -1).inject(&:minus).norm
+          start_end_distance = points.values_at(0, -1).distance
           cumulative = points.segments.inject([start_end_distance]) do |memo, segment|
-            memo << memo.last + segment.inject(&:minus).norm
+            memo << memo.last + segment.distance
           end
           perpendiculars = points.segments.map do |segment|
             [ segment[0][1] - segment[1][1], segment[1][0] - segment[0][0] ]
@@ -2173,7 +2180,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x[echo #{point.join ?\s} | gdaltransform "#{import_path}" -t_srs "#{map.projection}"].tap do |output|
           raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
         end.split(?\s)[0..1].map(&:to_f)
-      end.inject(&:minus).norm
+      end.distance
     end
     
     def get_raster(map, dimensions, resolution, temp_dir)
@@ -2267,7 +2274,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 if segment[0][1-index] % label_interval == 0
                   points = segment.map { |coords| svg_coords(coords, projection, map) }
                   middle = points.transpose.map { |values| 0.5 * values.inject(:+) }
-                  angle = 180.0 * Math::atan2(*points[1].minus(points[0]).reverse) / Math::PI
+                  angle = 180.0 * points.difference.angle / Math::PI
                   transform = "translate(#{middle.join ?\s}) rotate(#{angle})"
                   labels.add_element("text", "transform" => transform, "dy" => 0.25 * fontsize) do |text|
                     label_segments.each do |digits, percent|

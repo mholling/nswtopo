@@ -1,58 +1,34 @@
 NSW Map Layers
 ==============
 
-This directory contains map layers specific to New South Wales. For a NSW topographic map, you will want to include either `nsw/lpimap` or `nsw/lpimaplocal` (whichever works), and probably also one of the vegetation layers.
+This directory contains map layers specific to New South Wales. For a NSW topographic map, you will want to include `nsw/topographic` and probably also one of the vegetation layers.
 
-## LPIMap
+## Topographic
 
-This map is published by the NSW LPI department as their standard online topographic map. It produces a nicely styled map with most of the features you'd expect from the printed NSW topographic map sheets. It will be included by default, or specify it in your map layer list as follows:
+This map is a derived from the NSW [*Digital Topographic Database*](http://www.lpi.nsw.gov.au/mapping_and_imagery/topographic_data) (DTDB), which contains the current topographic features for the entire state. It produces a nicely styled map with most of the features you'd expect from the printed NSW topographic map sheets (with a few minor exceptions, most notably electricity transmission lines). It will be included by default, or specify it in your map layer list as follows:
 
     include:
-    - nsw/lpimap
+    - nsw/topographic
     - grid
 
-Unfortunately, due to caching issues, the map is slow to download and some areas will not download at all. (This usually occurs in urban areas, so you should not intend to use it for topographic maps near sydney or any town.) Blank tiles in the downloaded map are an indication that you have encountered these issues. If this occurs, try the following:
-
-## Landform/Cadastre/Hydrography/Roads/Buildings
-
-These alternative topographic sources are available when the *LPIMap* service does not work in your map area. Recommended usage is as follows:
-
-    include:
-    - nsw/landform
-    - nsw/cadastre
-    - nsw/hydrography
-    - nsw/roads
-    - nsw/buildings
-
-The `landform` layers include contours, spot heights, cliffs and sand areas. The `hydrography` layers include swamps, water areas, watercourses, ocean, intertidal areas, stock dams, dam walls, breakwaters and waterfalls. The `roads` layers include sealed and unsealed roads, vehicular tracks and footpaths.
-
-Labelling on the `landform` layers is poor, with no contour labels (only spot heights) and no landmark labels for anything other than ridge features. Because multiple sources are used, labels are likely to overlap in some places. Label layers can be rearranged above other feature layers as follows:
-
-    above:
-      nsw.roads.labels: nsw.buildings
-      nsw.landform.labels: nsw.buildings
-      nsw.hydrography.labels: nsw.buildings
-
-## <s>LPIMapLocal</s>
-
-*(LPIMap layer is now defunct! Use landform/cadastre/hydrography/roads/buildings instead.)*
+Along with topographic features, NSW and ACT cadastral lines and trig stations are also included.
 
 ## Aerial Imagery
 
-High-resolution aerial imagery is also available from the NSW LPI department.
-
-* `nsw/aerial-best`: A mosaic of the best NSW LPI imagery at a default of 1.0 metres; use this imagery first
-* `nsw/aerial-lpi-ads40`: Recent, high resolution imagery available from the NSW LPI; available for many but not all areas of interest 
-* `nsw/aerial-lpi-eastcoast`: medium resolution imagery for most of the 25k topographic coverage; quite old film imagery (from the 90s?)
-
-Depending on the native resolution of the dataset, you may or may not obtain a more detailed image by specifying a better resolution. A lot of the `aerial-best` imagery has a native resolution of 0.5 m/px, and can yield very a very detailed image. However, for a map of reasonable size, the image produced at this resolution can be extremely large (easily 100+ megapixels)! Specify a different resolution as follows:
+High-resolution aerial imagery is also available from the NSW LPI department. Include it as follows:
 
     include:
-    - nsw/aerial-best: 0.5
+    - nsw/aerial
+    - nsw/topographic
+
+This layer is a mosaic of the best NSW LPI imagery at a default of 1.0 metres. A lot of the imagery has a native resolution of 0.5 m/px, and can yield very a very detailed image. However, for a map of reasonable size, the image produced at this resolution can be extremely large (easily 100+ megapixels)! Specify a different resolution as follows:
+
+    include:
+    - nsw/aerial: 2.0
 
 ## Reference Topo Maps
 
-These layers (`nsw/reference-topo-current`, `nsw/reference-topo-s1` and `nsw/reference-topo-s2`) contain lower-resolution topographic map raster images at various points in time (recent, older and oldest, respectively). They are useful to have as a reference for comparison against the output of this software.
+These layers (`nsw/reference-topo-current` and `nsw/reference-topo-s1`) contain lower-resolution topographic map raster images at various points in time (recent and older, respectively). They are useful to have as a reference for comparison against the output of this software.
 
 ## Vegetation
 
@@ -64,7 +40,7 @@ Once you have downloaded the data, unzip the file to a suitable location, locate
 
     include:
     - nsw/vegetation-2008-v2
-    - nsw/lpimap
+    - nsw/topographic
     - grid
     nsw.vegetation-2008-v2:
       path: /Users/matthew/nswtopo/NSWInterimNativeVegetationExtentV2_2008/Data/nswintext08/hdr.adf
@@ -82,7 +58,7 @@ If you obtain the data, unzip it and specify its path as follows:
 
     include:
     - nsw/vegetation-spot5
-    - nsw/lpimap
+    - nsw/topographic
     - grid
     nsw.vegetation-spot5:
       path: /Users/matthew/nswtopo/SPOT_woody_extent/r422c105.img
@@ -107,38 +83,3 @@ Since the SPOT5 data is so detailed, you may wish to adjust its contrast to get 
         high: 70  # default is 100
 
 (This would map 30% or lighter foliage to white and 70% or more to full green, effecting an increase in contrast.)
-
-## Plantations
-
-If you include the `nsw/plantations` layer, a representation of pine forest plantations will be added to your map in darker green. The accuracy of this layer is not guaranteed however.
-
-## Reserves
-
-Include `nsw/reserves` in order to show boundaries of NSW state forests and NPWS parks and reserves.
-
-## Holdings
-
-The `nsw/holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is available for the ACT.)
-
-## Basic Topographic Layers
-
-The main `lpimap` topographic layers (or `landform`, `cadastre`, `hydrography`, `roads` and `buildings`), are well-styled and produce the best topographic maps. However the server is not yet out of beta and subject to change. If you do not achieve good results with the default server, you can chose alternate `basic` sources as follows:
-
-    include:
-    - nsw/basic-contours
-    - nsw/basic-cadastre
-    - nsw/basic-features
-
-The `basic` topographic layers do not contain as many features as the normal layers. Currently, they only contain: contours, sealed and unsealed roads, vehicular tracks, pathways, cadastral boundaries and watercourses. Labels are only present for contours and roads. Other informative layers (e.g. cliffs, swamp and inundation areas, water areas, feature labels etc) are missing. Nonetheless, the alternative topographic layers may produce a sufficient map for your needs.
-
-## Miscellaneous Layers
-
-A few other, miscellaneous layers are also available:
-
-* `nsw/gates-grids`: gates and cattle grids on roads and tracks
-* `nsw/runways`: runways and airstrips
-* `nsw/state-border`: NSW state border
-* `nsw/survey`: trig stations
-* `nsw/roadnames`: alternative labels for roads and tracks
-
-(These may be useful when `lpimap` is not available.)

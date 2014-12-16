@@ -5,9 +5,10 @@ Files in this directory structure contain definitions for downloading various Au
 
     include:
     - aerial-google
-    - nsw/aerial-best
+    - nsw/aerial
     - act/aerial-2012
     - nsw/vegetation-2008-v2
+    - nsw/topographic
 
 Australia-wide aerial imagery layers are described below. For state-specific map layers (including topographic layers), see the [NSW](nsw) and [ACT](act) directories.
 

@@ -1,11 +1,11 @@
-Summary (Version 0.8.2)
+Summary (HEAD)
 =======================
 
 This software allows you to download and compile high-resolution vector topographic maps from the NSW geospatial data servers, covering much of NSW and the ACT. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. Other map formats including raster, KMZ and GeoTIFF can also be produced.
 
 This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
 
-A few limitations currently exist when using the software. In particular, for some sources, *map data is not always available, particularly in populated areas*, due to caching performed by the map server. (Your map will be blank, or include blank tiles, if you encounter this limitation.)
+*Topographic map data is now available for the entire state of NSW.*
 
 Pre-Requisites
 ==============
@@ -49,14 +49,6 @@ You can check that the tools are correctly installed by using the following comm
 You should receive version or usage information for each tool if it is installed correctly and in your path.
 
 A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. You will also need a decent internet connection. The topographic download won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
-
-## Fonts
-
-A few point features of the map (camping grounds, picnic areas, mines, towers) use special ESRI fonts, namely 'ESRI Transportation & Civic', 'ESRI Environmental & Icons', 'ESRI Telecom' and others. Some Microsoft fonts (e.g. Cambria) may also be used. These fonts are embedded in the SVG map and should display correctly. However Inkscape does not support embedded fonts and will not render them correctly if they are not installed on your system. This is usually only relevant if you are using Inkscape to rasterise your final map.
-
-If you wish the missing fonts to display correctly in Inkscape, you need to obtain and install them on your system, either by scrounging them from the internet, or as follows:
-* obtain the ESRI fonts by installing [ArcGIS Explorer](http://www.esri.com/software/arcgis/explorer/index.html) and then downloading the [fonts expansion pack](http://webhelp.esri.com/arcgisexplorer/900/en/expansion_packs.htm) (Windows only).
-* obtain the Microsoft fonts by having Microsoft products on your PC (ick). (Mac users can download the Microsoft Office trial, without installing it, and [extract the fonts](http://www.askdavetaylor.com/fix_missing_calibri_cambria_font_errors_iworks_numbers_pages.html).)
 
 Usage
 =====
@@ -161,7 +153,7 @@ Available Map Layers
 A number of different map layers are available for your map, each obtained from different online and local sources. To specify which layers are included in your map, use an `include:` directive in your configuration file, with a list of the layer names to include. The order of the layers determines their overlay order in the map. For example, a basic NSW topographic map with shaded relief and UTM grid would have the following layers specified:
 
     include:
-    - nsw/lpimap
+    - nsw/topographic
     - relief
     - grid
 
@@ -243,20 +235,12 @@ Excluding & Reordering Layers
 You can remove a layer that you previously included in the map. To do so, list the layers you wish to exclude as follows:
 
     exclude:
-    - nsw.aerial-best
+    - nsw.aerial
     - relief
 
 Run the script again to remove the layers from the composite SVG map. (The original source files will not be deleted.) Use this option with caution, as any changes you have made to the layer in the SVG file will be lost.
 
-Vector data sources can produce multiple sub-layers in your map. You can intermingle the order in which these sub-layers are composited. This is helpful if you are combining layers from more than one source. Rearrange sub-layers using `above` or `below` directives; for example, to rearrange watercourses above vehicular tracks:
-
-    include:
-    - nsw/hydrography
-    - nsw/roads
-    above:
-      nsw.hydrography.watercourse: nsw.roads.vehicular-tracks
-
-It is also possible to manually reorder layers using Inkscape. (The new layer order is respected when re-running the script.)
+It is possible to manually reorder layers using Inkscape. The new layer order is respected when re-running the script.
 
 By default, all label layers are reordered above all other feature layers. (You can turn off this behaviour with a `leave-labels: true` configuration line.)
 
@@ -270,7 +254,7 @@ The simplest way to create overlays is to use Google Earth or equivalent softwar
 In your configuration file, add your overlay file in the list of included layers, as in the following example:
 
     include:
-    - nsw/lpimap
+    - nsw/topographic
     - relief
     - boundaries.kml
     - tracks.kml
@@ -392,23 +376,13 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         name: rogaine
         bounds: bounds.kml
         include:
-        - nsw/aerial-best
-        - nsw/reference-topo-current
+        - nsw/aerial
         - nsw/vegetation-2008-v2
-        - nsw/lpimap
+        - nsw/topographic
         - declination
-        - holdings
         - grid
 
 3.  Run the script to create your preliminary map, `rogaine.svg`.
-
-3.  If your map includes blank areas, delete it and start again with the following layer stack in place of `nsw/lpimap`:
-
-        - nsw/landform
-        - nsw/cadastre
-        - nsw/hydrography
-        - nsw/roads
-        - nsw/buildings
 
 4.  Use the maps and aerial images to assist you in setting your rogaine. Ideally, you will carry a GPS with you to record waypoints for all the controls you set.
 
@@ -416,7 +390,7 @@ Here is a suggested workflow for producing a rogaine map using this software (al
 
 6.  In Google Earth, mark out any boundaries and out-of-bounds areas using the polygon tool, and save them all to a `boundaries.kml` file.
 
-7.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (nsw.lpimap.svg, rogaine.svg, nsw.aerial-best.jpg, nsw.reference-topo-current.png etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
+7.  You'll most likely want to recreate your map with refined boundaries. Delete the files created in step 2 (nsw.topographic.svg, rogaine.svg, nsw.aerial.jpg etc), and modify your configuration to set the bounds using your controls file. Include only the layers you need for the printed map.
 
         name: rogaine
         bounds: controls.kml       # size the map to contain all the controls ...
@@ -424,7 +398,7 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         rotation: magnetic         # align the map to magnetic north
         include:
         - nsw/vegetation-2008-v2   # show vegetation layer (or use a canvas)
-        - nsw/lpimap               # show topographic layers
+        - nsw/topographic          # show topographic layers
         - boundaries.kml           # show out-of-bounds areas
         - declination              # show magnetic declination lines
         - controls                 # show controls
@@ -454,82 +428,25 @@ Several formats of georeferenced output image are available. You can specify `ti
 Customising Topographic Rendering
 =================================
 
-You can control how the raw topographic data (`nsw.lpimap.svg`) is rendered into you final map. This allows you to change the colour, size and opacity of individual layers. The default rendering was chosen to give a reasonable map with emphasis on contours, and changes to rendering may not be needed.
+You can control how the raw topographic data (`nsw.topographic.svg`) is rendered into you final map. This allows you to change the colour, size and opacity of individual layers. The default rendering was chosen to give a reasonable map with emphasis on contours, and changes to rendering may not be needed.
 
-To change rendering of a feature, open `nsw.lpimap.svg` and identify the name of the topographic layer (e.g. `Gates_Grids`, `Contour_10m`) containing the feature. (The following labels for groups of related layers are also available: contours, water, pathways, roads, cadastre, labels).
+To change rendering of a feature, open `nsw.topographic.svg` and identify the name of the topographic layer (e.g. `contours-10m`) containing the feature.
 
-Next, add a `nsw.lpimap:` section to your `nswtopo.cfg` file. For each layer which you wish to modify, specify one or more of `opacity`, `expand` and `colour` values to change the opacity, scaling and colour, respectively, of the features in that layer. Colours should be specified as hex triplets (e.g. `"#FF0000"` for red). Use a [colour picker](http://www.google.com/search?q=color+picker) to choose your desired colour and get its hex triplet. `opacity` should be a value between 0.0 and 1.0. The `expand` value should specify how much the feature's size is reduced (expand < 1.0) or enlarged (expand > 1.0) compared to the raw map.
+Next, add a `nsw.topographic:` section to your `nswtopo.cfg` file. For each layer which you wish to modify, specify one or more of `opacity`, `width`, `colour` and `dash` values to change the opacity, scaling and colour, respectively, of the features in that layer. Colours should be specified as hex triplets (e.g. `"#FF0000"` for red), alternately a [web colour name](http://en.wikipedia.org/wiki/Web_colors). Use a [colour picker](http://www.google.com/search?q=color+picker) to choose your desired colour and get its hex triplet. `opacity` should be a value between 0.0 and 1.0. The `width` attribute specifies the width of a line in millimetres. The `dash` value specifies a dash array for dashed lines (as a series of dash and space lengths, in millimetres).
 
-The following shows the default renderings and illustrates the format to be used. Any renderings you specify in your `nswtopo.cfg` will override these defaults. Note that `colour` may specify a single colour for the whole layer (e.g. the contour and cadastre layers below), or a mapping of specific colours to new colours (e.g. the labels layer below). The latter is useful if the original layer contains more than one colour; you will need to identify the colours to be changed using Inkscape (or a text editor).
+The following show some example for changing renderings. Colours can be specified as  or as hex triplets (enclosed in quotes, e.g. `"#FF0000"` for red).
 
-    nsw.lpimap:
-      pathways:
-        expand: 0.5
-        colour: 
-          "#A39D93": "#363636"
-      contours:
-        expand: 0.7
-        colour: "#805100"
-      roads:
-        expand: 0.6
-        colour:
-          "#A39D93": "#363636"
-          "#9C9C9C": "#363636"
-      cadastre:
-        expand: 0.5
-        opacity: 0.5
-        colour: "#777777"
-      text: 
-        colour: 
-          "#A87000": "#000000"
-          "#FAFAFA": "#444444"
-      water:
-        opacity: 1
-        colour:
-          "#73A1E6": "#4985DF"
-      Creek_Named:
-        expand: 0.3
-      Creek_Unnamed:
-        expand: 0.3
-      Stream_Named:
-        expand: 0.5
-      Stream_Unnamed:
-        expand: 0.5
-      Stream_Main:
-        expand: 0.7
-      River_Main:
-        expand: 0.7
-      River_Major:
-        expand: 0.7
-      HydroArea:
-        expand: 0.5
-      PointOfInterest:
-        expand: 0.6
-      Tourism_Minor:
-        expand: 0.6
-      Gates_Grids:
-        expand: 0.5
-      Beacon_Tower:
-        expand: 0.5
-    nsw.plantation:
-      opacity: 1
-      colour: "#80D19B"
-    nsw.holdings:
-      colour:
-        "#B0A100": "#FF0000"
-        "#948800": "#FF0000"
-
-As an example, to make the contours black, the roads thinner and the cadastre lines thicker and darker, add the following to your map configuration file:
-
-    nsw.lpimap:
-      contours:
-        colour: "#000000"
-      roads:
-        expand: 0.4
-      cadastre:
-        opacity: 1.0
-        expand: 0.8
-        colour: "#202020"
+    include:
+    - nsw/topographic
+    - route.kml
+    nsw.topographic:
+      contours-10m:
+        colour: black    # change contour colour to black
+    route:
+      opacity: 0.5       # set the route overlay to 50% opacity ...
+      colour: "#0000CC"  # ... with a blue colour ...
+      width: 1.0         # ... a 1.0 millimetre width ...
+      dash: 4 1          # ... and dashed with 4mm dash and 1mm space.
 
 Release History
 ===============
@@ -556,3 +473,4 @@ Release History
 * 3/7/2014: version 0.8: added RFS layers for stock dams and buildings; extracted various layer sources to external configuration files for greater flexibility; change way of specifying overlays; add ANC and water-drop icons for controls; add some SA and TAS map data sources.
   * 28/8/2014: version 0.8.1: change nsw/vegetation-2008-v2 woody vegetation colour; fix vegetation & relief rendering bug in Windows
   * 11/11/2014: version 0.8.2: add psd format output; fix bug in ArcGIS image servers; change to online source of 1-second SRTM relief data; apply median and bilateral filtering to shaded relief; fix label issues causing bad PhantomJS rasters; float vector label layers above feature layers.
+* 12/16/2014: HEAD: major update to obtain vector topographic maps for all areas.

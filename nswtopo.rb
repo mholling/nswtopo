@@ -1326,7 +1326,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       puts "(Downloading #{counts.inject(:*)} tiles)"
       counts.map { |count| (0...count).to_a }.inject(:product).with_progress.map do |indices|
-        sleep params["interval"]
         tile_path = temp_dir + "tile.#{indices.join ?.}.png"
   
         cropped_centre = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
@@ -1445,52 +1444,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
             tile_path.open("wb") { |file| file << response.body }
           end
-          sleep params["interval"]
           [ tile_bounds, resolutions.first, tile_path]
         end
       end
     end
   end
   
-  module ArcGIS
+  class ArcGISRaster < Source
+    include RasterRenderer
     UNDERSCORES = /[\s\(\)]/
+    attr_reader :service, :headers
     
-    def self.included(base)
-      attr_reader :service, :headers
-    end
-    
-    def export_uri(query)
-      service_type, function = params["image"] ? %w[ImageServer exportImage] : %w[MapServer export]
-      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type, function ].compact.join ?/
-      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
-    end
-    
-    def service_uri(query)
-      service_type = params["image"] ? "ImageServer" : "MapServer"
-      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type ].compact.join ?/
-      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
-    end
-    
-    def get_service
-      if params["cookie"]
-        cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
-        @headers = { "Cookie" => cookie }
-      end
-      @service = HTTP.get(service_uri("f" => "json"), headers) do |response|
-        JSON.parse(response.body).tap do |result|
-          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
-        end
-      end
-      service["layers"].each { |layer| layer["name"] = layer["name"].gsub(UNDERSCORES, ?_) } if service["layers"]
-      service["mapName"] = service["mapName"].gsub(UNDERSCORES, ?_) if service["mapName"]
-    end
-  end
-  
-  module ArcGISTiled
     def initialize(*args)
       super(*args)
       params["tile_sizes"] ||= [ 2048, 2048 ]
-      params["interval"] ||= 0.1
     end
     
     def get_tile(bounds, sizes, options)
@@ -1548,12 +1515,32 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         map.overlaps? bounds
       end
     end
-  end
-  
-  class ArcGISRaster < Source
-    include ArcGIS
-    include ArcGISTiled
-    include RasterRenderer
+    
+    def export_uri(query)
+      service_type, function = params["image"] ? %w[ImageServer exportImage] : %w[MapServer export]
+      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type, function ].compact.join ?/
+      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
+    end
+    
+    def service_uri(query)
+      service_type = params["image"] ? "ImageServer" : "MapServer"
+      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type ].compact.join ?/
+      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
+    end
+    
+    def get_service
+      if params["cookie"]
+        cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
+        @headers = { "Cookie" => cookie }
+      end
+      @service = HTTP.get(service_uri("f" => "json"), headers) do |response|
+        JSON.parse(response.body).tap do |result|
+          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+        end
+      end
+      service["layers"].each { |layer| layer["name"] = layer["name"].gsub(UNDERSCORES, ?_) } if service["layers"]
+      service["mapName"] = service["mapName"].gsub(UNDERSCORES, ?_) if service["mapName"]
+    end
     
     def get_raster(map, dimensions, resolution, temp_dir)
       get_service
@@ -1561,7 +1548,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "png32" }
       
       dataset = tiles(map, resolution).with_progress.with_index.map do |(tile_bounds, tile_sizes, tile_offsets), tile_index|
-        sleep params["interval"] if params["interval"]
         tile_path = temp_dir + "tile.#{tile_index}.png"
         tile_path.open("wb") do |file|
           file << get_tile(tile_bounds, tile_sizes, options)
@@ -1592,267 +1578,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           map.write_world_file tfw_path, resolution
           %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -dstalpha -r cubic "#{vrt_path}" "#{tif_path}"]
           %x[convert "#{tif_path}" -quiet #{alpha} "#{raster_path}"]
-        end
-      end
-    end
-  end
-  
-  class ArcGISVector < Source
-    include ArcGIS
-    include ArcGISTiled
-    DEFAULT_MM_PER_TILE = 200
-    
-    def initialize(layer_name, params)
-      super layer_name, { "labels" => { "glow" => true } }.deep_merge(params)
-      @path = Pathname.pwd + "#{layer_name}.svg"
-    end
-    
-    def get_tile_xml(tile_bounds, tile_sizes, options, *uniquifiers)
-      tile_data = get_tile(tile_bounds, tile_sizes, options)
-      raise BadLayerError.new(JSON.parse(tile_data)["error"]["message"]) if tile_data[0..8] == '{"error":'
-      tile_data.gsub! /ESRITransportation\&Civic/, "ESRITransportation&amp;Civic"
-      tile_data.gsub! /ESRIEnvironmental\&Icons/,  "ESRIEnvironmental&amp;Icons"
-      layer_ids = service["layers"].map { |layer| layer["name"].sub(/^\d/, ?_) }
-      [ /id="(\w+)"/, /url\(#(\w+)\)"/, /xlink:href="#(\w+)"/ ].each do |regex|
-        tile_data.gsub! regex do |match|
-          case $1
-          when "Labels", service["mapName"], *layer_ids then match
-          else match.sub $1, [ layer_name, *uniquifiers, $1 ].compact.join(SEGMENT)
-          end
-        end
-      end
-      REXML::Document.new(tile_data)
-    rescue REXML::ParseException => e
-      raise ServerError.new("Bad XML data received: #{e.message}")
-    end
-    
-    def create(map)
-      puts "Downloading: #{layer_name}"
-      get_service
-      
-      resolution = params["resolution"] || DEFAULT_MM_PER_TILE * 0.001 * map.scale / params["tile_sizes"].min
-      tile_list = tiles(map, resolution, 3) # TODO: margin of 3 means what?
-      layer_transform = map.svg_transform(1000.0 * resolution / map.scale)
-      
-      xml = map.xml
-      xml.elements["/svg/defs"].tap do |defs|
-        tile_list.each do |tile_bounds, tile_sizes, tile_offsets|
-          defs.add_element("clipPath", "id" => [ layer_name, "tile", *tile_offsets ].join(SEGMENT)) do |clippath|
-            clippath.add_element("rect", "width" => tile_sizes[0], "height" => tile_sizes[1])
-          end
-        end
-      end
-      
-      layers = Hash.new do |layers, sublayer_name|
-        layers[sublayer_name] = REXML::Element.new("g").tap do |layer|
-          layer.add_attributes "style" => "opacity:1", "transform" => layer_transform, "id" => [ layer_name, sublayer_name ].compact.join(SEGMENT)
-          xml.elements["/svg"].elements << layer
-        end
-      end
-      
-      download_layers(map, tile_list, resolution) do |sublayer_name|
-        layers[sublayer_name]
-      end
-      
-      xml.elements.collect("//font", &:remove).group_by do |font|
-        [ font.elements["font-face"].attributes.keys, font.elements["font-face"].attributes.values.map(&:value) ].transpose
-      end.each do |fontface_attributes, fonts|
-        xml.elements["/svg/defs"].add_element("font", fonts.first.attributes) do |font|
-          font.elements << fonts.first.elements["font-face"].remove
-          font.elements << fonts.first.elements["missing-glyph"].remove
-          fonts.map do |font|
-            font.elements.collect("glyph", &:remove)
-          end.flatten.group_by do |glyph|
-            glyph.attributes["unicode"]
-          end.sort_by(&:first).each do |unicode, glyphs|
-            font.elements << glyphs.first
-          end
-        end
-      end
-      
-      xml.elements.each("//path[@d='']", &:remove)
-      until xml.elements.each("/svg/g[@id]//g[not(*)]", &:remove).empty? do
-      end
-      
-      Dir.mktmppath do |temp_dir|
-        svg_path = temp_dir + "#{layer_name}.svg"
-        File.write svg_path, xml
-        FileUtils.cp svg_path, path
-      end
-    rescue REXML::ParseException => e
-      abort "Bad XML received:\n#{e.message}"
-    end
-    
-    def download_layers(map, tile_list, resolution)
-      downloads = %w[features text].select do |type|
-        params[type]
-      end.map do |type|
-        case params[type]
-        when Hash
-          params[type].map do |scale_or_multiplier, layers|
-            case scale_or_multiplier
-            when Integer then [ scale_or_multiplier, layers]
-            when Float then [ scale_or_multiplier * map.scale, layers ]
-            when nil then [ map.scale, layers ]
-            end
-          end
-        when String, Array
-          { map.scale => [ *params[type] ] }
-        when true
-          { map.scale => service["layers"].select { |layer| layer["parentLayerId"] == -1 }.map { |layer| layer["name"] } }
-        end.map do |scale, layers|
-          dpi = scale * 0.0254 / resolution
-          if params["integer-dpi"]
-            dpi = dpi.floor
-            scale = dpi * resolution / 0.0254
-          end
-          layers.inject([]) do |memo, (key, value)|
-            case value
-            when Array then memo + value.map { |val| [ key, val ] }
-            else memo << [ key, value ]
-            end
-          end.map do |key, value|
-            case value
-            when String then [ key, { "name" => value } ]  # key is a sublayer name, value is a service layer name
-            when Fixnum then [ key, { "id" => value } ]    # key is a sublayer name, value is a service layer ID
-            when Hash   then [ key, value ]                # key is a sublayer name, value is layer options
-            when nil
-              case key
-              when String then [ key, { "name" => key } ]  # key is a service layer name
-              when Hash                                    # key is a service layer name with definition
-                [ key.first.first, { "name" => key.first.first, "definition" => key.first.last } ]
-              when Fixnum                                  # key is a service layer ID
-                layer = service["layers"].find { |layer| layer["id"] == key }
-                [ layer["name"], { "id" => layer["id"] } ]
-              end
-            end
-          end.each do |sublayer_name, options|
-            options["name"] = options["name"].gsub UNDERSCORES, ?_ if options["name"]
-            options["id"] ||= service["layers"].find { |layer| layer["name"] == options["name"] }.fetch("id")
-            options["names"] = [ ].tap do |layers|
-              loop do
-                layers << service["layers"].find do |layer|
-                  layer["id"] == (layers.empty? ? options["id"] : layers.last["parentLayerId"])
-                end
-                break unless layers.last
-              end
-            end.compact.reverse.map do |layer|
-              layer["name"].gsub(UNDERSCORES, ?_)
-            end
-          end.inject([]) do |memo, (sublayer_name, options)|
-            memo.find do |group|
-              group.none? do |_, other_options|
-                other_options["id"] == options["id"]
-              end
-            end.tap do |group|
-              group ||= (memo << []).last
-              group << [ sublayer_name, options ]
-            end
-            memo
-          end.map do |group|
-            [ scale, dpi, group, type ]
-          end
-        end
-      end.inject(:+).inject(:+)
-      
-      downloads.map do |_, _, group, type|
-        case type
-        when "features"
-          group.map do |sublayer_name, options|
-            order = params["order"] ? -params["order"].index(sublayer_name) : -options["id"]
-            [ order, sublayer_name ]
-          end
-        when "text" then [ [ 1, "labels" ] ]
-        end
-      end.inject(&:+).sort_by(&:first).map(&:last).each do |sublayer_name|
-        yield sublayer_name
-      end
-      
-      layerset = downloads.map do |_, _, group, type|
-        case type
-        when "features"
-          group.map do |sublayer_name, options|
-            [ options["names"], yield(sublayer_name) ]
-          end
-        when "text" then [ [ %w[Labels], yield("labels") ] ]
-        end
-      end
-      
-      tile_list.with_progress.map do |tile_bounds, tile_sizes, tile_offsets|
-        tile_transform = "translate(#{tile_offsets.join ?\s})"
-        tile_clip_path = "url(##{[ layer_name, 'tile', *tile_offsets ].join(SEGMENT)})"
-        tileset = downloads.map do |scale, dpi, group, type|
-          sleep params["interval"] if params["interval"]
-          ids, layer_defs = group.map(&:last).map do |options|
-            id, definition = options.values_at("id", "definition")
-            layer_def = "#{id}:#{definition}" if definition
-            [ id, layer_def ]
-          end.transpose
-          query_options = { "dpi" => dpi, "wkt" => map.projection.wkt_esri, "format" => "svg" }
-          query_options.merge!("layers" => "show:#{ids.join ?,}") if ids && ids.any?
-          query_options.merge!("layerDefs" => layer_defs.compact.join(?;)) if layer_defs && layer_defs.compact.any?
-          tile_xml = get_tile_xml(tile_bounds, tile_sizes, query_options, type, scale, *tile_offsets)
-          [ scale, tile_xml ]
-        end
-        
-        [ tileset, layerset ].transpose.each do |(scale, tile_xml), layers|
-          layers.map do |names, layer|
-            xpath = names.map do |name|
-              "g[@id='#{name.sub(/^\d/, ?_)}']"
-            end.join("//").prepend("/svg//")
-            layer_xml = tile_xml.elements[xpath]
-            layer_xml.parent.attributes["opacity"].tap do |opacity|
-              layer.add_attribute("style", "opacity:#{opacity}") if opacity
-            end if layer_xml
-            layer.add_element("g", "transform" => tile_transform, "clip-path" => tile_clip_path) do |tile|
-              layer_xml.elements.each { |element| tile << element }
-              case names.last
-              when "Labels"
-                tile.elements.each(".//pattern | .//path", &:remove)
-              else
-                %w[stroke-width stroke-miterlimit stroke-dasharray].each do |name|
-                  REXML::XPath.each(tile, ".//[@#{name}]/@#{name}") do |node|
-                    node.element.attributes[node.name] = node.value.split(/[,\s]+/).map do |number|
-                      number.to_f * map.scale / scale
-                    end.join(?\s)
-                  end
-                end if scale != map.scale
-              end
-            end if layer_xml and !layer_xml.elements.empty?
-          end
-        end
-      end
-    end
-    
-    def render_svg(xml, map, &block)
-      raise BadLayerError.new("source file not found at #{path}") unless path.exist?
-      source = REXML::Document.new(path.read)
-      
-      if xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]") do |layer|
-        id = layer.attributes["id"]
-        layer.replace_with source.elements["/svg/g[@id='#{id}']"]
-      end.empty?
-        source.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]", &block)
-        [ *params["exclude"] ].each do |sublayer_name|
-          xml.elements.each("/svg/g[@id='#{[ layer_name, sublayer_name ].join SEGMENT}']", &:remove)
-        end
-      end
-      
-         xml.elements.each("/svg/defs/[starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
-      source.elements.each("/svg/defs/[starts-with(@id,'#{layer_name}#{SEGMENT}')]") { |element| xml.elements["/svg/defs"].elements << element }
-      
-      source.elements.collect("/svg/defs/font", &:remove).each do |font|
-        face_predicates = font.elements["font-face"].attributes.values.map { |attribute| "@#{attribute.to_string}" }
-        font_predicates = font.attributes.values.map { |attribute| "@#{attribute.to_string}" }
-        font_predicates << "font-face[#{face_predicates.join(' and ')}]"
-        xml.elements["/svg/defs/font[#{font_predicates.join(' and ')}]"].tap do |existing_font|
-          font.elements.collect("glyph", &:remove).reject do |glyph|
-            unicode = glyph.attributes["unicode"]
-            existing_font.elements["glyph[@unicode='#{unicode}']"]
-          end.each do |glyph|
-            existing_font.elements << glyph
-          end if existing_font
-          xml.elements["/svg/defs"].elements << font unless existing_font
         end
       end
     end
@@ -2326,55 +2051,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               element.attributes.delete "class"
               group.elements << element
             end
-          end
-        end
-      end
-    end
-  end
-  
-  class ArcGISDynamic < ArcGISVector
-    def download_layers(map, tile_list, resolution)
-      feature_layers = params["layers"].keys.reverse.map do |sublayer_name|
-        yield sublayer_name
-      end
-      label_layer = yield "labels"
-      
-      start_id = service["layers"].map { |layer| layer["id"] }.max + 1
-      dynamic_layers = params["layers"].values.map.with_index do |layer, index|
-        layer.merge("id" => start_id + index)
-      end
-      ids = dynamic_layers.map { |options| options["id"] }
-      
-      query_options = {
-        "dpi" => map.scale * 0.0254 / resolution,
-        "wkt" => map.projection.wkt_esri,
-        "layers" => "show:#{ids.join ?,}",
-        "dynamicLayers" => dynamic_layers.to_json,
-        "format" => "svg",
-      }
-      
-      tile_list.with_progress.map do |tile_bounds, tile_sizes, tile_offsets|
-        sleep params["interval"] if params["interval"]
-        tile_transform = "translate(#{tile_offsets.join ?\s})"
-        tile_clip_path = "url(##{[ layer_name, 'tile', *tile_offsets ].join(SEGMENT)})"
-        tile_xml = get_tile_xml(tile_bounds, tile_sizes, query_options, *tile_offsets)
-        
-        layer_xmls = tile_xml.elements.collect("/svg//g[@id]/g[@id]/g[@id!='Labels']") { |layer_xml| layer_xml }
-        [ layer_xmls, feature_layers ].transpose.each do |layer_xml, layer|
-          layer_xml.parent.attributes["opacity"].tap do |opacity|
-            layer.add_attribute("style", "opacity:#{opacity}") if opacity
-          end
-          layer.add_element("g", "transform" => tile_transform, "clip-path" => tile_clip_path) do |tile|
-            layer_xml.elements.each { |element| tile << element }
-          end
-        end
-        tile_xml.elements["/svg//g[@id]/g[@id]/g[@id='Labels']"].tap do |label_xml|
-          label_xml.elements.each(".//pattern | .//path", &:remove)
-          label_layer.add_element("g", "transform" => tile_transform, "clip-path" => tile_clip_path) do |tile|
-            label_xml.deep_clone.tap do |copy|
-              copy.elements.each(".//text") { |text| text.add_attributes("stroke" => "white", "opacity" => 0.75) }
-            end.elements.each { |element| tile << element }
-            label_xml.elements.each { |element| tile << element }
           end
         end
       end
@@ -3225,11 +2901,11 @@ controls:
         
         REXML::XPath.match(xml, "/svg/g[@id]").select do |layer|
           sources.any? do |source|
-            source.is_a?(ArcGISVector) && layer.attributes["id"] == "#{source.layer_name}#{SEGMENT}labels"
+            source.is_a?(ArcGISIdentify) && layer.attributes["id"] == "#{source.layer_name}#{SEGMENT}labels"
           end
         end.last.tap do |target|
           additions.select do |source|
-            source.is_a?(ArcGISVector)
+            source.is_a?(ArcGISIdentify)
           end.map do |source|
             xml.elements["/svg/g[@id='#{source.layer_name}#{SEGMENT}labels']"]
           end.compact.reject do |layer|
@@ -3339,14 +3015,7 @@ if File.identical?(__FILE__, $0)
 end
 
 # TODO: switch to Open3 for shelling out
-# TODO: split LPIMapLocal roads into sealed & unsealed?
-# TODO: change scale instead of using expand-glyph where possible
-# TODO: add option for absolute measurements for rerendering?
 # TODO: add nodata transparency in vegetation source?
-# TODO: add include: option for ArcGIS sublayers?
-# TODO: add import layers as per controls/overlays/etc?
 # TODO: remove linked images from PDF output?
 # TODO: put glow on control labels?
-# TODO: add Relative_Height to topographic layers?
-# TODO: find source for electricity transmission lines
 # TODO: check georeferencing of aerial-google, aerial-nokia

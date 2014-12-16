@@ -1,8 +1,0 @@
-class: ArcGISVector
-host: mapsq.six.nsw.gov.au
-folder: sixmaps
-service: rfs_V3
-features:
-  0.25:
-    ~: delivsdm:geodb.Runway
-colour: darkgray

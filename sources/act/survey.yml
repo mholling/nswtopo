@@ -1,9 +1,0 @@
-class: ArcGISVector
-host: actmapi.act.gov.au
-instance: actmapi
-folder: mga
-service: scm_layer
-features:
-  0.3:
-    trig-stations: Trig Station (MC)
-.//g[@fill='#E1E1E1']/@fill: white

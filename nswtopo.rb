@@ -340,6 +340,10 @@ class Array
     self[1].times(fraction).plus self[0].times(1.0 - fraction)
   end
   
+  def midpoint
+    transpose.map(&:mean)
+  end
+  
   def cosines
     segments.map(&:difference).map(&:normalised).segments.map do |vectors|
       vectors.inject(&:dot)
@@ -386,9 +390,24 @@ class Array
   end
   
   def to_path_data(*close)
-    self.inject do |memo, point|
+    inject do |memo, point|
       [ *memo, ?L, *point ]
     end.unshift(?M).push(*close).join(?\s)
+  end
+  
+  def to_bezier(k, *close)
+    points = close.any? ? [ last, *self, first ] : [ first, *self, last ] # N + 2 elements
+    midpoints = points.segments.map(&:midpoint)
+    distances = points.segments.map(&:distance)
+    offsets = midpoints.zip(distances).segments.map(&:transpose).map do |segment, distance|
+      segment.along(distance.first / distance.inject(&:+))
+    end.zip(self).map(&:difference)
+    controls = midpoints.segments.zip(offsets).map do |segment, offset|
+      segment.map { |point| [ point, point.plus(offset) ].along(k) }
+    end.flatten(1).drop(1).each_slice(2)
+    drop(1).zip(controls).map do |point, (control1, control2)|
+      [ ?C, *control1, *control2, *point ]
+    end.flatten.unshift(?M, *first).push(*close).join(?\s)
   end
   
   def convex_hull
@@ -1054,9 +1073,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
                 layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path[@fill='none']") do |path|
                   uses = []
-                  path.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
-                    subpath.split(/\s*L\s*/i).map do |pair|
-                      pair.split(/\s+/).map(&:to_f)
+                  path.attributes["d"].to_s.split(/ Z| Z M | M |M /).reject(&:empty?).each do |subpath|
+                    subpath.split(/ L | C -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ /).map do |pair|
+                      pair.split(?\s).map(&:to_f)
                     end.segments.inject(0.5) do |alpha, segment|
                       angle = 180.0 * segment.difference.angle / Math::PI
                       while alpha * interval < segment.distance
@@ -1081,9 +1100,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 memo << [ "//svg/defs/g[@id='#{id}']", attributes ]
                 layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path[@fill='none']") do |path|
                   uses = []
-                  path.attributes["d"].to_s.gsub(/\s*Z\s*/i, '').split(/\s*M\s*/i).reject(&:empty?).each do |subpath|
-                    subpath.split(/\s*L\s*/i).values_at(0,1,-2,-1).map do |pair|
-                      pair.split(/\s+/).map(&:to_f)
+                  path.attributes["d"].to_s.split(/ Z| Z M | M |M /).reject(&:empty?).each do |subpath|
+                    subpath.split(/ L | C -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ /).values_at(0,1,-2,-1).map do |pair|
+                      pair.split(?\s).map(&:to_f)
                     end.segments.values_at(0,-1).zip([ :to_a, :reverse ]).map do |segment, order|
                       segment.send order
                     end.each do |segment|
@@ -1714,6 +1733,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
             feature["label-only"] = options["label-only"] if options["label-only"]
+            feature["bezier"] = options["bezier"] if options["bezier"]
             feature["angle"] = angle if angle
           end
         end
@@ -1762,7 +1782,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             feature["data"].reject(&:empty?).map do |coords|
               map.coords_to_mm coords
             end.map do |points|
-              points.to_path_data(*close)
+              case k = feature["bezier"]
+              when Numeric then points.to_bezier(k, *close)
+              when true    then points.to_bezier(1, *close)
+              else              points.to_path_data(*close)
+              end
             end.tap do |subpaths|
               yield(sublayer_name).add_element "path", fill_options.merge("d" => subpaths.join(?\s), "class" => categories) if subpaths.any?
             end

@@ -57,6 +57,7 @@ features:
     category:
     - ClassSubtype
     - relevance
+    bezier: true
   - name: Contour_10m
     definition: mod(elevation,50) = 0 AND shape_Length > 1000
     label-only: true
@@ -71,6 +72,7 @@ features:
     category:
     - ClassSubtype
     - relevance
+    bezier: true
   - name: Contour_20m
     definition: relevance IN (1,2) AND shape_Length > 2000
     label-only: true
@@ -137,6 +139,7 @@ features:
     category:
     - relevance
     - hydrotype
+    bezier: true
     # TODO: include Perenniality and render accordingly?
   - source: lpimap
     name: Stream_Names
@@ -167,17 +170,21 @@ features:
     name: Building_Large
     definition: classsubtype = 9
     category: generalculturaltype
+    bezier: 0.5
   coastline:
     name: Oceans_Bays
     definition: classsubtype = 3
     scale: 50000
+    bezier: 0.5
   water-areas:
   - name: HydroArea
     category: Perenniality
+    bezier: 0.5
   - name: Oceans_Bays
     definition: classsubtype = 3
     category: ClassSubtype
     scale: 50000
+    bezier: 0.5
   - source: poi
     name: Points Of Interest
     definition: poitype IN ('Natural Waterbody','Manmade Waterbody','Bay / Inlet / Basin','Reach / River Bend')

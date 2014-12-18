@@ -103,15 +103,6 @@ features:
     name: Cliffs_Reefs_Mangroves
     definition: classsubtype IN (6,7)
     category: ClassSubtype
-  caves-pinnacles:
-    name: Caves_Pinnacles
-    redefine: true
-    definition: classsubtype IN (1,2,6)
-    category: ClassSubtype
-    label: generalname
-    position: [ 1, 2, 3, 4 ]
-    font-size: 1.4
-    margin: 1.0
   cadastre:
   - source: plan_section_lot
     name: Lot
@@ -276,6 +267,15 @@ features:
     font-size: 1.8
     margin: 0.7
     letter-spacing: 0.1
+  caves-pinnacles:
+    name: Caves_Pinnacles
+    redefine: true
+    definition: classsubtype IN (1,2,6)
+    category: ClassSubtype
+    label: generalname
+    position: [ 1, 2, 3, 4 ]
+    font-size: 1.4
+    margin: 1.0
   road-tunnels:
     source: rfs
     name: RoadSegment

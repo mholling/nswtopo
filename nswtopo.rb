@@ -440,10 +440,11 @@ class Array
   end
   
   def overlaps
+    order = flatten(1).transpose.map { |values| values.max - values.min }.inject(&:>) ? :to_a : :reverse
     events, sweep, results = AVLTree.new, AVLTree.new, []
     each.with_index do |hull, index|
-      events.insert [ hull.min, index, :start ]
-      events.insert [ hull.max, index, :stop  ]
+      events.insert [ hull.map(&order).min, index, :start ]
+      events.insert [ hull.map(&order).max, index, :stop  ]
     end
     until events.empty? do
       point, index, event = events.pop

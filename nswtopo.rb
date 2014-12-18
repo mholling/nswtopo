@@ -379,11 +379,18 @@ class Array
     end
   end
   
+  def signed_area
+    0.5 * ring.map { |p1, p2| p1.perp.dot p2 }.inject(&:+)
+  end
+  
   def centroid
-    signed_area = 0.5 * [ *self, first ].segments.map { |p1, p2| p1.perp.dot p2 }.inject(&:+)
-    [ *self, first ].segments.map do |p1, p2|
-      p1.plus(p2).times(p1.perp.dot(p2) / (6 * signed_area))
-    end.inject(&:plus)
+    ring.map do |p1, p2|
+      p1.plus(p2).times(p1.perp.dot(p2))
+    end.inject(&:plus).times(1.0 / 6.0 / signed_area)
+  end
+  
+  def clockwise?
+    signed_area < 0
   end
   
   def smooth(arc_limit, iterations)

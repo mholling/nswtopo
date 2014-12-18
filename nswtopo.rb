@@ -2282,8 +2282,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         lines = yield("lines").add_element("g", "class" => "", "stroke-width" => "0.1", "stroke" => "black")
         labels = yield("labels").add_element("g", "class" => "", "font-family" => fontfamily, "font-size" => fontsize, "fill" => "black", "stroke" => "none", "text-anchor" => "middle")
         [ grid, grid.transpose ].each.with_index do |gridlines, index|
-          gridlines.each do |gridline|
-            line = gridline.select(&:first).map(&:last)
+          gridlines.map do |gridline|
+            gridline.select(&:first).map(&:last)
+          end.reject(&:empty?).each do |line|
             d = svg_coords(line, projection, map).to_path_data
             lines.add_element("path", "d" => d)
             if line[0] && line[0][index] % label_interval == 0 

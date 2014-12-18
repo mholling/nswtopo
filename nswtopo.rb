@@ -379,6 +379,13 @@ class Array
     end
   end
   
+  def centroid
+    signed_area = 0.5 * [ *self, first ].segments.map { |p1, p2| p1.perp.dot p2 }.inject(&:+)
+    [ *self, first ].segments.map do |p1, p2|
+      p1.plus(p2).times(p1.perp.dot(p2) / (6 * signed_area))
+    end.inject(&:plus)
+  end
+  
   def smooth(arc_limit, iterations)
     iterations.times.inject(self) do |points|
       points.segments.segments.chunk do |segment1, segment2|
@@ -421,6 +428,7 @@ end
 
 class String
   def in_two
+    return split ?\n if match ?\n
     words = split ?\s
     (1...words.length).map do |index|
       [ words[0 ... index].join(?\s), words[index ... words.length].join(?\s) ]
@@ -1761,7 +1769,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "esriGeometryPoint"
             feature["point"] = map.coords_to_mm feature.delete("data")
             memo << feature
-          when "esriGeometryPolyline"
+          when "esriGeometryPolyline", "esriGeometryPolygon"
             feature.delete("data").each do |coords|
               points = map.coords_to_mm coords
               memo << feature.dup.merge("points" => points)
@@ -1858,6 +1866,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             feature["endpoints"] << [ cumulative[range.first] / interval, cumulative[range.last] / interval, cumulative.last / interval ]
             (top + bottom.reverse).convex_hull.reverse
           end
+        when "esriGeometryPolygon"
+          lines = text.in_two
+          width = lines.map(&:length).max * (font_size * FONT_ASPECT + letter_spacing)
+          height = lines.length * font_size
+          point = feature["points"].centroid
+          rotated = point.rotate_by_degrees(map.rotation)
+          hull = [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ].inject(&:product).values_at(1,3,2,0).map do |corner|
+            corner.rotate_by_degrees(-map.rotation).plus(point)
+          end
+          [ hull ]
         end.map.with_index.select do |hull, candidate|
           map.mm_corners(-5).surrounds? hull
         end
@@ -1875,6 +1893,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       hulls, labels = candidates.map.with_index do |hulls, feature|
         hulls.map { |hull, candidate| [ hull, [ feature, candidate ] ] }
       end.flatten(1).transpose
+      hulls ||= []
+      labels ||= []
       
       hulls.overlaps.each do |index1, index2|
         feature1, candidate1 = label1 = labels[index1]
@@ -1990,6 +2010,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             text.add_attribute "word-spacing", word_spacing if word_spacing
             text.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%") do |text_path|
               text_path.add_text feature["label"]
+            end
+          end
+        when "esriGeometryPolygon"
+          lines = feature["label"].in_two
+          point = feature["points"].centroid
+          transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
+          yield("labels").add_element("text", "font-size" => font_size, "text-anchor" => "middle", "transform" => transform, "class" => categories) do |text|
+            text.add_attribute "letter-spacing", letter_spacing if letter_spacing
+            lines.each.with_index do |line, count|
+              y = (lines.one? ? 0.5 : count) * font_size - 0.15 * font_size
+              text.add_element("tspan", "x" => 0, "y" => y) do |tspan|
+                tspan.add_text line
+              end
             end
           end
         end

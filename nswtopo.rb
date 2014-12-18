@@ -70,49 +70,6 @@ class Dir
 end
 
 module Enumerable
-  def with_progress_interactive(message = nil, indent = 0, timed = true)
-    bars = 65 - 2 * indent
-    container = "  " * indent + "  [%s]%-7s"
-    
-    puts "  " * indent + message if message
-    Enumerator.new do |yielder|
-      $stdout << container % [ (?\s * bars), "" ]
-      each_with_index.inject([ Time.now ]) do |times, (object, index)|
-        yielder << object
-        times << Time.now
-        
-        filled = (index + 1) * bars / length
-        progress_bar = (?- * filled) << (?\s * (bars - filled))
-        
-        median = [ times[1..-1], times[0..-2] ].transpose.map { |interval| interval.inject(&:-) }.median
-        elapsed = times.last - times.first
-        remaining = (length + 1 - times.length) * median
-        timer = case
-        when !timed then ""
-        when times.length < 6 then ""
-        when elapsed + remaining < 60 then ""
-        when remaining < 60   then " -%is" % remaining
-        when remaining < 600  then " -%im%02is" % [ (remaining / 60), remaining % 60 ]
-        when remaining < 3600 then " -%im" % (remaining / 60)
-        else " -%ih%02im" % [ remaining / 3600, (remaining % 3600) / 60 ]
-        end
-        
-        $stdout << "\r" << container % [ progress_bar, timer ]
-        times
-      end
-      
-      $stdout << "\r" << container % [ (?- * bars), "" ]
-      puts
-    end
-  end
-  
-  def with_progress_scripted(message = nil, *args)
-    puts message if message
-    Enumerator.new(self.each)
-  end
-  
-  alias_method :with_progress, File.identical?(__FILE__, $0) ? :with_progress_interactive : :with_progress_scripted
-
   def recover(*exceptions)
     Enumerator.new do |yielder|
       each do |element|
@@ -967,7 +924,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
         layer_id = layer.attributes["id"]
         sublayer_name = layer_id.split(/^#{layer_name}#{SEGMENT}?/).last
-        puts "... #{sublayer_name}" unless layer_id == layer_name
+        puts "  #{sublayer_name}" unless layer_id == layer_name
         (params["equivalences"] || {}).select do |group, sublayer_names|
           sublayer_names.include? sublayer_name
         end.map(&:first).push(sublayer_name).inject(params) do |memo, key|
@@ -1318,8 +1275,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       format, name = params.values_at("format", "name")
       
-      puts "(Downloading #{counts.inject(:*)} tiles)"
-      counts.map { |count| (0...count).to_a }.inject(:product).with_progress.map do |indices|
+      counts.map { |count| (0...count).to_a }.inject(:product).map.with_index do |indices, count|
         tile_path = temp_dir + "tile.#{indices.join ?.}.png"
   
         cropped_centre = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
@@ -1350,8 +1306,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           break if non_blank_fraction > 0.995
         end
         
+        $stdout << "\r  (#{count + 1} of #{counts.inject(&:*)} tiles)"
         [ bounds, resolution, tile_path ]
-      end
+      end.tap { puts }
     end
   end
   
@@ -1426,7 +1383,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             query["inregion"] = "#{attributes["region"].flatten.join ?,},INSRC" if attributes["region"]
             [ "image?#{query.to_query}", tile_bounds, resolutions ]
           end
-        end.inject(:+).with_progress.with_index.map do |(query, tile_bounds, resolutions), index|
+        end.inject(:+).with_index.map do |(query, tile_bounds, resolutions), index|
           uri = URI::HTTP.build :host => params["host"], :path => dll_path, :query => URI.escape(query)
           tile_path = temp_dir + "tile.#{index}.#{format["type"]}"
           HTTP.get(uri) do |response|
@@ -1541,13 +1498,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       scale = params["scale"] || map.scale
       options = { "dpi" => scale * 0.0254 / resolution, "wkt" => map.projection.wkt_esri, "format" => "png32" }
       
-      dataset = tiles(map, resolution).with_progress.with_index.map do |(tile_bounds, tile_sizes, tile_offsets), tile_index|
-        tile_path = temp_dir + "tile.#{tile_index}.png"
+      tile_set = tiles(map, resolution)
+      dataset = tile_set.map.with_index do |(tile_bounds, tile_sizes, tile_offsets), index|
+        $stdout << "\r  (#{index} of #{tile_set.length} tiles)"
+        tile_path = temp_dir + "tile.#{index}.png"
         tile_path.open("wb") do |file|
           file << get_tile(tile_bounds, tile_sizes, options)
         end
         [ tile_bounds, tile_sizes, tile_offsets, tile_path ]
       end
+      puts
       
       temp_dir.join(path.basename).tap do |raster_path|
         density = 0.01 * map.scale / resolution
@@ -1634,7 +1594,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.group_by(&:first).map do |sublayer_name, options_group|
         [ sublayer_name, options_group.map(&:last) ]
       end.map do |sublayer_name, options_array|
-        $stdout << "... #{sublayer_name}"
+        $stdout << "  #{sublayer_name}"
         features = []
         options_array.each do |options|
           source = sources[options["source"] || sources.keys.first]
@@ -1735,7 +1695,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 feature["angle"] = angle if angle
               end
             end
-            $stdout << "\r... #{sublayer_name} (#{features.length} feature#{?s unless features.one?})"
+            $stdout << "\r  #{sublayer_name} (#{features.length} feature#{?s unless features.one?})"
             break unless page.any?
           end
         end
@@ -1761,7 +1721,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       names_features.map do |sublayer_name, features|
         [ sublayer_name, features.reject { |feature| feature["label-only"] } ]
       end.each do |sublayer_name, features|
-        puts "... #{sublayer_name}" if features.any?
+        puts "  #{sublayer_name}" if features.any?
         features.each do |feature|
           categories = feature["category"].reject(&:empty?).join(?\s)
           geometry_type = feature["geometryType"]
@@ -1811,7 +1771,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      puts "... generating labels"
+      puts "  generating labels"
       features.map do |feature|
         [ feature, feature["geometryType"] == "esriGeometryPolyline" && feature["smooth"] ]
       end.select(&:last).each do |feature, mm|
@@ -1903,7 +1863,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      puts "... resolving labels"
+      puts "  resolving labels"
       conflicts = {}
       candidates.each.with_index do |hulls, feature|
         hulls.map(&:last).each do |candidate|
@@ -2445,7 +2405,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       wgs84_bounds = map.wgs84_bounds
       degrees_per_pixel = 180.0 * map.resolution_at(ppi) / Math::PI / EARTH_RADIUS
       dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel }
-      max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE)
+      max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE).to_i
       topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
       
       Dir.mktmppath do |temp_dir|
@@ -2455,7 +2415,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         FileUtils.cp image_path, source_path
         map.write_world_file worldfile_path, map.resolution_at(ppi)
         
-        pyramid = (0..max_zoom).to_a.with_progress("Resizing image pyramid:", 2, false).map do |zoom|
+        pyramid = (0..max_zoom).map do |zoom|
           resolution = degrees_per_pixel * 2**(max_zoom - zoom)
           degrees_per_tile = resolution * TILE_SIZE
           counts = wgs84_bounds.map { |bound| (bound.reverse.inject(:-) / degrees_per_tile).ceil }
@@ -2476,8 +2436,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.inject(:product).map(&:transpose).map do |tile_bounds, indices|
             { indices => tile_bounds }
           end.inject({}, &:merge)
+          $stdout << "\r  resizing image pyramid (#{100 * (2**(zoom + 1) - 1) / (2**(max_zoom + 1) - 1)}%)"
           { zoom => indices_bounds }
         end.inject({}, &:merge)
+        puts
         
         kmz_dir = temp_dir + map.name
         kmz_dir.mkdir
@@ -2523,7 +2485,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             crops = indices.map { |index| index * TILE_SIZE }
             %Q[convert "#{tif_path}" -quiet +repage -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage +dither -type PaletteBilevelMatte PNG8:"#{tile_png_path}"]
           end
-        end.flatten.with_progress("Creating tiles:", 2).each { |command| %x[#{command}] }
+        end.flatten.tap do |commands|
+          commands.each.with_index do |command, index|
+            $stdout << "\r  creating tile #{index + 1} of #{commands.length}"
+            %x[#{command}]
+          end
+          puts
+        end
         
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new(1.0, "UTF-8")
@@ -2862,11 +2830,11 @@ controls:
             end
           end.compact.first
           begin
-            puts "Compositing #{source.layer_name}"
+            puts "Compositing: #{source.layer_name}"
             source.render_svg(xml, map) do |layer|
               neighbour ? xml.elements["/svg"].insert_before(neighbour, layer) : xml.elements["/svg"].add_element(layer)
             end
-            puts "Styling #{source.layer_name}"
+            puts "Styling: #{source.layer_name}"
             source.rerender(xml, map)
           rescue BadLayerError => e
             puts "Failed to render #{source.layer_name}: #{e.message}"
@@ -2959,19 +2927,18 @@ controls:
     end
     
     Dir.mktmppath do |temp_dir|
-      puts "Generating requested output formats:"
       outstanding.group_by do |format|
         formats[format]
       end.each do |ppi, group|
         raster_path = temp_dir + "#{map.name}.#{ppi}.png"
         if (group & %w[png tif gif jpg kmz psd]).any? || (ppi && group.include?("pdf"))
           dimensions = map.dimensions_at(ppi)
-          puts "  Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
+          puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
           Raster.build config, map, ppi, svg_path, temp_dir, raster_path
         end
         group.each do |format|
           begin
-            puts "  Generating #{map.name}.#{format}"
+            puts "Generating #{map.name}.#{format}"
             output_path = temp_dir + "#{map.name}.#{format}"
             case format
             when "png"

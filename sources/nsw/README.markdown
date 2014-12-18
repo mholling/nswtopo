@@ -13,6 +13,10 @@ This map is a derived from the NSW [*Digital Topographic Database*](http://www.l
 
 Along with topographic features, NSW and ACT cadastral lines and trig stations are also included.
 
+## Holdings
+
+The `nsw/holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is available for the ACT.) 
+
 ## Aerial Imagery
 
 High-resolution aerial imagery is also available from the NSW LPI department. Include it as follows:

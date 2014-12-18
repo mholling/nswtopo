@@ -379,6 +379,7 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         - nsw/aerial
         - nsw/vegetation-2008-v2
         - nsw/topographic
+        - nsw/holdings
         - declination
         - grid
 

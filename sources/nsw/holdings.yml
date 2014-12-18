@@ -1,0 +1,31 @@
+class: ArcGISIdentify
+sources:
+  atlas:
+    host: atlas.nsw.gov.au
+    instance: arcgis1
+    cookie: http://atlas.nsw.gov.au/
+    folder: sixmaps
+    service: _LHPA
+features:
+  boundaries:
+    name: Holdings
+    label: [ HOLDING, OCCUPIER ]
+    format: "'%s'\n%s"
+    font-size: 1.4
+boundaries:
+  style:
+    fill: none
+    stroke: "#000080"
+    stroke-width: 0.2
+labels:
+  dupe: outline
+  styles:
+    "":
+      stroke: none
+      fill: "#000080"
+      font-family: sans-serif
+    outline:
+      stroke: white
+      fill: none
+      stroke-width: 0.25
+      stroke-opacity: 0.75

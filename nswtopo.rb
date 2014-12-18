@@ -1631,124 +1631,120 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end.reject do |sublayer_name, options|
         params["exclude"].include? sublayer_name
-      end.map do |sublayer_name, options|
-        [ sources[options["source"] || sources.keys.first], sublayer_name, options ]
-      end.each do |source, sublayer_name, options|
-        options["id"] = source["service"]["layers"].find do |layer|
-          layer["name"] == options["name"]
-        end.fetch("id") unless options["id"]
-        URI::HTTP.build(:host => source["host"], :path => [ *source["path"], options["id"] ].join(?/), :query => "f=json").tap do |uri|
-          scales = HTTP.get(uri, source["headers"]) do |response|
-            JSON.parse(response.body).tap do |result|
-              raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
-            end
-          end.values_at("minScale", "maxScale")
-          options["scale"] = scales.last.zero? ? scales.first.zero? ? map.scale : 2 * scales.first : scales.inject(&:+) / 2
-        end unless options["scale"]
-      end.map do |source, sublayer_name, options|
+      end.group_by(&:first).map do |sublayer_name, options_group|
+        [ sublayer_name, options_group.map(&:last) ]
+      end.map do |sublayer_name, options_array|
         $stdout << "... #{sublayer_name}"
-        pixels = map.wgs84_bounds.map do |bound|
-          bound.reverse.inject(&:-) * 96 * 110000 / options["scale"] / 0.0254
-        end.map(&:round)
-        query = {
-          "f" => "json",
-          "sr" => 4326,
-          "geometryType" => "esriGeometryPolygon",
-          "geometry" => { "rings" => [ map.wgs84_corners << map.wgs84_corners.first ] }.to_json,
-          "layers" => "all:#{options['id']}",
-          "tolerance" => 0,
-          "mapExtent" => map.wgs84_bounds.transpose.flatten.join(?,),
-          "imageDisplay" => [ *pixels, 96 ].join(?,),
-          "returnGeometry" => true,
-        }
-        results = [ ]
-        index_attribute = options["page-by"] || source["page-by"] || "OBJECTID"
-        definition, redefine, id = options.values_at("definition", "redefine", "id")
-        paginate = nil
-        loop do
-          definitions = [ *options["definition"], *paginate ]
-          paged_query = case
-          when definitions.any? && redefine then { "layerDefs" => "#{id}:1 < 0) OR ((#{definitions.join ') AND ('})" }
-          when redefine                     then { "layerDefs" => "#{id}:1 < 0) OR (1 > 0" }
-          when definitions.any?             then { "layerDefs" => "#{id}:(#{definitions.join ') AND ('})" }
-          else                                   { }
-          end.merge(query)
-          uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], "identify" ].join(?/), :query => URI.escape(paged_query.to_query)
-          body = HTTP.get(uri, source["headers"]) do |response|
-            JSON.parse(response.body).tap do |body|
-              raise Net::HTTPBadResponse.new(body["error"]["message"]) if body["error"]
-            end
-          end
-          page = body.fetch("results", [ ])
-          page.map do |feature|
-            raise BadLayerError.new("no attribute available for pagination (try: #{feature['attributes'].keys.join(', ')})") unless feature["attributes"].has_key?(index_attribute)
-            feature["attributes"][index_attribute].to_i
-          end.max.tap do |value|
-            paginate = "#{index_attribute} > #{value}"
-          end
-          results += page
-          $stdout << "\r... #{sublayer_name} (#{results.length} feature#{?s unless results.one?})"
-          break unless page.any?
-        end
-        
-        features = results.map do |result|
-          attributes, geometry_type, geometry = result.values_at "attributes", "geometryType", "geometry"
-          wkid = geometry["spatialReference"]["wkid"]
-          projection = Projection.new("epsg:#{wkid}")
-          data = case geometry_type
-          when "esriGeometryPoint"
-            projection.reproject_to(map.projection, geometry.values_at("x", "y"))
-          when "esriGeometryPolyline", "esriGeometryPolygon"
-            closed = geometry_type == "esriGeometryPolygon"
-            geometry[closed ? "rings" : "paths"].map do |path|
-              projection.reproject_to map.projection, path
-            end.map do |path|
-              map.coord_corners(1.0).clip(path, closed)
-            end.select(&:many?)
-          end
-          category = [ *options["category"] ].map do |field|
-            attributes[field] || field
-          end.map do |string|
-            string.gsub /\W+/, ?-
-          end
-          case attributes[options["rotate"]].to_i
-          when 0
-            category << "no-angle"
-          else
-            category << "angle"
-            angle = 90 - attributes[options["rotate"]].to_i
-          end if options["rotate"]
-          { "geometryType" => geometry_type, "data" => data, "category" => category }.tap do |feature|
-            if options["label"]
-              fields = attributes.values_at *options["label"]
-              format = options["format"] || (%w[%s] * fields.length).join(?\s)
-              unless fields.map(&:to_s).all?(&:empty?)
-                feature["label"] = format % fields
-                [ *options["label-by-category"] ].select do |categories, opts|
-                  (attributes.values_at(*options["category"]).compact & [ *categories ].map(&:to_s)).any?
-                end.map(&:last).unshift(options).inject(&:merge).tap do |opts|
-                  %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth].each do |name|
-                    feature[name] = opts[name] if opts[name]
-                  end
-                end
+        features = []
+        options_array.each do |options|
+          source = sources[options["source"] || sources.keys.first]
+          options["id"] = source["service"]["layers"].find do |layer|
+            layer["name"] == options["name"]
+          end.fetch("id") unless options["id"]
+          URI::HTTP.build(:host => source["host"], :path => [ *source["path"], options["id"] ].join(?/), :query => "f=json").tap do |uri|
+            scales = HTTP.get(uri, source["headers"]) do |response|
+              JSON.parse(response.body).tap do |result|
+                raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+              end
+            end.values_at("minScale", "maxScale")
+            options["scale"] = scales.last.zero? ? scales.first.zero? ? map.scale : 2 * scales.first : scales.inject(&:+) / 2
+          end unless options["scale"]
+          pixels = map.wgs84_bounds.map do |bound|
+            bound.reverse.inject(&:-) * 96 * 110000 / options["scale"] / 0.0254
+          end.map(&:round)
+          query = {
+            "f" => "json",
+            "sr" => 4326,
+            "geometryType" => "esriGeometryPolygon",
+            "geometry" => { "rings" => [ map.wgs84_corners << map.wgs84_corners.first ] }.to_json,
+            "layers" => "all:#{options['id']}",
+            "tolerance" => 0,
+            "mapExtent" => map.wgs84_bounds.transpose.flatten.join(?,),
+            "imageDisplay" => [ *pixels, 96 ].join(?,),
+            "returnGeometry" => true,
+          }
+          index_attribute = options["page-by"] || source["page-by"] || "OBJECTID"
+          definition, redefine, id = options.values_at("definition", "redefine", "id")
+          paginate = nil
+          loop do
+            definitions = [ *options["definition"], *paginate ]
+            paged_query = case
+            when definitions.any? && redefine then { "layerDefs" => "#{id}:1 < 0) OR ((#{definitions.join ') AND ('})" }
+            when redefine                     then { "layerDefs" => "#{id}:1 < 0) OR (1 > 0" }
+            when definitions.any?             then { "layerDefs" => "#{id}:(#{definitions.join ') AND ('})" }
+            else                                   { }
+            end.merge(query)
+            uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], "identify" ].join(?/), :query => URI.escape(paged_query.to_query)
+            body = HTTP.get(uri, source["headers"]) do |response|
+              JSON.parse(response.body).tap do |body|
+                raise Net::HTTPBadResponse.new(body["error"]["message"]) if body["error"]
               end
             end
-            feature["label-only"] = options["label-only"] if options["label-only"]
-            feature["bezier"] = options["bezier"] if options["bezier"]
-            feature["angle"] = angle if angle
+            page = body.fetch("results", [ ])
+            page.map do |feature|
+              raise BadLayerError.new("no attribute available for pagination (try: #{feature['attributes'].keys.join(', ')})") unless feature["attributes"].has_key?(index_attribute)
+              feature["attributes"][index_attribute].to_i
+            end.max.tap do |value|
+              paginate = "#{index_attribute} > #{value}"
+            end
+            
+            features += page.map do |result|
+              attributes, geometry_type, geometry = result.values_at "attributes", "geometryType", "geometry"
+              wkid = geometry["spatialReference"]["wkid"]
+              projection = Projection.new("epsg:#{wkid}")
+              data = case geometry_type
+              when "esriGeometryPoint"
+                projection.reproject_to(map.projection, geometry.values_at("x", "y"))
+              when "esriGeometryPolyline", "esriGeometryPolygon"
+                closed = geometry_type == "esriGeometryPolygon"
+                geometry[closed ? "rings" : "paths"].map do |path|
+                  projection.reproject_to map.projection, path
+                end.map do |path|
+                  map.coord_corners(1.0).clip(path, closed)
+                end.select(&:many?)
+              end
+              category = [ *options["category"] ].map do |field|
+                attributes[field] || field
+              end.map do |string|
+                string.gsub /\W+/, ?-
+              end
+              case attributes[options["rotate"]].to_i
+              when 0
+                category << "no-angle"
+              else
+                category << "angle"
+                angle = 90 - attributes[options["rotate"]].to_i
+              end if options["rotate"]
+              { "geometryType" => geometry_type, "data" => data, "category" => category }.tap do |feature|
+                if options["label"]
+                  fields = attributes.values_at *options["label"]
+                  format = options["format"] || (%w[%s] * fields.length).join(?\s)
+                  unless fields.map(&:to_s).all?(&:empty?)
+                    feature["label"] = format % fields
+                    [ *options["label-by-category"] ].select do |categories, opts|
+                      (attributes.values_at(*options["category"]).compact & [ *categories ].map(&:to_s)).any?
+                    end.map(&:last).unshift(options).inject(&:merge).tap do |opts|
+                      %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth].each do |name|
+                        feature[name] = opts[name] if opts[name]
+                      end
+                    end
+                  end
+                end
+                feature["label-only"] = options["label-only"] if options["label-only"]
+                feature["bezier"] = options["bezier"] if options["bezier"]
+                feature["angle"] = angle if angle
+              end
+            end
+            $stdout << "\r... #{sublayer_name} (#{features.length} feature#{?s unless features.one?})"
+            break unless page.any?
           end
         end
         puts
-        [ sublayer_name, features ]
-      end.inject({}) do |memo, (sublayer_name, features)|
-        memo[sublayer_name] ||= []
-        memo[sublayer_name] += features
-        memo
-      end.tap do |layers|
+        { sublayer_name => features }
+      end.inject(&:merge).tap do |layers|
         Dir.mktmppath do |temp_dir|
           json_path = temp_dir + "#{layer_name}.json"
-          json_path.open("w") { |file| file << JSON.pretty_generate(layers) }
-          # json_path.open("w") { |file| file << layers.to_json }
+          json_path.open("w") { |file| file << layers.to_json }
           FileUtils.cp json_path, path
         end
       end

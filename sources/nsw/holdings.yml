@@ -9,8 +9,8 @@ sources:
 features:
   boundaries:
     name: Holdings
-    label: [ HOLDING, OCCUPIER ]
-    format: "'%s'\n%s"
+    label: OCCUPIER
+    minimum-area: 100
     font-size: 1.4
 boundaries:
   style:

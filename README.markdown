@@ -403,6 +403,8 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         - boundaries.kml           # show out-of-bounds areas
         - declination              # show magnetic declination lines
         - controls                 # show controls
+        nsw.topographic:
+          exclude: reserves        # no need to show park & reserve boundaries
         boundaries:                # set style for out-of-bounds
           colour: black            # (black)
           opacity: 0.3             # (partially opaque)

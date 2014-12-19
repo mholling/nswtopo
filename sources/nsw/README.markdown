@@ -11,7 +11,7 @@ This map is a derived from the NSW [*Digital Topographic Database*](http://www.l
     - nsw/topographic
     - grid
 
-Along with topographic features, NSW and ACT cadastral lines and trig stations are also included.
+Along with topographic features, NSW and ACT cadastral lines, trig stations and borders of parks and reserves are also included.
 
 ## Holdings
 

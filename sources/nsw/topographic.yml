@@ -38,6 +38,10 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: POI
+  boundaries:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: Boundaries
 features:
   plantation-horticulture:
     # TODO: include ForestryPlantation-Other(3) ?
@@ -403,6 +407,31 @@ features:
     category: generalculturaltype
   state-border: State_Border
   # TODO: restricted-areas from Building_Large
+  reserves:
+  - source: boundaries
+    name: NPWS Reserve
+    definition: classsubtype IN (1,2,4,5,7)
+    category: ClassSubtype
+    label: [ reservename, ReserveType ]
+    minimum-area: 400
+    font-size: 2.5
+    letter-spacing: 0.3
+  - source: boundaries
+    name: State Forest
+    category: StateForest
+    label: stateforestname
+    minimum-area: 400
+    font-size: 2.5
+    letter-spacing: 0.3
+    format: "%s State Forest"
+  - source: lpimap
+    name: Building_Large
+    definition: classsubtype = 3
+    category: ClassSubtype
+    label: generalname
+    minimum-area: 400
+    font-size: 2.5
+    letter-spacing: 0.3
   relative-heights:
     name: RelativeHeight
     label-only: true
@@ -815,7 +844,7 @@ mangroves-intertidal:
         fill: lightgreen
         fill-opacity: 0.2
       path:
-        stroke: darkgreen
+        stroke: "#006400"
         stroke-width: 0.25
         fill: none
         transform: scale(0.33 0.33333)
@@ -1244,6 +1273,15 @@ state-border:
       stroke-width: 1.5
       stroke-dasharray: 0.3 14.7
       stroke-dashoffset: 13.8
+reserves:
+  opacity: 0.5
+  styles:
+    "":
+      fill: none
+      stroke: "#006400"
+      stroke-width: 0.3
+    RestrictedArea:
+      stroke: "#A9A9A9"
 labels:
   dupe: outline
   styles:
@@ -1266,10 +1304,19 @@ labels:
     [ feature-names RangeLike, feature-names ValleyLike ]:
       fill: "#404040"
       opacity: 0.7
+    reserves:
+      fill: "#006400"
+      fill-opacity: 0.5
+      font-weight: bold
+      font-style: normal
+    reserves RestrictedArea:
+      fill: "#A9A9A9"
     outline:
-      # TODO: this glow does not render in Safari (unless SVG is pretty-printed!)
       stroke: white
       fill: none
       stroke-width: 0.25
       stroke-opacity: 0.75
+    outline reserves:
+      stroke-width: 0.5
+      stroke-opacity: 0.5
 

@@ -389,10 +389,6 @@ class Array
     end.inject(&:plus).times(1.0 / 6.0 / signed_area)
   end
   
-  def clockwise?
-    signed_area < 0
-  end
-  
   def smooth(arc_limit, iterations)
     iterations.times.inject(self) do |points|
       points.segments.segments.chunk do |segment1, segment2|
@@ -1699,7 +1695,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     [ *options["label-by-category"] ].select do |categories, opts|
                       (attributes.values_at(*options["category"]).compact & [ *categories ].map(&:to_s)).any?
                     end.map(&:last).unshift(options).inject(&:merge).tap do |opts|
-                      %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth].each do |name|
+                      %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth minimum-area].each do |name|
                         feature[name] = opts[name] if opts[name]
                       end
                     end
@@ -1776,9 +1772,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "esriGeometryPoint"
             feature["point"] = map.coords_to_mm feature.delete("data")
             memo << feature
-          when "esriGeometryPolyline", "esriGeometryPolygon"
+          when "esriGeometryPolyline"
             feature.delete("data").each do |coords|
               points = map.coords_to_mm coords
+              memo << feature.dup.merge("points" => points)
+            end
+          when "esriGeometryPolygon"
+            feature.delete("data").map do |coords|
+              map.coords_to_mm coords
+            end.select do |points|
+              points.signed_area > (feature["minimum-area"] || 0)
+            end.each do |points|
               memo << feature.dup.merge("points" => points)
             end
           end

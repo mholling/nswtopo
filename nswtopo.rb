@@ -1612,7 +1612,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end unless options["scale"]
           pixels = map.wgs84_bounds.map do |bound|
             bound.reverse.inject(&:-) * 96 * 110000 / options["scale"] / 0.0254
-          end.map(&:round)
+          end.map(&:ceil)
           query = {
             "f" => "json",
             "sr" => 4326,

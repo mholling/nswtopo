@@ -1735,7 +1735,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "esriGeometryPolyline", "esriGeometryPolygon"
             close, fill_options = case geometry_type
               when "esriGeometryPolyline" then [ nil, { "fill" => "none" }         ]
-              when "esriGeometryPolygon"  then [ ?Z,  { "fill-rule" => "evenodd" } ]
+              when "esriGeometryPolygon"  then [ ?Z,  { "fill-rule" => "nonzero" } ]
             end
             feature["data"].reject(&:empty?).map do |coords|
               map.coords_to_mm coords

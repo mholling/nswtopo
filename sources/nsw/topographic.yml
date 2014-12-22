@@ -406,7 +406,6 @@ features:
     definition: classsubtype = 4 AND generalculturaltype IN (8,9,11,12)
     category: generalculturaltype
   state-border: State_Border
-  # TODO: restricted-areas from Building_Large
   reserves:
   - source: boundaries
     name: NPWS Reserve
@@ -514,16 +513,14 @@ features:
 # missing:
 # TankArea
 # ElectricityTransmissionLine
-# Coastline
 # Cableway
 
 intervals-contours:
   4: contours-4m
   10: contours-10m
   20: contours-20m
-relief-clips:
+relief-masks:
 - water-areas
-# - ocean
 
 plantation-horticulture:
   patterns:

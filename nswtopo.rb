@@ -1173,25 +1173,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def clip_paths(layer)
-      [ *params["clips"] ].map do |sublayer|
-        layer.parent.elements.collect("//g[contains(@id,'#{sublayer}')]//path[@fill-rule='evenodd']") { |path| path }
-      end.inject([], &:+).map do |path|
-        transform = path.elements.collect("ancestor-or-self::*[@transform]") do |element|
-          element.attributes["transform"]
-        end.reverse.join ?\s
-        # # TODO: Ugly, ugly hack to invert each path by surrounding it with a path at +/- infinity...
-        box = "M-1000000 -1000000 L1000000 -1000000 L1000000 100000 L-1000000 1000000 Z"
-        d = "#{box} #{path.attributes['d']}"
-        { "d" => d, "transform" => transform, "clip-rule" => "evenodd" }
-      end.map.with_index do |attributes, index|
-        REXML::Element.new("clipPath").tap do |clippath|
-          clippath.add_attribute("id", [ layer_name, "clip", index ].join(SEGMENT))
-          clippath.add_element("path", attributes)
-        end
-      end
-    end
-    
     def render_svg(xml, map, &block)
       resolution = resolution_for map
       transform = "scale(#{1000.0 * resolution / map.scale})"
@@ -1215,16 +1196,25 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         old_layer ? old_layer.replace_with(layer) : yield(layer)
       end
       layer.add_attributes "id" => layer_name, "style" => "opacity:#{opacity}"
-      xml.elements["/svg/defs"].tap do |defs|
-        defs.elements.each("clipPath[starts-with(@id, '#{layer_name}#{SEGMENT}clip')]", &:remove)
-        clip_paths(layer).each do |clippath|
-          defs.elements << clippath
+      
+      if params["masks"]
+        filter_id, mask_id = "#{layer_name}#{SEGMENT}filter", "#{layer_name}#{SEGMENT}mask"
+        xml.elements.each("/svg/defs/[@id='#{filter_id}' or @id='#{mask_id}']", &:remove)
+        xml.elements["/svg/defs"].add_element("filter", "id" => filter_id) do |filter|
+          filter.add_element "feColorMatrix", "type" => "matrix", "in" => "SourceGraphic", "values" => "0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 -1 1"
         end
-      end.elements.collect("clipPath[starts-with(@id, '#{layer_name}#{SEGMENT}clip')]") do |clippath|
-        clippath.attributes["id"]
-      end.inject(layer) do |group, clip_id|
-        group.add_element("g", "clip-path" => "url(##{clip_id})")
-      end.add_element("image",
+        xml.elements["/svg/defs"].add_element("mask", "id" => mask_id) do |mask|
+          mask.add_element("g", "filter" => "url(##{filter_id})") do |g|
+            g.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "none", "stroke" => "none"
+            [ *params["masks"] ].each do |sublayer_name|
+              g.add_element "use", "xlink:href" => "##{sublayer_name}"
+            end
+          end
+        end
+        layer.add_attributes "mask" => "url(##{mask_id})"
+      end
+      
+      layer.add_element("image",
         "transform" => transform,
         "width" => dimensions[0],
         "height" => dimensions[1],
@@ -2810,8 +2800,8 @@ controls:
       layers[layer_name].deep_merge! config[layer_name]
     end
     
-    layers["relief"]["clips"] = layers.map do |layer_name, params|
-      [ *params["relief-clips"] ].map { |sublayer_name| [ layer_name, sublayer_name ].join SEGMENT }
+    layers["relief"]["masks"] = layers.map do |layer_name, params|
+      [ *params["relief-masks"] ].map { |sublayer_name| [ layer_name, sublayer_name ].join SEGMENT }
     end.inject(&:+) if layers["relief"]
     
     config["contour-interval"].tap do |interval|

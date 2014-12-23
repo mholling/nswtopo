@@ -1122,12 +1122,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   module Annotation
     def svg_coords(coords, projection, map)
-      # map.coords_to_mm projection.reproject_to(map.projection, coords) # TODO: make this conversion?
-      projection.reproject_to(map.projection, coords).one_or_many do |easting, northing|
-        [ easting - map.bounds.first.first, map.bounds.last.last - northing ].map do |metres|
-          1000.0 * metres / map.scale
-        end
-      end
+      map.coords_to_mm projection.reproject_to(map.projection, coords)
     end
     
     def render_svg(xml, map, &block)

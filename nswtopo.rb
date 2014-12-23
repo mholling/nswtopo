@@ -346,14 +346,20 @@ class Array
     end
   end
   
-  def to_path_data(*close)
-    inject do |memo, point|
+  def round(decimal_digits)
+    one_or_many do |point|
+      point.map { |value| value.round decimal_digits }
+    end
+  end
+  
+  def to_path_data(decimal_digits, *close)
+    round(decimal_digits).inject do |memo, point|
       [ *memo, ?L, *point ]
     end.unshift(?M).push(*close).join(?\s)
   end
   
-  def to_bezier(k, *close)
-    points = close.any? ? [ last, *self, first ] : [ first, *self, last ] # N + 2 elements
+  def to_bezier(k, decimal_digits, *close)
+    points = close.any? ? [ last, *self, first ] : [ first, *self, last ]
     midpoints = points.segments.map(&:midpoint)
     distances = points.segments.map(&:distance)
     offsets = midpoints.zip(distances).segments.map(&:transpose).map do |segment, distance|
@@ -361,10 +367,10 @@ class Array
     end.zip(self).map(&:difference)
     controls = midpoints.segments.zip(offsets).map do |segment, offset|
       segment.map { |point| [ point, point.plus(offset) ].along(k) }
-    end.flatten(1).drop(1).each_slice(2)
-    drop(1).zip(controls).map do |point, (control1, control2)|
+    end.flatten(1).drop(1).round(decimal_digits).each_slice(2)
+    drop(1).round(decimal_digits).zip(controls).map do |point, (control1, control2)|
       [ ?C, *control1, *control2, *point ]
-    end.flatten.unshift(?M, *first).push(*close).join(?\s)
+    end.flatten.unshift(?M, *first.round(decimal_digits)).push(*close).join(?\s)
   end
   
   def convex_hull
@@ -443,7 +449,7 @@ end
 
 module NSWTopo
   SEGMENT = ?.
-  
+  MM_DECIMAL_DIGITS = 4
   EARTH_RADIUS = 6378137.0
   
   WINDOWS = !RbConfig::CONFIG["host_os"][/mswin|mingw/].nil?
@@ -968,7 +974,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "dash"
             case args
             when nil             then memo << [ ".//[@stroke-dasharray]/@stroke-dasharray", nil ]
-            when String, Numeric then memo << [ ".//(path|polyline)", { "stroke-dasharray" => args } ]
+            when String, Numeric then memo << [ ".//path", { "stroke-dasharray" => args } ]
             end
           when "order"
             args.reverse.map do |categories|
@@ -1723,7 +1729,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           geometry_type = feature["geometryType"]
           case geometry_type
           when "esriGeometryPoint"
-            x, y = map.coords_to_mm feature["data"]
+            x, y = map.coords_to_mm(feature["data"]).round(MM_DECIMAL_DIGITS)
             angle = feature["angle"]
             transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
             yield(sublayer_name).add_element "use", "transform" => transform, "class" => categories
@@ -1736,9 +1742,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               map.coords_to_mm coords
             end.map do |points|
               case k = feature["bezier"]
-              when Numeric then points.to_bezier(k, *close)
-              when true    then points.to_bezier(1, *close)
-              else              points.to_path_data(*close)
+              when Numeric then points.to_bezier(k, MM_DECIMAL_DIGITS, *close)
+              when true    then points.to_bezier(1, MM_DECIMAL_DIGITS, *close)
+              else              points.to_path_data(MM_DECIMAL_DIGITS, *close)
               end
             end.tap do |subpaths|
               yield(sublayer_name).add_element "path", fill_options.merge("d" => subpaths.join(?\s), "class" => categories) if subpaths.any?
@@ -1998,7 +2004,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
         when "esriGeometryPolyline"
-          d = feature["baselines"][candidate].to_path_data
+          d = feature["baselines"][candidate].to_path_data(MM_DECIMAL_DIGITS)
           id = [ layer_name, "labels", "path", index, candidate ].join SEGMENT
           yield(:defs).add_element "path", "id" => id, "d" => d
           yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
@@ -2230,8 +2236,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         northings = bounds.last
         [ eastings, northings ].transpose
       end.map do |line|
-        svg_coords(line, projection, map)
-      end.map(&:to_path_data).each do |d|
+        svg_coords(line, projection, map).to_path_data(MM_DECIMAL_DIGITS)
+      end.each do |d|
         yield.add_element("path", "d" => d, "stroke" => "black", "stroke-width" => "0.1")
       end
     end
@@ -2274,7 +2280,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           gridlines.map do |gridline|
             gridline.select(&:first).map(&:last)
           end.reject(&:empty?).each do |line|
-            d = svg_coords(line, projection, map).to_path_data
+            d = svg_coords(line, projection, map).to_path_data(MM_DECIMAL_DIGITS)
             lines.add_element("path", "d" => d)
             if line[0] && line[0][index] % label_interval == 0 
               coord = line[0][index]
@@ -2284,7 +2290,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               line.inject do |*segment|
                 if segment[0][1-index] % label_interval == 0
                   points = segment.map { |coords| svg_coords(coords, projection, map) }
-                  middle = points.transpose.map { |values| 0.5 * values.inject(:+) }
+                  middle = points.transpose.map { |values| 0.5 * values.inject(:+) }.round(MM_DECIMAL_DIGITS)
                   angle = 180.0 * points.difference.angle / Math::PI
                   transform = "translate(#{middle.join ?\s}) rotate(#{angle})"
                   labels.add_element("text", "transform" => transform, "dy" => 0.25 * fontsize) do |text|
@@ -2328,7 +2334,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ /W/,       :water,    "water"   ],
       ].each do |selector, type, sublayer|
         gps.waypoints.map do |waypoint, name|
-          [ svg_coords(waypoint, Projection.wgs84, map), name[selector] ]
+          [ svg_coords(waypoint, Projection.wgs84, map).round(MM_DECIMAL_DIGITS), name[selector] ]
         end.select(&:last).each do |point, label|
           transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
           yield(sublayer).add_element("g", "transform" => transform) do |rotated|
@@ -2338,10 +2344,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               rotated.add_element("circle", "r" => 0.5 * spotdiameter, "fill" => "black", "stroke" => "none") if spotdiameter
             when :triangle, :square
               angles = type == :triangle ? [ -90, -210, -330 ] : [ -45, -135, -225, -315 ]
-              points = angles.map do |angle|
+              d = angles.map do |angle|
                 [ radius, 0 ].rotate_by_degrees(angle)
-              end.map { |vertex| vertex.join ?, }.join ?\s
-              rotated.add_element("polygon", "points" => points, "fill" => "none", "stroke" => "black", "stroke-width" => 0.2)
+              end.to_path_data(MM_DECIMAL_DIGITS, ?Z)
+              rotated.add_element("path", "d" => d, "fill" => "none", "stroke" => "black", "stroke-width" => 0.2)
             when :water
               [
                 "m -0.79942321,0.07985921 -0.005008,0.40814711 0.41816285,0.0425684 0,-0.47826034 -0.41315487,0.02754198 z",
@@ -2376,12 +2382,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def draw(map)
       gps = GPS.new(path)
-      [ [ :tracks, "polyline", { "fill" => "none", "stroke" => "black", "stroke-width" => "0.4" } ],
-        [ :areas, "polygon", { "fill" => "black", "stroke" => "none" } ]
-      ].each do |feature, element, attributes|
-        gps.send(feature).each do |list, name|
-          points = svg_coords(list, Projection.wgs84, map).map { |point| point.join ?, }.join ?\s
-          yield.add_element(element, attributes.merge("points" => points))
+      [ [ :tracks, { "fill" => "none", "stroke" => "black", "stroke-width" => "0.4", "stroke-miterlimit" => 2 }, nil ],
+        [ :areas, { "fill" => "black", "stroke" => "none" }, ?Z ]
+      ].each do |feature, attributes, close|
+        gps.send(feature).map do |list, name|
+          svg_coords(list, Projection.wgs84, map).to_path_data(MM_DECIMAL_DIGITS, *close)
+        end.each do |d|
+          yield.add_element "path", attributes.merge("d" => d)
         end
       end
     rescue BadGpxKmlFile => e

@@ -65,12 +65,13 @@ features:
   - name: Contour_10m
     definition: mod(elevation,50) = 0 AND shape_Length > 1000
     label-only: true
-    label: elevation
-    orientation: uphill
-    font-size: 1.4
-    letter-spacing: 0.05
-    interval: 120
-    deviation: 0.1
+    label:
+      field: elevation
+      orientation: uphill
+      font-size: 1.4
+      letter-spacing: 0.05
+      interval: 120
+      deviation: 0.1
   contours-20m:
   - name: Contour_20m
     category:
@@ -80,12 +81,13 @@ features:
   - name: Contour_20m
     definition: relevance IN (1,2) AND shape_Length > 2000
     label-only: true
-    label: elevation
-    orientation: uphill
-    font-size: 1.4
-    letter-spacing: 0.05
-    interval: 120
-    deviation: 0.1
+    label:
+      field: elevation
+      orientation: uphill
+      font-size: 1.4
+      letter-spacing: 0.05
+      interval: 120
+      deviation: 0.1
   cliffs-excavation:
   - name: Cliffs_Reefs_Mangroves
     definition: classsubtype = 11
@@ -98,11 +100,12 @@ features:
     definition: poitype = 'Cliff'
     category: poitype
     label-only: true
-    label: poiname
-    position: [ 0, 1, 2, 3, 4 ]
-    font-size: 1.8
-    margin: 0.7
-    letter-spacing: 0.1
+    label:
+      field: poiname
+      position: [ 0, 1, 2, 3, 4 ]
+      font-size: 1.8
+      margin: 0.7
+      letter-spacing: 0.1
   sand:
     name: Cliffs_Reefs_Mangroves
     definition: classsubtype IN (6,7)
@@ -122,11 +125,12 @@ features:
     name: Points Of Interest
     definition: poitype = 'Swamp'
     label-only: true
-    label: poiname
-    position: [ 0, 1, 2, 3, 4 ]
-    font-size: 1.8
-    margin: 0.7
-    letter-spacing: 0.1
+    label:
+      field: poiname
+      position: [ 0, 1, 2, 3, 4 ]
+      font-size: 1.8
+      margin: 0.7
+      letter-spacing: 0.1
   watercourses:
   - source: hydrography
     name: Hydroline
@@ -140,14 +144,14 @@ features:
     name: Stream_Names
     category: relevance
     label-only: true
-    label: hydronamestring
-    smooth: 8.0
-    deviation: 3.0
-    interval: 100
-    margin: 2.5
-    letter-spacing: 0.1
-    word-spacing: 2.0
-    label-by-category:
+    label:
+      field: hydronamestring
+      smooth: 8.0
+      deviation: 3.0
+      interval: 100
+      margin: 2.5
+      letter-spacing: 0.1
+      word-spacing: 2.0
       [ 1, 2 ]:
         font-size: 1.9
         interval: 150
@@ -185,11 +189,12 @@ features:
     definition: poitype IN ('Natural Waterbody','Manmade Waterbody','Bay / Inlet / Basin','Reach / River Bend')
     category: poitype
     label-only: true
-    label: poiname
-    position: [ 0, 1, 2, 3, 4 ]
-    font-size: 1.8
-    margin: 0.7
-    letter-spacing: 0.1
+    label:
+      field: poiname
+      position: [ 0, 1, 2, 3, 4 ]
+      font-size: 1.8
+      margin: 0.7
+      letter-spacing: 0.1
   levees:
   - name: CliffTop_Levee
     definition: classsubtype = 4
@@ -199,11 +204,12 @@ features:
     definition: poitype = 'Reef' AND poiname LIKE '% LEVEE'
     category: poitype
     label-only: true
-    label: poiname
-    position: [ 0, 1, 2, 3, 4 ]
-    font-size: 1.8
-    margin: 0.7
-    letter-spacing: 0.1
+    label:
+      field: poiname
+      position: [ 0, 1, 2, 3, 4 ]
+      font-size: 1.8
+      margin: 0.7
+      letter-spacing: 0.1
   dam-batters:
     name: Building_Large
     definition: classsubtype = 10
@@ -218,10 +224,11 @@ features:
     redefine: true
     definition: ancillaryhydrotype = 6
     rotate: SymbolRotation
-    label: generalname
-    position: [ 1, 2, 3, 4 ]
-    font-size: 1.3
-    margin: 1.0
+    label:
+      field: generalname
+      position: [ 1, 2, 3, 4 ]
+      font-size: 1.3
+      margin: 1.0
   mangroves-intertidal:
     name: Cliffs_Reefs_Mangroves
     definition: classsubtype IN (1,3)
@@ -239,21 +246,23 @@ features:
     definition: poitype = 'Reef' AND poiname NOT LIKE '% LEVEE'
     category: poitype
     label-only: true
-    label: poiname
-    position: [ 0, 1, 2, 3, 4 ]
-    font-size: 1.8
-    margin: 0.7
-    letter-spacing: 0.1
+    label:
+      field: poiname
+      position: [ 0, 1, 2, 3, 4 ]
+      font-size: 1.8
+      margin: 0.7
+      letter-spacing: 0.1
   - source: poi
     name: Points Of Interest
     definition: poitype = 'Rock Awash'
     category: poitype
     label-only: true
-    label: poiname
-    position: [ 1, 2, 3, 4 ]
-    font-size: 1.8
-    margin: 1.0
-    letter-spacing: 0.1
+    label:
+      field: poiname
+      position: [ 1, 2, 3, 4 ]
+      font-size: 1.8
+      margin: 1.0
+      letter-spacing: 0.1
   rocky-shore:
     name: CliffTop_Levee
     definition: classsubtype IN (5,6)
@@ -266,20 +275,22 @@ features:
     name: Points Of Interest
     definition: poitype = 'Breakwater'
     label-only: true
-    label: poiname
-    position: [ 0, 1, 2, 3, 4 ]
-    font-size: 1.8
-    margin: 0.7
-    letter-spacing: 0.1
+    label:
+      field: poiname
+      position: [ 0, 1, 2, 3, 4 ]
+      font-size: 1.8
+      margin: 0.7
+      letter-spacing: 0.1
   caves-pinnacles:
     name: Caves_Pinnacles
     redefine: true
     definition: classsubtype IN (1,2,6)
     category: ClassSubtype
-    label: generalname
-    position: [ 1, 2, 3, 4 ]
-    font-size: 1.4
-    margin: 1.0
+    label:
+      field: generalname
+      position: [ 1, 2, 3, 4 ]
+      font-size: 1.4
+      margin: 1.0
   road-tunnels:
     source: rfs
     name: RoadSegment
@@ -323,13 +334,13 @@ features:
     # TODO: specify by relevance instead of by function hierarchy?
     category: functionhierarchy
     label-only: true
-    label: roadnamestring
-    smooth: 5.0
-    deviation: 2.0
-    font-size: 1.4
-    letter-spacing: 0.1
-    margin: 1.2
-    label-by-category:
+    label:
+      field: roadnamestring
+      smooth: 5.0
+      deviation: 2.0
+      font-size: 1.4
+      letter-spacing: 0.1
+      margin: 1.2
       [ Path, Track-Vehicular ]:
         font-size: 1.4
         margin: 0.8
@@ -373,22 +384,24 @@ features:
     name: Points Of Interest
     definition: poigroup = 1 AND (poitype = 'Homestead' OR (poitype = 'Community Facility' AND poiname LIKE '% HUT'))
     category: poitype
-    label: poiname
     label-only: true
-    format: "'%s'"
-    position: [ 1, 2, 3, 4 ]
-    font-size: 1.5
-    margin: 1.0
+    label:
+      field: poiname
+      format: "'%s'"
+      position: [ 1, 2, 3, 4 ]
+      font-size: 1.5
+      margin: 1.0
   railway-stations:
     source: rfs
     name: TransportFacilityPoint
     definition: classsubtype = 6
   spot-heights:
     name: SpotHeight
-    label: elevation
-    font-size: 1.4
-    margin: 0.7
-    position: [ 1, 2, 3, 4 ]
+    label:
+      field: elevation
+      font-size: 1.4
+      margin: 0.7
+      position: [ 1, 2, 3, 4 ]
   # trig-stations:
   #   source: survey
   #   name: SurveyMark
@@ -411,65 +424,72 @@ features:
     name: NPWS Reserve
     definition: classsubtype IN (1,2,4,5,7)
     category: ClassSubtype
-    label: [ reservename, ReserveType ]
-    minimum-area: 400
-    font-size: 2.5
-    letter-spacing: 0.3
+    label:
+      field: [ reservename, ReserveType ]
+      minimum-area: 400
+      font-size: 2.5
+      letter-spacing: 0.3
   - source: boundaries
     name: State Forest
     category: StateForest
-    label: stateforestname
-    minimum-area: 400
-    font-size: 2.5
-    letter-spacing: 0.3
-    format: "%s State Forest"
+    label:
+      field: stateforestname
+      minimum-area: 400
+      font-size: 2.5
+      letter-spacing: 0.3
+      format: "%s State Forest"
   - source: lpimap
     name: Building_Large
     definition: classsubtype = 3
     category: ClassSubtype
-    label: generalname
-    minimum-area: 400
-    font-size: 2.5
-    letter-spacing: 0.3
+    label:
+      field: generalname
+      minimum-area: 400
+      font-size: 2.5
+      letter-spacing: 0.3
   relative-heights:
     name: RelativeHeight
     label-only: true
-    label: relativeheight
-    format: "%sr"
-    font-size: 1.4
-    margin: 0.8
-    position: [ 1, 2, 3, 4, 0 ]
+    label:
+      field: relativeheight
+      format: "%sr"
+      font-size: 1.4
+      margin: 0.8
+      position: [ 1, 2, 3, 4, 0 ]
   feature-names:
   - source: poi
     name: Points Of Interest
     definition: poitype IN ('Gap / Pass / Saddle','Headland','Mountain/Hill/Peak','Peninsula / Spit','Plateau / Tableland','Island','Rapids','Sandbar / Shoal','Lock')
     category: poitype
     label-only: true
-    label: poiname
-    position: [ 0, 1, 2, 3, 4 ]
-    font-size: 1.8
-    margin: 0.7
-    letter-spacing: 0.1
+    label:
+      field: poiname
+      position: [ 0, 1, 2, 3, 4 ]
+      font-size: 1.8
+      margin: 0.7
+      letter-spacing: 0.1
   - name: Mountains
     redefine: true
     # TODO: include fuzzypointfeaturetype = 9 (LandcoverLike)?
     definition: fuzzypointfeaturetype = 4
-    label-only: true
-    label: generalname
-    position: [ 0, 1, 2, 3, 4 ]
-    font-size: 1.8
-    margin: 0.7
-    letter-spacing: 0.1
     category: fuzzypointfeaturetype
+    label-only: true
+    label:
+      field: generalname
+      position: [ 0, 1, 2, 3, 4 ]
+      font-size: 1.8
+      margin: 0.7
+      letter-spacing: 0.1
   - name: Ridge_Beach
     definition: generalname <> 'GREAT DIVIDING RANGE'
-    label: generalname
-    smooth: 12
-    font-size: 1.8
-    word-spacing: 3
-    letter-spacing: 0.5
     category: fuzzylinefeaturetype
-    label-by-category:
+    label-only: trye
+    label:
+      field: generalname
+      smooth: 12
+      font-size: 1.8
+      word-spacing: 3
+      letter-spacing: 0.5
       Beach:
         margin: 0.7
       ValleyLike:
@@ -483,18 +503,12 @@ features:
     definition: poigroup = 8 AND poiname NOT LIKE '% HUT' AND poiname NOT LIKE '% SWAMP'
     category: poitype
     label-only: true
-    label: poiname
-    position: [ 0, 1, 2, 3, 4 ]
-    font-size: 1.6
-    margin: 0.7
-    letter-spacing: 0.2
-
-# LPIMap/Building_Large (GeneralCulturalArea)
-# (classsubtype:generalculturaltype)
-# 3:0 RestrictedArea:Undefined
-# 3:1 RestrictedArea:Defence
-# 3:2 RestrictedArea:Catchment
-# 3:3 RestrictedArea:SubmarineCableProtectionZone
+    label:
+      field: poiname
+      position: [ 0, 1, 2, 3, 4 ]
+      font-size: 1.6
+      margin: 0.7
+      letter-spacing: 0.2
 
 # LPIMap/Damwall_Racetrack (GeneralCulturalLine)
 # (classsubtype:generalculturaltype)

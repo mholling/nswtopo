@@ -1678,20 +1678,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 angle = 90 - attributes[options["rotate"]].to_i
               end if options["rotate"]
               { "geometryType" => geometry_type, "data" => data, "category" => category }.tap do |feature|
-                if options["label"]
-                  fields = attributes.values_at *options["label"]
-                  format = options["format"] || (%w[%s] * fields.length).join(?\s)
+                options["label"].tap do |label|
+                  fields = attributes.values_at *label["field"]
+                  format = label["format"] || (%w[%s] * fields.length).join(?\s)
                   unless fields.map(&:to_s).all?(&:empty?)
                     feature["label"] = format % fields
-                    [ *options["label-by-category"] ].select do |categories, opts|
-                      (attributes.values_at(*options["category"]).compact & [ *categories ].map(&:to_s)).any?
-                    end.map(&:last).unshift(options).inject(&:merge).tap do |opts|
+                    label.select do |key, value|
+                      value.is_a? Hash
+                    end.select do |key, value|
+                      (attributes.values_at(*options["category"]).compact & [ *key ].map(&:to_s)).any?
+                    end.map(&:last).unshift(label).inject(&:merge).tap do |opts|
                       %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth minimum-area].each do |name|
                         feature[name] = opts[name] if opts[name]
                       end
                     end
                   end
-                end
+                end if options["label"]
                 feature["label-only"] = options["label-only"] if options["label-only"]
                 feature["bezier"] = options["bezier"] if options["bezier"]
                 feature["angle"] = angle if angle

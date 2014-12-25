@@ -1708,7 +1708,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.inject(&:merge).tap do |layers|
         Dir.mktmppath do |temp_dir|
           json_path = temp_dir + "#{layer_name}.json"
-          json_path.open("w") { |file| file << layers.to_json }
+          json_path.open("w") { |file| file << (params["pretty"] ? JSON.pretty_generate(layers) : layers.to_json) }
           FileUtils.cp json_path, path
         end
       end
@@ -2795,6 +2795,7 @@ controls:
         [ layer_name_or_path.gsub(?/, SEGMENT), YAML.load(yaml) ]
       end
       params.merge! "resolution" => resolution if resolution
+      params.merge! "pretty" => config["pretty"] if config["pretty"]
       layers.merge! layer_name => params
     end
     

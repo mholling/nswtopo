@@ -1,4 +1,4 @@
-class: ArcGISIdentify
+class: ArcGISVector
 sources:
   lpimap:
     host: maps.six.nsw.gov.au
@@ -16,24 +16,20 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: Hydrography
+    per-page: 500
   survey:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: SurveyMarksPublic
-    page-by: msoid
   act-basic:
     host: actmapi.act.gov.au
     instance: actmapi
     folder: mga
     service: basic
-  landform:
+  guras:
     host: mapsq.six.nsw.gov.au
     folder: sixmaps
-    service: Landform
-  lpi-raster-labels:
-    host: maps.six.nsw.gov.au
-    folder: sixmaps
-    service: LPI_RasterLabels_1
+    service: guras
   poi:
     host: maps.six.nsw.gov.au
     folder: sixmaps
@@ -51,15 +47,15 @@ features:
   urban-areas: Urban
   contours-4m:
     name: Contour_10m
-    redefine: true
+    redefine: true # TODO: not working
     definition: sourceprogram = 2 AND mod(elevation,4) = 0
     category:
-    - ClassSubtype
+    - classsubtype
     - relevance
   contours-10m:
   - name: Contour_10m
     category:
-    - ClassSubtype
+    - classsubtype
     - relevance
     bezier: true
   - name: Contour_10m
@@ -75,7 +71,7 @@ features:
   contours-20m:
   - name: Contour_20m
     category:
-    - ClassSubtype
+    - classsubtype
     - relevance
     bezier: true
   - name: Contour_20m
@@ -91,10 +87,10 @@ features:
   cliffs-excavation:
   - name: Cliffs_Reefs_Mangroves
     definition: classsubtype = 11
-    category: ClassSubtype
+    category: classsubtype
   - name: CliffTop_Levee
     definition: classsubtype IN (1,3)
-    category: ClassSubtype
+    category: classsubtype
   - source: poi
     name: Points Of Interest
     definition: poitype = 'Cliff'
@@ -109,7 +105,7 @@ features:
   sand:
     name: Cliffs_Reefs_Mangroves
     definition: classsubtype IN (6,7)
-    category: ClassSubtype
+    category: classsubtype
   cadastre:
   - source: plan_section_lot
     name: Lot
@@ -120,7 +116,7 @@ features:
     name: Rural Registered
   swamps-inundation:
   - name: Swamps_LSI
-    category: ClassSubtype
+    category: classsubtype
   - source: poi
     name: Points Of Interest
     definition: poitype = 'Swamp'
@@ -177,11 +173,11 @@ features:
     bezier: 0.5
   water-areas:
   - name: HydroArea
-    category: Perenniality
+    category: perenniality
     bezier: 0.5
   - name: Oceans_Bays
     definition: classsubtype = 3
-    category: ClassSubtype
+    category: classsubtype
     scale: 50000
     bezier: 0.5
   - source: poi
@@ -198,7 +194,7 @@ features:
   levees:
   - name: CliffTop_Levee
     definition: classsubtype = 4
-    category: ClassSubtype
+    category: classsubtype
   - source: poi
     name: Points Of Interest
     definition: poitype = 'Reef' AND poiname LIKE '% LEVEE'
@@ -217,13 +213,13 @@ features:
     name: Damwall_Racetrack
     definition: classsubtype IN (4,7)
     category:
-    - ClassSubtype
+    - classsubtype
     - alternativelabel
   waterfalls:
     name: Waterfalls_springs
-    redefine: true
+    redefine: true # TODO: not working
     definition: ancillaryhydrotype = 6
-    rotate: SymbolRotation
+    rotate: symbolrotation
     label:
       field: generalname
       position: [ 1, 2, 3, 4 ]
@@ -232,15 +228,15 @@ features:
   mangroves-intertidal:
     name: Cliffs_Reefs_Mangroves
     definition: classsubtype IN (1,3)
-    category: ClassSubtype
+    category: classsubtype
   reefs-rocks:
   - name: Cliffs_Reefs_Mangroves
     definition: classsubtype IN (4,5)
-    category: ClassSubtype
+    category: classsubtype
   - name: Caves_Pinnacles
     redefine: true
     definition: classsubtype IN (4,5)
-    category: ClassSubtype
+    category: classsubtype
   - source: poi
     name: Points Of Interest
     definition: poitype = 'Reef' AND poiname NOT LIKE '% LEVEE'
@@ -266,11 +262,11 @@ features:
   rocky-shore:
     name: CliffTop_Levee
     definition: classsubtype IN (5,6)
-    category: ClassSubtype
+    category: classsubtype
   breakwaters:
   - name: Damwall_Racetrack
     definition: classsubtype = 5
-    category: ClassSubtype
+    category: classsubtype
   - source: poi
     name: Points Of Interest
     definition: poitype = 'Breakwater'
@@ -283,9 +279,9 @@ features:
       letter-spacing: 0.1
   caves-pinnacles:
     name: Caves_Pinnacles
-    redefine: true
+    redefine: true # TODO: not working
     definition: classsubtype IN (1,2,6)
-    category: ClassSubtype
+    category: classsubtype
     label:
       field: generalname
       position: [ 1, 2, 3, 4 ]
@@ -295,41 +291,41 @@ features:
     source: rfs
     name: RoadSegment
     definition: operationalstatus NOT IN (3,8) AND roadontype = 3 AND classsubtype <> 8
-    category: FunctionHierarchy
+    category: functionhierarchy
   railway-tunnels:
     name: Railway_intunnel_LS
     definition: operationalstatus NOT IN (3,8)
-    category: ClassSubtype
+    category: classsubtype
   wharves-ramps-slipways:
     name: Wharfs_Ramps
-    category: ClassSubtype
+    category: classsubtype
   runways:
     name: Runway
     category:
-    - RunwayDefinition
-    - RunwaySurface
+    - runwaydefinition
+    - runwaysurface
   recreational-perimeters:
     name: Damwall_Racetrack
     definition: classsubtype = 6
     category:
-    - ClassSubtype
+    - classsubtype
     - generalculturaltype
   floodways:
     source: rfs
     name: RoadSegment
     definition: operationalstatus NOT IN (3,8) AND roadontype = 4 AND classsubtype <> 8 AND functionhierarchy IN (1,2,3,4,5,6)
-    category: FunctionHierarchy
+    category: functionhierarchy
   roads:
   - source: rfs
     name: RoadSegment
     definition: operationalstatus NOT IN (3,8) AND roadontype <> 3 AND classsubtype <> 8
     category:
     - surface
-    - ClassSubtype
-    - FunctionHierarchy
-    - RoadOnType
-  - source: lpi-raster-labels
-    name: Raster_Road_Labels
+    - classsubtype
+    - functionhierarchy
+    - roadontype
+  - source: guras
+    name: Road Name Extent
     definition: functionhierarchy NOT IN (6,7,10,11) AND roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
     # TODO: specify by relevance instead of by function hierarchy?
     category: functionhierarchy
@@ -353,24 +349,24 @@ features:
     name: Railway_onground_LS
     definition: operationalstatus NOT IN (3,8)
     category:
-    - ClassSubtype
-    - RailOnType
+    - classsubtype
+    - railontype
   road-bridges:
     source: rfs
     name: RoadSegment
     definition: operationalstatus NOT IN (3,8) AND roadontype = 2 AND classsubtype <> 8
     category:
-    - FunctionHierarchy
-    - ClassSubtype
+    - functionhierarchy
+    - classsubtype
     - surface
   railway-bridges:
     name: Railway_onbridge_LS
     definition: operationalstatus NOT IN (3,8) AND railontype = 2
-    category: ClassSubtype
+    category: classsubtype
   gates-grids:
     name: Gates_Grids
-    rotate: SymbolRotation
-    category: ClassSubtype
+    rotate: symbolrotation
+    category: classsubtype
   tanks:
     source: rfs
     name: TankPoint
@@ -423,9 +419,9 @@ features:
   - source: boundaries
     name: NPWS Reserve
     definition: classsubtype IN (1,2,4,5,7)
-    category: ClassSubtype
+    category: classsubtype
     label:
-      field: [ reservename, ReserveType ]
+      field: [ reservename, reservetype ]
       minimum-area: 400
       font-size: 2.5
       letter-spacing: 0.3
@@ -441,7 +437,7 @@ features:
   - source: lpimap
     name: Building_Large
     definition: classsubtype = 3
-    category: ClassSubtype
+    category: classsubtype
     label:
       field: generalname
       minimum-area: 400
@@ -469,7 +465,7 @@ features:
       margin: 0.7
       letter-spacing: 0.1
   - name: Mountains
-    redefine: true
+    redefine: true # TODO: not working
     # TODO: include fuzzypointfeaturetype = 9 (LandcoverLike)?
     definition: fuzzypointfeaturetype = 4
     category: fuzzypointfeaturetype
@@ -498,13 +494,13 @@ features:
       RangeLike:
         font-size: 2.2
   place-names:
-    source: poi
-    name: Points Of Interest
-    definition: poigroup = 8 AND poiname NOT LIKE '% HUT' AND poiname NOT LIKE '% SWAMP'
-    category: poitype
+    source: lpimap
+    name: PlacePoint_LS
+    definition: generalname NOT LIKE '% HUT' AND generalname NOT LIKE '% SWAMP'
+    category: placetype
     label-only: true
     label:
-      field: poiname
+      field: generalname
       position: [ 0, 1, 2, 3, 4 ]
       font-size: 1.6
       margin: 0.7

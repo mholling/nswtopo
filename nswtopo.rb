@@ -1539,7 +1539,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class ArcGISIdentify < Source
+  class ArcGISVector < Source
     include Annotation
     FONT_ASPECT = 0.7
     
@@ -1603,57 +1603,44 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           options["id"] = source["service"]["layers"].find do |layer|
             layer["name"] == options["name"]
           end.fetch("id") unless options["id"]
-          URI::HTTP.build(:host => source["host"], :path => [ *source["path"], options["id"] ].join(?/), :query => "f=json").tap do |uri|
-            scales = HTTP.get(uri, source["headers"]) do |response|
-              JSON.parse(response.body).tap do |result|
-                raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
-              end
-            end.values_at("minScale", "maxScale")
-            options["scale"] = scales.last.zero? ? scales.first.zero? ? map.scale : 2 * scales.first : scales.inject(&:+) / 2
-          end unless options["scale"]
-          pixels = map.wgs84_bounds.map do |bound|
-            bound.reverse.inject(&:-) * 96 * 110000 / options["scale"] / 0.0254
-          end.map(&:ceil)
+          uri = URI::HTTP.build(:host => source["host"], :path => [ *source["path"], options["id"] ].join(?/), :query => "f=json")
+          per_page, fields, types, type_id_field = HTTP.get(uri, source["headers"]) do |response|
+            JSON.parse(response.body).tap do |result|
+              raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+            end
+          end.values_at("maxRecordCount", "fields", "types", "typeIdField")
+          per_page ||= options["per-page"] || source["per-page"] || 1000
+          fields = fields.map { |field| { field["name"] => field } }.inject(&:merge)
+          types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
+          type_field_name = type_id_field && fields.values.find { |field| field["alias"] == type_id_field }.fetch("name")
           query = {
             "f" => "json",
-            "sr" => 4326,
+            "inSR" => 4326,
             "geometryType" => "esriGeometryPolygon",
             "geometry" => { "rings" => [ map.wgs84_corners << map.wgs84_corners.first ] }.to_json,
-            "layers" => "all:#{options['id']}",
-            "tolerance" => 0,
-            "mapExtent" => map.wgs84_bounds.transpose.flatten.join(?,),
-            "imageDisplay" => [ *pixels, 96 ].join(?,),
-            "returnGeometry" => true,
+            "returnIdsOnly" => true,
           }
-          index_attribute = options["page-by"] || source["page-by"] || "OBJECTID"
-          definition, redefine, id = options.values_at("definition", "redefine", "id")
-          paginate = nil
-          loop do
-            definitions = [ *options["definition"], *paginate ]
-            paged_query = case
-            when definitions.any? && redefine then { "layerDefs" => "#{id}:1 < 0) OR ((#{definitions.join ') AND ('})" }
-            when redefine                     then { "layerDefs" => "#{id}:1 < 0) OR (1 > 0" }
-            when definitions.any?             then { "layerDefs" => "#{id}:(#{definitions.join ') AND ('})" }
-            else                                   { }
-            end.merge(query)
-            uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], "identify" ].join(?/), :query => URI.escape(paged_query.to_query)
+          definitions = [ *options["definition"] ]
+          query["where"] = "(#{definitions.join ') AND ('})" if definitions.any?
+          uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], options["id"], "query" ].join(?/), :query => URI.escape(query.to_query)
+          HTTP.get(uri, source["headers"]) do |response|
+            JSON.parse(response.body).tap do |body|
+              raise Net::HTTPBadResponse.new(body["error"]["message"]) if body["error"]
+            end
+          end.fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
+            field_names = [ *type_field_name, *options["category"], *options["rotate"], *(options["label"] && options["label"]["field"]) ] & fields.keys
+            query = { "f" => "json", "outSR" => 4326, "objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,) }
+            uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], options["id"], "query" ].join(?/), :query => URI.escape(query.to_query)
             body = HTTP.get(uri, source["headers"]) do |response|
               JSON.parse(response.body).tap do |body|
                 raise Net::HTTPBadResponse.new(body["error"]["message"]) if body["error"]
               end
             end
-            page = body.fetch("results", [ ])
-            page.map do |feature|
-              raise BadLayerError.new("no attribute available for pagination (try: #{feature['attributes'].keys.join(', ')})") unless feature["attributes"].has_key?(index_attribute)
-              feature["attributes"][index_attribute].to_i
-            end.max.tap do |value|
-              paginate = "#{index_attribute} > #{value}"
-            end
-            
-            features += page.map do |result|
-              attributes, geometry_type, geometry = result.values_at "attributes", "geometryType", "geometry"
-              wkid = geometry["spatialReference"]["wkid"]
-              projection = Projection.new("epsg:#{wkid}")
+            geometry_type, spatial_reference = body.values_at "geometryType", "spatialReference"
+            wkid = spatial_reference["wkid"]
+            projection = Projection.new("epsg:#{wkid}")
+            features += body.fetch("features", [ ]).map do |feature|
+              geometry = feature["geometry"]
               data = case geometry_type
               when "esriGeometryPoint"
                 projection.reproject_to(map.projection, geometry.values_at("x", "y"))
@@ -1665,28 +1652,38 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   map.coord_corners(1.0).clip(path, closed)
                 end.select(&:many?)
               end
-              category = [ *options["category"] ].map do |field|
-                attributes[field] || field
-              end.map do |string|
-                string.gsub /\W+/, ?-
+              attributes = feature["attributes"]
+              type = types && types[attributes[type_field_name]]
+              attributes.each do |name, value|
+                case
+                when type_field_name == name # name is the type field name
+                  attributes[name] = type["name"]
+                when values = type && type["domains"][name] && type["domains"][name]["codedValues"] # name is the subtype field name
+                  attributes[name] = values.find { |coded_value| coded_value["code"] == value }.fetch("name")
+                when values = fields[name] && fields[name]["domain"] && fields[name]["domain"]["codedValues"] # name is a coded value field name
+                  attributes[name] = values.find { |coded_value| coded_value["code"] == value }.fetch("name")
+                end
               end
-              case attributes[options["rotate"]].to_i
+              categories = [ *options["category"] ].map do |name|
+                (attributes[name] || name).to_s.gsub(/\W+/, ?-)
+              end
+              case attributes[options["rotate"]]
               when 0
-                category << "no-angle"
+                categories << "no-angle"
               else
-                category << "angle"
-                angle = 90 - attributes[options["rotate"]].to_i
+                categories << "angle"
+                angle = 90 - attributes[options["rotate"]]
               end if options["rotate"]
-              { "geometryType" => geometry_type, "data" => data, "category" => category }.tap do |feature|
+              { "geometryType" => geometry_type, "data" => data, "categories" => categories }.tap do |feature|
                 options["label"].tap do |label|
-                  fields = attributes.values_at *label["field"]
-                  format = label["format"] || (%w[%s] * fields.length).join(?\s)
-                  unless fields.map(&:to_s).all?(&:empty?)
-                    feature["label"] = format % fields
+                  label_fields = attributes.values_at *label["field"]
+                  format = label["format"] || (%w[%s] * label_fields.length).join(?\s)
+                  unless label_fields.map(&:to_s).all?(&:empty?)
+                    feature["label"] = format % label_fields
                     label.select do |key, value|
                       value.is_a? Hash
                     end.select do |key, value|
-                      (attributes.values_at(*options["category"]).compact & [ *key ].map(&:to_s)).any?
+                      (categories & [ *key ].map(&:to_s)).any?
                     end.map(&:last).unshift(label).inject(&:merge).tap do |opts|
                       %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth minimum-area].each do |name|
                         feature[name] = opts[name] if opts[name]
@@ -1700,7 +1697,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
             $stdout << "\r  #{sublayer_name} (#{features.length} feature#{?s unless features.one?})"
-            break unless page.any?
           end
         end
         puts
@@ -1727,7 +1723,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.each do |sublayer_name, features|
         puts "  #{sublayer_name}" if features.any?
         features.each do |feature|
-          categories = feature["category"].reject(&:empty?).join(?\s)
+          categories = feature["categories"].reject(&:empty?).join(?\s)
           geometry_type = feature["geometryType"]
           case geometry_type
           when "esriGeometryPoint"
@@ -1759,7 +1755,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         memo + features.select do |feature|
           feature.key?("label")
         end.each do |feature|
-          feature["category"].unshift sublayer_name
+          feature["categories"].unshift sublayer_name
         end.inject([]) do |memo, feature|
           case feature["geometryType"]
           when "esriGeometryPoint"
@@ -1982,7 +1978,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         letter_spacing = feature["letter-spacing"]
         word_spacing   = feature["word-spacing"]
         font_size      = feature["font-size"] || 1.5
-        categories     = feature["category"].reject(&:empty?).join(?\s)
+        categories     = feature["categories"].reject(&:empty?).join(?\s)
         case feature["geometryType"]
         when "esriGeometryPoint"
           position = [ *feature["position"] ][candidate]
@@ -2037,8 +2033,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.map(&:first).push("labels").each do |sublayer_name|
         yield(sublayer_name).elements.collect(&:remove).group_by do |element|
           element.attributes["class"]
-        end.each do |category, elements|
-          yield(sublayer_name).add_element("g", "class" => category) do |group|
+        end.each do |categories, elements|
+          yield(sublayer_name).add_element("g", "class" => categories) do |group|
             elements.each do |element|
               element.attributes.delete "class"
               group.elements << element
@@ -2912,11 +2908,11 @@ controls:
         
         REXML::XPath.match(xml, "/svg/g[@id]").select do |layer|
           sources.any? do |source|
-            source.is_a?(ArcGISIdentify) && layer.attributes["id"] == "#{source.layer_name}#{SEGMENT}labels"
+            source.is_a?(ArcGISVector) && layer.attributes["id"] == "#{source.layer_name}#{SEGMENT}labels"
           end
         end.last.tap do |target|
           additions.select do |source|
-            source.is_a?(ArcGISIdentify)
+            source.is_a?(ArcGISVector)
           end.map do |source|
             xml.elements["/svg/g[@id='#{source.layer_name}#{SEGMENT}labels']"]
           end.compact.reject do |layer|

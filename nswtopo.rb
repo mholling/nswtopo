@@ -924,6 +924,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def self.head(uri, *args, &block)
       request uri, Net::HTTP::Head.new(uri.request_uri, *args), &block
     end
+    
+    def self.get_json(uri, *args)
+      get(uri, *args) do |response|
+        JSON.parse(response.body).tap do |result|
+          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+        end
+      end
+    end
   end
   
   class Source
@@ -1486,11 +1494,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
         @headers = { "Cookie" => cookie }
       end
-      @service = HTTP.get(service_uri("f" => "json"), headers) do |response|
-        JSON.parse(response.body).tap do |result|
-          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
-        end
-      end
+      @service = HTTP.get_json service_uri("f" => "json"), headers
       service["layers"].each { |layer| layer["name"] = layer["name"].gsub(UNDERSCORES, ?_) } if service["layers"]
       service["mapName"] = service["mapName"].gsub(UNDERSCORES, ?_) if service["mapName"]
     end
@@ -1564,11 +1568,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
         source["path"] = [ "", source["instance"] || "arcgis", "rest", "services", source["folder"], source["service"], "MapServer" ]
         uri = URI::HTTP.build(:host => source["host"], :path => source["path"].join(?/), :query => "f=json")
-        source["service"] = HTTP.get(uri, source["headers"]) do |response|
-          JSON.parse(response.body).tap do |result|
-            raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
-          end
-        end
+        source["service"] = HTTP.get_json uri, source["headers"]
         { name => source }
       end.inject(&:merge)
       
@@ -1604,11 +1604,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             layer["name"] == options["name"]
           end.fetch("id") unless options["id"]
           uri = URI::HTTP.build(:host => source["host"], :path => [ *source["path"], options["id"] ].join(?/), :query => "f=json")
-          per_page, fields, types, type_id_field = HTTP.get(uri, source["headers"]) do |response|
-            JSON.parse(response.body).tap do |result|
-              raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
-            end
-          end.values_at("maxRecordCount", "fields", "types", "typeIdField")
+          per_page, fields, types, type_id_field = HTTP.get_json(uri, source["headers"]).values_at("maxRecordCount", "fields", "types", "typeIdField")
           per_page ||= options["per-page"] || source["per-page"] || 1000
           fields = fields.map { |field| { field["name"] => field } }.inject(&:merge)
           types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
@@ -1623,19 +1619,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           definitions = [ *options["definition"] ]
           query["where"] = "(#{definitions.join ') AND ('})" if definitions.any?
           uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], options["id"], "query" ].join(?/), :query => URI.escape(query.to_query)
-          HTTP.get(uri, source["headers"]) do |response|
-            JSON.parse(response.body).tap do |body|
-              raise Net::HTTPBadResponse.new(body["error"]["message"]) if body["error"]
-            end
-          end.fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
+          HTTP.get_json(uri, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
             field_names = [ *type_field_name, *options["category"], *options["rotate"], *(options["label"] && options["label"]["field"]) ] & fields.keys
             query = { "f" => "json", "outSR" => 4326, "objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,) }
             uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], options["id"], "query" ].join(?/), :query => URI.escape(query.to_query)
-            body = HTTP.get(uri, source["headers"]) do |response|
-              JSON.parse(response.body).tap do |body|
-                raise Net::HTTPBadResponse.new(body["error"]["message"]) if body["error"]
-              end
-            end
+            body = HTTP.get_json uri, source["headers"]
             geometry_type, spatial_reference = body.values_at "geometryType", "spatialReference"
             wkid = spatial_reference["wkid"]
             projection = Projection.new("epsg:#{wkid}")
@@ -2065,17 +2053,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         base_uri = URI.parse "http://www.ga.gov.au/gisimg/rest/services/topography/dem_s_1s/ImageServer/"
         base_query = { "f" => "json", "geometry" => map.wgs84_bounds.map(&:sort).transpose.flatten.plus([ -0.001, -0.001, 0.001, 0.001 ]).join(?,) }
         query = URI.escape base_query.merge("returnIdsOnly" => true, "where" => "category = 1").to_query
-        raster_ids = HTTP.get(base_uri + "query?#{query}") do |response|
-          JSON.parse(response.body).tap do |result|
-            raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
-          end.fetch("objectIds")
-        end
+        raster_ids = HTTP.get_json(base_uri + "query?#{query}").fetch("objectIds")
         query = URI.escape base_query.merge("rasterIDs" => raster_ids.join(?,), "format" => "TIFF").to_query
-        tile_paths = HTTP.get(base_uri + "download?#{query}") do |response|
-          JSON.parse(response.body).tap do |result|
-            raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
-          end.fetch("rasterFiles")
-        end.map do |file|
+        tile_paths = HTTP.get_json(base_uri + "download?#{query}").fetch("rasterFiles").map do |file|
           file["id"][/[^@]*/]
         end.select do |url|
           url[/\.tif$/]

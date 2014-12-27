@@ -1623,7 +1623,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
           uri = URI::HTTP.build :host => source["host"], :path => base_path.join(?/), :query => base_query.to_query
           per_page, fields, types, type_id_field = HTTP.get_json(uri, source["headers"]).values_at("maxRecordCount", "fields", "types", "typeIdField")
-          per_page ||= options["per-page"] || source["per-page"] || 500
+          per_page = [ *per_page, *options["per_page"], *source["per_page"], 500 ].min
           fields = fields.map { |field| { field["name"] => field } }.inject(&:merge)
           types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
           type_field_name = type_id_field && fields.values.find { |field| field["alias"] == type_id_field }.fetch("name")

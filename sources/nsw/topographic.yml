@@ -45,19 +45,19 @@ features:
   plantation-horticulture:
     # TODO: include ForestryPlantation-Other(3) ?
     name: Building_Large
-    definition: classsubtype = 6 AND generalculturaltype IN (0,1,2,4)
+    where: classsubtype = 6 AND generalculturaltype IN (0,1,2,4)
     category: generalculturaltype
   urban-areas: Urban
   contours-4m:
   - source: 2m-contours
     name: 2 m Contour
-    definition: mod(elevation,4) = 0
+    where: mod(elevation,4) = 0
     category:
     - classsubtype
     - relevance
   - source: 2m-contours
     name: 2 m Contour Index
-    definition: mod(elevation,4) = 0
+    where: mod(elevation,4) = 0
     category:
     - classsubtype
     - relevance
@@ -75,7 +75,7 @@ features:
     - relevance
     bezier: true
   - name: Contour_10m
-    definition: mod(elevation,50) = 0 AND shape_Length > 1000
+    where: mod(elevation,50) = 0 AND shape_Length > 1000
     label-only: true
     label:
       field: elevation
@@ -91,7 +91,7 @@ features:
     - relevance
     bezier: true
   - name: Contour_20m
-    definition: relevance IN (1,2) AND shape_Length > 2000
+    where: relevance IN (1,2) AND shape_Length > 2000
     label-only: true
     label:
       field: elevation
@@ -102,14 +102,14 @@ features:
       deviation: 0.1
   cliffs-excavation:
   - name: Cliffs_Reefs_Mangroves
-    definition: classsubtype = 11
+    where: classsubtype = 11
     category: classsubtype
   - name: CliffTop_Levee
-    definition: classsubtype IN (1,3)
+    where: classsubtype IN (1,3)
     category: classsubtype
   - source: poi
     name: Points Of Interest
-    definition: poitype = 'Cliff'
+    where: poitype = 'Cliff'
     category: poitype
     label-only: true
     label:
@@ -120,12 +120,12 @@ features:
       letter-spacing: 0.1
   sand:
     name: Cliffs_Reefs_Mangroves
-    definition: classsubtype IN (6,7)
+    where: classsubtype IN (6,7)
     category: classsubtype
   cadastre:
   - source: plan_section_lot
     name: Lot
-    definition: classsubtype = 1
+    where: classsubtype = 1
   - source: act-basic
     name: Urban Registered
   - source: act-basic
@@ -135,7 +135,7 @@ features:
     category: classsubtype
   - source: poi
     name: Points Of Interest
-    definition: poitype = 'Swamp'
+    where: poitype = 'Swamp'
     label-only: true
     label:
       field: poiname
@@ -146,7 +146,7 @@ features:
   watercourses:
   - source: hydrography
     name: Hydroline
-    definition: classsubtype = 1 AND hydrotype NOT IN (5, 6)
+    where: classsubtype = 1 AND hydrotype NOT IN (5, 6)
     category:
     - relevance
     - hydrotype
@@ -179,12 +179,12 @@ features:
     category: hydrotype
   pondage:
     name: Building_Large
-    definition: classsubtype = 9
+    where: classsubtype = 9
     category: generalculturaltype
     bezier: 0.5
   coastline:
     name: Oceans_Bays
-    definition: classsubtype = 3
+    where: classsubtype = 3
     scale: 50000
     bezier: 0.5
   water-areas:
@@ -192,13 +192,13 @@ features:
     category: perenniality
     bezier: 0.5
   - name: Oceans_Bays
-    definition: classsubtype = 3
+    where: classsubtype = 3
     category: classsubtype
     scale: 50000
     bezier: 0.5
   - source: poi
     name: Points Of Interest
-    definition: poitype IN ('Natural Waterbody','Manmade Waterbody','Bay / Inlet / Basin','Reach / River Bend')
+    where: poitype IN ('Natural Waterbody','Manmade Waterbody','Bay / Inlet / Basin','Reach / River Bend')
     category: poitype
     label-only: true
     label:
@@ -209,11 +209,11 @@ features:
       letter-spacing: 0.1
   levees:
   - name: CliffTop_Levee
-    definition: classsubtype = 4
+    where: classsubtype = 4
     category: classsubtype
   - source: poi
     name: Points Of Interest
-    definition: poitype = 'Reef' AND poiname LIKE '% LEVEE'
+    where: poitype = 'Reef' AND poiname LIKE '% LEVEE'
     category: poitype
     label-only: true
     label:
@@ -224,16 +224,16 @@ features:
       letter-spacing: 0.1
   dam-batters:
     name: Building_Large
-    definition: classsubtype = 10
+    where: classsubtype = 10
   dam-walls-spillways:
     name: Damwall_Racetrack
-    definition: classsubtype IN (4,7)
+    where: classsubtype IN (4,7)
     category:
     - classsubtype
     - alternativelabel
   waterfalls: # only shows named waterfalls for now
     name: Waterfalls_springs
-    definition: ancillaryhydrotype = 6
+    where: ancillaryhydrotype = 6
     rotate: symbolrotation
     label:
       field: generalname
@@ -242,18 +242,18 @@ features:
       margin: 1.0
   mangroves-intertidal:
     name: Cliffs_Reefs_Mangroves
-    definition: classsubtype IN (1,3)
+    where: classsubtype IN (1,3)
     category: classsubtype
   reefs-rocks:
   - name: Cliffs_Reefs_Mangroves
-    definition: classsubtype IN (4,5)
+    where: classsubtype IN (4,5)
     category: classsubtype
   # - name: Caves_Pinnacles # can't show point-feature reefs and rock-awash for now
   #   definition: classsubtype IN (4,5)
   #   category: classsubtype
   - source: poi
     name: Points Of Interest
-    definition: poitype = 'Reef' AND poiname NOT LIKE '% LEVEE'
+    where: poitype = 'Reef' AND poiname NOT LIKE '% LEVEE'
     category: poitype
     label-only: true
     label:
@@ -264,7 +264,7 @@ features:
       letter-spacing: 0.1
   - source: poi
     name: Points Of Interest
-    definition: poitype = 'Rock Awash'
+    where: poitype = 'Rock Awash'
     category: poitype
     label-only: true
     label:
@@ -275,15 +275,15 @@ features:
       letter-spacing: 0.1
   rocky-shore:
     name: CliffTop_Levee
-    definition: classsubtype IN (5,6)
+    where: classsubtype IN (5,6)
     category: classsubtype
   breakwaters:
   - name: Damwall_Racetrack
-    definition: classsubtype = 5
+    where: classsubtype = 5
     category: classsubtype
   - source: poi
     name: Points Of Interest
-    definition: poitype = 'Breakwater'
+    where: poitype = 'Breakwater'
     label-only: true
     label:
       field: poiname
@@ -302,11 +302,11 @@ features:
   road-tunnels:
     source: rfs
     name: RoadSegment
-    definition: operationalstatus NOT IN (3,8) AND roadontype = 3 AND classsubtype <> 8
+    where: operationalstatus NOT IN (3,8) AND roadontype = 3 AND classsubtype <> 8
     category: functionhierarchy
   railway-tunnels:
     name: Railway_intunnel_LS
-    definition: operationalstatus NOT IN (3,8)
+    where: operationalstatus NOT IN (3,8)
     category: classsubtype
   wharves-ramps-slipways:
     name: Wharfs_Ramps
@@ -318,19 +318,19 @@ features:
     - runwaysurface
   recreational-perimeters:
     name: Damwall_Racetrack
-    definition: classsubtype = 6
+    where: classsubtype = 6
     category:
     - classsubtype
     - generalculturaltype
   floodways:
     source: rfs
     name: RoadSegment
-    definition: operationalstatus NOT IN (3,8) AND roadontype = 4 AND classsubtype <> 8 AND functionhierarchy IN (1,2,3,4,5,6)
+    where: operationalstatus NOT IN (3,8) AND roadontype = 4 AND classsubtype <> 8 AND functionhierarchy IN (1,2,3,4,5,6)
     category: functionhierarchy
   roads:
   - source: rfs
     name: RoadSegment
-    definition: operationalstatus NOT IN (3,8) AND roadontype <> 3 AND classsubtype <> 8
+    where: operationalstatus NOT IN (3,8) AND roadontype <> 3 AND classsubtype <> 8
     category:
     - surface
     - classsubtype
@@ -338,7 +338,7 @@ features:
     - roadontype
   - source: guras
     name: Road Name Extent
-    definition: functionhierarchy NOT IN (6,7,10,11) AND roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
+    where: functionhierarchy NOT IN (6,7,10,11) AND roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
     # TODO: specify by relevance instead of by function hierarchy?
     category: functionhierarchy
     label-only: true
@@ -359,21 +359,21 @@ features:
         word-spacing: 1.0
   railways:
     name: Railway_onground_LS
-    definition: operationalstatus NOT IN (3,8)
+    where: operationalstatus NOT IN (3,8)
     category:
     - classsubtype
     - railontype
   road-bridges:
     source: rfs
     name: RoadSegment
-    definition: operationalstatus NOT IN (3,8) AND roadontype = 2 AND classsubtype <> 8
+    where: operationalstatus NOT IN (3,8) AND roadontype = 2 AND classsubtype <> 8
     category:
     - functionhierarchy
     - classsubtype
     - surface
   railway-bridges:
     name: Railway_onbridge_LS
-    definition: operationalstatus NOT IN (3,8) AND railontype = 2
+    where: operationalstatus NOT IN (3,8) AND railontype = 2
     category: classsubtype
   gates-grids:
     name: Gates_Grids
@@ -386,11 +386,11 @@ features:
   - name: Dwellings_Buildings
     category: small
   - name: Building_Large
-    definition: classsubtype = 5
+    where: classsubtype = 5
     category: large
   - source: poi
     name: Points Of Interest
-    definition: poigroup = 1 AND (poitype = 'Homestead' OR (poitype = 'Community Facility' AND poiname LIKE '% HUT'))
+    where: poigroup = 1 AND (poitype = 'Homestead' OR (poitype = 'Community Facility' AND poiname LIKE '% HUT'))
     category: poitype
     label-only: true
     label:
@@ -402,7 +402,7 @@ features:
   railway-stations:
     source: rfs
     name: TransportFacilityPoint
-    definition: classsubtype = 6
+    where: classsubtype = 6
   spot-heights:
     name: SpotHeight
     label:
@@ -413,24 +413,24 @@ features:
   # trig-stations:
   #   source: survey
   #   name: SurveyMark
-  #   definition: marksymbol LIKE 'TS_'
+  #   where: marksymbol LIKE 'TS_'
   #   category: marksymbol
   beacons:
     # TODO: labels from POI
     name: Beacon_Tower
-    definition: classsubtype = 12
+    where: classsubtype = 12
   towers:
     name: Beacon_Tower
-    definition: classsubtype = 7
+    where: classsubtype = 7
   yards-quarries-windmills:
     name: Beacon_Tower
-    definition: classsubtype = 4 AND generalculturaltype IN (8,9,11,12)
+    where: classsubtype = 4 AND generalculturaltype IN (8,9,11,12)
     category: generalculturaltype
   state-border: State_Border
   reserves:
   - source: boundaries
     name: NPWS Reserve
-    definition: classsubtype IN (1,2,4,5,7)
+    where: classsubtype IN (1,2,4,5,7)
     category: classsubtype
     label:
       field: [ reservename, reservetype ]
@@ -448,7 +448,7 @@ features:
       format: "%s State Forest"
   - source: lpimap
     name: Building_Large
-    definition: classsubtype = 3
+    where: classsubtype = 3
     category: classsubtype
     label:
       field: generalname
@@ -467,7 +467,7 @@ features:
   feature-names:
   - source: poi
     name: Points Of Interest
-    definition: poitype IN ('Gap / Pass / Saddle','Headland','Mountain/Hill/Peak','Peninsula / Spit','Plateau / Tableland','Island','Rapids','Sandbar / Shoal','Lock')
+    where: poitype IN ('Gap / Pass / Saddle','Headland','Mountain/Hill/Peak','Peninsula / Spit','Plateau / Tableland','Island','Rapids','Sandbar / Shoal','Lock')
     category: poitype
     label-only: true
     label:
@@ -477,7 +477,7 @@ features:
       margin: 0.7
       letter-spacing: 0.1
   - name: Ridge_Beach
-    definition: generalname <> 'GREAT DIVIDING RANGE'
+    where: generalname <> 'GREAT DIVIDING RANGE'
     category: fuzzylinefeaturetype
     label-only: trye
     label:
@@ -496,7 +496,7 @@ features:
   place-names:
     source: lpimap
     name: PlacePoint_LS
-    definition: generalname NOT LIKE '% HUT' AND generalname NOT LIKE '% SWAMP'
+    where: generalname NOT LIKE '% HUT' AND generalname NOT LIKE '% SWAMP'
     category: placetype
     label-only: true
     label:

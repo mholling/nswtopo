@@ -1603,14 +1603,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           options["id"] = source["service"]["layers"].find do |layer|
             layer["name"] == options["name"]
           end.fetch("id") unless options["id"]
-          definition_expression = [ *options["definition"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["definition"]
-          if options["redefine"]
+          if options["definition"]
+            definition = [ *options["definition"] ].map { |clause| "(#{clause})" }.join(" AND ")
+            layer = { "source" => { "type" => "mapLayer", "mapLayerId" => options["id"] }, "definitionExpression" => "1<0) OR (#{definition}" }
             base_path = [ *source["path"], "dynamicLayer" ]
-            layer = { "source" => { "type" => "mapLayer", "mapLayerId" => options["id"] }, "definitionExpression" => "1<0) OR (#{definition_expression}" }
             base_query = { "f" => "json", "layer" => layer.to_json }
           else
+            where = [ *options["where"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["where"]
             base_path = [ *source["path"], options["id"] ]
-            base_query = { "f" => "json", "where" => definition_expression }
+            base_query = { "f" => "json", "where" => where }
           end
           uri = URI::HTTP.build :host => source["host"], :path => base_path.join(?/), :query => URI.escape(base_query.to_query)
           per_page, fields, types, type_id_field = HTTP.get_json(uri, source["headers"]).values_at("maxRecordCount", "fields", "types", "typeIdField")

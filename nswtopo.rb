@@ -1621,6 +1621,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             base_path = [ *source["path"], options["id"] ]
             base_query = { "f" => "json", "where" => where }
           end
+          reproject = params["local-reprojection"] || source["local-reprojection"] || options["local-reprojection"]
           uri = URI::HTTP.build :host => source["host"], :path => base_path.join(?/), :query => base_query.to_query
           per_page, fields, types, type_id_field = HTTP.get_json(uri, source["headers"]).values_at("maxRecordCount", "fields", "types", "typeIdField")
           per_page = [ *per_page, *options["per_page"], *source["per_page"], 500 ].min
@@ -1628,26 +1629,30 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
           type_field_name = type_id_field && fields.values.find { |field| field["alias"] == type_id_field }.fetch("name")
           field_names = [ *type_field_name, *options["category"], *options["rotate"], *(options["label"] && options["label"]["field"]) ] & fields.keys
-          out_sr = { "wkt" => map.projection.wkt_esri }
           geometry = { "rings" => [ map.wgs84_corners << map.wgs84_corners.first ] }
           query = base_query.merge "inSR" => 4326, "geometryType" => "esriGeometryPolygon", "geometry" => geometry.to_json, "returnIdsOnly" => true
           uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/), :query => query.to_query
           HTTP.get_json(uri, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
-            query = base_query.merge "outSR" => out_sr.to_json, "objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,)
+            query = base_query.merge "objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,)
+            query.merge! "outSR" => { "wkt" => map.projection.wkt_esri }.to_json unless reproject
             uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/)
             body = HTTP.post_json uri, query.to_query, source["headers"]
             geometry_type = body["geometryType"]
+            if reproject
+              wkid = source["wkid"] || body["spatialReference"]["latestWkid"] || body["spatialReference"]["wkid"]
+              projection = Projection.new "epsg:#{wkid == 102100 ? 3857 : wkid}"
+            end
             features += body.fetch("features", [ ]).map do |feature|
               data = case geometry_type
               when "esriGeometryPoint"
-                feature["geometry"].values_at("x", "y")
-              when "esriGeometryPolyline"
-                feature["geometry"]["paths"].map do |path|
-                  map.coord_corners(1.0).clip(path, false)
-                end.select(&:many?)
-              when "esriGeometryPolygon"
-                feature["geometry"]["rings"].map do |path|
-                  map.coord_corners(1.0).clip(path, true)
+                point = feature["geometry"].values_at("x", "y")
+                reproject ? projection.reproject_to(map.projection, point) : point
+              when "esriGeometryPolyline", "esriGeometryPolygon"
+                is_polygon = geometry_type == "esriGeometryPolygon"
+                feature["geometry"][is_polygon ? "rings" : "paths"].map do |points|
+                  reproject ? projection.reproject_to(map.projection, points) : points
+                end.map do |path|
+                  map.coord_corners(1.0).clip(path, is_polygon)
                 end.select(&:many?)
               end
               attributes = feature["attributes"]

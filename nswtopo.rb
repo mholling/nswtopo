@@ -932,6 +932,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
     end
+    
+    def self.post_json(uri, body, *args)
+      post(uri, body, *args) do |response|
+        JSON.parse(response.body).tap do |result|
+          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+        end
+      end
+    end
   end
   
   class Source
@@ -1626,8 +1634,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/), :query => URI.escape(query.to_query)
           HTTP.get_json(uri, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
             query = base_query.merge "outSR" => out_sr.to_json, "objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,)
-            uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/), :query => URI.escape(query.to_query)
-            body = HTTP.get_json uri, source["headers"]
+            uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/)
+            body = HTTP.post_json uri, URI.escape(query.to_query), source["headers"]
             geometry_type = body["geometryType"]
             features += body.fetch("features", [ ]).map do |feature|
               data = case geometry_type

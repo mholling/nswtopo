@@ -696,10 +696,10 @@ margin: 15
         @rotation = config["rotation"]
         abort "Error: cannot specify map size and auto-rotation together" if @rotation == "auto"
         abort "Error: map rotation must be between +/-45 degrees" unless @rotation.abs <= 45
-        @centre = Projection.wgs84.reproject_to(@projection, @projection_centre)
+        @centre = reproject_from Projection.wgs84, @projection_centre
       else
         puts "Calculating map bounds..."
-        bounding_points = Projection.wgs84.reproject_to(@projection, wgs84_points)
+        bounding_points = reproject_from Projection.wgs84, wgs84_points
         if config["rotation"] == "auto"
           @centre, @extents, @rotation = BoundingBox.minimum_bounding_box(bounding_points)
           @rotation *= 180.0 / Math::PI
@@ -725,6 +725,10 @@ margin: 15
     end
     
     attr_reader :name, :scale, :projection, :bounds, :centre, :extents, :rotation
+    
+    def reproject_from(projection, point_or_points)
+      projection.reproject_to(@projection, point_or_points)
+    end
     
     def transform_bounds_to(target_projection)
       @projection.transform_bounds_to target_projection, bounds
@@ -1144,7 +1148,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   module Annotation
     def svg_coords(coords, projection, map)
-      map.coords_to_mm projection.reproject_to(map.projection, coords)
+      map.coords_to_mm map.reproject_from(projection, coords)
     end
     
     def render_svg(xml, map, &block)
@@ -1646,11 +1650,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               data = case geometry_type
               when "esriGeometryPoint"
                 point = feature["geometry"].values_at("x", "y")
-                reproject ? projection.reproject_to(map.projection, point) : point
+                reproject ? map.reproject_from(projection, point) : point
               when "esriGeometryPolyline", "esriGeometryPolygon"
                 is_polygon = geometry_type == "esriGeometryPolygon"
                 feature["geometry"][is_polygon ? "rings" : "paths"].map do |points|
-                  reproject ? projection.reproject_to(map.projection, points) : points
+                  reproject ? map.reproject_from(projection, points) : points
                 end.map do |path|
                   map.coord_corners(1.0).clip(path, is_polygon)
                 end.select(&:many?)

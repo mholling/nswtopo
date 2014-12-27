@@ -56,7 +56,7 @@ module HashHelpers
   end
 
   def to_query
-    reject { |key, value| value.nil? }.map { |key, value| "#{key}=#{value}" }.join ?&
+    URI.escape reject { |key, value| value.nil? }.map { |key, value| "#{key}=#{value}" }.join(?&)
   end
 end
 Hash.send :include, HashHelpers
@@ -1488,13 +1488,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def export_uri(query)
       service_type, function = params["image"] ? %w[ImageServer exportImage] : %w[MapServer export]
       uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type, function ].compact.join ?/
-      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
+      URI::HTTP.build :host => params["host"], :path => uri_path, :query => query.to_query
     end
     
     def service_uri(query)
       service_type = params["image"] ? "ImageServer" : "MapServer"
       uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type ].compact.join ?/
-      URI::HTTP.build :host => params["host"], :path => uri_path, :query => URI.escape(query.to_query)
+      URI::HTTP.build :host => params["host"], :path => uri_path, :query => query.to_query
     end
     
     def get_service
@@ -1621,7 +1621,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             base_path = [ *source["path"], options["id"] ]
             base_query = { "f" => "json", "where" => where }
           end
-          uri = URI::HTTP.build :host => source["host"], :path => base_path.join(?/), :query => URI.escape(base_query.to_query)
+          uri = URI::HTTP.build :host => source["host"], :path => base_path.join(?/), :query => base_query.to_query
           per_page, fields, types, type_id_field = HTTP.get_json(uri, source["headers"]).values_at("maxRecordCount", "fields", "types", "typeIdField")
           per_page ||= options["per-page"] || source["per-page"] || 500
           fields = fields.map { |field| { field["name"] => field } }.inject(&:merge)
@@ -1631,11 +1631,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           out_sr = { "wkt" => map.projection.wkt_esri }
           geometry = { "rings" => [ map.wgs84_corners << map.wgs84_corners.first ] }
           query = base_query.merge "inSR" => 4326, "geometryType" => "esriGeometryPolygon", "geometry" => geometry.to_json, "returnIdsOnly" => true
-          uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/), :query => URI.escape(query.to_query)
+          uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/), :query => query.to_query
           HTTP.get_json(uri, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
             query = base_query.merge "outSR" => out_sr.to_json, "objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,)
             uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/)
-            body = HTTP.post_json uri, URI.escape(query.to_query), source["headers"]
+            body = HTTP.post_json uri, query.to_query, source["headers"]
             geometry_type = body["geometryType"]
             features += body.fetch("features", [ ]).map do |feature|
               data = case geometry_type
@@ -2062,9 +2062,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       else
         base_uri = URI.parse "http://www.ga.gov.au/gisimg/rest/services/topography/dem_s_1s/ImageServer/"
         base_query = { "f" => "json", "geometry" => map.wgs84_bounds.map(&:sort).transpose.flatten.plus([ -0.001, -0.001, 0.001, 0.001 ]).join(?,) }
-        query = URI.escape base_query.merge("returnIdsOnly" => true, "where" => "category = 1").to_query
+        query = base_query.merge("returnIdsOnly" => true, "where" => "category = 1").to_query
         raster_ids = HTTP.get_json(base_uri + "query?#{query}").fetch("objectIds")
-        query = URI.escape base_query.merge("rasterIDs" => raster_ids.join(?,), "format" => "TIFF").to_query
+        query = base_query.merge("rasterIDs" => raster_ids.join(?,), "format" => "TIFF").to_query
         tile_paths = HTTP.get_json(base_uri + "download?#{query}").fetch("rasterFiles").map do |file|
           file["id"][/[^@]*/]
         end.select do |url|

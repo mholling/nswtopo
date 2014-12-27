@@ -16,7 +16,6 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: Hydrography
-    per-page: 500
   survey:
     host: maps.six.nsw.gov.au
     folder: sixmaps
@@ -38,6 +37,10 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: Boundaries
+  2m-contours:
+    host: mapsq.six.nsw.gov.au
+    folder: sixmaps
+    service: 2mContour
 features:
   plantation-horticulture:
     # TODO: include ForestryPlantation-Other(3) ?
@@ -46,12 +49,25 @@ features:
     category: generalculturaltype
   urban-areas: Urban
   contours-4m:
-    name: Contour_10m
-    redefine: true # TODO: not working
-    definition: sourceprogram = 2 AND mod(elevation,4) = 0
+  - source: 2m-contours
+    name: 2 m Contour
+    definition: mod(elevation,4) = 0
     category:
     - classsubtype
     - relevance
+  - source: 2m-contours
+    name: 2 m Contour Index
+    definition: mod(elevation,4) = 0
+    category:
+    - classsubtype
+    - relevance
+    label:
+      field: elevation
+      orientation: uphill
+      font-size: 1.4
+      letter-spacing: 0.05
+      interval: 120
+      deviation: 0.1
   contours-10m:
   - name: Contour_10m
     category:
@@ -215,9 +231,8 @@ features:
     category:
     - classsubtype
     - alternativelabel
-  waterfalls:
+  waterfalls: # only shows named waterfalls for now
     name: Waterfalls_springs
-    redefine: true # TODO: not working
     definition: ancillaryhydrotype = 6
     rotate: symbolrotation
     label:
@@ -233,10 +248,9 @@ features:
   - name: Cliffs_Reefs_Mangroves
     definition: classsubtype IN (4,5)
     category: classsubtype
-  - name: Caves_Pinnacles
-    redefine: true
-    definition: classsubtype IN (4,5)
-    category: classsubtype
+  # - name: Caves_Pinnacles # can't show point-feature reefs and rock-awash for now
+  #   definition: classsubtype IN (4,5)
+  #   category: classsubtype
   - source: poi
     name: Points Of Interest
     definition: poitype = 'Reef' AND poiname NOT LIKE '% LEVEE'
@@ -277,10 +291,8 @@ features:
       font-size: 1.8
       margin: 0.7
       letter-spacing: 0.1
-  caves-pinnacles:
+  caves-pinnacles: # can't show rock-inland (classsubtype = 6) for now
     name: Caves_Pinnacles
-    redefine: true # TODO: not working
-    definition: classsubtype IN (1,2,6)
     category: classsubtype
     label:
       field: generalname
@@ -460,18 +472,6 @@ features:
     label-only: true
     label:
       field: poiname
-      position: [ 0, 1, 2, 3, 4 ]
-      font-size: 1.8
-      margin: 0.7
-      letter-spacing: 0.1
-  - name: Mountains
-    redefine: true # TODO: not working
-    # TODO: include fuzzypointfeaturetype = 9 (LandcoverLike)?
-    definition: fuzzypointfeaturetype = 4
-    category: fuzzypointfeaturetype
-    label-only: true
-    label:
-      field: generalname
       position: [ 0, 1, 2, 3, 4 ]
       font-size: 1.8
       margin: 0.7

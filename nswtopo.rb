@@ -1603,21 +1603,29 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           options["id"] = source["service"]["layers"].find do |layer|
             layer["name"] == options["name"]
           end.fetch("id") unless options["id"]
-          uri = URI::HTTP.build(:host => source["host"], :path => [ *source["path"], options["id"] ].join(?/), :query => "f=json")
+          definition_expression = [ *options["definition"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["definition"]
+          if options["redefine"]
+            base_path = [ *source["path"], "dynamicLayer" ]
+            layer = { "source" => { "type" => "mapLayer", "mapLayerId" => options["id"] }, "definitionExpression" => "1<0) OR (#{definition_expression}" }
+            base_query = { "f" => "json", "layer" => layer.to_json }
+          else
+            base_path = [ *source["path"], options["id"] ]
+            base_query = { "f" => "json", "where" => definition_expression }
+          end
+          uri = URI::HTTP.build :host => source["host"], :path => base_path.join(?/), :query => URI.escape(base_query.to_query)
           per_page, fields, types, type_id_field = HTTP.get_json(uri, source["headers"]).values_at("maxRecordCount", "fields", "types", "typeIdField")
-          per_page ||= options["per-page"] || source["per-page"] || 1000
+          per_page ||= options["per-page"] || source["per-page"] || 500
           fields = fields.map { |field| { field["name"] => field } }.inject(&:merge)
           types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
           type_field_name = type_id_field && fields.values.find { |field| field["alias"] == type_id_field }.fetch("name")
           field_names = [ *type_field_name, *options["category"], *options["rotate"], *(options["label"] && options["label"]["field"]) ] & fields.keys
           out_sr = { "wkt" => map.projection.wkt_esri }
           geometry = { "rings" => [ map.wgs84_corners << map.wgs84_corners.first ] }
-          query = { "f" => "json", "inSR" => 4326, "geometryType" => "esriGeometryPolygon", "geometry" => geometry.to_json, "returnIdsOnly" => true }
-          query["where"] = "(#{[ *options["definition"] ].join ') AND ('})" if options["definition"]
-          uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], options["id"], "query" ].join(?/), :query => URI.escape(query.to_query)
+          query = base_query.merge "inSR" => 4326, "geometryType" => "esriGeometryPolygon", "geometry" => geometry.to_json, "returnIdsOnly" => true
+          uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/), :query => URI.escape(query.to_query)
           HTTP.get_json(uri, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
-            query = { "f" => "json", "outSR" => out_sr.to_json, "objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,) }
-            uri = URI::HTTP.build :host => source["host"], :path => [ *source["path"], options["id"], "query" ].join(?/), :query => URI.escape(query.to_query)
+            query = base_query.merge "outSR" => out_sr.to_json, "objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,)
+            uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/), :query => URI.escape(query.to_query)
             body = HTTP.get_json uri, source["headers"]
             geometry_type = body["geometryType"]
             features += body.fetch("features", [ ]).map do |feature|

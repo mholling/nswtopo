@@ -1,4 +1,4 @@
-class: ArcGISIdentify
+class: ArcGISVector
 sources:
   atlas:
     host: atlas.nsw.gov.au

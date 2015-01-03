@@ -1641,22 +1641,25 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             query.merge! "outSR" => { "wkt" => map.projection.wkt_esri }.to_json unless reproject
             uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/)
             body = HTTP.post_json uri, query.to_query, source["headers"]
-            geometry_type = body["geometryType"]
+            dimension = case body["geometryType"]
+            when "esriGeometryPoint"    then 0
+            when "esriGeometryPolyline" then 1
+            when "esriGeometryPolygon"  then 2
+            end
             if reproject
               wkid = source["wkid"] || body["spatialReference"]["latestWkid"] || body["spatialReference"]["wkid"]
               projection = Projection.new "epsg:#{wkid == 102100 ? 3857 : wkid}"
             end
             features += body.fetch("features", [ ]).map do |feature|
-              data = case geometry_type
-              when "esriGeometryPoint"
+              data = case dimension
+              when 0
                 point = feature["geometry"].values_at("x", "y")
                 reproject ? map.reproject_from(projection, point) : point
-              when "esriGeometryPolyline", "esriGeometryPolygon"
-                is_polygon = geometry_type == "esriGeometryPolygon"
-                feature["geometry"][is_polygon ? "rings" : "paths"].map do |points|
+              when 1, 2
+                feature["geometry"][dimension == 2 ? "rings" : "paths"].map do |points|
                   reproject ? map.reproject_from(projection, points) : points
                 end.map do |path|
-                  map.coord_corners(1.0).clip(path, is_polygon)
+                  map.coord_corners(1.0).clip(path, dimension == 2)
                 end.select(&:many?)
               end
               attributes = feature["attributes"]
@@ -1681,7 +1684,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 categories << "angle"
                 angle = 90 - attributes[options["rotate"]]
               end if options["rotate"]
-              { "geometryType" => geometry_type, "data" => data, "categories" => categories }.tap do |feature|
+              { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
                 options["label"].tap do |label|
                   label_fields = attributes.values_at *label["field"]
                   format = label["format"] || (%w[%s] * label_fields.length).join(?\s)
@@ -1731,17 +1734,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         puts "  #{sublayer_name}" if features.any?
         features.each do |feature|
           categories = feature["categories"].reject(&:empty?).join(?\s)
-          geometry_type = feature["geometryType"]
-          case geometry_type
-          when "esriGeometryPoint"
+          dimension = feature["dimension"]
+          case dimension
+          when 0
             x, y = map.coords_to_mm(feature["data"]).round(MM_DECIMAL_DIGITS)
             angle = feature["angle"]
             transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
             yield(sublayer_name).add_element "use", "transform" => transform, "class" => categories
-          when "esriGeometryPolyline", "esriGeometryPolygon"
-            close, fill_options = case geometry_type
-              when "esriGeometryPolyline" then [ nil, { "fill" => "none" }         ]
-              when "esriGeometryPolygon"  then [ ?Z,  { "fill-rule" => "nonzero" } ]
+          when 1, 2
+            close, fill_options = case dimension
+            when 1 then [ nil, { "fill" => "none" }         ]
+            when 2 then [ ?Z,  { "fill-rule" => "nonzero" } ]
             end
             feature["data"].reject(&:empty?).map do |coords|
               map.coords_to_mm coords
@@ -1764,16 +1767,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.each do |feature|
           feature["categories"].unshift sublayer_name
         end.inject([]) do |memo, feature|
-          case feature["geometryType"]
-          when "esriGeometryPoint"
+          case feature["dimension"]
+          when 0
             feature["point"] = map.coords_to_mm feature.delete("data")
             memo << feature
-          when "esriGeometryPolyline"
+          when 1
             feature.delete("data").each do |coords|
               points = map.coords_to_mm coords
               memo << feature.dup.merge("points" => points)
             end
-          when "esriGeometryPolygon"
+          when 2
             feature.delete("data").map do |coords|
               map.coords_to_mm coords
             end.select do |points|
@@ -1788,7 +1791,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       puts "  generating labels"
       features.map do |feature|
-        [ feature, feature["geometryType"] == "esriGeometryPolyline" && feature["smooth"] ]
+        [ feature, feature["dimension"] == 1 && feature["smooth"] ]
       end.select(&:last).each do |feature, mm|
         feature["points"].smooth!(mm, 20)
       end
@@ -1798,8 +1801,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         font_size      = feature["font-size"]      || 1.5
         letter_spacing = feature["letter-spacing"] || 0
         word_spacing   = feature["word-spacing"]   || 0
-        case feature["geometryType"]
-        when "esriGeometryPoint"
+        case feature["dimension"]
+        when 0
           margin = feature["margin"] || 0
           lines = text.in_two
           width = lines.map(&:length).max * (font_size * FONT_ASPECT + letter_spacing)
@@ -1817,7 +1820,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               corner.rotate_by_degrees(-map.rotation).plus(point)
             end
           end
-        when "esriGeometryPolyline"
+        when 1
           margin = feature["margin"]
           interval = feature["interval"] || 150
           deviation = feature["deviation"] || 5
@@ -1873,7 +1876,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             feature["endpoints"] << [ cumulative[range.first] / interval, cumulative[range.last] / interval, cumulative.last / interval ]
             (top + bottom.reverse).convex_hull.reverse
           end
-        when "esriGeometryPolygon"
+        when 2
           lines = text.in_two
           width = lines.map(&:length).max * (font_size * FONT_ASPECT + letter_spacing)
           height = lines.length * font_size
@@ -1915,11 +1918,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           label1 = [ feature, candidate1 ]
           hulls.map(&:last).each do |candidate2|
             label2 = [ feature, candidate2 ]
-            case features[feature]["geometryType"]
-            when "esriGeometryPoint"
+            case features[feature]["dimension"]
+            when 0
               conflicts[feature][candidate1][label2] = true
               conflicts[feature][candidate2][label1] = true
-            when "esriGeometryPolyline"
+            when 1
               start1, finish1, total = features[feature]["endpoints"][candidate1]
               start2, finish2, total = features[feature]["endpoints"][candidate2]
               case
@@ -1970,7 +1973,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       5.times do
         labels.select do |feature, candidate|
-          features[feature]["geometryType"] == "esriGeometryPoint"
+          features[feature]["dimension"] == 0
         end.each do |label|
           feature, candidate = label
           counts_candidates = conflicts[feature].map do |candidate, conflicts|
@@ -1986,8 +1989,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         word_spacing   = feature["word-spacing"]
         font_size      = feature["font-size"] || 1.5
         categories     = feature["categories"].reject(&:empty?).join(?\s)
-        case feature["geometryType"]
-        when "esriGeometryPoint"
+        case feature["dimension"]
+        when 0
           position = [ *feature["position"] ][candidate]
           margin = feature["margin"] || 0
           lines = feature["label"].in_two
@@ -2008,7 +2011,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
           end
-        when "esriGeometryPolyline"
+        when 1
           d = feature["baselines"][candidate].to_path_data(MM_DECIMAL_DIGITS)
           id = [ layer_name, "labels", "path", index, candidate ].join SEGMENT
           yield(:defs).add_element "path", "id" => id, "d" => d
@@ -2019,7 +2022,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               text_path.add_text feature["label"]
             end
           end
-        when "esriGeometryPolygon"
+        when 2
           lines = feature["label"].in_two
           point = feature["points"].centroid
           transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"

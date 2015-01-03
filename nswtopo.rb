@@ -822,14 +822,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def declination
       @declination ||= begin
-        degrees_minutes_seconds = @projection_centre.map do |coord|
-          [ (coord > 0 ? 1 : -1) * coord.abs.floor, (coord.abs * 60).floor % 60, (coord.abs * 3600).round % 60 ]
-        end
         today = Date.today
-        year_month_day = [ today.year, today.month, today.day ]
-        url = "http://www.ga.gov.au/bin/geoAGRF?latd=%i&latm=%i&lats=%i&lond=%i&lonm=%i&lons=%i&elev=0&year=%i&month=%i&day=%i&Ein=D" % (degrees_minutes_seconds.reverse.flatten + year_month_day)
-        HTTP.get(URI.parse url) do |response|
-          /D\s*=\s*(\d+\.\d+)/.match(response.body) { |match| match.captures[0].to_f }
+        easting, northing = @projection_centre
+        query = { "lat1" => northing, "lon1" => easting, "model" => "WMM", "startYear" => today.year, "startMonth" => today.month, "startDay" => today.day, "resultFormat" => "xml" }
+        uri = URI::HTTP.build :host => "www.ngdc.noaa.gov", :path => "/geomag-web/calculators/calculateDeclination"
+        HTTP.post(uri, query.to_query) do |response|
+          begin
+            REXML::Document.new(response.body).elements["//declination"].text.to_f
+          rescue REXML::ParseException
+            raise ServerError.new("couldn't get magnetic declination value")
+          end
         end
       end
     end
@@ -2240,6 +2242,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.each do |d|
         yield.add_element("path", "d" => d, "stroke" => "black", "stroke-width" => "0.1")
       end
+    rescue ServerError => e
+      puts "  #{e.message}"
     end
   end
   
@@ -3018,6 +3022,7 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
+# TODO: relief layer breaks any vector layers above it!
 # TODO: switch to Open3 for shelling out
 # TODO: add nodata transparency in vegetation source?
 # TODO: remove linked images from PDF output?

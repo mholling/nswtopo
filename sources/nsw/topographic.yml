@@ -61,45 +61,25 @@ features:
     category:
     - classsubtype
     - relevance
-    label:
-      field: elevation
-      orientation: uphill
-      font-size: 1.4
-      letter-spacing: 0.05
-      interval: 120
-      deviation: 0.1
+    label: elevation
   contours-10m:
   - name: Contour_10m
     category:
     - classsubtype
     - relevance
-    bezier: true
   - name: Contour_10m
     where: mod(elevation,50) = 0 AND shape_Length > 1000
     label-only: true
-    label:
-      field: elevation
-      orientation: uphill
-      font-size: 1.4
-      letter-spacing: 0.05
-      interval: 120
-      deviation: 0.1
+    label: elevation
   contours-20m:
   - name: Contour_20m
     category:
     - classsubtype
     - relevance
-    bezier: true
   - name: Contour_20m
     where: relevance IN (1,2) AND shape_Length > 2000
     label-only: true
-    label:
-      field: elevation
-      orientation: uphill
-      font-size: 1.4
-      letter-spacing: 0.05
-      interval: 120
-      deviation: 0.1
+    label: elevation
   cliffs-excavation:
   - name: Cliffs_Reefs_Mangroves
     where: classsubtype = 11
@@ -112,12 +92,7 @@ features:
     where: poitype = 'Cliff'
     category: poitype
     label-only: true
-    label:
-      field: poiname
-      position: [ 0, 1, 2, 3, 4 ]
-      font-size: 1.8
-      margin: 0.7
-      letter-spacing: 0.1
+    label: poiname
   sand:
     name: Cliffs_Reefs_Mangroves
     where: classsubtype IN (6,7)
@@ -137,12 +112,7 @@ features:
     name: Points Of Interest
     where: poitype = 'Swamp'
     label-only: true
-    label:
-      field: poiname
-      position: [ 0, 1, 2, 3, 4 ]
-      font-size: 1.8
-      margin: 0.7
-      letter-spacing: 0.1
+    label: poiname
   watercourses:
   - source: hydrography
     name: Hydroline
@@ -150,30 +120,12 @@ features:
     category:
     - relevance
     - hydrotype
-    bezier: true
     # TODO: include Perenniality and render accordingly?
   - source: lpimap
     name: Stream_Names
     category: relevance
     label-only: true
-    label:
-      field: hydronamestring
-      smooth: 8.0
-      deviation: 3.0
-      interval: 100
-      margin: 2.5
-      letter-spacing: 0.1
-      word-spacing: 2.0
-      [ 1, 2 ]:
-        font-size: 1.9
-        interval: 150
-      [ 3, 4 ]:
-        font-size: 1.7
-        interval: 150
-      [ 5, 6, 7 ]:
-        font-size: 1.5
-      [ 8, 9, 10 ]:
-        font-size: 1.4
+    label: hydronamestring
   stock-dams:
     name: StockDams
     category: hydrotype
@@ -181,47 +133,31 @@ features:
     name: Building_Large
     where: classsubtype = 9
     category: generalculturaltype
-    bezier: 0.5
   coastline:
     name: Oceans_Bays
     where: classsubtype = 3
     scale: 50000
-    bezier: 0.5
   water-areas:
   - name: HydroArea
     category: perenniality
-    bezier: 0.5
   - name: Oceans_Bays
     where: classsubtype = 3
     category: classsubtype
     scale: 50000
-    bezier: 0.5
   - source: poi
     name: Points Of Interest
     where: poitype IN ('Natural Waterbody','Manmade Waterbody','Bay / Inlet / Basin','Reach / River Bend')
     category: poitype
     label-only: true
-    label:
-      field: poiname
-      position: [ 0, 1, 2, 3, 4 ]
-      font-size: 1.8
-      margin: 0.7
-      letter-spacing: 0.1
+    label: poiname
   levees:
   - name: CliffTop_Levee
     where: classsubtype = 4
-    category: classsubtype
   - source: poi
     name: Points Of Interest
     where: poitype = 'Reef' AND poiname LIKE '% LEVEE'
-    category: poitype
     label-only: true
-    label:
-      field: poiname
-      position: [ 0, 1, 2, 3, 4 ]
-      font-size: 1.8
-      margin: 0.7
-      letter-spacing: 0.1
+    label: poiname
   dam-batters:
     name: Building_Large
     where: classsubtype = 10
@@ -235,11 +171,7 @@ features:
     name: Waterfalls_springs
     where: ancillaryhydrotype = 6
     rotate: symbolrotation
-    label:
-      field: generalname
-      position: [ 1, 2, 3, 4 ]
-      font-size: 1.3
-      margin: 1.0
+    label: generalname
   mangroves-intertidal:
     name: Cliffs_Reefs_Mangroves
     where: classsubtype IN (1,3)
@@ -256,23 +188,13 @@ features:
     where: poitype = 'Reef' AND poiname NOT LIKE '% LEVEE'
     category: poitype
     label-only: true
-    label:
-      field: poiname
-      position: [ 0, 1, 2, 3, 4 ]
-      font-size: 1.8
-      margin: 0.7
-      letter-spacing: 0.1
+    label: poiname
   - source: poi
     name: Points Of Interest
     where: poitype = 'Rock Awash'
     category: poitype
     label-only: true
-    label:
-      field: poiname
-      position: [ 1, 2, 3, 4 ]
-      font-size: 1.8
-      margin: 1.0
-      letter-spacing: 0.1
+    label: poiname
   rocky-shore:
     name: CliffTop_Levee
     where: classsubtype IN (5,6)
@@ -285,20 +207,11 @@ features:
     name: Points Of Interest
     where: poitype = 'Breakwater'
     label-only: true
-    label:
-      field: poiname
-      position: [ 0, 1, 2, 3, 4 ]
-      font-size: 1.8
-      margin: 0.7
-      letter-spacing: 0.1
+    label: poiname
   caves-pinnacles: # can't show rock-inland (classsubtype = 6) for now
     name: Caves_Pinnacles
     category: classsubtype
-    label:
-      field: generalname
-      position: [ 1, 2, 3, 4 ]
-      font-size: 1.4
-      margin: 1.0
+    label: generalname
   road-tunnels:
     source: rfs
     name: RoadSegment
@@ -342,21 +255,7 @@ features:
     # TODO: specify by relevance instead of by function hierarchy?
     category: functionhierarchy
     label-only: true
-    label:
-      field: roadnamestring
-      smooth: 5.0
-      deviation: 2.0
-      font-size: 1.4
-      letter-spacing: 0.1
-      margin: 1.2
-      [ Path, Track-Vehicular ]:
-        font-size: 1.4
-        margin: 0.8
-      [ SubArterialRoad, DistributorRoad ]:
-        font-size: 1.6
-      [ Motorway, PrimaryRoad, ArterialRoad ]:
-        font-size: 1.8
-        word-spacing: 1.0
+    label: roadnamestring
   railways:
     name: Railway_onground_LS
     where: operationalstatus NOT IN (3,8)
@@ -393,23 +292,14 @@ features:
     where: poigroup = 1 AND (poitype = 'Homestead' OR (poitype = 'Community Facility' AND poiname LIKE '% HUT'))
     category: poitype
     label-only: true
-    label:
-      field: poiname
-      format: "'%s'"
-      position: [ 1, 2, 3, 4 ]
-      font-size: 1.5
-      margin: 1.0
+    label: poiname
   railway-stations:
     source: rfs
     name: TransportFacilityPoint
     where: classsubtype = 6
   spot-heights:
     name: SpotHeight
-    label:
-      field: elevation
-      font-size: 1.4
-      margin: 0.7
-      position: [ 1, 2, 3, 4 ]
+    label: elevation
   # trig-stations:
   #   source: survey
   #   name: SurveyMark
@@ -432,79 +322,39 @@ features:
     name: NPWS Reserve
     where: classsubtype IN (1,2,4,5,7)
     category: classsubtype
-    label:
-      field: [ reservename, reservetype ]
-      minimum-area: 400
-      font-size: 2.5
-      letter-spacing: 0.3
+    label: [ reservename, reservetype ]
   - source: boundaries
     name: State Forest
     category: StateForest
-    label:
-      field: stateforestname
-      minimum-area: 400
-      font-size: 2.5
-      letter-spacing: 0.3
-      format: "%s State Forest"
+    label: stateforestname
   - source: lpimap
     name: Building_Large
     where: classsubtype = 3
     category: classsubtype
-    label:
-      field: generalname
-      minimum-area: 400
-      font-size: 2.5
-      letter-spacing: 0.3
+    label: generalname
   relative-heights:
     name: RelativeHeight
     label-only: true
-    label:
-      field: relativeheight
-      format: "%sr"
-      font-size: 1.4
-      margin: 0.8
-      position: [ 1, 2, 3, 4, 0 ]
+    label: relativeheight
   feature-names:
   - source: poi
     name: Points Of Interest
     where: poitype IN ('Gap / Pass / Saddle','Headland','Mountain/Hill/Peak','Peninsula / Spit','Plateau / Tableland','Island','Rapids','Sandbar / Shoal','Lock')
     category: poitype
     label-only: true
-    label:
-      field: poiname
-      position: [ 0, 1, 2, 3, 4 ]
-      font-size: 1.8
-      margin: 0.7
-      letter-spacing: 0.1
+    label: poiname
   - name: Ridge_Beach
     where: generalname <> 'GREAT DIVIDING RANGE'
     category: fuzzylinefeaturetype
     label-only: trye
-    label:
-      field: generalname
-      smooth: 12
-      font-size: 1.8
-      word-spacing: 3
-      letter-spacing: 0.5
-      Beach:
-        margin: 0.7
-      ValleyLike:
-        margin: 0.7
-        font-size: 2.2
-      RangeLike:
-        font-size: 2.2
+    label: generalname
   place-names:
     source: lpimap
     name: PlacePoint_LS
     where: generalname NOT LIKE '% HUT' AND generalname NOT LIKE '% SWAMP'
     category: placetype
     label-only: true
-    label:
-      field: generalname
-      position: [ 0, 1, 2, 3, 4 ]
-      font-size: 1.6
-      margin: 0.7
-      letter-spacing: 0.2
+    label: generalname
 
 # LPIMap/Damwall_Racetrack (GeneralCulturalLine)
 # (classsubtype:generalculturaltype)
@@ -563,20 +413,17 @@ plantation-horticulture:
         fill: "#59B359"
         d: M 38.0 15.8333 L 49.0833 31.6667 L 43.7 31.6667 L 52.25 41.1667 L 45.9167 41.1667 L 53.8333 50.6667 L 41.1667 50.6667 L 41.1667 58.5833 L 34.8333 58.5833 L 34.8333 50.6667 L 22.1667 50.6667 L 30.0833 41.1667 L 23.75 41.1667 L 32.3 31.6667 L 26.9167 31.6667 Z M 0.0 -22.1667 L 11.0833 -6.3333 L 5.7 -6.3333 L 14.25 3.1667 L 7.9167 3.1667 L 15.8333 12.6667 L 3.1667 12.6667 L 3.1667 20.5833 L -3.1667 20.5833 L -3.1667 12.6667 L -15.8333 12.6667 L -7.9167 3.1667 L -14.25 3.1667 L -5.7 -6.3333 L -11.0833 -6.3333 Z M 0.0 53.8333 L 11.0833 69.6667 L 5.7 69.6667 L 14.25 79.1667 L 7.9167 79.1667 L 15.8333 88.6667 L 3.1667 88.6667 L 3.1667 96.5833 L -3.1667 96.5833 L -3.1667 88.6667 L -15.8333 88.6667 L -7.9167 79.1667 L -14.25 79.1667 L -5.7 69.6667 L -11.0833 69.6667 Z M 76.0 -22.1667 L 87.0833 -6.3333 L 81.7 -6.3333 L 90.25 3.1667 L 83.9167 3.1667 L 91.8333 12.6667 L 79.1667 12.6667 L 79.1667 20.5833 L 72.8333 20.5833 L 72.8333 12.6667 L 60.1667 12.6667 L 68.0833 3.1667 L 61.75 3.1667 L 70.3 -6.3333 L 64.9167 -6.3333 Z M 76.0 53.8333 L 87.0833 69.6667 L 81.7 69.6667 L 90.25 79.1667 L 83.9167 79.1667 L 91.8333 88.6667 L 79.1667 88.6667 L 79.1667 96.5833 L 72.8333 96.5833 L 72.8333 88.6667 L 60.1667 88.6667 L 68.0833 79.1667 L 61.75 79.1667 L 70.3 69.6667 L 64.9167 69.6667 Z
 urban-areas:
-  style:
-    stroke: none
-    fill: "#FFFABD"
+  stroke: none
+  fill: "#FFFABD"
 contours-4m:
-  styles:
-    [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]:
-      stroke: "#805100"
-      stroke-width: 0.24
-    10:
-      stroke: "#805100"
-      stroke-width: 0.12
-    AncillaryContour:
-      stroke-dasharray: 3 1
-      stroke-width: 0.1
+  stroke: "#805100"
+  [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]:
+    stroke-width: 0.24
+  10:
+    stroke-width: 0.12
+  AncillaryContour:
+    stroke-dasharray: 3 1
+    stroke-width: 0.1
   samples:
     DepressionContour:
       interval: 2.0
@@ -585,16 +432,15 @@ contours-4m:
         stroke-width: 0.12
         y2: 0.3
 contours-10m:
-  styles:
-    [ 1, 2 ]:
-      stroke: "#805100"
-      stroke-width: 0.24
-    [ 3, 4, 5, 6, 7, 8, 9, 10 ]:
-      stroke: "#805100"
-      stroke-width: 0.12
-    AncillaryContour:
-      stroke-dasharray: 3 1
-      stroke-width: 0.1
+  bezier: true
+  stroke: "#805100"
+  [ 1, 2 ]:
+    stroke-width: 0.24
+  [ 3, 4, 5, 6, 7, 8, 9, 10 ]:
+    stroke-width: 0.12
+  AncillaryContour:
+    stroke-dasharray: 3 1
+    stroke-width: 0.1
   samples:
     DepressionContour:
       interval: 2.0
@@ -603,16 +449,15 @@ contours-10m:
         stroke-width: 0.12
         y2: 0.3
 contours-20m:
-  styles:
-    [ 1, 2 ]:
-      stroke: "#805100"
-      stroke-width: 0.24
-    [ 3, 4, 5, 6, 7, 8, 9, 10 ]:
-      stroke: "#805100"
-      stroke-width: 0.12
-    AncillaryContour:
-      stroke-dasharray: 3 1
-      stroke-width: 0.1
+  bezier: true
+  stroke: "#805100"
+  [ 1, 2 ]:
+    stroke-width: 0.24
+  [ 3, 4, 5, 6, 7, 8, 9, 10 ]:
+    stroke-width: 0.12
+  AncillaryContour:
+    stroke-dasharray: 3 1
+    stroke-width: 0.1
   samples:
     DepressionContour:
       interval: 2.0
@@ -621,15 +466,14 @@ contours-20m:
         stroke-width: 0.12
         y2: 0.3
 cliffs-excavation:
-  styles:
-    CliffArea:
-      fill: "#C8C8C8"
-    CliffTop:
-      stroke: "#B04BA9"
-      stroke-width: 0.2
-    ExcavationFace:
-      stroke: black
-      stroke-width: 0.12
+  CliffArea:
+    fill: "#C8C8C8"
+  CliffTop:
+    stroke: "#B04BA9"
+    stroke-width: 0.2
+  ExcavationFace:
+    stroke: black
+    stroke-width: 0.12
   samples:  
     CliffTop:
       interval: 1.0
@@ -679,10 +523,9 @@ caves-pinnacles:
         d: M 0.4 0.4 A 0.4 0.8 0 0 0 -0.4 0.4
 cadastre:
   opacity: 0.5
-  style:
-    stroke: "#777777"
-    stroke-width: 0.05
-    fill: none
+  stroke: "#777777"
+  stroke-width: 0.05
+  fill: none
 swamps-inundation:
   patterns:
     Swamp-Wet:
@@ -726,15 +569,14 @@ swamps-inundation:
           stroke-linecap: round
           d: "m 61.053125,12.798513 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.075,0 0.001,0 m -16.52125,7.46375 0.001,0 m -1.04,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m 9.16125,1.9325 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m 22.08125,0 0.001,0 m -1.09625,0 0.001,0 m -4.67625,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -5.71625,-5.95125 0.001,0 m -4.6775,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 0.05625,3.445 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 3.38,-2.4275 0.001,0 m -1.075,0 0.001,0 m 13.09875,6.96875 0.001,0 m -1.07375,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -11.61,-14.2512493 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -19.75375,2.5062493 0.001,0 m -1.04,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m 5.48125,9.16125 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.075,0 0.001,0 m 14.11625,-4.6975 0.001,0 m -1.03875,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -4.67625,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 7.20875,6.3425 0.001,0 m -1.07375,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -12.86375,-5.63875 0.001,0 m -1.07375,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m 46.52125,-11.4849993 0.001,0 m -4.67625,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -50.74125,-2.71375 0.001,0 m -1.075,0 0.001,0 m 1.91,13.9899993 0.001,0 m -1.075,0 0.001,0 m 50.9925,-10.2574993 0.001,0 m -1.07375,0 0.001,0 m -12.40625,-2.68875 0.001,0 m -4.6775,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -0.86125,7.9349993 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.075,0 0.001,0 m -21.55,-0.6525 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.075,0 0.001,0 m 6.9425,-1.64375 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -4.67625,0 0.001,0 m -3.52375,0 0.001,0 m 2.27,0 0.001,0 m -1.09625,0 0.001,0 m 5.77375,0 0.001,0 m -1.075,0 0.001,0 m -1.09625,0 0.001,0 m 42.6675,-8.3537493 0.001,0 m -1.04,0 0.001,0 m -1.25375,0 0.001,0 m -1.095,0 0.001,0 m -2.25,0 0.001,0 m 1.175,0 0.001,0 m 15.4025,-0.88624992 0.001,0 m -51.07875,22.56749922 0.001,0 m -4.67625,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 0.0125,1.01875 0.001,0 m -1.07375,0 0.001,0 m 12.0025,-23.74374922 0.001,0 m -4.6775,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 3.90625,5.01249992 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -0.47,-3.99375 0.001,0 m -1.07375,0 0.001,0 m 15.5825,6.18625 0.001,0 m -4.67625,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 0.0125,1.0175 0.001,0 m -1.075,0 0.001,0 m 3.04625,-8.01374992 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 16.16125,15.92249922 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -5.325,-11.5887493 0.001,0 m -1.09625,0 0.001,0 m 19.21,2.34875 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -11.85,2.6624993 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -4.96,-7.6737493 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -22.4475,12.9724993 -1.93125,0 m -4.2875,6.60375 0.001,0 m -1.04000002,0 0.001,0 m 1.30125002,-9.55375 0.001,0 m -1.07500002,0 0.001,0 m 3.58000002,6.89125 0.001,0 m -1.07375,0 0.001,0 m 1.07,-11.6937493 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625002,0 0.001,0 m 4.59750002,2.2974993 0.001,0 m -2.71625,-9.23999922 0.001,0 m -1.075,0 0.001,0 m -1.25250002,0 0.001,0 m 0.21125,14.69499922 5.29875002,0 m 54.55875,44.3 0.001,0 m -1.075,0 0.001,0 m -33.17,-4.59375 0.001,0 m -1.075,0 0.001,0 m -12.915,8.97875 0.001,0 m -1.075,0 0.001,0 m 50.36625,-37.6125 0.001,0 m -1.07375,0 0.001,0 m 3.77625,3.15875 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -10.57,9.005 0.001,0 m -1.04,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m 12.05875,19.2625 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.075,0 0.001,0 m 7.43875,-1.64375 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -4.67625,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.25375,0 0.001,0 m -1.095,0 0.001,0 m -17.38375,7.125 0.001,0 m -1.04,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m 7.43875,-1.64375 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -4.67625,0 0.001,0 m -3.52375,0 0.001,0 m -1.09625,0 0.001,0 m 3.3675,0 0.001,0 m -1.09625,0 0.001,0 m 5.95,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -4.77625,-28.03375 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.075,0 0.001,0 m 31.3225,-6.1075 0.001,0 m -1.04125,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m 13.46875,4.62 0.001,0 m -1.04,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m -39.77875,21.22 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -4.67625,0 0.001,0 m -1.25375,0 0.001,0 m -1.095,0 0.001,0 m 5.95,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.925,3.4975 0.001,0 m -1.07375,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m 35.94625,-9.135 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.075,0 0.001,0 m 13.23375,1.2525 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.075,0 0.001,0 m -22.63,-3.05375 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m -15.32625,-0.39125 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.075,0 0.001,0 m 36.155,10.18 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m -15.5825,3.75875 0.001,0 m -1.04,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m 12.60625,-7.0475 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m -7.67375,-15.8175 0.001,0 m -1.04,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -1.07375,0 0.001,0 m 39.7,7.125 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -4.67625,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m 1.56625,-14.1725 0.001,0 m -45.515,34.76625 0.001,0 m 58.59375,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -11.77,-34.76625 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -4.67625,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -12.99875,2.4275 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m -16.65625,3.75875 0.001,0 m -4.6775,0 0.001,0 m -1.03875,0 0.001,0 m -1.02625,0 0.001,0 m 5.6675,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 54.08625,5.50625 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 3.60125,0 0.001,0 m -0.335,1.645 0.001,0 m -38.425,0.91375 0.001,0 m -4.6775,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -15.29125,4.95875 0.001,0 m -1.075,0 0.001,0 m 7.33875,11.015 0.001,0 m -1.07375,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m 31.50125,-20.4375 0.001,0 m -4.6775,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -9.7975,-7.36 0.001,0 m -4.67625,0 0.001,0 m -3.52375,0 0.001,0 m -1.09625,0 0.001,0 m 3.3675,0 0.001,0 m -1.09625,0 0.001,0 m 5.95125,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -9.86625,-6.03 0.001,0 m -1.04,0 0.001,0 m -1.2525,0 0.001,0 m 28.525,17.775 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 0.29125,-3.36625 0.001,0 m -1.075,0 0.001,0 m 15.79625,5.4025 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -43.48,10.10125 0.001,0 m 20.12375,-7.20375 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 7.26125,-9.71 0.001,0 m 31.26875,-2.2975 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m -14.04125,9.50125 0.001,0 m -1.2525,0 0.001,0 m 4.48875,16.81 0.001,0 m -1.25375,0 0.001,0 m 1.14875,-11.79875 0.001,0 m -1.095,0 0.001,0 m 8.45625,-19.575 0.001,0 m -1.09625,0 0.001,0 m -9.55375,27.5625 0.001,0 m -1.095,0 0.001,0 m 19.7325,-7.9875 0.001,0 m -1.09625,0 0.001,0 m -39.205,11.79875 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 37.48125,0.8875 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -18.01,-16.13125 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 2.975,7.36125 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -11.51125,-9.63125 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 6.6775,-6.5 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m 20.18125,-7.67375 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 4.2075,3.1325 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.0975,0 0.001,0 m -5.815,-0.39125 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -25.6275,3.28875 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m 0.37,-9.005 0.001,0 m -1.075,0 0.001,0 m 9.2975,3.75875 0.001,0 m -1.075,0 0.001,0 m -1.25375,0 0.001,0 m -1.09625,0 0.001,0 m 22.60875,-3.75875 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m -20.61625,-2.35 0.001,0 m 46.69125,35.55 -7.2825,0 m -10.88375,-12.215 -7.2825,0 m -17.85375,-8.37875 -7.2825,0 m 48.78375,-6.26375 -7.2825,0 m -19.65375,-9.475 -7.2825,0 m -17.35875,39.15125 0.001,0 m -1.095,0 0.001,0 m -1.075,0 0.001,0 m -1.2525,0 0.001,0 m -1.09625002,0 0.001,0 m 4.54000002,-28.58 0.001,0 m -1.075,0 0.001,0 m -1.21875,5.50625 0.001,0 m -1.07375,0 0.001,0 m -1.25250002,0 0.001,0 m 0.91750002,1.645 0.001,0 m -1.25250002,0 0.001,0 m 2.70500002,5.8725 0.001,0 m -1.2525,0 0.001,0 m -1.09625002,0 0.001,0 m 4.69750002,0 0.001,0 m -1.09625,0 0.001,0 m 0.01375,1.0175 0.001,0 m -1.075,0 0.001,0 m 2.1575,6.0825 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 1.8575,-3.21 0.001,0 m -1.2525,0 0.001,0 m -1.09625,0 0.001,0 m 0.47,-24.3525 0.001,0 m -1.09625,0 0.001,0 m 3.38875,0 0.001,0 m -1.09625,0 0.001,0"
 watercourses:
-  styles:
-    "":
-      stroke: "#4985DF"
-    [ 1, 2, 3, 4 ]:
-      stroke-width: 0.3
-    [ 5, 6, 7 ]:
-      stroke-width: 0.2
-    [ 8, 9, 10 ]:
-      stroke-width: 0.12
+  bezier: true
+  stroke: "#4985DF"
+  [ 1, 2, 3, 4 ]:
+    stroke-width: 0.3
+  [ 5, 6, 7 ]:
+    stroke-width: 0.2
+  [ 8, 9, 10 ]:
+    stroke-width: 0.12
 stock-dams:
   symbols:
     ManMadeWaterBody:
@@ -752,16 +594,17 @@ stock-dams:
         fill: "#B3E6E4"
         r: 0.3
 pondage:
-  style:
-    fill: "#B3E6E4"
-    stroke: "#4985DF"
-    stroke-width: 0.12
+  bezier: 0.5
+  fill: "#B3E6E4"
+  stroke: "#4985DF"
+  stroke-width: 0.12
 coastline:
-  style:
-    fill: none
-    stroke: black
-    stroke-width: 0.2
+  bezier: 0.5
+  fill: none
+  stroke: black
+  stroke-width: 0.2
 water-areas:
+  bezier: 0.5
   order:
     - MainlyDry
     - NonPerennial
@@ -769,17 +612,16 @@ water-areas:
     - SeaLike
   dupes:
     Perennial: outline
-  styles:
-    [ Perennial, SeaLike ]:
-      fill: "#B3E6E4"
-      stroke: none
-    outline Perennial:
-      stroke: "#4985DF"
-      stroke-width: 0.24
-      fill: none
-    [ NonPerennial, MainlyDry ]:
-      stroke: "#4985DF"
-      stroke-width: 0.12
+  [ Perennial, SeaLike ]:
+    fill: "#B3E6E4"
+    stroke: none
+  outline Perennial:
+    stroke: "#4985DF"
+    stroke-width: 0.24
+    fill: none
+  [ NonPerennial, MainlyDry ]:
+    stroke: "#4985DF"
+    stroke-width: 0.12
   patterns:
     NonPerennial:
       width: 16
@@ -799,33 +641,28 @@ water-areas:
         d: M 4.6666 15.388 l 0.001 0 M 4.6666 14.500 l 0.001 0 M 4.4999 13.722 l 0.001 0 M 3.2222 13.666 l 0.001 0 M 5.3333 11.388 l 0.001 0 M 2.9444 10.222 l 0.001 0 M 5.3333 10.055 l 0.001 0 M 6.6111 10.055 l 0.001 0 M 6.9444 10.888 l 0.001 0 M 6.5000 11.999 l 0.001 0 M 7.5555 11.666 l 0.001 0 M 7.5555 12.722 l 0.001 0 M 7.0555 13.444 l 0.001 0 M 7.1666 14.500 l 0.001 0 M 6.8889 15.277 l 0.001 0 M 7.5555 15.777 l 0.001 0 M 9.2222 14.500 l 0.001 0 M 10.111 14.555 l 0.001 0 M 9.4444 13.055 l 0.001 0 M 10.444 12.888 l 0.001 0 M 10.444 11.777 l 0.001 0 M 8.6666 11.444 l 0.001 0 M 11.166 13.055 l 0.001 0 M 12.166 13.611 l 0.001 0 M 12.555 15.888 l 0.001 0 M 15.000 15.666 l 0.001 0 M 15.111 13.777 l 0.001 0 M 14.277 13.333 l 0.001 0 M 14.500 12.555 l 0.001 0 M 14.222 11.666 l 0.001 0 M 14.277 11.055 l 0.001 0 M 15.111 11.333 l 0.001 0 M 1.5555 4.4444 l 0.001 0 M 1.6110 3.9444 l 0.001 0 M 0.4999 3.9444 l 0.001 0 M 2.1666 1.8333 l 0.001 0 M 0.2222 0.9444 l 0.001 0 M 2.4444 0.2777 l 0.001 0 M 4.1111 1.5000 l 0.001 0 M 3.6111 2.2222 l 0.001 0 M 4.3333 3.2222 l 0.001 0 M 2.7222 2.2778 l 0.001 0 M 3.6111 3.8888 l 0.001 0 M 4.2777 4.7222 l 0.001 0 M 3.2777 4.7222 l 0.001 0 M 3.6111 5.5555 l 0.001 0 M 7.2222 4.7777 l 0.001 0 M 6.0555 3.9999 l 0.001 0 M 7.1111 3.6666 l 0.001 0 M 6.8889 2.9444 l 0.001 0 M 5.7777 1.8889 l 0.001 0 M 8.0000 3.5555 l 0.001 0 M 9.2777 4.7777 l 0.001 0 M 9.6666 6.1111 l 0.001 0 M 11.166 4.6110 l 0.001 0 M 11.444 5.4444 l 0.001 0 M 12.222 5.6111 l 0.001 0 M 12.222 3.9999 l 0.001 0 M 11.388 3.5555 l 0.001 0 M 10.611 2.6666 l 0.001 0 M 12.277 3.1110 l 0.001 0 M 12.944 2.3888 l 0.001 0 M 4.5555 11.055 l 0.001 0 M 8.6666 10.555 l 0.001 0 M 10.555 9.9999 l 0.001 0 M 12.277 9.8333 l 0.001 0 M 11.388 10.444 l 0.001 0 M 11.555 9.5000 l 0.001 0 M 13.888 8.1666 l 0.001 0 M 12.611 7.3888 l 0.001 0 M 10.722 7.7777 l 0.001 0 M 10.666 6.8888 l 0.001 0 M 10.666 6.2222 l 0.001 0 M 13.111 5.7777 l 0.001 0 M 14.000 5.1666 l 0.001 0 M 15.222 6.3333 l 0.001 0 M 13.722 7.3888 l 0.001 0 M 7.2222 5.6111 l 0.001 0 M 6.0184 7.0185 l 0.001 0 M 6.6111 8.1666 l 0.001 0 M 2.3147 9.9352 l 0.001 0 M 1.3332 9.0555 l 0.001 0 M 0.5555 8.2222 l 0.001 0 M 3.7777 6.7222 l 0.001 0 M 3.1111 8.4999 l 0.001 0 M 5.8889 9.3333 l 0.001 0 M 9.2222 9.0555 l 0.001 0 M 8.2777 9.0555 l 0.001 0 M 6.7777 7.2222 l 0.001 0 M 1.4444 11.499 l 0.001 0 M 2.1666 11.888 l 0.001 0 M 2.6111 10.833 l 0.001 0 M 0.6666 10.333 l 0.001 0 M 14.277 9.5000 l 0.001 0 M 15.444 9.4444 l 0.001 0 M 0.3333 14.055 l 0.001 0 M 3.9444 14.555 l 0.001 0 M 0.8332 14.722 l 0.001 0 M 2.8333 12.888 l 0.001 0 M 4.1111 11.777 l 0.001 0 M 4.7222 7.8333 l 0.001 0 M 0.1666 6.2222 l 0.001 0 M 15.444 1.4444 l 0.001 0 M 12.777 0.7222 l 0.001 0 M 9.0000 0.9444 l 0.001 0 M 0.9999 2.7222 l 0.001 0 M 5.8889 2.8333 l 0.001 0 M 8.2777 5.2777 l 0.001 0 M 1.9444 7.1111 l 0.001 0 M 11.611 7.6111 l 0.001 0 M 14.388 5.8888 l 0.001 0 M 11.388 1.3332 l 0.001 0 M 8.8889 7.6666 l 0.001 0 M 6.1111 13.055 l 0.001 0 M 4.3888 10.166 l 0.001 0 M 2.6111 15.666 l 0.001 0 M 12.277 15.222 l 0.001 0 M 10.666 0.7222 l 0.001 0 M 0.8332 7.0000 l 0.001 0 M 15.277 13.111 l 0.001 0 M 5.1666 12.944 l 0.001 0 M 4.1666 12.555 l 0.001 0 M 3.2777 12.222 l 0.001 0 M 1.1110 13.546 l 0.001 0 M 1.5555 15.444 l 0.001 0 M 3.1666 14.222 l 0.001 0 M 5.7222 14.500 l 0.001 0 M 8.2222 14.388 l 0.001 0 M 8.3333 15.111 l 0.001 0 M 9.6666 15.722 l 0.001 0 M 11.388 14.055 l 0.001 0 M 7.9444 13.611 l 0.001 0 M 8.7222 12.722 l 0.001 0 M 5.5000 12.055 l 0.001 0 M 1.6110 9.8888 l 0.001 0 M 3.5555 8.9999 l 0.001 0 M 2.3333 8.6111 l 0.001 0 M 1.1666 7.8333 l 0.001 0 M 0.7221 11.499 l 0.001 0 M 4.5555 9.2222 l 0.001 0 M 3.8888 8.1666 l 0.001 0 M 3.5555 7.3888 l 0.001 0 M 2.8333 6.8888 l 0.001 0 M 2.8333 5.7222 l 0.001 0 M 5.1111 5.1666 l 0.001 0 M 2.4444 3.9444 l 0.001 0 M 3.4444 3.0555 l 0.001 0 M 1.3332 1.9444 l 0.001 0 M 0.4999 2.2778 l 0.001 0 M 1.9999 0.9444 l 0.001 0 M 2.9999 0.6111 l 0.001 0 M 4.8333 0.3333 l 0.001 0 M 5.1111 1.4444 l 0.001 0 M 4.9444 2.7222 l 0.001 0 M 5.3888 3.2777 l 0.001 0 M 5.8333 5.4444 l 0.001 0 M 5.7222 6.3888 l 0.001 0 M 7.1666 9.1666 l 0.001 0 M 7.6111 10.055 l 0.001 0 M 9.7222 10.499 l 0.001 0 M 9.5555 11.444 l 0.001 0 M 6.1666 11.111 l 0.001 0 M 11.555 11.166 l 0.001 0 M 9.6111 12.111 l 0.001 0 M 11.222 12.055 l 0.001 0 M 13.222 12.222 l 0.001 0 M 12.944 12.944 l 0.001 0 M 13.222 13.666 l 0.001 0 M 13.055 14.388 l 0.001 0 M 13.333 15.000 l 0.001 0 M 15.000 14.722 l 0.001 0 M 14.111 14.000 l 0.001 0 M 13.388 10.777 l 0.001 0 M 12.333 10.777 l 0.001 0 M 12.333 11.888 l 0.001 0 M 14.444 10.333 l 0.001 0 M 13.222 9.2222 l 0.001 0 M 11.722 8.7777 l 0.001 0 M 10.555 8.5555 l 0.001 0 M 9.8333 7.3333 l 0.001 0 M 7.5555 6.8333 l 0.001 0 M 8.8981 5.8334 l 0.001 0 M 10.166 4.4444 l 0.001 0 M 10.333 3.4444 l 0.001 0 M 9.3333 2.8333 l 0.001 0 M 8.8889 2.1111 l 0.001 0 M 8.0000 2.1111 l 0.001 0 M 8.1111 4.3333 l 0.001 0 M 6.7222 2.2222 l 0.001 0 M 7.0000 0.8333 l 0.001 0 M 8.3333 0.4999 l 0.001 0 M 14.000 3.3888 l 0.001 0 M 13.333 4.7777 l 0.001 0 M 12.111 4.8333 l 0.001 0 M 12.166 6.7777 l 0.001 0 M 13.888 6.6666 l 0.001 0 M 15.388 5.2777 l 0.001 0 M 15.444 3.9999 l 0.001 0 M 14.111 2.3333 l 0.001 0 M 15.611 2.8888 l 0.001 0 M 14.388 1.5000 l 0.001 0 M 14.611 0.8889 l 0.001 0 M 13.888 0.4444 l 0.001 0 M 11.722 0.5555 l 0.001 0 M 9.9444 1.2777 l 0.001 0 M 6.3333 0.2222 l 0.001 0 M 0.4444 9.5555 l 0.001 0 M 2.9444 14.944 l 0.001 0 M 15.611 8.3888 l 0.001 0 M 15.833 6.8888 l 0.001 0 M 0.6666 4.7222 l 0.001 0 M 15.333 10.166 l 0.001 0 M 15.000 2.3333 l 0.001 0 M 0.1111 3.2222 l 0.001 0 M 0.6110 0.2222 l 0.001 0 M 15.796 10.861 l 0.001 0 M 0.2777 12.333 l 0.001 0 M 3.9999 13.222 l 0.001 0 M 6.5000 13.833 l 0.001 0 M 5.9444 15.222 l 0.001 0 M 8.9444 13.777 l 0.001 0 M 10.277 13.777 l 0.001 0 M 10.500 10.999 l 0.001 0 M 12.166 14.555 l 0.001 0 M 14.222 14.611 l 0.001 0 M 13.944 15.611 l 0.001 0 M 15.444 12.055 l 0.001 0 M 1.7777 5.6111 l 0.001 0 M 1.1110 3.4444 l 0.001 0 M 0.7221 1.4444 l 0.001 0 M 3.9444 0.5555 l 0.001 0 M 4.6666 2.0555 l 0.001 0 M 4.6666 6.0000 l 0.001 0 M 6.3333 4.7222 l 0.001 0 M 8.1111 2.7222 l 0.001 0 M 7.6111 1.2221 l 0.001 0 M 9.2777 3.8333 l 0.001 0 M 11.611 2.7777 l 0.001 0 M 11.000 2.0000 l 0.001 0 M 12.222 1.5555 l 0.001 0 M 5.6111 10.611 l 0.001 0 M 7.8333 10.888 l 0.001 0 M 9.4444 9.7778 l 0.001 0 M 11.555 6.5000 l 0.001 0 M 14.888 4.5555 l 0.001 0 M 10.500 5.4444 l 0.001 0 M 8.2222 6.1666 l 0.001 0 M 3.7777 9.7222 l 0.001 0 M 2.4999 7.8888 l 0.001 0 M 14.666 8.8333 l 0.001 0 M 1.6110 12.555 l 0.001 0 M 1.8888 14.888 l 0.001 0 M 0.7777 15.500 l 0.001 0 M 14.777 7.7777 l 0.001 0 M 9.7777 2.0555 l 0.001 0 M 5.7222 0.4999 l 0.001 0 M 4.8888 6.7777 l 0.001 0 M 9.2222 8.3888 l 0.001 0 M 14.722 7.0555 l 0.001 0 M 11.833 12.722 l 0.001 0 M 8.4444 12.111 l 0.001 0 M 2.8888 11.611 l 0.001 0 M 11.000 15.055 l 0.001 0 M 13.111 11.444 l 0.001 0 M 15.000 3.3333 l 0.001 0 M 1.1666 0.5555 l 0.001 0 M 0.6110 13.111 l 0.001 0 M 3.7777 15.444 l 0.001 0 M 9.4444 15.055 l 0.001 0 M 0.6110 8.9444 l 0.001 0 M 1.6666 10.499 l 0.001 0 M 0.7221 5.5555 l 0.001 0 M 2.7314 4.4723 l 0.001 0 M 2.2222 2.7777 l 0.001 0 M 2.9999 1.4444 l 0.001 0 M 4.8888 4.2222 l 0.001 0 M 7.5555 8.4999 l 0.001 0 M 5.7777 8.4999 l 0.001 0 M 8.2777 9.7222 l 0.001 0 M 13.611 10.055 l 0.001 0 M 13.055 3.3888 l 0.001 0 M 13.055 6.6111 l 0.001 0 M 12.388 8.1666 l 0.001 0 M 15.388 0.3888 l 0.001 0 M 13.500 1.4444 l 0.001 0 M 9.8889 0.2222 l 0.001 0 M 5.4444 15.833 l 0.001 0 M 6.2777 1.1528 l 0.001 0 M 7.7222 7.7777 l 0.001 0 M 8.7777 6.9444 l 0.001 0 M 13.111 8.6111 l 0.001 0 M 1.6110 6.5000 l 0.001 0 M 2.2777 14.000 l 0.001 0 M 10.277 9.2500 l 0.001 0 M 3.6111 11.055 l 0.001 0 M 5.3888 13.722 l 0.001 0 M 1.4999 14.166 l 0.001 0 M 1.4444 8.4999 l 0.001 0 M 4.8888 8.6111 l 0.001 0 M 6.6111 6.2222 l 0.001 0 M 14.055 4.1110 l 0.001 0 M 4.7777 0.9444 l 0.001 0 M 11.055 15.777 l 0.001 0 M 15.833 2.0555 l 0.001 0 M 15.666 15.166 l 0.001 0 M 15.888 4.8333 l 0.001 0 M 15.666 13.611 l 0.001 0 M 15.777 7.5555 l 0.001 0 M 8.8333 15.666 l 0.001 0 M 4.6666 15.388 l 0.001 0 M 7.0555 13.444 l 0.001 0 M 15.111 11.333 l 0.001 0 M 9.4906 5.3519 l 0.001 0 M 6.8889 2.9444 l 0.001 0 M 12.222 3.9999 l 0.001 0 M 2.7777 9.1482 l 0.001 0 M 2.1295 13.037 l 0.001 0 M 4.8147 11.879 l 0.001 0 M 7.6111 10.055 l 0.001 0 M 11.222 12.055 l 0.001 0 M 13.333 15.000 l 0.001 0 M 10.046 8.0833 l 0.001 0 M 15.833 6.8888 l 0.001 0 M 2.3610 5.0741 l 0.001 0 M 2.9999 1.4444 l 0.001 0 M 9.8889 0.2222 l 0.001 0 M 13.111 8.6111 l 0.001 0 M 5.5555 7.7593 l 0.001 0 M 15.833 2.0555 l 0.001 0
 levees:
   dupe: hatching
-  styles:
-    Levee:
-      stroke: black
-      stroke-width: 0.1
-    hatching Levee:
-      stroke-width: 1.0
-      stroke-dasharray: 0.1 0.5
+  stroke: black
+  stroke-width: 0.1
+  hatching:
+    stroke-width: 1.0
+    stroke-dasharray: 0.1 0.5
 dam-batters:
-  style:
-    stroke: none
-    fill: "#C0C0C0"
+  stroke: none
+  fill: "#C0C0C0"
 dam-walls-spillways:
   dupes:
     SpillwayEdge: hatching
-  styles:
-    "":
-      stroke: black
-    DamWall:
-      stroke-width: 0.7
-    DamWall WEIR:
-      stroke-width: 0.4
-    SpillwayEdge:
-      stroke-width: 0.15
-    hatching SpillwayEdge:
-      stroke-width: 0.3
-      stroke-dasharray: 0.15 0.65
-      stroke-dashoffset: 0.475
+  stroke: black
+  DamWall:
+    stroke-width: 0.7
+  DamWall WEIR:
+    stroke-width: 0.4
+  SpillwayEdge:
+    stroke-width: 0.15
+  hatching SpillwayEdge:
+    stroke-width: 0.3
+    stroke-dasharray: 0.15 0.65
+    stroke-dashoffset: 0.475
 waterfalls:
   symbols:
     angle:
@@ -894,8 +731,7 @@ reefs-rocks:
         stroke-width: 0.1
         d: M -0.5 0 L 0.5 0 M -0.25 0.433 L 0.25 -0.433 M -0.25 -0.433 L 0.25 0.433
 rocky-shore:
-  style:
-    stroke: none
+  stroke: none
   sample:
     - interval: 0.8
     - path:
@@ -935,8 +771,7 @@ rocky-shore:
         transform: scale(0.001) translate(-500,-500)
         d: M 859 172 L 710 -47 L 555 -33 L 454 223 L 329 26 L 156 268 L 364 517 L 171 616 L 165 815 L 323 800 L 373 1054 L 538 830 L 696 1021 L 862 958 L 810 719 M 694 170 L 521 57 M 361 271 L 209 197 M 472 409 L 309 448 M 466 648 L 167 736 M 760 863 L 588 889 M 437 825 L 349 927
 breakwaters:
-  style:
-    stroke: none
+  stroke: none
   sample:
     - interval: 0.8
     - path:
@@ -976,21 +811,19 @@ breakwaters:
         transform: scale(0.001) translate(-500,-500)
         d: M 859 172 L 710 -47 L 555 -33 L 454 223 L 329 26 L 156 268 L 364 517 L 171 616 L 165 815 L 323 800 L 373 1054 L 538 830 L 696 1021 L 862 958 L 810 719 M 694 170 L 521 57 M 361 271 L 209 197 M 472 409 L 309 448 M 466 648 L 167 736 M 760 863 L 588 889 M 437 825 L 349 927
 road-tunnels:
-  styles:
-    "":
-      stroke: "#404040"
-      stroke-dasharray: 0.5 0.5
-      stroke-width: 0.2
-    [ Motorway, PrimaryRoad, ArterialRoad ]:
-      stroke-width: 0.3
-    [ SubArterialRoad, DistributorRoad ]:
-      stroke-width: 0.25
-    LocalRoad:
-      stroke-width: 0.2
-    [ UrbanServiceLane, AccessWay ]:
-      stroke-width: 0.1
-    Path:
-      stroke-width: 0.2
+  stroke: "#404040"
+  stroke-dasharray: 0.5 0.5
+  stroke-width: 0.2
+  [ Motorway, PrimaryRoad, ArterialRoad ]:
+    stroke-width: 0.3
+  [ SubArterialRoad, DistributorRoad ]:
+    stroke-width: 0.25
+  LocalRoad:
+    stroke-width: 0.2
+  [ UrbanServiceLane, AccessWay ]:
+    stroke-width: 0.1
+  Path:
+    stroke-width: 0.2
   endpoints:
     [ Motorway, PrimaryRoad, ArterialRoad, SubArterialRoad, DistributorRoad, LocalRoad ]:
       path:
@@ -1000,15 +833,13 @@ road-tunnels:
         fill: none
         d: M -0.4 0.6 L 0.1 0.4 L 0.1 -0.4 L -0.4 -0.6
 railway-tunnels:
-  styles:
-    "":
-      stroke: "#404040"
-      stroke-dasharray: 0.6 0.6
-      stroke-width: 0.2
-    HeavyRail:
-      stroke-width: 0.25
-    LightRail:
-      stroke-width: 0.2
+  stroke: "#404040"
+  stroke-dasharray: 0.6 0.6
+  stroke-width: 0.2
+  HeavyRail:
+    stroke-width: 0.25
+  LightRail:
+    stroke-width: 0.2
   endpoint:
     path:
       stroke-dasharray: none
@@ -1017,37 +848,32 @@ railway-tunnels:
       fill: none
       d: M -0.6 0.6 A 0.6 0.6 0 0 0 -0.6 -0.6
 wharves-ramps-slipways:
-  style:
-    stroke: black
-    stroke-width: 0.25
+  stroke: black
+  stroke-width: 0.25
 runways:
-  styles:
-    RunwayPerimeter:
-      stroke: black
-      stroke-width: 0.15
-      stroke-dasharray: 0.8 0.2
-    RunwayCentreline:
-      stroke: "#989898"
-      stroke-width: 0.7
-    LandingGround:
-      stroke: "#A8A8A8"
-      stroke-width: 0.7
-recreational-perimeters:
-  style:
+  RunwayPerimeter:
     stroke: black
     stroke-width: 0.15
     stroke-dasharray: 0.8 0.2
+  RunwayCentreline:
+    stroke: "#989898"
+    stroke-width: 0.7
+  LandingGround:
+    stroke: "#A8A8A8"
+    stroke-width: 0.7
+recreational-perimeters:
+  stroke: black
+  stroke-width: 0.15
+  stroke-dasharray: 0.8 0.2
 floodways:
-  styles:
-    "":
-      stroke: black
-      stroke-dasharray: 0.5 0.4
-      stroke-width: 0.9
-      stroke-linecap: butt
-    [ Motorway, PrimaryRoad, ArterialRoad ]:
-      stroke-width: 1.1
-    [ SubArterialRoad, DistributorRoad ]:
-      stroke-width: 1.0
+  stroke: black
+  stroke-dasharray: 0.5 0.4
+  stroke-width: 0.9
+  stroke-linecap: butt
+  [ Motorway, PrimaryRoad, ArterialRoad ]:
+    stroke-width: 1.1
+  [ SubArterialRoad, DistributorRoad ]:
+    stroke-width: 1.0
 roads:
   # TODO: add rendering for OnCulvert (blue outline?)
   order:
@@ -1059,112 +885,104 @@ roads:
   - Unsealed4WDSurface
   - UnsealedSurface
   - SealedSurface
-  styles:
-    "":
-      stroke-width: 0.4
-    [ SealedSurface, UnknownSurface ]:
-      stroke: red
-    [ UnsealedSurface, Unsealed4WDSurface, SF_Unsealed4WDSurface ]:
-      stroke: "#FF7518"
-    Path:
-      stroke: black
-      stroke-width: 0.25
-      stroke-dasharray: 1.4 0.7
-    VehicularTrack:
-      stroke-width: 0.4
-      stroke-dasharray: 3 1
-    [ Unsealed4WDSurface, SF_Unsealed4WDSurface ]:
-      stroke-width: 0.3
-      stroke-dasharray: 1.8 0.6
-    [ Motorway, PrimaryRoad, ArterialRoad ]:
-      stroke-width: 0.6
-    [ SubArterialRoad, DistributorRoad ]:
-      stroke-width: 0.5
-    LocalRoad:
-      stroke-width: 0.4
-    [ UrbanServiceLane, AccessWay ]:
-      stroke-width: 0.25
-    AccessWay:
-      stroke-dasharray: 1.8 0.6
-    ThroughWater:
-      stroke: "#4985DF"
+  stroke-width: 0.4
+  [ SealedSurface, UnknownSurface ]:
+    stroke: red
+  [ UnsealedSurface, Unsealed4WDSurface, SF_Unsealed4WDSurface ]:
+    stroke: "#FF7518"
+  Path:
+    stroke: black
+    stroke-width: 0.25
+    stroke-dasharray: 1.4 0.7
+  VehicularTrack:
+    stroke-width: 0.4
+    stroke-dasharray: 3 1
+  [ Unsealed4WDSurface, SF_Unsealed4WDSurface ]:
+    stroke-width: 0.3
+    stroke-dasharray: 1.8 0.6
+  [ Motorway, PrimaryRoad, ArterialRoad ]:
+    stroke-width: 0.6
+  [ SubArterialRoad, DistributorRoad ]:
+    stroke-width: 0.5
+  LocalRoad:
+    stroke-width: 0.4
+  [ UrbanServiceLane, AccessWay ]:
+    stroke-width: 0.25
+  AccessWay:
+    stroke-dasharray: 1.8 0.6
+  ThroughWater:
+    stroke: "#4985DF"
 railways:
   dupe: hatching
-  styles:
-    "":
-      stroke: black
-      stroke-width: 0.2
-    HeavyRail:
-      stroke-width: 0.25
-    LightRail:
-      stroke-width: 0.2
-    hatching HeavyRail:
-      stroke-width: 0.8
-      stroke-dasharray: 0.25 2.5
-      stroke-dashoffset: 1.25
-    hatching LightRail:
-      stroke-width: 0.6
-      stroke-dasharray: 0.2 4
-      stroke-dashoffset: 2
+  stroke: black
+  stroke-width: 0.2
+  HeavyRail:
+    stroke-width: 0.25
+  LightRail:
+    stroke-width: 0.2
+  hatching HeavyRail:
+    stroke-width: 0.8
+    stroke-dasharray: 0.25 2.5
+    stroke-dashoffset: 1.25
+  hatching LightRail:
+    stroke-width: 0.6
+    stroke-dasharray: 0.2 4
+    stroke-dashoffset: 2
 road-bridges:
   dupe: outline
-  styles:
-    "":
-      stroke-width: 0.4
-      stroke-linecap: square
-    [ SealedSurface, UnknownSurface ]:
-      stroke: red
-    [ UnsealedSurface, Unsealed4WDSurface, SF_Unsealed4WDSurface ]:
-      stroke: "#FF7518"
-    Path:
-      stroke: white
-      stroke-width: 0.25
-      stroke-linecap: butt
-    [ Motorway, PrimaryRoad, ArterialRoad ]:
-      stroke-width: 0.6
-    [ SubArterialRoad, DistributorRoad ]:
-      stroke-width: 0.5
-    LocalRoad:
-      stroke-width: 0.4
-    outline:
-      stroke: black
-      stroke-width: 0.6
-      stroke-linecap: butt
-    outline Path:
-      stroke: black
-      stroke-width: 0.5
-    [ outline Motorway, outline PrimaryRoad, outline ArterialRoad ]:
-      stroke-width: 0.8
-    [ outline SubArterialRoad, outline DistributorRoad ]:
-      stroke-width: 0.7
+  stroke-width: 0.4
+  stroke-linecap: square
+  [ SealedSurface, UnknownSurface ]:
+    stroke: red
+  [ UnsealedSurface, Unsealed4WDSurface, SF_Unsealed4WDSurface ]:
+    stroke: "#FF7518"
+  Path:
+    stroke: white
+    stroke-width: 0.25
+    stroke-linecap: butt
+  [ Motorway, PrimaryRoad, ArterialRoad ]:
+    stroke-width: 0.6
+  [ SubArterialRoad, DistributorRoad ]:
+    stroke-width: 0.5
+  LocalRoad:
+    stroke-width: 0.4
+  outline:
+    stroke: black
+    stroke-width: 0.6
+    stroke-linecap: butt
+  outline Path:
+    stroke: black
+    stroke-width: 0.5
+  [ outline Motorway, outline PrimaryRoad, outline ArterialRoad ]:
+    stroke-width: 0.8
+  [ outline SubArterialRoad, outline DistributorRoad ]:
+    stroke-width: 0.7
 railway-bridges:
   dupe:
   - blockout
   - hatching
-  styles:
-    "":
-      stroke: black
-      stroke-width: 0.2
-    HeavyRail:
-      stroke-width: 0.25
-    LightRail:
-      stroke-width: 0.2
-    hatching HeavyRail:
-      stroke-width: 0.8
-      stroke-dasharray: 0.25 2.5
-      stroke-dashoffset: 1.25
-    hatching LightRail:
-      stroke-width: 0.6
-      stroke-dasharray: 0.2 4
-      stroke-dashoffset: 2
-    blockout HeavyRail:
-      stroke-width: 0.9
-      stroke-dasharray: none
-      stroke: white
-    blockout LightRail:
-      stroke-width: 0.7
-      stroke-dasharray: none
-      stroke: white
+  stroke: black
+  stroke-width: 0.2
+  HeavyRail:
+    stroke-width: 0.25
+  LightRail:
+    stroke-width: 0.2
+  hatching HeavyRail:
+    stroke-width: 0.8
+    stroke-dasharray: 0.25 2.5
+    stroke-dashoffset: 1.25
+  hatching LightRail:
+    stroke-width: 0.6
+    stroke-dasharray: 0.2 4
+    stroke-dashoffset: 2
+  blockout HeavyRail:
+    stroke-width: 0.9
+    stroke-dasharray: none
+    stroke: white
+  blockout LightRail:
+    stroke-width: 0.7
+    stroke-dasharray: none
+    stroke: white
 gates-grids:
   symbols:
     Gate:
@@ -1187,9 +1005,8 @@ tanks:
       stroke-width: 0.1
       r: 0.3
 buildings:
-  style:
-    fill: "#808080"
-    stroke: none
+  fill: "#808080"
+  stroke: none
   symbol:
     rect:
       width: 0.6
@@ -1271,59 +1088,194 @@ yards-quarries-windmills:
 state-border:
   opacity: 0.5
   dupe: hatching
-  styles:
-    "":
-      stroke: black
-      stroke-width: 0.3
-      stroke-dasharray: 3 1 10 1
-    hatching:
-      stroke-width: 1.5
-      stroke-dasharray: 0.3 14.7
-      stroke-dashoffset: 13.8
+  stroke: black
+  stroke-width: 0.3
+  stroke-dasharray: 3 1 10 1
+  hatching:
+    stroke-width: 1.5
+    stroke-dasharray: 0.3 14.7
+    stroke-dashoffset: 13.8
 reserves:
   opacity: 0.5
-  styles:
-    "":
-      fill: none
-      stroke: "#006400"
-      stroke-width: 0.3
-    RestrictedArea:
-      stroke: "#A9A9A9"
+  fill: none
+  stroke: "#006400"
+  stroke-width: 0.3
+  RestrictedArea:
+    stroke: "#A9A9A9"
+
 labels:
   dupe: outline
-  styles:
-    "":
-      stroke: none
-      fill: black
-      font-style: italic
-      font-family: Arial, Helvetica, sans-serif
-    buildings:
-      font-family: Cambria, Times, serif
-    watercourses:
-      fill: "#1667DF"
-    waterfalls:
-      fill: "#1667DF"
-    [ feature-names, swamps-inundation, reefs-rocks, water-areas, levees, cliffs-excavation, breakwaters ]:
-      font-family: Calibri, Arial, Helvetica, sans-serif
-      font-style: normal
-    [ water-areas, reefs-rocks Reef ]:
-      fill: "#1667DF"
-    [ feature-names RangeLike, feature-names ValleyLike ]:
-      fill: "#404040"
-      opacity: 0.7
-    reserves:
-      fill: "#006400"
-      fill-opacity: 0.5
-      font-weight: bold
-      font-style: normal
-    reserves RestrictedArea:
-      fill: "#A9A9A9"
-    outline:
-      stroke: white
-      fill: none
-      stroke-width: 0.25
-      stroke-opacity: 0.75
-    outline reserves:
-      stroke-width: 0.5
-      stroke-opacity: 0.5
+  stroke: none
+  fill: black
+  font-style: italic
+  font-family: Arial, Helvetica, sans-serif
+  outline:
+    stroke: white
+    fill: none
+    stroke-width: 0.25
+    stroke-opacity: 0.75
+  contours-4m:
+    orientation: uphill
+    font-size: 1.4
+    letter-spacing: 0.05
+    interval: 120
+    deviation: 0.1
+  contours-10m:
+    orientation: uphill
+    font-size: 1.4
+    letter-spacing: 0.05
+    interval: 120
+    deviation: 0.1
+  contours-20m:
+    orientation: uphill
+    font-size: 1.4
+    letter-spacing: 0.05
+    interval: 120
+    deviation: 0.1
+  cliffs-excavation:
+    position: [ 0, 1, 2, 3, 4 ]
+    margin: 0.7
+    font-family: Calibri, Arial, Helvetica, sans-serif
+    font-style: normal
+    font-size: 1.8
+    letter-spacing: 0.1
+  swamps-inundation:
+    position: [ 0, 1, 2, 3, 4 ]
+    margin: 0.7
+    font-family: Calibri, Arial, Helvetica, sans-serif
+    font-style: normal
+    font-size: 1.8
+    letter-spacing: 0.1
+  watercourses:
+    smooth: 8.0
+    deviation: 3.0
+    interval: 100
+    margin: 2.5
+    fill: "#1667DF"
+    letter-spacing: 0.1
+    word-spacing: 2.0
+  [ watercourses 1, watercourses 2 ]:
+    font-size: 1.9
+    interval: 150
+  [ watercourses 3, watercourses 4 ]:
+    font-size: 1.7
+    interval: 150
+  [ watercourses 5, watercourses 6, watercourses 7 ]:
+    font-size: 1.5
+  [ watercourses 8, watercourses 9, watercourses 10 ]:
+    font-size: 1.4
+  water-areas:
+    position: [ 0, 1, 2, 3, 4 ]
+    margin: 0.7
+    fill: "#1667DF"
+    font-family: Calibri, Arial, Helvetica, sans-serif
+    font-style: normal
+    font-size: 1.8
+    letter-spacing: 0.1
+  levees:
+    position: [ 0, 1, 2, 3, 4 ]
+    margin: 0.7
+    font-family: Calibri, Arial, Helvetica, sans-serif
+    font-style: normal
+    font-size: 1.8
+    letter-spacing: 0.1
+  waterfalls:
+    position: [ 1, 2, 3, 4 ]
+    margin: 1.0
+    font-size: 1.3
+    fill: "#1667DF"
+  reefs-rocks:
+    font-family: Calibri, Arial, Helvetica, sans-serif
+    font-style: normal
+  reeds-rocks Reef:
+    position: [ 0, 1, 2, 3, 4 ]
+    margin: 0.7
+    fill: "#1667DF"
+    letter-spacing: 0.1
+    font-size: 1.8
+  reeds-rocks Rock-Awash:
+    position: [ 1, 2, 3, 4 ]
+    font-size: 1.8
+    margin: 1.0
+    letter-spacing: 0.1
+  breakwaters:
+    position: [ 0, 1, 2, 3, 4 ]
+    margin: 0.7
+    font-family: Calibri, Arial, Helvetica, sans-serif
+    font-style: normal
+    font-size: 1.8
+    letter-spacing: 0.1
+  caves-pinnacles:
+    position: [ 1, 2, 3, 4 ]
+    font-size: 1.4
+    margin: 1.0
+  roads:
+    smooth: 5.0
+    deviation: 2.0
+    font-size: 1.4
+    letter-spacing: 0.1
+    margin: 1.2
+  [ roads Path, roads Track-Vehicular ]:
+    font-size: 1.4
+    margin: 0.8
+  [ roads SubArterialRoad, roads DistributorRoad ]:
+    font-size: 1.6
+  [ roads Motorway, roads PrimaryRoad, roads ArterialRoad ]:
+    font-size: 1.8
+    word-spacing: 1.0
+  buildings:
+    font-family: Cambria, Times, serif
+    format: "'%s'"
+    position: [ 1, 2, 3, 4 ]
+    font-size: 1.5
+    margin: 1.0
+  spot-heights:
+    font-size: 1.4
+    margin: 0.7
+    position: [ 1, 2, 3, 4 ]
+  reserves:
+    minimum-area: 400
+    fill: "#006400"
+    fill-opacity: 0.5
+    font-weight: bold
+    font-style: normal
+    font-size: 2.5
+    letter-spacing: 0.3
+  reserves StateForest:
+    format: "%s State Forest"
+  reserves RestrictedArea:
+    fill: "#A9A9A9"
+  outline reserves:
+    stroke-width: 0.5
+    stroke-opacity: 0.5
+  relative-heights:
+    format: "%sr"
+    font-size: 1.4
+    margin: 0.8
+    position: [ 1, 2, 3, 4, 0 ]
+  feature-names:
+    font-family: Calibri, Arial, Helvetica, sans-serif
+    font-style: normal
+  [ feature-names Gap-Pass-Saddle, feature-names Headland, feature-names Mountain-Hill-Peak, feature-names Peninsula-Spit, feature-names Plateau-Tableland, feature-names Island, feature-names Rapids, feature-names Sandbar-Shoal, feature-names Lock ]:
+    position: [ 0, 1, 2, 3, 4 ]
+    font-size: 1.8
+    margin: 0.7
+    letter-spacing: 0.1
+  [ feature-names Beach, feature-names RangeLike, feature-names ValleyLike ]:
+    smooth: 12
+    font-size: 1.8
+    word-spacing: 3
+    letter-spacing: 0.5
+  [ feature-names Beach, feature-names ValleyLike ]:
+    margin: 0.7
+  [ feature-names RangeLike, feature-names ValleyLike ]:
+    font-size: 2.2
+    fill: "#404040"
+    opacity: 0.7
+  place-names:
+    position: [ 0, 1, 2, 3, 4 ]
+    font-size: 1.6
+    margin: 0.7
+    letter-spacing: 0.2
+
 

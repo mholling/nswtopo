@@ -654,6 +654,12 @@ margin: 15
     def transform_bounds_to(target, bounds)
       reproject_to(target, bounds.inject(&:product)).transpose.map { |coords| [ coords.min, coords.max ] }
     end
+    
+    def self.utm_zone(coords, projection)
+      projection.reproject_to_wgs84(coords).one_or_many do |longitude, latitude|
+        (longitude / 6).floor + 31
+      end
+    end
   end
   
   class Map
@@ -683,7 +689,7 @@ margin: 15
       
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
       @projection = config["utm"] ?
-        Projection.utm(GridSource.zone(@projection_centre, Projection.wgs84)) :
+        Projection.utm(Projection.utm_zone(@projection_centre, Projection.wgs84)) :
         Projection.transverse_mercator(@projection_centre.first, 1.0)
       
       @declination = config["declination"]["angle"] if config["declination"]
@@ -696,10 +702,10 @@ margin: 15
         @rotation = config["rotation"]
         abort "Error: cannot specify map size and auto-rotation together" if @rotation == "auto"
         abort "Error: map rotation must be between +/-45 degrees" unless @rotation.abs <= 45
-        @centre = reproject_from Projection.wgs84, @projection_centre
+        @centre = reproject_from_wgs84 @projection_centre
       else
         puts "Calculating map bounds..."
-        bounding_points = reproject_from Projection.wgs84, wgs84_points
+        bounding_points = reproject_from_wgs84 wgs84_points
         if config["rotation"] == "auto"
           @centre, @extents, @rotation = BoundingBox.minimum_bounding_box(bounding_points)
           @rotation *= 180.0 / Math::PI
@@ -728,6 +734,10 @@ margin: 15
     
     def reproject_from(projection, point_or_points)
       projection.reproject_to(@projection, point_or_points)
+    end
+    
+    def reproject_from_wgs84(point_or_points)
+      reproject_from(Projection.wgs84, point_or_points)
     end
     
     def transform_bounds_to(target_projection)
@@ -847,6 +857,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "xmlns" => "http://www.w3.org/2000/svg",
           "xmlns:xlink" => "http://www.w3.org/1999/xlink",
           "xmlns:ev" => "http://www.w3.org/2001/xml-events",
+          "xmlns:sodipodi" => "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd",
           "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape",
           "xml:space" => "preserve",
           "width"  => "#{millimetres[0]}mm",
@@ -855,27 +866,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "enable-background" => "new 0 0 #{millimetres[0]} #{millimetres[1]}",
         }
         xml.add_element("svg", attributes) do |svg|
+          svg.add_element("sodipodi:namedview", "borderlayer" => true)
           svg.add_element("defs")
           svg.add_element("rect", "x" => 0, "y" => 0, "width" => millimetres[0], "height" => millimetres[1], "fill" => "white")
         end
-      end
-    end
-    
-    def svg_transform(millimetres_per_unit)
-      if @rotation.zero?
-        "scale(#{millimetres_per_unit})"
-      else
-        w, h = @bounds.map { |bound| 1000.0 * (bound.max - bound.min) / @scale }
-        t = Math::tan(@rotation * Math::PI / 180.0)
-        d = (t * t - 1) * Math::sqrt(t * t + 1)
-        if t >= 0
-          y = (t * (h * t - w) / d).abs
-          x = (t * y).abs
-        else
-          x = -(t * (h + w * t) / d).abs
-          y = -(t * x).abs
-        end
-        "translate(#{x} #{-y}) rotate(#{@rotation}) scale(#{millimetres_per_unit})"
       end
     end
   end
@@ -949,50 +943,37 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class Source
-    def initialize(layer_name, params)
-      @layer_name = layer_name
+    SVG_PRESENTATION_ATTRIBUTES = %w[alignment-baseline baseline-shift clip-path clip-rule clip color-interpolation-filters color-interpolation color-profile color-rendering color cursor direction display dominant-baseline enable-background fill-opacity fill-rule fill filter flood-color flood-opacity font-family font-size-adjust font-size font-stretch font-style font-variant font-weight glyph-orientation-horizontal glyph-orientation-vertical image-rendering kerning letter-spacing lighting-color marker-end marker-mid marker-start mask opacity overflow pointer-events shape-rendering stop-color stop-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-anchor text-decoration text-rendering unicode-bidi visibility word-spacing writing-mode]
+    
+    def initialize(name, params)
+      @name = name
       @params = params
     end
-    attr_reader :layer_name, :params, :path
+    attr_reader :name, :params, :path, :sublayers
     
     def exist?
       path.nil? || path.exist?
     end
     
     def rerender(xml, map)
-      xml.elements.each("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')][*]") do |layer|
-        layer_id = layer.attributes["id"]
-        sublayer_name = layer_id.split(/^#{layer_name}#{SEGMENT}?/).last
-        puts "  #{sublayer_name}" unless layer_id == layer_name
-        (params["equivalences"] || {}).select do |group, sublayer_names|
-          sublayer_names.include? sublayer_name
-        end.map(&:first).push(sublayer_name).inject(params) do |memo, key|
-          params[key] ? memo.deep_merge(params[key]) : memo
-        end.inject({}) do |memo, (command, args)|
+      xml.elements.each("/svg/g[@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}')][*]") do |group|
+        id = group.attributes["id"]
+        sublayer = id.split(/^#{name}#{SEGMENT}?/).last
+        puts "  #{sublayer}" unless id == name
+        [ *params, *params[sublayer] ].inject({}) do |memo, (command, args)|
           memo.deep_merge case command
-          when "colour"   then { "stroke" => args, "fill" => args }
+          # when "colour"   then { "stroke" => args, "fill" => args } # TODO: update README or reimplement! (with replacement hashes etc)
           when "symbol"   then { "symbols" => { "" => args } }
           when "pattern"  then { "patterns" => { "" => args } }
           when "dupe"     then { "dupes" => { "" => args } }
-          when "style"    then { "styles" => { "" => args } }
           when "sample"   then { "samples" => { "" => args } }
           when "endpoint" then { "endpoints" => { "" => args } }
           else { command => args }
           end
         end.inject([]) do |memo, (command, args)|
           case command
-          when %r{^\./}   then memo << [ command, args ]
+          when %r{^\./} then memo << [ command, args ]
           when "opacity" then memo << [ "self::/@style", "opacity:#{args}" ]
-          when "width"   then memo << [ ".//[@stroke-width and not(self::text)]/@stroke-width", args ]
-          when "stroke", "fill"
-            case args
-            when Hash
-              args.each do |colour, replacement|
-                memo << [ ".//[@#{command}='#{colour}']/@#{command}", replacement ]
-              end
-            else
-              memo << [ ".//[@#{command}!='none']/@#{command}", args ]
-            end
           when "dash"
             case args
             when nil             then memo << [ ".//[@stroke-dasharray]/@stroke-dasharray", nil ]
@@ -1000,75 +981,74 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when "order"
             args.reverse.map do |categories|
-              "./[starts-with(@class,'#{categories}')]"
+              "./g[starts-with(@class,'#{categories}')]"
             end.each do |xpath|
-              layer.elements.collect(xpath, &:remove).reverse.each do |element|
-                layer.unshift element
+              group.elements.collect(xpath, &:remove).reverse.each do |element|
+                group.unshift element
               end
             end
           when "symbols"
             args.each do |categories, elements|
-              [ *categories ].select do |category|
-                layer.elements[".//[@class][starts-with(@class,'#{category}')]/use[not(xlink:href)]"]
-              end.each do |category|
-                id = [ layer_id, *category.split(?\s), "symbol" ].join SEGMENT
-                memo << [ "//svg/defs", { "g" => { "id" => id } } ]
-                memo << [ "//svg/defs/g[@id='#{id}']", elements ]
-                memo << [ ".//[@class][starts-with(@class,'#{category}')]/use", { "xlink:href" => "##{id}"} ]
+              [ *categories ].map do |category|
+                [ "./g[starts-with(@class,'#{category}')]/use[not(xlink:href)]", [ id, *category.split(?\s), "symbol" ].join(SEGMENT) ]
+              end.select do |xpath, symbol_id|
+                group.elements[xpath]
+              end.each do |xpath, symbol_id|
+                memo << [ "//svg/defs", { "g" => { "id" => symbol_id } } ]
+                memo << [ "//svg/defs/g[@id='#{symbol_id}']", elements ]
+                memo << [ xpath, { "xlink:href" => "##{symbol_id}"} ]
               end
             end
           when "patterns"
             args.each do |categories, elements|
-              [ *categories ].select do |category|
-                layer.elements[".//[@class][starts-with(@class,'#{category}')]/path[not(@fill='none')]"]
-              end.each do |category|
-                id = [ layer_id, *category.split(?\s), "pattern" ].join SEGMENT
-                memo << [ "//svg/defs", { "pattern" => { "id" => id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})" } } ]
-                memo << [ "//svg/defs/pattern[@id='#{id}']", elements ]
-                memo << [ ".//[@class][starts-with(@class,'#{category}')]", { "fill" => "url(##{id})"} ]
+              [ *categories ].map do |category|
+                [ "./g[starts-with(@class,'#{category}')]", [ id, *category.split(?\s), "pattern" ].join(SEGMENT) ]
+              end.select do |xpath, pattern_id|
+                group.elements["#{xpath}//path[not(@fill='none')]"]
+              end.each do |xpath, pattern_id|
+                memo << [ "//svg/defs", { "pattern" => { "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})" } } ]
+                memo << [ "//svg/defs/pattern[@id='#{pattern_id}']", elements ]
+                memo << [ xpath, { "fill" => "url(##{pattern_id})"} ]
               end
             end
           when "dupes"
             args.each do |categories, names|
               [ *categories ].each do |category|
-                layer.elements.each(".//[@class][starts-with(@class,'#{category}')]") do |group|
+                xpath = "./g[starts-with(@class,'#{category}')]"
+                group.elements.each(xpath) do |group|
                   classes = group.attributes["class"].to_s.split(?\s)
-                  id = [ layer_id, *classes, "original" ].join SEGMENT
+                  original_id = [ id, *classes, "original" ].join SEGMENT
                   elements = group.elements.map(&:remove)
                   [ *names ].each do |name|
-                    group.add_element "use", "xlink:href" => "##{id}", "class" => [ name, *classes ].join(?\s)
+                    group.add_element "use", "xlink:href" => "##{original_id}", "class" => [ name, *classes ].join(?\s)
                   end
-                  original = group.add_element("g", "id" => id)
+                  original = group.add_element("g", "id" => original_id)
                   elements.each do |element|
                     original.elements << element
                   end
                 end
               end
             end
-          when "styles"
-            args.each do |categories, attributes|
-              [ *categories ].each do |category|
-                memo << [ ".//[@class][contains(@class,'#{category}')]", attributes ]
-              end
-            end
           when "samples"
             args.each do |categories, attributes|
-              [ *categories ].select do |category|
-                layer.elements[".//g[@class][starts-with(@class,'#{category}')]/path[@fill='none']"]
-              end.each do |category|
+              [ *categories ].map do |category|
+                [ "./g[starts-with(@class,'#{category}')]", category]
+              end.select do |xpath, category|
+                group.elements["#{xpath}//path[@fill='none']"]
+              end.each do |xpath, category|
                 elements = case attributes
                 when Array then attributes.map(&:to_a).inject(&:+) || []
                 when Hash  then attributes.map(&:to_a)
                 end.map { |key, value| { key => value } }
                 interval = elements.find { |hash| hash["interval"] }.delete("interval")
                 elements.reject!(&:empty?)
-                ids = elements.map.with_index do |element, index|
-                  [ layer_id, *category.split(?\s), "symbol", *(index if elements.many?) ].join(SEGMENT).tap do |id|
-                    memo << [ "//svg/defs", { "g" => { "id" => id } } ]
-                    memo << [ "//svg/defs/g[@id='#{id}']", element ]
+                symbol_ids = elements.map.with_index do |element, index|
+                  [ id, *category.split(?\s), "symbol", *(index if elements.many?) ].join(SEGMENT).tap do |symbol_id|
+                    memo << [ "//svg/defs", { "g" => { "id" => symbol_id } } ]
+                    memo << [ "//svg/defs/g[@id='#{symbol_id}']", element ]
                   end
                 end
-                layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path[@fill='none']") do |path|
+                group.elements.each("#{xpath}//path[@fill='none']") do |path|
                   uses = []
                   path.attributes["d"].to_s.split(/ Z| Z M | M |M /).reject(&:empty?).each do |subpath|
                     subpath.split(/ L | C -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ /).map do |pair|
@@ -1077,25 +1057,26 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                       angle = 180.0 * segment.difference.angle / Math::PI
                       while alpha * interval < segment.distance
                         segment[0] = segment.along(alpha * interval / segment.distance)
-                        uses << { "use" => {"transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{ids.sample}" } }
+                        uses << { "use" => {"transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{symbol_ids.sample}" } }
                         alpha = 1.0
                       end
                       alpha - segment.distance / interval
                     end
                   end
-                  memo << [ ".//g[@class][starts-with(@class,'#{category}')]", uses ]
+                  memo << [ xpath, uses ]
                 end
               end
             end
           when "endpoints"
             args.each do |categories, attributes|
-              [ *categories ].select do |category|
-                layer.elements[".//g[@class][starts-with(@class,'#{category}')]/path[@fill='none']"]
-              end.each do |category|
-                id = [ layer_id, *category.split(?\s), "endpoint" ].join SEGMENT
-                memo << [ "//svg/defs", { "g" => { "id" => id } } ]
-                memo << [ "//svg/defs/g[@id='#{id}']", attributes ]
-                layer.elements.each(".//g[@class][starts-with(@class,'#{category}')]/path[@fill='none']") do |path|
+              [ *categories ].map do |category|
+                [ "./g[starts-with(@class,'#{category}')]", [ id, *category.split(?\s), "endpoint" ].join(SEGMENT) ]
+              end.select do |xpath, symbol_id|
+                group.elements["#{xpath}//path[@fill='none']"]
+              end.each do |xpath, symbol_id|
+                memo << [ "//svg/defs", { "g" => { "id" => symbol_id } } ]
+                memo << [ "//svg/defs/g[@id='#{symbol_id}']", attributes ]
+                group.elements.each("#{xpath}//path[@fill='none']") do |path|
                   uses = []
                   path.attributes["d"].to_s.split(/ Z| Z M | M |M /).reject(&:empty?).each do |subpath|
                     subpath.split(/ L | C -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ /).values_at(0,1,-2,-1).map do |pair|
@@ -1104,11 +1085,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                       segment.send order
                     end.each do |segment|
                       angle = 180.0 * segment.difference.angle / Math::PI
-                      uses << { "use" => { "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "xlink:href" => "##{id}" } }
+                      uses << { "use" => { "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "xlink:href" => "##{symbol_id}" } }
                     end
                   end
-                  memo << [ ".//g[@class][starts-with(@class,'#{category}')]", uses ]
+                  memo << [ xpath, uses ]
                 end
+              end
+            end
+          when *SVG_PRESENTATION_ATTRIBUTES then memo << [ "self::", { command => args } ]
+          when *sublayers
+          else
+            if args.is_a? Hash
+              keys = args.keys & SVG_PRESENTATION_ATTRIBUTES
+              values = args.values_at *keys
+              svg_args = Hash[keys.zip values]
+              [ *command ].each do |category|
+                memo << [ "./g[contains(@class,'#{category}')]", svg_args ]
+                memo << [ "./g[not(contains(@class,'#{category}'))]/use[contains(@class,'#{category}')]", svg_args ]
               end
             end
           end
@@ -1116,9 +1109,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.each.with_index do |(xpath, args), index|
           case args
           when nil
-            REXML.each(layer, xpath, &:remove)
+            REXML.each(group, xpath, &:remove)
           when Hash, Array
-            REXML::XPath.each(layer, xpath) do |node|
+            REXML::XPath.each(group, xpath) do |node|
               case node
               when REXML::Element
                 case args
@@ -1127,13 +1120,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end.each do |key, value|
                   case value
                   when Hash then node.add_element key, value
-                  else           node.add_attribute key, value
+                  else node.add_attribute key, value
                   end
                 end
               end
             end
           else
-            REXML::XPath.each(layer, xpath) do |node|
+            REXML::XPath.each(group, xpath) do |node|
               case node
               when REXML::Attribute then node.element.attributes[node.name] = args
               when REXML::Element   then [ *args ].each { |tag| node.add_element tag }
@@ -1142,34 +1135,31 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
         end
-        until layer.elements.each(".//g[not(*)]", &:remove).empty? do
+        until group.elements.each(".//g[not(*)]", &:remove).empty? do
         end
       end
     end
   end
   
-  module Annotation
-    def svg_coords(coords, projection, map)
-      map.coords_to_mm map.reproject_from(projection, coords)
-    end
-    
-    def render_svg(xml, map, &block)
-      xml.elements.each("/svg/defs/[starts-with(@id,'#{layer_name}#{SEGMENT}')]", &:remove)
-      layers = Hash.new do |layers, id|
-        layers[id] = REXML::Element.new("g").tap do |layer|
-          layer.add_attributes "id" => id, "style" => "opacity:1", "transform" => map.svg_transform(1)
-          xml.elements["/svg/g[@id='#{id}']"].tap do |old_layer|
-            old_layer ? old_layer.replace_with(layer) : yield(layer)
-          end
-        end
-      end
-      defs = xml.elements["/svg/defs"]
-      draw(map) do |sublayer_name|
-        case sublayer_name
-        when :defs then defs
+  module VectorRenderer
+    def render_svg(map)
+      unless map.rotation.zero?
+        w, h = map.bounds.map { |bound| 1000.0 * (bound.max - bound.min) / map.scale }
+        t = Math::tan(map.rotation * Math::PI / 180.0)
+        d = (t * t - 1) * Math::sqrt(t * t + 1)
+        if t >= 0
+          y = (t * (h * t - w) / d).abs
+          x = (t * y).abs
         else
-          id = [ layer_name, sublayer_name ].compact.join(SEGMENT)
-          layers[id]
+          x = -(t * (h + w * t) / d).abs
+          y = -(t * x).abs
+        end
+        transform = "translate(#{x} #{-y}) rotate(#{map.rotation})"
+      end
+      
+      draw(map) do |sublayer|
+        yield(sublayer).tap do |group|
+          group.add_attributes("transform" => transform) if group && transform
         end
       end
     end
@@ -1179,7 +1169,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def initialize(*args)
       super(*args)
       ext = params["ext"] || "png"
-      @path = Pathname.pwd + "#{layer_name}.#{ext}"
+      @path = Pathname.pwd + "#{name}.#{ext}"
     end
     
     def resolution_for(map)
@@ -1190,13 +1180,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       resolution = resolution_for map
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       pixels = dimensions.inject(:*) > 500000 ? " (%.1fMpx)" % (0.000001 * dimensions.inject(:*)) : nil
-      puts "Creating: %s, %ix%i%s @ %.1f m/px" % [ layer_name, *dimensions, pixels, resolution]
+      puts "Creating: %s, %ix%i%s @ %.1f m/px" % [ name, *dimensions, pixels, resolution]
       Dir.mktmppath do |temp_dir|
         FileUtils.cp get_raster(map, dimensions, resolution, temp_dir), path
       end
     end
     
-    def render_svg(xml, map, &block)
+    def render_svg(map)
       resolution = resolution_for map
       transform = "scale(#{1000.0 * resolution / map.scale})"
       opacity = params["opacity"] || 1
@@ -1210,40 +1200,31 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "data:#{mimetype};base64,#{base64}"
         end
       else
-        raise BadLayerError.new("#{layer_name} raster image not found at #{path}") unless path.exist?
+        raise BadLayerError.new("#{name} raster image not found at #{path}") unless path.exist?
         path.basename
       end
       
-      layer = REXML::Element.new("g")
-      xml.elements["/svg/g[@id='#{layer_name}']"].tap do |old_layer|
-        old_layer ? old_layer.replace_with(layer) : yield(layer)
-      end
-      layer.add_attributes "id" => layer_name, "style" => "opacity:#{opacity}"
-      
-      if params["masks"]
-        filter_id, mask_id = "#{layer_name}#{SEGMENT}filter", "#{layer_name}#{SEGMENT}mask"
-        xml.elements.each("/svg/defs/[@id='#{filter_id}' or @id='#{mask_id}']", &:remove)
-        xml.elements["/svg/defs"].add_element("filter", "id" => filter_id) do |filter|
-          filter.add_element "feColorMatrix", "type" => "matrix", "in" => "SourceGraphic", "values" => "0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 -1 1"
-        end
-        xml.elements["/svg/defs"].add_element("mask", "id" => mask_id) do |mask|
-          mask.add_element("g", "filter" => "url(##{filter_id})") do |g|
-            g.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "none", "stroke" => "none"
-            [ *params["masks"] ].each do |sublayer_name|
-              g.add_element "use", "xlink:href" => "##{sublayer_name}"
+      layer = yield
+      if layer
+        if params["masks"]
+          defs = layer.elements["//svg/defs"]
+          filter_id, mask_id = "#{name}#{SEGMENT}filter", "#{name}#{SEGMENT}mask"
+          defs.elements.each("[@id='#{filter_id}' or @id='#{mask_id}']", &:remove)
+          defs.add_element("filter", "id" => filter_id) do |filter|
+            filter.add_element "feColorMatrix", "type" => "matrix", "in" => "SourceGraphic", "values" => "0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 -1 1"
+          end
+          defs.add_element("mask", "id" => mask_id) do |mask|
+            mask.add_element("g", "filter" => "url(##{filter_id})") do |g|
+              g.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "none", "stroke" => "none"
+              [ *params["masks"] ].each do |id|
+                g.add_element "use", "xlink:href" => "##{id}"
+              end
             end
           end
+          layer.add_attributes "mask" => "url(##{mask_id})"
         end
-        layer.add_attributes "mask" => "url(##{mask_id})"
+        layer.add_element("image", "transform" => transform, "width" => dimensions[0], "height" => dimensions[1], "image-rendering" => "optimizeQuality", "xlink:href" => href)
       end
-      
-      layer.add_element("image",
-        "transform" => transform,
-        "width" => dimensions[0],
-        "height" => dimensions[1],
-        "image-rendering" => "optimizeQuality",
-        "xlink:href" => href,
-      )
     end
   end
   
@@ -1257,9 +1238,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %Q["#{tile_path}"]
       end
       
-      tif_path = temp_dir + "#{layer_name}.tif"
-      tfw_path = temp_dir + "#{layer_name}.tfw"
-      vrt_path = temp_dir + "#{layer_name}.vrt"
+      tif_path = temp_dir + "#{name}.tif"
+      tfw_path = temp_dir + "#{name}.tfw"
+      vrt_path = temp_dir + "#{name}.vrt"
       
       density = 0.01 * map.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
@@ -1337,6 +1318,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class LPIOrthoServer < TiledServer
+    # TODO: no longer needed/working?
     def tiles(map, raster_resolution, temp_dir)
       projection = Projection.new(params["projection"])
       bounds = map.transform_bounds_to(projection)
@@ -1544,9 +1526,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             WorldFile.write topleft, resolution, 0, Pathname.new("#{tile_path}w")
             %Q["#{tile_path}"]
           end.join ?\s
-          vrt_path = temp_dir + "#{layer_name}.vrt"
-          tif_path = temp_dir + "#{layer_name}.tif"
-          tfw_path = temp_dir + "#{layer_name}.tfw"
+          vrt_path = temp_dir + "#{name}.vrt"
+          tif_path = temp_dir + "#{name}.tif"
+          tfw_path = temp_dir + "#{name}.tfw"
           %x[gdalbuildvrt "#{vrt_path}" #{tile_paths}]
           %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
           map.write_world_file tfw_path, resolution
@@ -1558,16 +1540,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class ArcGISVector < Source
-    include Annotation
-    FONT_ASPECT = 0.7
+    include VectorRenderer
     
     def initialize(*args)
       super(*args)
-      @path = Pathname.pwd + "#{layer_name}.json"
+      @path = Pathname.pwd + "#{name}.json"
+      @sublayers = params["features"].keys
     end
     
     def create(map)
-      puts "Downloading: #{layer_name}"
+      puts "Downloading: #{name}"
       
       %w[host instance folder service cookie].map do |key|
         { key => params.delete(key) }
@@ -1605,12 +1587,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             [ sources.values.first["service"]["layers"].find { |layer| layer["id"] == key }.fetch("name"), { "id" => key } ]
           end
         end
-      end.reject do |sublayer_name, options|
-        params["exclude"].include? sublayer_name
-      end.group_by(&:first).map do |sublayer_name, options_group|
-        [ sublayer_name, options_group.map(&:last) ]
-      end.map do |sublayer_name, options_array|
-        $stdout << "  #{sublayer_name}"
+      end.reject do |sublayer, options|
+        params["exclude"].include? sublayer
+      end.group_by(&:first).map do |sublayer, options_group|
+        [ sublayer, options_group.map(&:last) ]
+      end.map do |sublayer, options_array|
+        $stdout << "  #{sublayer}"
         features = []
         options_array.each do |options|
           source = sources[options["source"] || sources.keys.first]
@@ -1634,7 +1616,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           fields = fields.map { |field| { field["name"] => field } }.inject(&:merge)
           types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
           type_field_name = type_id_field && fields.values.find { |field| field["alias"] == type_id_field }.fetch("name")
-          field_names = [ *type_field_name, *options["category"], *options["rotate"], *(options["label"] && options["label"]["field"]) ] & fields.keys
+          field_names = [ *type_field_name, *options["category"], *options["rotate"], *options["label"] ] & fields.keys
           geometry = { "rings" => [ map.wgs84_corners << map.wgs84_corners.first ] }
           query = base_query.merge "inSR" => 4326, "geometryType" => "esriGeometryPolygon", "geometry" => geometry.to_json, "returnIdsOnly" => true
           uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/), :query => query.to_query
@@ -1687,35 +1669,21 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 angle = 90 - attributes[options["rotate"]]
               end if options["rotate"]
               { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
-                options["label"].tap do |label|
-                  label_fields = attributes.values_at *label["field"]
-                  format = label["format"] || (%w[%s] * label_fields.length).join(?\s)
-                  unless label_fields.map(&:to_s).all?(&:empty?)
-                    feature["label"] = format % label_fields
-                    label.select do |key, value|
-                      value.is_a? Hash
-                    end.select do |key, value|
-                      (categories & [ *key ].map(&:to_s)).any?
-                    end.map(&:last).unshift(label).inject(&:merge).tap do |opts|
-                      %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth minimum-area].each do |name|
-                        feature[name] = opts[name] if opts[name]
-                      end
-                    end
-                  end
-                end if options["label"]
                 feature["label-only"] = options["label-only"] if options["label-only"]
-                feature["bezier"] = options["bezier"] if options["bezier"]
                 feature["angle"] = angle if angle
+                attributes.values_at(*options["label"]).tap do |labels|
+                  feature["labels"] = labels unless labels.map(&:to_s).all?(&:empty?)
+                end
               end
             end
-            $stdout << "\r  #{sublayer_name} (#{features.length} feature#{?s unless features.one?})"
+            $stdout << "\r  #{sublayer} (#{features.length} feature#{?s unless features.one?})"
           end
         end
         puts
-        { sublayer_name => features }
+        { sublayer => features }
       end.inject(&:merge).tap do |layers|
         Dir.mktmppath do |temp_dir|
-          json_path = temp_dir + "#{layer_name}.json"
+          json_path = temp_dir + "#{name}.json"
           json_path.open("w") { |file| file << (params["pretty"] ? JSON.pretty_generate(layers) : layers.to_json) }
           FileUtils.cp json_path, path
         end
@@ -1724,90 +1692,526 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def draw(map)
       raise BadLayerError.new("source file not found at #{path}") unless path.exist?
-      names_features = JSON.parse(path.read).reject do |sublayer_name, features|
-        params["exclude"].include? sublayer_name
-      end.reject do |sublayer_name, features|
+      JSON.parse(path.read).reject do |sublayer, features|
+        params["exclude"].include? sublayer
+      end.map do |sublayer, features|
+        [ sublayer, features.reject { |feature| feature["label-only"] } ]
+      end.reject do |sublayer, features|
         features.empty?
-      end
-      
-      names_features.map do |sublayer_name, features|
-        [ sublayer_name, features.reject { |feature| feature["label-only"] } ]
-      end.each do |sublayer_name, features|
-        puts "  #{sublayer_name}" if features.any?
-        features.each do |feature|
-          categories = feature["categories"].reject(&:empty?).join(?\s)
-          dimension = feature["dimension"]
-          case dimension
-          when 0
-            x, y = map.coords_to_mm(feature["data"]).round(MM_DECIMAL_DIGITS)
-            angle = feature["angle"]
-            transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
-            yield(sublayer_name).add_element "use", "transform" => transform, "class" => categories
-          when 1, 2
-            close, fill_options = case dimension
-            when 1 then [ nil, { "fill" => "none" }         ]
-            when 2 then [ ?Z,  { "fill-rule" => "nonzero" } ]
-            end
-            feature["data"].reject(&:empty?).map do |coords|
-              map.coords_to_mm coords
-            end.map do |points|
-              case k = feature["bezier"]
-              when Numeric then points.to_bezier(k, MM_DECIMAL_DIGITS, *close)
-              when true    then points.to_bezier(1, MM_DECIMAL_DIGITS, *close)
-              else              points.to_path_data(MM_DECIMAL_DIGITS, *close)
+      end.map do |sublayer, features|
+        [ yield(sublayer), sublayer, features ]
+      end.select(&:first).each do |group, sublayer, features|
+        puts "  #{sublayer}"
+        features.group_by do |feature|
+          feature["categories"].reject(&:empty?).join(?\s)
+        end.map do |categories, features|
+          [ group.add_element("g", "class" => categories), features ]
+        end.each do |group, features|
+          features.each do |feature|
+            case feature["dimension"]
+            when 0
+              x, y = map.coords_to_mm(feature["data"]).round(MM_DECIMAL_DIGITS)
+              angle = feature["angle"]
+              transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
+              group.add_element "use", "transform" => transform
+            when 1, 2
+              close, fill_options = case feature["dimension"]
+              when 1 then [ nil, { "fill" => "none" }         ]
+              when 2 then [ ?Z,  { "fill-rule" => "nonzero" } ]
               end
-            end.tap do |subpaths|
-              yield(sublayer_name).add_element "path", fill_options.merge("d" => subpaths.join(?\s), "class" => categories) if subpaths.any?
+              feature["data"].reject(&:empty?).map do |coords|
+                map.coords_to_mm coords
+              end.map do |points|
+                case k = params[sublayer]["bezier"]
+                when Numeric then points.to_bezier(k, MM_DECIMAL_DIGITS, *close)
+                when true    then points.to_bezier(1, MM_DECIMAL_DIGITS, *close)
+                else              points.to_path_data(MM_DECIMAL_DIGITS, *close)
+                end
+              end.tap do |subpaths|
+                group.add_element "path", fill_options.merge("d" => subpaths.join(?\s)) if subpaths.any?
+              end
             end
           end
         end
       end
-      
-      features = names_features.inject([]) do |memo, (sublayer_name, features)|
+    end
+    
+    def labels(map)
+      # TODO: exclude labels where corresponding feature layer is not present?
+      raise BadLayerError.new("source file not found at #{path}") unless path.exist?
+      JSON.parse(path.read).inject([]) do |memo, (sublayer, features)|
         memo + features.select do |feature|
-          feature.key?("label")
-        end.each do |feature|
-          feature["categories"].unshift sublayer_name
-        end.inject([]) do |memo, feature|
-          case feature["dimension"]
-          when 0
-            feature["point"] = map.coords_to_mm feature.delete("data")
-            memo << feature
-          when 1
-            feature.delete("data").each do |coords|
-              points = map.coords_to_mm coords
-              memo << feature.dup.merge("points" => points)
-            end
-          when 2
-            feature.delete("data").map do |coords|
-              map.coords_to_mm coords
-            end.select do |points|
-              points.signed_area > (feature["minimum-area"] || 0)
-            end.each do |points|
-              memo << feature.dup.merge("points" => points)
-            end
-          end
-          memo
+          feature.key?("labels")
+        end.map(&:dup).each do |feature|
+          feature["categories"].unshift sublayer
         end
       end
+    end
+  end
+  
+  class ReliefSource < Source
+    include RasterRenderer
+    
+    def initialize(name, params)
+      super(name, params.merge("ext" => "tif"))
+    end
+    
+    def get_raster(map, dimensions, resolution, temp_dir)
+      dem_path = if params["path"]
+        Pathname.new(params["path"]).expand_path
+      else
+        base_uri = URI.parse "http://www.ga.gov.au/gisimg/rest/services/topography/dem_s_1s/ImageServer/"
+        base_query = { "f" => "json", "geometry" => map.wgs84_bounds.map(&:sort).transpose.flatten.plus([ -0.001, -0.001, 0.001, 0.001 ]).join(?,) }
+        query = base_query.merge("returnIdsOnly" => true, "where" => "category = 1").to_query
+        raster_ids = HTTP.get_json(base_uri + "query?#{query}").fetch("objectIds")
+        query = base_query.merge("rasterIDs" => raster_ids.join(?,), "format" => "TIFF").to_query
+        tile_paths = HTTP.get_json(base_uri + "download?#{query}").fetch("rasterFiles").map do |file|
+          file["id"][/[^@]*/]
+        end.select do |url|
+          url[/\.tif$/]
+        end.map do |url|
+          [ URI.parse(URI.escape url), temp_dir + url[/[^\/]*$/] ]
+        end.map do |uri, tile_path|
+          HTTP.get(uri) do |response|
+            tile_path.open("wb") { |file| file << response.body }
+          end
+          %Q["#{tile_path}"]
+        end
+    
+        temp_dir.join("dem.vrt").tap do |vrt_path|
+          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join ?\s}]
+        end
+      end
+      raise BadLayerError.new("elevation data not found at #{dem_path}") unless dem_path.exist?
       
-      puts "  generating labels"
-      features.map do |feature|
+      temp_dir.join(path.basename).tap do |tif_path|
+        relief_path = temp_dir + "#{name}-uncropped.tif"
+        tfw_path = temp_dir + "#{name}.tfw"
+        map.write_world_file tfw_path, resolution
+        density = 0.01 * map.scale / resolution
+        altitude, azimuth, exaggeration = params.values_at("altitude", "azimuth", "exaggeration")
+        %x[gdaldem hillshade -compute_edges -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" -q]
+        raise BadLayerError.new("invalid elevation data") unless $?.success?
+        %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
+        %x[gdalwarp -s_srs "#{Projection.wgs84}" -t_srs "#{map.projection}" -r bilinear -srcnodata 0 -dstalpha "#{relief_path}" "#{tif_path}"]
+        filters = []
+        (params["median"].to_f / resolution).round.tap do |pixels|
+          filters << "-statistic median #{2 * pixels + 1}" if pixels > 0
+        end
+        params["bilateral"].to_f.round.tap do |threshold|
+          sigma = (500.0 / resolution).round
+          filters << "-selective-blur 0x#{sigma}+#{threshold}%" if threshold > 0
+        end
+        %x[mogrify -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
+      end
+    end
+    
+    def embed_image(temp_dir)
+      raise BadLayerError.new("hillshade image not found at #{path}") unless path.exist?
+      highlights = params["highlights"]
+      shade = %Q["#{path}" -colorspace Gray -fill white -opaque none -level 0,65% -negate -alpha Copy -fill black +opaque black]
+      sun = %Q["#{path}" -colorspace Gray -fill black -opaque none -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
+      temp_dir.join("overlay.png").tap do |overlay_path|
+        %x[convert -quiet #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
+      end
+    end
+  end
+  
+  class VegetationSource < Source
+    include RasterRenderer
+    
+    def get_raster(map, dimensions, resolution, temp_dir)
+      source_paths = [ *params["path"] ].tap do |paths|
+        raise BadLayerError.new("no vegetation data file specified") if paths.empty?
+      end.map do |source_path|
+        Pathname.new(source_path).expand_path
+      end.map do |source_path|
+        raise BadLayerError.new("vegetation data file not found at #{source_path}") unless source_path.file?
+        %Q["#{source_path}"]
+      end.join ?\s
+      
+      vrt_path = temp_dir + "#{name}.vrt"
+      tif_path = temp_dir + "#{name}.tif"
+      tfw_path = temp_dir + "#{name}.tfw"
+      clut_path = temp_dir + "#{name}-clut.png"
+      mask_path = temp_dir + "#{name}-mask.png"
+      
+      %x[gdalbuildvrt "#{vrt_path}" #{source_paths}]
+      map.write_world_file tfw_path, resolution
+      %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
+      %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]
+      
+      low, high = { "low" => 0, "high" => 100 }.merge(params["contrast"] || {}).values_at("low", "high")
+      fx = params["mapping"].inject(0.0) do |memo, (key, value)|
+        "j==#{key} ? %.5f : (#{memo})" % (value < low ? 0.0 : value > high ? 1.0 : (value - low).to_f / (high - low))
+      end
+      
+      %x[convert -size 1x256 canvas:black -fx "#{fx}" "#{clut_path}"]
+      %x[convert "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
+      
+      woody, nonwoody = params["colour"].values_at("woody", "non-woody")
+      density = 0.01 * map.scale / resolution
+      temp_dir.join(path.basename).tap do |raster_path|
+        %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{raster_path}"]
+      end
+    end
+    
+    def embed_image(temp_dir)
+      raise BadLayerError.new("vegetation raster image not found at #{path}") unless path.exist?
+      path
+    end
+  end
+  
+  module NoCreate
+    def create(map)
+      raise BadLayerError.new("#{name} file not found at #{path}")
+    end
+  end
+  
+  class CanvasSource < Source
+    include RasterRenderer
+    include NoCreate
+    
+    def resolution_for(map)
+      return params["resolution"] if params["resolution"]
+      raise BadLayerError.new("canvas image not found at #{path}") unless path.exist?
+      pixels_per_centimeter = %x[convert "#{path}" -units PixelsPerCentimeter -format "%[resolution.x]" info:]
+      raise BadLayerError.new("bad canvas image at #{path}") unless $?.success?
+      map.scale * 0.01 / pixels_per_centimeter.to_f
+    end
+  end
+  
+  class ImportSource < Source
+    include RasterRenderer
+    
+    def resolution_for(map)
+      import_path = Pathname.new(params["path"]).expand_path
+      Math::sqrt(0.5) * [ [ 0, 0 ], [ 1, 1 ] ].map do |point|
+        %x[echo #{point.join ?\s} | gdaltransform "#{import_path}" -t_srs "#{map.projection}"].tap do |output|
+          raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
+        end.split(?\s)[0..1].map(&:to_f)
+      end.distance
+    end
+    
+    def get_raster(map, dimensions, resolution, temp_dir)
+      import_path = Pathname.new(params["path"]).expand_path
+      source_path = temp_dir + "source.tif"
+      tfw_path = temp_dir + "#{name}.tfw"
+      tif_path = temp_dir + "#{name}.tif"
+      
+      density = 0.01 * map.scale / resolution
+      map.write_world_file tfw_path, resolution
+      %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 -units PixelsPerCentimeter -density #{density} "#{tif_path}"]
+      %x[gdal_translate -expand rgba #{import_path} #{source_path}]
+      %x[gdal_translate #{import_path} #{source_path}] unless $?.success?
+      raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
+      %x[gdalwarp -t_srs "#{map.projection}" -r bilinear #{source_path} #{tif_path}]
+      temp_dir.join(path.basename).tap do |raster_path|
+        %x[convert "#{tif_path}" -quiet "#{raster_path}"]
+      end
+    end
+  end
+  
+  class DeclinationSource < Source
+    include VectorRenderer
+    include NoCreate
+    
+    def draw(map)
+      centre = map.wgs84_bounds.map { |bound| 0.5 * bound.inject(:+) }
+      projection = Projection.transverse_mercator(centre.first, 1.0)
+      spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
+      bounds = map.transform_bounds_to(projection)
+      extents = bounds.map { |bound| bound.max - bound.min }
+      longitudinal_extent = extents[0] + extents[1] * Math::tan(map.declination * Math::PI / 180.0)
+      group = yield
+      0.upto(longitudinal_extent / spacing).map do |count|
+        map.declination > 0 ? bounds[0][1] - count * spacing : bounds[0][0] + count * spacing
+      end.map do |easting|
+        eastings = [ easting, easting + extents[1] * Math::tan(map.declination * Math::PI / 180.0) ]
+        northings = bounds.last
+        [ eastings, northings ].transpose
+      end.map do |line|
+        map.coords_to_mm map.reproject_from(projection, line)
+      end.map do |points|
+        points.to_path_data MM_DECIMAL_DIGITS
+      end.each do |d|
+        group.add_element("path", "d" => d)
+      end if group
+    rescue ServerError => e
+      raise BadLayerError.new(e.message)
+    end
+  end
+
+  class GridSource < Source
+    include VectorRenderer
+    include NoCreate
+    
+    def initialize(*args)
+      super(*args)
+      params["labels"]["orientation"] = "uphill"
+      params["labels"]["margin"] ||= 0.8
+    end
+    
+    def zones_lines(map)
+      interval = params["interval"]
+      Projection.utm_zone(map.bounds.inject(&:product), map.projection).inject do |range, zone|
+        [ *range, zone ].min .. [ *range, zone ].max
+      end.map do |zone|
+        utm = Projection.utm(zone)
+        eastings, northings = map.transform_bounds_to(utm).map do |bound|
+          (bound[0] / interval).floor .. (bound[1] / interval).ceil
+        end.map do |counts|
+          counts.map { |count| count * interval }
+        end
+        grid = eastings.map do |easting|
+          column = [ easting ].product(northings.reverse)
+          in_zone = Projection.utm_zone(column, utm).map { |candidate| candidate == zone }
+          [ in_zone, column ].transpose
+        end
+        lines = [ grid, grid.transpose ].map.with_index do |gridlines, index|
+          gridlines.map do |gridline|
+            gridline.select(&:first).map(&:last)
+          end.reject(&:empty?)
+        end
+        [ utm, lines ]
+      end
+    end
+    
+    def draw(map)
+      group = yield
+      zones_lines(map).each do |utm, lines|
+        lines.inject(&:+).each do |line|
+          d = map.coords_to_mm(map.reproject_from(utm, line)).to_path_data(MM_DECIMAL_DIGITS)
+          group.add_element("path", "d" => d)
+        end
+      end if group
+    end
+    
+    def labels(map)
+      params["label-spacing"] ? periodic_labels(map) : edge_labels(map)
+    end
+    
+    def edge_labels(map)
+      interval = params["interval"]
+      zones_lines(map).map do |utm, lines|
+        lines.map.with_index do |lines, index|
+          lines.select(&:first).map do |line|
+            coords = map.reproject_from(utm, [ line.first, line.last ])
+            [ line[0][index], map.coord_corners(-5).clip(coords, false) ]
+          end.reject do |coord, points|
+            points.empty?
+          end.map do |coord, points|
+            labels_percents = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
+            labels_percents << [ "%03d" % (coord % 1000), 80 ] unless interval % 1000 == 0
+            labels, percents = labels_percents.transpose
+            mm = 1000 * points.distance / map.scale
+            points.map.with_index do |point, index|
+              index.zero? ? [ point, points.along(10.0 / mm) ] : [ points.along(1.0 - 10.0 / mm), point ]
+            end.map do |segment|
+              { "dimension" => 1, "data" => [ segment ], "labels" => labels, "percents" => percents, "categories" => [ index.zero? ? "eastings" : "northings" ] }
+            end
+          end
+        end
+      end.flatten
+    end
+    
+    def periodic_labels(map)
+      label_interval = params["label-spacing"] * params["interval"]
+      zones_lines(map).map do |utm, lines|
+        lines.map.with_index do |lines, index|
+          lines.select do |line|
+            line[0] && line[0][index] % label_interval == 0
+          end.map do |line|
+            coord = line[0][index]
+            labels_percents = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
+            labels_percents << [ "%03d" % (coord % 1000), 80 ] unless label_interval % 1000 == 0
+            labels, percents = labels_percents.transpose
+            line.segments.select do |segment|
+              segment[0][1-index] % label_interval == 0
+            end.map do |segment|
+              { "dimension" => 1, "data" => [ map.reproject_from(utm, segment) ], "labels" => labels, "percents" => percents, "categories" => [ index.zero? ? "eastings" : "northings" ] }
+            end
+          end
+        end
+      end.flatten
+    end
+  end
+  
+  class ControlSource < Source
+    include VectorRenderer
+    include NoCreate
+    
+    def initialize(*args)
+      super(*args)
+      @path = Pathname.new(params["path"]).expand_path
+      params["labels"]["margin"] ||= params["diameter"] * 0.707
+    end
+    
+    def types_waypoints
+      gps_waypoints = GPS.new(path).waypoints
+      [ [ /\d{2,3}/, :controls  ],
+        [ /HH/,      :hashhouse ],
+        [ /ANC/,     :anc       ],
+        [ /W/,       :water     ],
+      ].map do |selector, type|
+        waypoints = gps_waypoints.map do |waypoint, name|
+          [ waypoint, name[selector] ]
+        end.select(&:last)
+        [ type, waypoints ]
+      end
+    rescue BadGpxKmlFile => e
+      raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
+    end
+    
+    def draw(map)
+      radius = 0.5 * params["diameter"]
+      spot_diameter = params["spot-diameter"]
+      
+      group = yield
+      types_waypoints.each do |type, waypoints|
+        group.add_element("g", "class" => type) do |group|
+          waypoints.map do |waypoint, label|
+            point = map.coords_to_mm(map.reproject_from_wgs84(waypoint)).round(MM_DECIMAL_DIGITS)
+            transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
+            case type
+            when :controls
+              group.add_element("circle", "r" => radius, "fill" => "none", "transform" => transform)
+              group.add_element("circle", "r" => 0.5 * spot_diameter, "stroke" => "none", "transform" => transform) if spot_diameter
+            when :hashhouse, :anc
+              angles = type == :hashhouse ? [ -90, -210, -330 ] : [ -45, -135, -225, -315 ]
+              d = angles.map do |angle|
+                [ radius, 0 ].rotate_by_degrees(angle)
+              end.to_path_data(MM_DECIMAL_DIGITS, ?Z)
+              group.add_element("path", "d" => d, "fill" => "none", "transform" => transform)
+            when :water
+              [
+                "m -0.79942321,0.07985921 -0.005008,0.40814711 0.41816285,0.0425684 0,-0.47826034 -0.41315487,0.02754198 z",
+                "m -0.011951449,-0.53885114 0,0.14266384",
+                "m 0.140317871,-0.53885114 0,0.14266384",
+                "m -0.38626833,0.05057523 c 0.0255592,0.0016777 0.0370663,0.03000538 0.0613473,0.03881043 0.0234708,0.0066828 0.0475564,0.0043899 0.0713631,0.0025165 0.007966,-0.0041942 0.0530064,-0.03778425 0.055517,-0.04287323 0.0201495,-0.01674888 0.0473913,-0.05858754 0.0471458,-0.08232678 l 0.005008,-0.13145777 c 2.5649e-4,-0.006711 -0.0273066,-0.0279334 -0.0316924,-0.0330336 -0.005336,-0.006207 0.006996,-0.0660504 -0.003274,-0.0648984 -0.0115953,-0.004474 -0.0173766,5.5923e-4 -0.0345371,-0.007633 -0.004228,-0.0128063 -0.006344,-0.0668473 0.0101634,-0.0637967 0.0278325,0.001678 0.0452741,0.005061 0.0769157,-0.005732 0.0191776,0 0.08511053,-0.0609335 0.10414487,-0.0609335 l 0.16846578,8.3884e-4 c 0.0107679,0 0.0313968,0.0284032 0.036582,0.03359 0.0248412,0.0302766 0.0580055,0.0372558 0.10330712,0.0520893 0.011588,0.001398 0.0517858,-0.005676 0.0553021,0.002517 0.007968,0.0265354 0.005263,0.0533755 0.003112,0.0635227 -0.002884,0.0136172 -0.0298924,-1.9573e-4 -0.0313257,0.01742 -0.001163,0.0143162 -4.0824e-4,0.0399429 -0.004348,0.0576452 -0.0239272,0.024634 -0.0529159,0.0401526 -0.0429639,0.0501152 l -6.5709e-4,0.11251671 c 0.003074,0.02561265 0.0110277,0.05423115 0.0203355,0.07069203 0.026126,0.0576033 0.0800901,0.05895384 0.0862871,0.06055043 0.002843,8.3885e-4 0.24674425,0.0322815 0.38435932,0.16401046 0.0117097,0.0112125 0.0374559,0.0329274 0.0663551,0.12144199 0.0279253,0.0855312 0.046922,0.36424768 0.0375597,0.36808399 -0.0796748,0.0326533 -0.1879149,0.0666908 -0.31675221,0.0250534 -0.0160744,-0.005201 0.001703,-0.11017354 -0.008764,-0.16025522 -0.0107333,-0.0513567 3.4113e-4,-0.15113981 -0.11080061,-0.17089454 -0.0463118,-0.008221 -0.19606469,0.0178953 -0.30110236,0.0400631 -0.05001528,0.0105694 -0.117695,0.0171403 -0.15336817,0.0100102 -0.02204477,-0.004418 -0.15733412,-0.0337774 -0.18225582,-0.0400072 -0.0165302,-0.004138 -0.053376,-0.006263 -0.10905742,0.0111007 -0.0413296,0.0128902 -0.0635168,0.0443831 -0.0622649,0.0334027 9.1434e-4,-0.008025 0.001563,-0.46374837 -1.0743e-4,-0.47210603 z",
+                "m 0.06341799,-0.8057541 c -0.02536687,-2.7961e-4 -0.06606003,0.0363946 -0.11502538,0.0716008 -0.06460411,0.0400268 -0.1414687,0.0117718 -0.20710221,-0.009675 -0.0622892,-0.0247179 -0.16166212,-0.004194 -0.17010213,0.0737175 0.001686,0.0453982 0.0182594,0.1160762 0.0734356,0.11898139 0.0927171,-0.0125547 0.18821206,-0.05389 0.28159685,-0.0236553 0.03728388,0.0164693 0.0439921,0.0419813 0.04709758,0.0413773 l 0.18295326,0 c 0.003105,5.5923e-4 0.009814,-0.0249136 0.0470976,-0.0413773 0.0933848,-0.0302347 0.18887978,0.0111007 0.2815969,0.0236553 0.0551762,-0.002908 0.0718213,-0.0735832 0.0735061,-0.11898139 -0.00844,-0.0779145 -0.10788342,-0.0984409 -0.17017266,-0.0737175 -0.0656335,0.0214464 -0.14249809,0.0497014 -0.20710215,0.009675 -0.0498479,-0.0358409 -0.09110973,-0.0731946 -0.11636702,-0.0715309 -4.5577e-4,-3.076e-5 -9.451e-4,-6.432e-5 -0.001412,-6.991e-5 z",
+                "m -0.20848487,-0.33159571 c 0.29568578,0.0460357 0.5475498,0.0168328 0.5475498,0.0168328",
+                "m -0.21556716,-0.26911875 c 0.29568578,0.0460329 0.55463209,0.0221175 0.55463209,0.0221175",
+              ].each do |d|
+                d.gsub!(/\d+\.\d+/) { |number| number.to_f * radius * 0.8 }
+                group.add_element("path", "fill" => "none", "d" => d, "transform" => transform)
+              end
+            end
+          end
+        end
+      end if group
+    end
+    
+    def labels(map)
+      types_waypoints.reject do |type, waypoints|
+        type == :water
+      end.map do |type, waypoints|
+        waypoints.map do |waypoint, label|
+          { "dimension" => 0, "data" => map.reproject_from_wgs84(waypoint), "labels" => [ label ], "categories" => [ type ] }
+        end
+      end.flatten(1)
+    end
+  end
+  
+  class OverlaySource < Source
+    include VectorRenderer
+    include NoCreate
+    
+    def initialize(*args)
+      super(*args)
+      @path = Pathname.new(params["path"]).expand_path
+    end
+    
+    def draw(map)
+      gps = GPS.new(path)
+      group = yield
+      [ [ :tracks, { "fill" => "none", "stroke" => "black", "stroke-width" => "0.4", "stroke-miterlimit" => 2 }, nil ],
+        [ :areas, { "fill" => "black", "stroke" => "none" }, ?Z ]
+      ].each do |feature, attributes, close|
+        gps.send(feature).map do |list, name|
+          map.coords_to_mm map.reproject_from_wgs84(list)
+        end.map do |points|
+          points.to_path_data(MM_DECIMAL_DIGITS, *close)
+        end.each do |d|
+          group.add_element "path", attributes.merge("d" => d)
+        end
+      end if group
+    rescue BadGpxKmlFile => e
+      raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
+    end
+  end
+  
+  class LabelSource < Source
+    # TODO: add diagonal corners as point-source positions
+    # TODO: don't split path sections into separate features
+    # TODO: dimensionality reduction of features e.g. area -> line, line -> point
+    include VectorRenderer
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth minimum-area format]
+    FONT_ASPECT_RATIO = 0.7
+    
+    def initialize(*args)
+      super(*args)
+      @features = [];
+      @sublayers = [];
+    end
+    
+    def add(source, map)
+      source_params = params[source.name] || {}
+      source.labels(map).each do |label|
+        categories = [ *label["categories"] ].reject(&:empty?).join(?\s)
+        dimension = label["dimension"]
+        feature = { "sublayer" => source.name, "dimension" => dimension, "categories" => categories }
+        source_params.select do |key, value|
+          value.is_a?(Hash)
+        end.select do |key, value|
+          [ *key ].any? { |substring| categories.start_with? substring }
+        end.values.inject(source_params, &:merge).tap do |merged_params|
+          ATTRIBUTES.each do |attribute|
+            feature[attribute] = merged_params[attribute] if merged_params[attribute]
+          end
+        end
+        feature["labels"] = feature["format"] ? [ feature["format"] % label["labels"] ] : label["labels"]
+        feature["percents"] = label["percents"] if label["percents"]
+        case dimension
+        when 0
+          feature["point"] = map.coords_to_mm label["data"]
+          @features << feature
+        when 1
+          label["data"].each do |coords|
+            points = map.coords_to_mm coords
+            @features << feature.dup.merge("points" => points)
+          end
+        when 2
+          label["data"].map do |coords|
+            map.coords_to_mm coords
+          end.select do |points|
+            points.signed_area > (feature["minimum-area"] || 0)
+          end.each do |points|
+            @features << feature.dup.merge("points" => points)
+          end
+        end
+      end.tap do |labels|
+        @sublayers << source.name unless labels.empty?
+      end if source.respond_to? :labels
+    end
+    
+    def draw(map, &block)
+      @features.map do |feature|
         [ feature, feature["dimension"] == 1 && feature["smooth"] ]
       end.select(&:last).each do |feature, mm|
         feature["points"].smooth!(mm, 20)
       end
       
-      candidates = features.map do |feature|
-        text           = feature["label"]
+      candidates = @features.map do |feature|
         font_size      = feature["font-size"]      || 1.5
         letter_spacing = feature["letter-spacing"] || 0
         word_spacing   = feature["word-spacing"]   || 0
+        label_text     = feature["labels"].join ?\s
         case feature["dimension"]
         when 0
           margin = feature["margin"] || 0
-          lines = text.in_two
-          width = lines.map(&:length).max * (font_size * FONT_ASPECT + letter_spacing)
+          lines = label_text.in_two
+          width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
           height = lines.length * font_size
           point = feature["point"]
           rotated = point.rotate_by_degrees(map.rotation)
@@ -1826,7 +2230,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           margin = feature["margin"]
           interval = feature["interval"] || 150
           deviation = feature["deviation"] || 5
-          text_length = text.length * (font_size * FONT_ASPECT + letter_spacing) + text.count(?\s) * word_spacing
+          text_length = feature["percents"] ? 0 : label_text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + label_text.count(?\s) * word_spacing
           baseline_shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
           feature["baselines"] = []
           feature["endpoints"] = []
@@ -1840,7 +2244,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
           cumulative.length.times.inject([]) do |memo, finish|
             start = finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
-              cumulative[finish] - cumulative[start] >= text_length
+              cumulative[finish] - cumulative[start] > text_length
             end
             start ? memo << (start..finish) : memo
           end.reject do |range|
@@ -1879,8 +2283,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             (top + bottom.reverse).convex_hull.reverse
           end
         when 2
-          lines = text.in_two
-          width = lines.map(&:length).max * (font_size * FONT_ASPECT + letter_spacing)
+          lines = label_text.in_two
+          width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
           height = lines.length * font_size
           point = feature["points"].centroid
           rotated = point.rotate_by_degrees(map.rotation)
@@ -1889,11 +2293,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
           [ hull ]
         end.map.with_index.select do |hull, candidate|
-          map.mm_corners(-5).surrounds? hull
+          map.mm_corners(-2).surrounds? hull
         end
       end
       
-      puts "  resolving labels"
       conflicts = {}
       candidates.each.with_index do |hulls, feature|
         hulls.map(&:last).each do |candidate|
@@ -1920,13 +2323,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           label1 = [ feature, candidate1 ]
           hulls.map(&:last).each do |candidate2|
             label2 = [ feature, candidate2 ]
-            case features[feature]["dimension"]
+            case @features[feature]["dimension"]
             when 0
               conflicts[feature][candidate1][label2] = true
               conflicts[feature][candidate2][label1] = true
             when 1
-              start1, finish1, total = features[feature]["endpoints"][candidate1]
-              start2, finish2, total = features[feature]["endpoints"][candidate2]
+              start1, finish1, total = @features[feature]["endpoints"][candidate1]
+              start2, finish2, total = @features[feature]["endpoints"][candidate2]
               case
               when start2 - finish1 > 1 && start1 + total - finish2 > 1
               when start1 - finish2 > 1 && start2 + total - finish1 > 1
@@ -1975,7 +2378,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       5.times do
         labels.select do |feature, candidate|
-          features[feature]["dimension"] == 0
+          @features[feature]["dimension"] == 0
         end.each do |label|
           feature, candidate = label
           counts_candidates = conflicts[feature].map do |candidate, conflicts|
@@ -1985,22 +2388,24 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
+      layers = Hash[@sublayers.zip @sublayers.map(&block)]
+      defs = layers.values.first.elements["//svg/defs"] if labels.any?
       labels.each do |index, candidate|
-        feature = features[index]
-        letter_spacing = feature["letter-spacing"]
-        word_spacing   = feature["word-spacing"]
-        font_size      = feature["font-size"] || 1.5
-        categories     = feature["categories"].reject(&:empty?).join(?\s)
+        feature = @features[index]
+        sublayer = feature["sublayer"]
+        font_size = feature["font-size"]
+        categories = feature["categories"]
+        label_text = feature["labels"].join ?\s
+        group = layers[sublayer].elements["./g[@class='#{categories}')]"] || layers[sublayer].add_element("g", "class" => categories)
         case feature["dimension"]
         when 0
           position = [ *feature["position"] ][candidate]
           margin = feature["margin"] || 0
-          lines = feature["label"].in_two
+          lines = label_text.in_two
           point = feature["point"]
           transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
           text_anchor = position == 1 ? "start" : position == 4 ? "end" : "middle"
-          yield("labels").add_element("text", "font-size" => font_size, "text-anchor" => text_anchor, "transform" => transform, "class" => categories) do |text|
-            text.add_attribute "letter-spacing", letter_spacing if letter_spacing
+          group.add_element("text", "text-anchor" => text_anchor, "transform" => transform) do |text|
             lines.each.with_index do |line, count|
               y = (lines.one? ? 0.5 : count) * font_size + case position
               when 0, 1, 4 then 0.0
@@ -2015,21 +2420,25 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         when 1
           d = feature["baselines"][candidate].to_path_data(MM_DECIMAL_DIGITS)
-          id = [ layer_name, "labels", "path", index, candidate ].join SEGMENT
-          yield(:defs).add_element "path", "id" => id, "d" => d
-          yield("labels").add_element("text", "class" => categories, "font-size" => font_size, "text-anchor" => "middle") do |text|
-            text.add_attribute "letter-spacing", letter_spacing if letter_spacing
-            text.add_attribute "word-spacing", word_spacing if word_spacing
+          id = [ name, sublayer, "path", index, candidate ].join SEGMENT
+          defs.add_element "path", "id" => id, "d" => d
+          group.add_element("text", "text-anchor" => "middle") do |text|
             text.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%") do |text_path|
-              text_path.add_text feature["label"]
+              if feature["percents"]
+                feature["percents"].zip(feature["labels"]).each.with_index do |(percent, label_text_part), index|
+                  text_path.add_text ?\s unless index.zero?
+                  text_path.add_element("tspan", "font-size" => "#{percent}%") { |tspan| tspan.add_text label_text_part }
+                end
+              else
+                text_path.add_text label_text
+              end
             end
           end
         when 2
-          lines = feature["label"].in_two
+          lines = label_text.in_two
           point = feature["points"].centroid
           transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-          yield("labels").add_element("text", "font-size" => font_size, "text-anchor" => "middle", "transform" => transform, "class" => categories) do |text|
-            text.add_attribute "letter-spacing", letter_spacing if letter_spacing
+          group.add_element("text", "text-anchor" => "middle", "transform" => transform) do |text|
             lines.each.with_index do |line, count|
               y = (lines.one? ? 0.5 : count) * font_size - 0.15 * font_size
               text.add_element("tspan", "x" => 0, "y" => y) do |tspan|
@@ -2039,364 +2448,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end
       end
-      
-      names_features.reject do |sublayer_name, features|
-        features.all? { |feature| feature["label-only"] }
-      end.map(&:first).push("labels").each do |sublayer_name|
-        yield(sublayer_name).elements.collect(&:remove).group_by do |element|
-          element.attributes["class"]
-        end.each do |categories, elements|
-          yield(sublayer_name).add_element("g", "class" => categories) do |group|
-            elements.each do |element|
-              element.attributes.delete "class"
-              group.elements << element
-            end
-          end
-        end
-      end
-    end
-  end
-  
-  module NoCreate
-    def create(map)
-      raise BadLayerError.new("#{layer_name} file not found at #{path}")
-    end
-  end
-  
-  class ReliefSource < Source
-    include RasterRenderer
-    
-    def initialize(layer_name, params)
-      super(layer_name, params.merge("ext" => "tif"))
-    end
-    
-    def get_raster(map, dimensions, resolution, temp_dir)
-      dem_path = if params["path"]
-        Pathname.new(params["path"]).expand_path
-      else
-        base_uri = URI.parse "http://www.ga.gov.au/gisimg/rest/services/topography/dem_s_1s/ImageServer/"
-        base_query = { "f" => "json", "geometry" => map.wgs84_bounds.map(&:sort).transpose.flatten.plus([ -0.001, -0.001, 0.001, 0.001 ]).join(?,) }
-        query = base_query.merge("returnIdsOnly" => true, "where" => "category = 1").to_query
-        raster_ids = HTTP.get_json(base_uri + "query?#{query}").fetch("objectIds")
-        query = base_query.merge("rasterIDs" => raster_ids.join(?,), "format" => "TIFF").to_query
-        tile_paths = HTTP.get_json(base_uri + "download?#{query}").fetch("rasterFiles").map do |file|
-          file["id"][/[^@]*/]
-        end.select do |url|
-          url[/\.tif$/]
-        end.map do |url|
-          [ URI.parse(URI.escape url), temp_dir + url[/[^\/]*$/] ]
-        end.map do |uri, tile_path|
-          HTTP.get(uri) do |response|
-            tile_path.open("wb") { |file| file << response.body }
-          end
-          %Q["#{tile_path}"]
-        end
-    
-        temp_dir.join("dem.vrt").tap do |vrt_path|
-          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join ?\s}]
-        end
-      end
-      raise BadLayerError.new("elevation data not found at #{dem_path}") unless dem_path.exist?
-      
-      temp_dir.join(path.basename).tap do |tif_path|
-        relief_path = temp_dir + "#{layer_name}-uncropped.tif"
-        tfw_path = temp_dir + "#{layer_name}.tfw"
-        map.write_world_file tfw_path, resolution
-        density = 0.01 * map.scale / resolution
-        altitude, azimuth, exaggeration = params.values_at("altitude", "azimuth", "exaggeration")
-        %x[gdaldem hillshade -compute_edges -s 111120 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" -q]
-        raise BadLayerError.new("invalid elevation data") unless $?.success?
-        %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
-        %x[gdalwarp -s_srs "#{Projection.wgs84}" -t_srs "#{map.projection}" -r bilinear -srcnodata 0 -dstalpha "#{relief_path}" "#{tif_path}"]
-        filters = []
-        (params["median"].to_f / resolution).round.tap do |pixels|
-          filters << "-statistic median #{2 * pixels + 1}" if pixels > 0
-        end
-        params["bilateral"].to_f.round.tap do |threshold|
-          sigma = (500.0 / resolution).round
-          filters << "-selective-blur 0x#{sigma}+#{threshold}%" if threshold > 0
-        end
-        %x[mogrify -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
-      end
-    end
-    
-    def embed_image(temp_dir)
-      raise BadLayerError.new("hillshade image not found at #{path}") unless path.exist?
-      highlights = params["highlights"]
-      shade = %Q["#{path}" -colorspace Gray -fill white -opaque none -level 0,65% -negate -alpha Copy -fill black +opaque black]
-      sun = %Q["#{path}" -colorspace Gray -fill black -opaque none -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
-      temp_dir.join("overlay.png").tap do |overlay_path|
-        %x[convert -quiet #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
-      end
-    end
-  end
-  
-  class VegetationSource < Source
-    include RasterRenderer
-    
-    def get_raster(map, dimensions, resolution, temp_dir)
-      source_paths = [ *params["path"] ].tap do |paths|
-        raise BadLayerError.new("no vegetation data file specified") if paths.empty?
-      end.map do |source_path|
-        Pathname.new(source_path).expand_path
-      end.map do |source_path|
-        raise BadLayerError.new("vegetation data file not found at #{source_path}") unless source_path.file?
-        %Q["#{source_path}"]
-      end.join ?\s
-      
-      vrt_path = temp_dir + "#{layer_name}.vrt"
-      tif_path = temp_dir + "#{layer_name}.tif"
-      tfw_path = temp_dir + "#{layer_name}.tfw"
-      clut_path = temp_dir + "#{layer_name}-clut.png"
-      mask_path = temp_dir + "#{layer_name}-mask.png"
-      
-      %x[gdalbuildvrt "#{vrt_path}" #{source_paths}]
-      map.write_world_file tfw_path, resolution
-      %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
-      %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]
-      
-      low, high = { "low" => 0, "high" => 100 }.merge(params["contrast"] || {}).values_at("low", "high")
-      fx = params["mapping"].inject(0.0) do |memo, (key, value)|
-        "j==#{key} ? %.5f : (#{memo})" % (value < low ? 0.0 : value > high ? 1.0 : (value - low).to_f / (high - low))
-      end
-      
-      %x[convert -size 1x256 canvas:black -fx "#{fx}" "#{clut_path}"]
-      %x[convert "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
-      
-      woody, nonwoody = params["colour"].values_at("woody", "non-woody")
-      density = 0.01 * map.scale / resolution
-      temp_dir.join(path.basename).tap do |raster_path|
-        %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{raster_path}"]
-      end
-    end
-    
-    def embed_image(temp_dir)
-      raise BadLayerError.new("vegetation raster image not found at #{path}") unless path.exist?
-      path
-    end
-  end
-  
-  class CanvasSource < Source
-    include RasterRenderer
-    include NoCreate
-    
-    def resolution_for(map)
-      return params["resolution"] if params["resolution"]
-      raise BadLayerError.new("canvas image not found at #{path}") unless path.exist?
-      pixels_per_centimeter = %x[convert "#{path}" -units PixelsPerCentimeter -format "%[resolution.x]" info:]
-      raise BadLayerError.new("bad canvas image at #{path}") unless $?.success?
-      map.scale * 0.01 / pixels_per_centimeter.to_f
-    end
-  end
-  
-  class ImportSource < Source
-    include RasterRenderer
-    
-    def resolution_for(map)
-      import_path = Pathname.new(params["path"]).expand_path
-      Math::sqrt(0.5) * [ [ 0, 0 ], [ 1, 1 ] ].map do |point|
-        %x[echo #{point.join ?\s} | gdaltransform "#{import_path}" -t_srs "#{map.projection}"].tap do |output|
-          raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
-        end.split(?\s)[0..1].map(&:to_f)
-      end.distance
-    end
-    
-    def get_raster(map, dimensions, resolution, temp_dir)
-      import_path = Pathname.new(params["path"]).expand_path
-      source_path = temp_dir + "source.tif"
-      tfw_path = temp_dir + "#{layer_name}.tfw"
-      tif_path = temp_dir + "#{layer_name}.tif"
-      
-      density = 0.01 * map.scale / resolution
-      map.write_world_file tfw_path, resolution
-      %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 -units PixelsPerCentimeter -density #{density} "#{tif_path}"]
-      %x[gdal_translate -expand rgba #{import_path} #{source_path}]
-      %x[gdal_translate #{import_path} #{source_path}] unless $?.success?
-      raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
-      %x[gdalwarp -t_srs "#{map.projection}" -r bilinear #{source_path} #{tif_path}]
-      temp_dir.join(path.basename).tap do |raster_path|
-        %x[convert "#{tif_path}" -quiet "#{raster_path}"]
-      end
-    end
-  end
-  
-  class DeclinationSource < Source
-    include Annotation
-    include NoCreate
-    
-    def draw(map)
-      centre = map.wgs84_bounds.map { |bound| 0.5 * bound.inject(:+) }
-      projection = Projection.transverse_mercator(centre.first, 1.0)
-      spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
-      bounds = map.transform_bounds_to(projection)
-      extents = bounds.map { |bound| bound.max - bound.min }
-      longitudinal_extent = extents[0] + extents[1] * Math::tan(map.declination * Math::PI / 180.0)
-      0.upto(longitudinal_extent / spacing).map do |count|
-        map.declination > 0 ? bounds[0][1] - count * spacing : bounds[0][0] + count * spacing
-      end.map do |easting|
-        eastings = [ easting, easting + extents[1] * Math::tan(map.declination * Math::PI / 180.0) ]
-        northings = bounds.last
-        [ eastings, northings ].transpose
-      end.map do |line|
-        svg_coords(line, projection, map).to_path_data(MM_DECIMAL_DIGITS)
-      end.each do |d|
-        yield.add_element("path", "d" => d, "stroke" => "black", "stroke-width" => "0.1")
-      end
-    rescue ServerError => e
-      puts "  #{e.message}"
-    end
-  end
-  
-  class GridSource < Source
-    include Annotation
-    include NoCreate
-    
-    def self.zone(coords, projection)
-      projection.reproject_to_wgs84(coords).one_or_many do |longitude, latitude|
-        (longitude / 6).floor + 31
-      end
-    end
-    
-    def draw(map)
-      interval = params["interval"]
-      label_spacing = params["label-spacing"]
-      label_interval = label_spacing * interval
-      fontfamily = params["family"]
-      fontsize = 25.4 * params["fontsize"] / 72.0
-      
-      GridSource.zone(map.bounds.inject(&:product), map.projection).inject do |range, zone|
-        [ *range, zone ].min .. [ *range, zone ].max
-      end.each do |zone|
-        projection = Projection.utm(zone)
-        eastings, northings = map.transform_bounds_to(projection).map do |bound|
-          (bound[0] / interval).floor .. (bound[1] / interval).ceil
-        end.map do |counts|
-          counts.map { |count| count * interval }
-        end
-        grid = eastings.map do |easting|
-          column = [ easting ].product(northings.reverse)
-          in_zone = GridSource.zone(column, projection).map { |candidate| candidate == zone }
-          [ in_zone, column ].transpose
-        end
-        lines = yield("lines").add_element("g", "class" => "", "stroke-width" => "0.1", "stroke" => "black")
-        labels = yield("labels").add_element("g", "class" => "", "font-family" => fontfamily, "font-size" => fontsize, "fill" => "black", "stroke" => "none", "text-anchor" => "middle")
-        [ grid, grid.transpose ].each.with_index do |gridlines, index|
-          gridlines.map do |gridline|
-            gridline.select(&:first).map(&:last)
-          end.reject(&:empty?).each do |line|
-            d = svg_coords(line, projection, map).to_path_data(MM_DECIMAL_DIGITS)
-            lines.add_element("path", "d" => d)
-            if line[0] && line[0][index] % label_interval == 0 
-              coord = line[0][index]
-              label_segments = [ [ "%d", (coord / 100000), 80 ], [ "%02d", (coord / 1000) % 100, 100 ] ]
-              label_segments << [ "%03d", coord % 1000, 80 ] unless label_interval % 1000 == 0
-              label_segments.map! { |template, number, percent| [ template % number, percent ] }
-              line.inject do |*segment|
-                if segment[0][1-index] % label_interval == 0
-                  points = segment.map { |coords| svg_coords(coords, projection, map) }
-                  middle = points.transpose.map { |values| 0.5 * values.inject(:+) }.round(MM_DECIMAL_DIGITS)
-                  angle = 180.0 * points.difference.angle / Math::PI
-                  transform = "translate(#{middle.join ?\s}) rotate(#{angle})"
-                  labels.add_element("text", "transform" => transform, "dy" => 0.25 * fontsize) do |text|
-                    label_segments.each do |digits, percent|
-                      text.add_element("tspan", "font-size" => "#{percent}%") do |tspan|
-                        tspan.add_text(digits)
-                      end
-                    end
-                  end
-                end
-                segment.last
-              end
-            end
-          end
-        end
-      end
-    end
-  end
-  
-  module PathInParams
-    def initialize(*args)
-      super(*args)
-      @path = Pathname.new(params["path"]).expand_path
-    end
-  end
-  
-  class ControlSource < Source
-    include Annotation
-    include NoCreate
-    include PathInParams
-    
-    def draw(map)
-      gps = GPS.new(path)
-      radius = 0.5 * params["diameter"]
-      strokewidth, fontfamily, spotdiameter = params.values_at "thickness", "family", "spot-diameter"
-      fontsize = 25.4 * params["fontsize"] / 72.0
-      
-      [ [ /\d{2,3}/, :circle,   "circles" ],
-        [ /HH/,      :triangle, "circles" ],
-        [ /ANC/,     :square,   "circles" ],
-        [ /W/,       :water,    "water"   ],
-      ].each do |selector, type, sublayer|
-        gps.waypoints.map do |waypoint, name|
-          [ svg_coords(waypoint, Projection.wgs84, map).round(MM_DECIMAL_DIGITS), name[selector] ]
-        end.select(&:last).each do |point, label|
-          transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-          yield(sublayer).add_element("g", "transform" => transform) do |rotated|
-            case type
-            when :circle
-              rotated.add_element("circle", "r" => radius, "fill" => "none", "stroke" => "black", "stroke-width" => 0.2)
-              rotated.add_element("circle", "r" => 0.5 * spotdiameter, "fill" => "black", "stroke" => "none") if spotdiameter
-            when :triangle, :square
-              angles = type == :triangle ? [ -90, -210, -330 ] : [ -45, -135, -225, -315 ]
-              d = angles.map do |angle|
-                [ radius, 0 ].rotate_by_degrees(angle)
-              end.to_path_data(MM_DECIMAL_DIGITS, ?Z)
-              rotated.add_element("path", "d" => d, "fill" => "none", "stroke" => "black", "stroke-width" => 0.2)
-            when :water
-              [
-                "m -0.79942321,0.07985921 -0.005008,0.40814711 0.41816285,0.0425684 0,-0.47826034 -0.41315487,0.02754198 z",
-                "m -0.011951449,-0.53885114 0,0.14266384",
-                "m 0.140317871,-0.53885114 0,0.14266384",
-                "m -0.38626833,0.05057523 c 0.0255592,0.0016777 0.0370663,0.03000538 0.0613473,0.03881043 0.0234708,0.0066828 0.0475564,0.0043899 0.0713631,0.0025165 0.007966,-0.0041942 0.0530064,-0.03778425 0.055517,-0.04287323 0.0201495,-0.01674888 0.0473913,-0.05858754 0.0471458,-0.08232678 l 0.005008,-0.13145777 c 2.5649e-4,-0.006711 -0.0273066,-0.0279334 -0.0316924,-0.0330336 -0.005336,-0.006207 0.006996,-0.0660504 -0.003274,-0.0648984 -0.0115953,-0.004474 -0.0173766,5.5923e-4 -0.0345371,-0.007633 -0.004228,-0.0128063 -0.006344,-0.0668473 0.0101634,-0.0637967 0.0278325,0.001678 0.0452741,0.005061 0.0769157,-0.005732 0.0191776,0 0.08511053,-0.0609335 0.10414487,-0.0609335 l 0.16846578,8.3884e-4 c 0.0107679,0 0.0313968,0.0284032 0.036582,0.03359 0.0248412,0.0302766 0.0580055,0.0372558 0.10330712,0.0520893 0.011588,0.001398 0.0517858,-0.005676 0.0553021,0.002517 0.007968,0.0265354 0.005263,0.0533755 0.003112,0.0635227 -0.002884,0.0136172 -0.0298924,-1.9573e-4 -0.0313257,0.01742 -0.001163,0.0143162 -4.0824e-4,0.0399429 -0.004348,0.0576452 -0.0239272,0.024634 -0.0529159,0.0401526 -0.0429639,0.0501152 l -6.5709e-4,0.11251671 c 0.003074,0.02561265 0.0110277,0.05423115 0.0203355,0.07069203 0.026126,0.0576033 0.0800901,0.05895384 0.0862871,0.06055043 0.002843,8.3885e-4 0.24674425,0.0322815 0.38435932,0.16401046 0.0117097,0.0112125 0.0374559,0.0329274 0.0663551,0.12144199 0.0279253,0.0855312 0.046922,0.36424768 0.0375597,0.36808399 -0.0796748,0.0326533 -0.1879149,0.0666908 -0.31675221,0.0250534 -0.0160744,-0.005201 0.001703,-0.11017354 -0.008764,-0.16025522 -0.0107333,-0.0513567 3.4113e-4,-0.15113981 -0.11080061,-0.17089454 -0.0463118,-0.008221 -0.19606469,0.0178953 -0.30110236,0.0400631 -0.05001528,0.0105694 -0.117695,0.0171403 -0.15336817,0.0100102 -0.02204477,-0.004418 -0.15733412,-0.0337774 -0.18225582,-0.0400072 -0.0165302,-0.004138 -0.053376,-0.006263 -0.10905742,0.0111007 -0.0413296,0.0128902 -0.0635168,0.0443831 -0.0622649,0.0334027 9.1434e-4,-0.008025 0.001563,-0.46374837 -1.0743e-4,-0.47210603 z",
-                "m 0.06341799,-0.8057541 c -0.02536687,-2.7961e-4 -0.06606003,0.0363946 -0.11502538,0.0716008 -0.06460411,0.0400268 -0.1414687,0.0117718 -0.20710221,-0.009675 -0.0622892,-0.0247179 -0.16166212,-0.004194 -0.17010213,0.0737175 0.001686,0.0453982 0.0182594,0.1160762 0.0734356,0.11898139 0.0927171,-0.0125547 0.18821206,-0.05389 0.28159685,-0.0236553 0.03728388,0.0164693 0.0439921,0.0419813 0.04709758,0.0413773 l 0.18295326,0 c 0.003105,5.5923e-4 0.009814,-0.0249136 0.0470976,-0.0413773 0.0933848,-0.0302347 0.18887978,0.0111007 0.2815969,0.0236553 0.0551762,-0.002908 0.0718213,-0.0735832 0.0735061,-0.11898139 -0.00844,-0.0779145 -0.10788342,-0.0984409 -0.17017266,-0.0737175 -0.0656335,0.0214464 -0.14249809,0.0497014 -0.20710215,0.009675 -0.0498479,-0.0358409 -0.09110973,-0.0731946 -0.11636702,-0.0715309 -4.5577e-4,-3.076e-5 -9.451e-4,-6.432e-5 -0.001412,-6.991e-5 z",
-                "m -0.20848487,-0.33159571 c 0.29568578,0.0460357 0.5475498,0.0168328 0.5475498,0.0168328",
-                "m -0.21556716,-0.26911875 c 0.29568578,0.0460329 0.55463209,0.0221175 0.55463209,0.0221175",
-              ].each do |d|
-                d.gsub!(/\d+\.\d+/) { |number| number.to_f * radius * 0.8 }
-                rotated.add_element("path", "fill" => "none", "stroke" => "black", "stroke-width" => 0.2, "d" => d)
-              end
-            end
-          end
-          yield("labels").add_element("g", "transform" => transform) do |rotated|
-            rotated.add_element("text", "dx" => radius, "dy" => -radius, "font-family" => fontfamily, "font-size" => fontsize, "fill" => "black", "stroke" => "none") do |text|
-              text.add_text label
-            end
-          end unless type == :water
-        end
-      end
-    rescue BadGpxKmlFile => e
-      raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
-    end
-  end
-  
-  class OverlaySource < Source
-    include Annotation
-    include NoCreate
-    include PathInParams
-    
-    def draw(map)
-      gps = GPS.new(path)
-      [ [ :tracks, { "fill" => "none", "stroke" => "black", "stroke-width" => "0.4", "stroke-miterlimit" => 2 }, nil ],
-        [ :areas, { "fill" => "black", "stroke" => "none" }, ?Z ]
-      ].each do |feature, attributes, close|
-        gps.send(feature).map do |list, name|
-          svg_coords(list, Projection.wgs84, map).to_path_data(MM_DECIMAL_DIGITS, *close)
-        end.each do |d|
-          yield.add_element "path", attributes.merge("d" => d)
-        end
-      end
-    rescue BadGpxKmlFile => e
-      raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
     end
   end
   
@@ -2616,13 +2667,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def self.build(config, map, ppi, svg_path, composite_png_path, temp_dir, psd_path)
       xml = REXML::Document.new(svg_path.read)
       xml.elements["/svg/rect"].remove
-      xml.elements.delete_all("/svg/g[@id]").map do |layer|
-        id = layer.attributes["id"]
+      xml.elements.delete_all("/svg/g[@id]").map do |group|
+        id = group.attributes["id"]
         puts "    Generating layer: #{id}"
         layer_svg_path, layer_png_path = %w[svg png].map { |ext| temp_dir + [ map.name, id, ext ].join(?.) }
-        xml.elements["/svg"].add layer
+        xml.elements["/svg"].add group
         layer_svg_path.open("w") { |file| xml.write file }
-        layer.remove
+        group.remove
         Raster.build(config, map, ppi, layer_svg_path, temp_dir, layer_png_path)
         # Dodgy; Make sure there's a coloured pixel or imagemagick won't fill in the G and B channels in the PSD:
         %x[mogrify -label #{id} -fill "#FFFFFEFF" -draw 'color 0,0 point' "#{layer_png_path}"]
@@ -2698,6 +2749,63 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end.inject(default_config, &:deep_merge)
     
+    builtins = YAML.load %q[---
+canvas:
+  class: CanvasSource
+relief:
+  class: ReliefSource
+  altitude: 45
+  azimuth: 315
+  exaggeration: 2
+  resolution: 30.0
+  opacity: 0.3
+  highlights: 20
+  median: 30.0
+  bilateral: 5
+grid:
+  class: GridSource
+  interval: 1000
+  label-spacing: 5
+  stroke: black
+  stroke-width: 0.1
+  labels:
+    margin: 0.8
+    dupe: outline
+    outline:
+      stroke: white
+      fill: none
+      stroke-width: 0.3
+      stroke-opacity: 0.75
+    font-family: "'Arial Narrow', sans-serif"
+    font-size: 2.75
+    stroke: none
+    fill: black
+declination:
+  class: DeclinationSource
+  spacing: 1000
+  stroke: darkred
+  stroke-width: 0.1
+controls:
+  class: ControlSource
+  diameter: 7.0
+  stroke: "#880088"
+  stroke-width: 0.2
+  water:
+    stroke: blue
+  labels:
+    dupe: outline
+    outline:
+      stroke: white
+      fill: none
+      stroke-width: 0.25
+      stroke-opacity: 0.75
+    position: [ 1, 2, 3, 4 ]
+    font-family: sans-serif
+    font-size: 4.9
+    stroke: none
+    fill: "#880088"
+]
+    
     config["include"] = [ *config["include"] ]
     if config["include"].empty?
       config["include"] << "nsw/topographic"
@@ -2718,116 +2826,79 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     map = Map.new(config)
     
-    builtins = YAML.load %q[---
-canvas:
-  class: CanvasSource
-relief:
-  class: ReliefSource
-  altitude: 45
-  azimuth: 315
-  exaggeration: 2
-  resolution: 30.0
-  opacity: 0.3
-  highlights: 20
-  median: 30.0
-  bilateral: 5
-grid:
-  class: GridSource
-  interval: 1000
-  label-spacing: 5
-  fontsize: 7.8
-  family: "'Arial Narrow', sans-serif"
-  labels:
-    dupe: outline
-    styles:
-      outline:
-        stroke: white
-        fill: none
-        stroke-width: 0.3
-        stroke-opacity: 0.75
-declination:
-  class: DeclinationSource
-  spacing: 1000
-  width: 0.1
-  colour: black
-controls:
-  class: ControlSource
-  family: sans-serif
-  fontsize: 14
-  diameter: 7.0
-  colour: "#880088"
-  water:
-    colour: blue
-]
-    
-    layers = {}
+    sources = {}
     
     [ *config["import"] ].reverse.map do |file_or_hash|
       [ *file_or_hash ].flatten
-    end.map do |file_or_path, layer_name|
-      [ Pathname.new(file_or_path).expand_path, layer_name ]
-    end.each do |path, layer_name|
-      layer_name ||= path.basename(path.extname).to_s
-      layers.merge! layer_name => { "class" => "ImportSource", "path" => path.to_s }
+    end.map do |file_or_path, name|
+      [ Pathname.new(file_or_path).expand_path, name ]
+    end.each do |path, name|
+      name ||= path.basename(path.extname).to_s
+      sources.merge! name => { "class" => "ImportSource", "path" => path.to_s }
     end
     
-    config["include"].map do |layer_name_or_path_or_hash|
-      [ *layer_name_or_path_or_hash ].flatten
-    end.each do |layer_name_or_path, resolution|
-      path = Pathname.new(layer_name_or_path).expand_path
-      layer_name, params = case
-      when builtins[layer_name_or_path]
-        [ layer_name_or_path, builtins[layer_name_or_path] ]
+    config["include"].map do |name_or_path_or_hash|
+      [ *name_or_path_or_hash ].flatten
+    end.each do |name_or_path, resolution|
+      path = Pathname.new(name_or_path).expand_path
+      name, params = case
+      when builtins[name_or_path]
+        [ name_or_path, builtins[name_or_path] ]
       when %w[.kml .gpx].include?(path.extname.downcase) && path.file?
         params = YAML.load %Q[---
           class: OverlaySource
-          width: 0.4
-          colour: black
-          opacity: 0.4
           path: #{path}
+          stroke: black
+          stroke-width: 0.4
+          fill: black
+          opacity: 0.4
         ]
         [ path.basename(path.extname).to_s, params ]
       else
         yaml = [ Pathname.pwd, Pathname.new(__FILE__).realdirpath.dirname + "sources", URI.parse(GITHUB_SOURCES) ].map do |root|
-          root + "#{layer_name_or_path}.yml"
+          root + "#{name_or_path}.yml"
         end.inject(nil) do |memo, path|
           memo ||= path.read rescue nil
         end
-        abort "Error: couldn't find source for '#{layer_name_or_path}'" unless yaml
-        [ layer_name_or_path.gsub(?/, SEGMENT), YAML.load(yaml) ]
+        abort "Error: couldn't find source for '#{name_or_path}'" unless yaml
+        [ name_or_path.gsub(?/, SEGMENT), YAML.load(yaml) ]
       end
       params.merge! "resolution" => resolution if resolution
       params.merge! "pretty" => config["pretty"] if config["pretty"]
-      layers.merge! layer_name => params
+      sources.merge! name => params
     end
     
-    layers.keys.select do |layer_name|
-      config[layer_name]
-    end.each do |layer_name|
-      layers[layer_name].deep_merge! config[layer_name]
+    sources.keys.select do |name|
+      config[name]
+    end.each do |name|
+      sources[name].deep_merge! config[name]
     end
     
-    layers["relief"]["masks"] = layers.map do |layer_name, params|
-      [ *params["relief-masks"] ].map { |sublayer_name| [ layer_name, sublayer_name ].join SEGMENT }
-    end.inject(&:+) if layers["relief"]
+    sources["relief"]["masks"] = sources.map do |name, params|
+      [ *params["relief-masks"] ].map { |sublayer| [ name, sublayer ].join SEGMENT }
+    end.inject(&:+) if sources["relief"]
     
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
-      layers.each do |layer_name, params|
+      sources.each do |name, params|
         params["exclude"] = [ *params["exclude"] ]
-        [ *params["intervals-contours"] ].select do |candidate, sublayer|
+        [ *params["intervals-contours"] ].select do |candidate, sublayers|
           candidate != interval
-        end.map(&:last).each do |sublayer|
-          params["exclude"] += [ *sublayer ]
+        end.map(&:last).each do |sublayers|
+          params["exclude"] += [ *sublayers ]
         end
       end
     end
     
-    config["exclude"] = [ *config["exclude"] ].map { |layer_name| layer_name.gsub ?/, SEGMENT }
-    config["exclude"].each { |layer_name| layers.delete layer_name }
+    config["exclude"] = [ *config["exclude"] ].map { |name| name.gsub ?/, SEGMENT }
+    config["exclude"].each { |name| sources.delete name } # TODO: can we exclude individual sublayers here?
     
-    sources = layers.map do |layer_name, params|
-      NSWTopo.const_get(params.delete "class").new(layer_name, params)
+    label_params = sources.map do |name, params|
+      [ name, params["labels"] ]
+    end.select(&:last)
+    
+    sources = sources.map do |name, params|
+      NSWTopo.const_get(params.delete "class").new(name, params)
     end
     
     puts "Map details:"
@@ -2845,91 +2916,78 @@ controls:
     svg_path = Pathname.pwd + svg_name
     xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
     
-    removals = config["exclude"].select do |layer_name|
-      predicate = "@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')"
+    removals = config["exclude"].select do |name|
+      predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}')"
       xml.elements["/svg/g[#{predicate}] | svg/defs/[#{predicate}]"]
     end
     
     updates = sources.reject do |source|
-      xml.elements["/svg/g[@id='#{source.layer_name}' or starts-with(@id,'#{source.layer_name}#{SEGMENT}')]"] && FileUtils.uptodate?(svg_path, [ *source.path ])
-    end
-    
-    additions = updates.reject do |source|
-      xml.elements["/svg/g[@id='#{source.layer_name}' or starts-with(@id,'#{source.layer_name}#{SEGMENT}')]"]
+      xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"] && FileUtils.uptodate?(svg_path, [ *source.path ])
     end
     
     Dir.mktmppath do |temp_dir|
       tmp_svg_path = temp_dir + svg_name
       tmp_svg_path.open("w") do |file|
-        updates.each do |source|
-          before, after = sources.map(&:layer_name).inject([[]]) do |memo, candidate|
-            candidate == source.layer_name ? memo << [] : memo.last << candidate
-            memo
+        if updates.any? do |source|
+          source.respond_to? :labels
+        end || removals.any? do |name|
+          xml.elements["/svg/g[@id='labels#{SEGMENT}#{name}']"]
+        end then
+          label_source = LabelSource.new "labels", Hash[label_params]
+        end
+        
+        config["exclude"].map do |name|
+          predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}') or @id='labels#{SEGMENT}#{name}' or starts-with(@id,'labels#{SEGMENT}#{name}#{SEGMENT}')"
+          xpath = "/svg/g[#{predicate}] | svg/defs/[#{predicate}]"
+          if xml.elements[xpath]
+            puts "Removing: #{name}"
+            xml.elements.each(xpath, &:remove)
           end
-          neighbour = xml.elements.collect("/svg/g[@id]") do |sibling|
-            sibling if after.any? do |layer_name|
-              sibling.attributes["id"] == layer_name || sibling.attributes["id"].start_with?("#{layer_name}#{SEGMENT}")
-            end
-          end.compact.first
+        end
+        
+        [ *updates, *label_source ].each do |source|
           begin
-            puts "Compositing: #{source.layer_name}"
-            source.render_svg(xml, map) do |layer|
-              neighbour ? xml.elements["/svg"].insert_before(neighbour, layer) : xml.elements["/svg"].add_element(layer)
+            puts "Compositing: #{source.name}"
+            predicate = "@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')"
+            xml.elements.each("/svg/g[#{predicate}]/*", &:remove)
+            xml.elements.each("/svg/defs/[#{predicate}]", &:remove)
+            if source == label_source
+              sources.each { |source| label_source.add(source, map) }
+              label_source.render_svg(map) do |sublayer|
+                id = [ label_source.name, *sublayer ].join(SEGMENT)
+                xml.elements["/svg/g[@id='#{id}']"] || xml.elements["/svg"].add_element("g", "id" => id, "style" => "opacity:1")
+              end
+            elsif xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"]
+              source.render_svg(map) do |sublayer|
+                id = [ source.name, *sublayer ].join(SEGMENT)
+                xml.elements["/svg/g[@id='#{id}']"]
+              end
+            else
+              before, after = sources.map(&:name).inject([[]]) do |memo, name|
+                name == source.name ? memo << [] : memo.last << name
+                memo
+              end
+              neighbour = xml.elements.collect("/svg/g[@id]") do |sibling|
+                sibling if [ *after ].any? do |name|
+                  sibling.attributes["id"] == name || sibling.attributes["id"].start_with?("#{name}#{SEGMENT}")
+                end
+              end.compact.first
+              source.render_svg(map) do |sublayer|
+                id = [ source.name, *sublayer ].join(SEGMENT)
+                REXML::Element.new("g").tap do |group|
+                  group.add_attributes "id" => id, "style" => "opacity:1"
+                  neighbour ? xml.elements["/svg"].insert_before(neighbour, group) : xml.elements["/svg"].add_element(group)
+                end
+              end
             end
-            puts "Styling: #{source.layer_name}"
+            puts "Styling: #{source.name}"
             source.rerender(xml, map)
           rescue BadLayerError => e
-            puts "Failed to render #{source.layer_name}: #{e.message}"
+            puts "Failed to render #{source.name}: #{e.message}"
           end
         end
         
-        config["exclude"].map do |layer_name|
-          predicate = "@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')"
-          xpath = "/svg/g[#{predicate}] | svg/defs/[#{predicate}]"
-          [ layer_name, xpath ]
-        end.select do |layer_name, xpath|
-          xml.elements[xpath]
-        end.each do |layer_name, xpath|
-          puts "  Removing #{layer_name}"
-          xml.elements.each(xpath, &:remove)
-        end
-        
-        updates.each do |source|
-          [ %w[below insert_before 1 to_a], %w[above insert_after last() reverse] ].select do |position, insert, predicate, order|
-            config[position]
-          end.each do |position, insert, predicate, order|
-            config[position].select do |layer_name, sibling_name|
-              layer_name == source.layer_name || layer_name.start_with?("#{source.layer_name}#{SEGMENT}")
-            end.each do |layer_name, sibling_name|
-              sibling = xml.elements["/svg/g[@id='#{sibling_name}' or starts-with(@id,'#{sibling_name}#{SEGMENT}')][#{predicate}]"]
-              xml.elements.collect("/svg/g[@id='#{layer_name}' or starts-with(@id,'#{layer_name}#{SEGMENT}')]") do |layer|
-                layer
-              end.send(order).each do |layer|
-                puts "  Moving #{layer.attributes['id']} #{position} #{sibling.attributes['id']}"
-                layer.parent.send insert, sibling, layer
-              end if sibling
-            end
-          end
-        end
-        
-        REXML::XPath.match(xml, "/svg/g[@id]").select do |layer|
-          sources.any? do |source|
-            source.is_a?(ArcGISVector) && layer.attributes["id"] == "#{source.layer_name}#{SEGMENT}labels"
-          end
-        end.last.tap do |target|
-          additions.select do |source|
-            source.is_a?(ArcGISVector)
-          end.map do |source|
-            xml.elements["/svg/g[@id='#{source.layer_name}#{SEGMENT}labels']"]
-          end.compact.reject do |layer|
-            layer == target
-          end.each do |layer|
-            puts "  Moving #{layer.attributes['id']}" unless layer.elements.empty?
-            target.parent.insert_before target, layer.remove
-          end if target
-        end unless config["leave-labels"]
-        
-        xml.elements.each("/svg/g[*]") { |layer| layer.add_attribute("inkscape:groupmode", "layer") }
+        xml.elements.each("/svg/g[*]") { |group| group.add_attribute("inkscape:groupmode", "layer") }
         
         if config["check-fonts"]
           fonts_needed = xml.elements.collect("//[@font-family]") do |element|

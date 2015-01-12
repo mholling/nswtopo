@@ -10,22 +10,19 @@ features:
   boundaries:
     name: Holdings
     label: OCCUPIER
-    minimum-area: 100
-    font-size: 1.4
 boundaries:
-  style:
-    fill: none
-    stroke: "#000080"
-    stroke-width: 0.2
+  fill: none
+  stroke: "#000080"
+  stroke-width: 0.2
 labels:
+  minimum-area: 100
   dupe: outline
-  styles:
-    "":
-      stroke: none
-      fill: "#000080"
-      font-family: sans-serif
-    outline:
-      stroke: white
-      fill: none
-      stroke-width: 0.25
-      stroke-opacity: 0.75
+  stroke: none
+  fill: "#000080"
+  font-family: sans-serif
+  font-size: 1.4
+  outline:
+    stroke: white
+    fill: none
+    stroke-width: 0.25
+    stroke-opacity: 0.75

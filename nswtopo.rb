@@ -1832,6 +1832,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       centre = map.wgs84_bounds.map { |bound| 0.5 * bound.inject(:+) }
       projection = Projection.transverse_mercator(centre.first, 1.0)
       spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
+      arrows = params["arrows"]
       bounds = map.transform_bounds_to(projection)
       extents = bounds.map { |bound| bound.max - bound.min }
       longitudinal_extent = extents[0] + extents[1] * Math::tan(map.declination * Math::PI / 180.0)
@@ -1844,10 +1845,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ eastings, northings ].transpose
       end.map do |line|
         map.coords_to_mm map.reproject_from(projection, line)
+      end.map.with_index do |points, index|
+        step = arrows || points.distance
+        start = index.even? ? 0.25 : 0.75
+        (points.distance / step - start).ceil.times.map do |n|
+          points.along (start + n) * step / points.distance
+        end.unshift(points.first).push(points.last)
       end.map do |points|
         points.to_path_data MM_DECIMAL_DIGITS
       end.each do |d|
-        group.add_element("path", "d" => d)
+        group.add_element("path", "d" => d, "fill" => "none", "marker-mid" => arrows ? "url(##{name}#{SEGMENT}marker)" : "none")
+      end.tap do
+        group.elements["//svg/defs"].add_element("marker", "id" => "#{name}#{SEGMENT}marker", "markerWidth" => 20, "markerHeight" => 8, "viewBox" => "-20 -4 20 8", "orient" => "auto") do |marker|
+          marker.add_element("path", "d" => "M 0 0 L -20 -4 L -20 4 Z", "stroke" => "none", "fill" => params["stroke"] || "black")
+        end if arrows
       end if group
     rescue ServerError => e
       raise BadLayerError.new(e.message)
@@ -2697,6 +2708,7 @@ grid:
 declination:
   class: DeclinationSource
   spacing: 1000
+  arrows: 150
   stroke: darkred
   stroke-width: 0.1
 controls:

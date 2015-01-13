@@ -2143,7 +2143,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class LabelSource < Source
     # TODO: add diagonal corners as point-source positions
-    # TODO: don't split path sections into separate features
     # TODO: dimensionality reduction of features e.g. area -> line, line -> point
     include VectorRenderer
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth minimum-area format]
@@ -2177,17 +2176,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           feature["point"] = map.coords_to_mm label["data"]
           @features << feature
         when 1
-          label["data"].each do |coords|
-            points = map.coords_to_mm coords
-            @features << feature.dup.merge("points" => points)
+          feature["points"] = label["data"].map do |coords|
+            map.coords_to_mm coords
           end
+          @features << feature
         when 2
           label["data"].map do |coords|
             map.coords_to_mm coords
-          end.select do |points|
-            points.signed_area > (feature["minimum-area"] || 0)
-          end.each do |points|
-            @features << feature.dup.merge("points" => points)
+          end.select do |polygon|
+            polygon.signed_area > (feature["minimum-area"] || 0)
+          end.tap do |points|
+            @features << feature.merge("points" => points) if points.any?
           end
         end
       end.tap do |labels|
@@ -2199,7 +2198,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       @features.map do |feature|
         [ feature, feature["dimension"] == 1 && feature["smooth"] ]
       end.select(&:last).each do |feature, mm|
-        feature["points"].smooth!(mm, 20)
+        feature["points"].each { |line| line.smooth! mm, 20 }
       end
       
       candidates = @features.map do |feature|
@@ -2232,157 +2231,160 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           deviation = feature["deviation"] || 5
           text_length = feature["percents"] ? 0 : label_text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + label_text.count(?\s) * word_spacing
           baseline_shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
-          feature["baselines"] = []
-          feature["endpoints"] = []
-          points = feature["points"]
-          start_end_distance = points.values_at(0, -1).distance
-          cumulative = points.segments.inject([start_end_distance]) do |memo, segment|
-            memo << memo.last + segment.distance
-          end
-          perpendiculars = points.segments.map do |segment|
-            [ segment[0][1] - segment[1][1], segment[1][0] - segment[0][0] ]
-          end
-          cumulative.length.times.inject([]) do |memo, finish|
-            start = finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
-              cumulative[finish] - cumulative[start] > text_length
+          feature["candidates"] = []
+          feature["points"].map.with_index do |points, index|
+            start_end_distance = points.values_at(0, -1).distance
+            cumulative = points.segments.inject([start_end_distance]) do |memo, segment|
+              memo << memo.last + segment.distance
             end
-            start ? memo << (start..finish) : memo
-          end.reject do |range|
-            points[range].cosines.any? { |cosine| cosine < 0.9 }
-          end.map do |range|
-            means = points[range].transpose.map(&:mean)
-            deviations = points[range].transpose.zip(means).map do |values, mean|
-              values.map { |value| value - mean }
+            perpendiculars = points.segments.map do |segment|
+              [ segment[0][1] - segment[1][1], segment[1][0] - segment[0][0] ]
             end
-            a00, a01, a11 = [ [0, 0], [0, 1], [1, 1] ].map do |axes|
-              deviations.values_at(*axes).transpose.map { |d1, d2| d1 * d2 }.inject(&:+)
-            end
-            eigenvalue = 0.5 * (a00 + a11 - Math::sqrt(a00**2 + 4 * a01**2 - 2 * a00 * a11 + a11**2))
-            sinuosity = (cumulative[range.last] - cumulative[range.first]) / points[range.last].minus(points[range.first]).norm
-            [ range, eigenvalue, sinuosity ]
-          end.reject do |range, eigenvalue, sinuosity|
-            eigenvalue > deviation**2 || sinuosity > 1.25
-          end.sort_by(&:last).map(&:first).map do |range|
-            perp = perpendiculars[range.first...range.last].inject(&:plus).normalised
-            baseline, top, bottom = [ 0.0, font_size + 0.5, -0.5 ].map do |shift|
-              perp.times(baseline_shift + shift)
-            end.map do |offset|
-              case feature["orientation"]
-              when "uphill"
-                points[range].map { |point| point.minus offset }
-              when "downhill"
-                points[range].map { |point| point.plus  offset }.reverse
-              else
-                points[range.last].minus(points[range.first]).rotate_by_degrees(map.rotation).first > 0 ?
-                  points[range].map { |point| point.minus offset } :
-                  points[range].map { |point| point.plus  offset }.reverse
+            cumulative.length.times.inject([]) do |memo, finish|
+              start = finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
+                cumulative[finish] - cumulative[start] > text_length
               end
+              start ? memo << (start..finish) : memo
+            end.reject do |range|
+              points[range].cosines.any? { |cosine| cosine < 0.9 }
+            end.map do |range|
+              means = points[range].transpose.map(&:mean)
+              deviations = points[range].transpose.zip(means).map do |values, mean|
+                values.map { |value| value - mean }
+              end
+              a00, a01, a11 = [ [0, 0], [0, 1], [1, 1] ].map do |axes|
+                deviations.values_at(*axes).transpose.map { |d1, d2| d1 * d2 }.inject(&:+)
+              end
+              eigenvalue = 0.5 * (a00 + a11 - Math::sqrt(a00**2 + 4 * a01**2 - 2 * a00 * a11 + a11**2))
+              sinuosity = (cumulative[range.last] - cumulative[range.first]) / points[range.last].minus(points[range.first]).norm
+              [ range, eigenvalue, sinuosity ]
+            end.reject do |range, eigenvalue, sinuosity|
+              eigenvalue > deviation**2 || sinuosity > 1.25
+            end.sort_by(&:last).map(&:first).map do |range|
+              perp = perpendiculars[range.first...range.last].inject(&:plus).normalised
+              baseline, top, bottom = [ 0.0, font_size + 0.5, -0.5 ].map do |shift|
+                perp.times(baseline_shift + shift)
+              end.map do |offset|
+                case feature["orientation"]
+                when "uphill"
+                  points[range].map { |point| point.minus offset }
+                when "downhill"
+                  points[range].map { |point| point.plus  offset }.reverse
+                else
+                  points[range.last].minus(points[range.first]).rotate_by_degrees(map.rotation).first > 0 ?
+                    points[range].map { |point| point.minus offset } :
+                    points[range].map { |point| point.plus  offset }.reverse
+                end
+              end
+              endpoints = [ cumulative[range.first] / interval, cumulative[range.last] / interval, cumulative.last / interval ]
+              feature["candidates"] << [ index, baseline, endpoints ]
+              (top + bottom.reverse).convex_hull.reverse
             end
-            feature["baselines"] << baseline
-            feature["endpoints"] << [ cumulative[range.first] / interval, cumulative[range.last] / interval, cumulative.last / interval ]
-            (top + bottom.reverse).convex_hull.reverse
-          end
+          end.flatten(1)
         when 2
           lines = label_text.in_two
           width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
           height = lines.length * font_size
-          point = feature["points"].centroid
-          rotated = point.rotate_by_degrees(map.rotation)
-          hull = [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ].inject(&:product).values_at(1,3,2,0).map do |corner|
-            corner.rotate_by_degrees(-map.rotation).plus(point)
+          feature["points"].map(&:centroid).map do |point|
+            rotated = point.rotate_by_degrees(map.rotation)
+            [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ].inject(&:product).values_at(1,3,2,0).map do |corner|
+              corner.rotate_by_degrees(-map.rotation).plus(point)
+            end
           end
-          [ hull ]
-        end.map.with_index.select do |hull, candidate|
+        end.map.with_index.select do |hull, candidate_index|
           map.mm_corners(-2).surrounds? hull
         end
       end
       
       conflicts = {}
-      candidates.each.with_index do |hulls, feature|
-        hulls.map(&:last).each do |candidate|
-          conflicts[feature] ||= {}
-          conflicts[feature][candidate] = {}
+      candidates.each.with_index do |hulls, feature_index|
+        hulls.map(&:last).each do |candidate_index|
+          conflicts[feature_index] ||= {}
+          conflicts[feature_index][candidate_index] = {}
         end
       end
       
-      hulls, labels = candidates.map.with_index do |hulls, feature|
-        hulls.map { |hull, candidate| [ hull, [ feature, candidate ] ] }
+      hulls, labels = candidates.map.with_index do |hulls, feature_index|
+        hulls.map { |hull, candidate_index| [ hull, [ feature_index, candidate_index ] ] }
       end.flatten(1).transpose
       hulls ||= []
       labels ||= []
       
       hulls.overlaps.each do |index1, index2|
-        feature1, candidate1 = label1 = labels[index1]
-        feature2, candidate2 = label2 = labels[index2]
-        conflicts[feature1][candidate1][label2] = true
-        conflicts[feature2][candidate2][label1] = true
+        feature1_index, candidate1_index = label1 = labels[index1]
+        feature2_index, candidate2_index = label2 = labels[index2]
+        conflicts[feature1_index][candidate1_index][label2] = true
+        conflicts[feature2_index][candidate2_index][label1] = true
       end
       
-      candidates.each.with_index do |hulls, feature|
-        hulls.map(&:last).each do |candidate1|
-          label1 = [ feature, candidate1 ]
-          hulls.map(&:last).each do |candidate2|
-            label2 = [ feature, candidate2 ]
-            case @features[feature]["dimension"]
+      candidates.each.with_index do |hulls, feature_index|
+        feature = @features[feature_index]
+        hulls.map(&:last).each do |candidate1_index|
+          label1 = [ feature_index, candidate1_index ]
+          hulls.map(&:last).each do |candidate2_index|
+            label2 = [ feature_index, candidate2_index ]
+            case feature["dimension"]
             when 0
-              conflicts[feature][candidate1][label2] = true
-              conflicts[feature][candidate2][label1] = true
+              conflicts[feature_index][candidate1_index][label2] = true
+              conflicts[feature_index][candidate2_index][label1] = true
             when 1
-              start1, finish1, total = @features[feature]["endpoints"][candidate1]
-              start2, finish2, total = @features[feature]["endpoints"][candidate2]
+              index1, baseline1, (start1, finish1, total) = feature["candidates"][candidate1_index]
+              index2, baseline2, (start2, finish2, total) = feature["candidates"][candidate2_index]
               case
+              when index1 != index2
               when start2 - finish1 > 1 && start1 + total - finish2 > 1
               when start1 - finish2 > 1 && start2 + total - finish1 > 1
               else
-                conflicts[feature][candidate1][label2] = true
-                conflicts[feature][candidate2][label1] = true
+                conflicts[feature_index][candidate1_index][label2] = true
+                conflicts[feature_index][candidate2_index][label1] = true
               end
-            end unless candidate2 >= candidate1
+              # TODO: add conflicts for line labels which are closer than a specified buffer distance
+            end unless candidate2_index >= candidate1_index
           end
         end
       end
       
       labels = [ ]
-      pending = conflicts.map do |feature, positions|
-        { feature => positions.map do |position, label_conflicts|
-          { position => label_conflicts.dup }
+      pending = conflicts.map do |feature_index, candidate_indices|
+        { feature_index => candidate_indices.map do |candidate_index, label_conflicts|
+          { candidate_index => label_conflicts.dup }
         end.inject(&:merge) }
       end.inject(&:merge) || { }
       
       while pending.any?
-        pending.map do |feature, positions|
-          positions.map do |candidate, label_conflicts|
-            [ [ feature, candidate ], label_conflicts, [ label_conflicts.length, pending[feature].length ] ]
+        pending.map do |feature_index, candidate_indices|
+          candidate_indices.map do |candidate_index, label_conflicts|
+            [ [ feature_index, candidate_index ], label_conflicts, [ label_conflicts.length, pending[feature_index].length ] ]
           end
         end.flatten(1).min_by(&:last).tap do |label, label_conflicts, _|
-          [ label, *label_conflicts.keys ].each do |feature, candidate|
-            pending[feature].delete(candidate) if pending[feature]
+          [ label, *label_conflicts.keys ].each do |feature_index, candidate_index|
+            pending[feature_index].delete(candidate_index) if pending[feature_index]
           end
           labels << label
         end
-        pending.reject! do |feature, positions|
-          positions.empty?
+        pending.reject! do |feature_index, candidate_indices|
+          candidate_indices.empty?
         end
       end
       
-      (conflicts.keys - labels.map(&:first)).each do |feature|
-        conflicts[feature].min_by do |candidate, conflicts|
-          [ (conflicts.keys & labels).count, candidate ]
-        end.tap do |candidate, conflicts|
+      (conflicts.keys - labels.map(&:first)).each do |feature_index|
+        conflicts[feature_index].min_by do |candidate_index, conflicts|
+          [ (conflicts.keys & labels).count, candidate_index ]
+        end.tap do |candidate_index, conflicts|
           labels.reject! do |label|
             conflicts[label] && labels.map(&:first).count(label[0]) > 1
           end
-          labels << [ feature, candidate ]
+          labels << [ feature_index, candidate_index ]
         end
       end
       
       5.times do
-        labels.select do |feature, candidate|
-          @features[feature]["dimension"] == 0
+        labels.select do |feature_index, candidate_index|
+          @features[feature_index]["dimension"] == 0
         end.each do |label|
-          feature, candidate = label
-          counts_candidates = conflicts[feature].map do |candidate, conflicts|
-            [ (labels & conflicts.keys - [ label ]).count, candidate ]
+          feature_index, candidate_index = label
+          counts_candidates = conflicts[feature_index].map do |candidate_index, conflicts|
+            [ (labels & conflicts.keys - [ label ]).count, candidate_index ]
           end
           label[1] = counts_candidates.min.last
         end
@@ -2390,8 +2392,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       layers = Hash[@sublayers.zip @sublayers.map(&block)]
       defs = layers.values.first.elements["//svg/defs"] if labels.any?
-      labels.each do |index, candidate|
-        feature = @features[index]
+      labels.each do |feature_index, candidate_index|
+        feature = @features[feature_index]
         sublayer = feature["sublayer"]
         font_size = feature["font-size"]
         categories = feature["categories"]
@@ -2399,7 +2401,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         group = layers[sublayer].elements["./g[@class='#{categories}')]"] || layers[sublayer].add_element("g", "class" => categories)
         case feature["dimension"]
         when 0
-          position = [ *feature["position"] ][candidate]
+          position = [ *feature["position"] ][candidate_index]
           margin = feature["margin"] || 0
           lines = label_text.in_two
           point = feature["point"]
@@ -2419,8 +2421,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
         when 1
-          d = feature["baselines"][candidate].to_path_data(MM_DECIMAL_DIGITS)
-          id = [ name, sublayer, "path", index, candidate ].join SEGMENT
+          _, baseline, _ = feature["candidates"][candidate_index]
+          d = baseline.to_path_data(MM_DECIMAL_DIGITS)
+          id = [ name, sublayer, "path", feature_index, candidate_index ].join SEGMENT
           defs.add_element "path", "id" => id, "d" => d
           group.add_element("text", "text-anchor" => "middle") do |text|
             text.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%") do |text_path|
@@ -2436,7 +2439,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         when 2
           lines = label_text.in_two
-          point = feature["points"].centroid
+          point = feature["points"][candidate_index].centroid
           transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
           group.add_element("text", "text-anchor" => "middle", "transform" => transform) do |text|
             lines.each.with_index do |line, count|

@@ -1057,7 +1057,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                       angle = 180.0 * segment.difference.angle / Math::PI
                       while alpha * interval < segment.distance
                         segment[0] = segment.along(alpha * interval / segment.distance)
-                        uses << { "use" => {"transform" => "translate(#{segment[0].join ?\s}) rotate(#{angle})", "xlink:href" => "##{symbol_ids.sample}" } }
+                        translate = segment[0].round(MM_DECIMAL_DIGITS).join ?\s
+                        uses << { "use" => {"transform" => "translate(#{translate}) rotate(#{angle.round 2})", "xlink:href" => "##{symbol_ids.sample}" } }
                         alpha = 1.0
                       end
                       alpha - segment.distance / interval
@@ -1085,7 +1086,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                       segment.send order
                     end.each do |segment|
                       angle = 180.0 * segment.difference.angle / Math::PI
-                      uses << { "use" => { "transform" => "translate(#{segment.first.join ?\s}) rotate(#{angle})", "xlink:href" => "##{symbol_id}" } }
+                      translate = segment[0].round(MM_DECIMAL_DIGITS).join ?\s
+                      uses << { "use" => { "transform" => "translate(#{translate}) rotate(#{angle.round 2})", "xlink:href" => "##{symbol_id}" } }
                     end
                   end
                   memo << [ xpath, uses ]

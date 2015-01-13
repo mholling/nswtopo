@@ -2158,7 +2158,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       sublayer = source.name
       source_params = params[sublayer] || {}
       source.labels(map).each do |label|
-        categories = [ *label["categories"] ].reject(&:empty?).join(?\s)
+        categories = [ *label["categories"] ].map(&:to_s).reject(&:empty?).join(?\s)
         dimension = label["dimension"]
         feature = { "sublayer" => sublayer, "dimension" => dimension, "categories" => categories }
         source_params.select do |key, value|
@@ -2216,12 +2216,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           point = feature["point"]
           rotated = point.rotate_by_degrees(map.rotation)
           [ *feature["position"] ].map do |position|
-            case position
-            when 0 then [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ]
-            when 1 then [ [ margin, width + margin ], [ -0.5 * height, 0.5 * height ] ]
-            when 2 then [ [ -0.5 * width, 0.5 * width ], [ margin, height + margin ] ]
-            when 3 then [ [ -0.5 * width, 0.5 * width ], [ -(height + margin), -margin ] ]
-            when 4 then [ [ -(width + margin), -margin ], [ -0.5 * height, 0.5 * height ] ]
+            dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
+            dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
+            f = dx * dy == 0 ? 1 : 0.707
+            [ [ dx, width ], [dy, height ] ].map do |d, l|
+              [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
             end.inject(&:product).values_at(1,3,2,0).map do |corner|
               corner.rotate_by_degrees(-map.rotation).plus(point)
             end
@@ -2407,15 +2406,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           lines = label_text.in_two
           point = feature["point"]
           transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-          text_anchor = position == 1 ? "start" : position == 4 ? "end" : "middle"
+          dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
+          dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
+          text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
+          f = dx * dy == 0 ? 1 : 0.707
           group.add_element("text", "text-anchor" => text_anchor, "transform" => transform) do |text|
             lines.each.with_index do |line, count|
-              y = (lines.one? ? 0.5 : count) * font_size + case position
-              when 0, 1, 4 then 0.0
-              when 2 then  margin + 0.5 * lines.length * font_size
-              when 3 then -margin - 0.5 * lines.length * font_size
-              end - 0.15 * font_size
-              x = position == 1 ? margin : position == 4 ? -margin : 0
+              x = dx * f * margin
+              y = ((lines.one? ? (1 + dy) * 0.5 : count + dy) - 0.15) * font_size + dy * f * margin
               text.add_element("tspan", "x" => x, "y" => y) do |tspan|
                 tspan.add_text line
               end
@@ -2803,7 +2801,7 @@ controls:
       fill: none
       stroke-width: 0.25
       stroke-opacity: 0.75
-    position: [ 1, 2, 3, 4 ]
+    position: [ aboveright, belowright, aboveleft, belowleft, right, left, above, below ]
     font-family: sans-serif
     font-size: 4.9
     stroke: none

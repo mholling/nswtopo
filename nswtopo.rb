@@ -1852,6 +1852,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           points.along (start + n) * step / points.distance
         end.unshift(points.first).push(points.last)
       end.map do |points|
+        map.mm_corners.clip(points, false)
+      end.reject(&:empty?).map do |points|
         points.to_path_data MM_DECIMAL_DIGITS
       end.each do |d|
         group.add_element("path", "d" => d, "fill" => "none", "marker-mid" => arrows ? "url(##{name}#{SEGMENT}marker)" : "none")
@@ -1903,9 +1905,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def draw(map)
       group = yield
       zones_lines(map).each do |utm, lines|
-        lines.inject(&:+).each do |line|
-          d = map.coords_to_mm(map.reproject_from(utm, line)).to_path_data(MM_DECIMAL_DIGITS)
-          group.add_element("path", "d" => d)
+        lines.inject(&:+).map do |line|
+          map.coords_to_mm map.reproject_from(utm, line)
+        end.map do |points|
+          map.mm_corners.clip(points, false)
+        end.reject(&:empty?).each do |points|
+          group.add_element("path", "d" => points.to_path_data(MM_DECIMAL_DIGITS))
         end
       end if group
     end

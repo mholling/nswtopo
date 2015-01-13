@@ -2155,11 +2155,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def add(source, map)
-      source_params = params[source.name] || {}
+      sublayer = source.name
+      source_params = params[sublayer] || {}
       source.labels(map).each do |label|
         categories = [ *label["categories"] ].reject(&:empty?).join(?\s)
         dimension = label["dimension"]
-        feature = { "sublayer" => source.name, "dimension" => dimension, "categories" => categories }
+        feature = { "sublayer" => sublayer, "dimension" => dimension, "categories" => categories }
         source_params.select do |key, value|
           value.is_a?(Hash)
         end.select do |key, value|
@@ -2190,7 +2191,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end
       end.tap do |labels|
-        @sublayers << source.name unless labels.empty?
+        @sublayers << sublayer unless labels.empty?
       end if source.respond_to? :labels
     end
     

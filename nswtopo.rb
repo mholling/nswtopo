@@ -1829,22 +1829,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include NoCreate
     
     def draw(map)
-      centre = map.wgs84_bounds.map { |bound| 0.5 * bound.inject(:+) }
-      projection = Projection.transverse_mercator(centre.first, 1.0)
-      spacing = params["spacing"] / Math::cos(map.declination * Math::PI / 180.0)
       arrows = params["arrows"]
-      bounds = map.transform_bounds_to(projection)
-      extents = bounds.map { |bound| bound.max - bound.min }
-      longitudinal_extent = extents[0] + extents[1] * Math::tan(map.declination * Math::PI / 180.0)
+      tl, tr, br, bl = map.coord_corners
+      width, height = map.extents
+      margin = height * Math::tan((map.rotation + map.declination) * Math::PI / 180.0)
+      spacing = params["spacing"] / Math::cos((map.rotation + map.declination) * Math::PI / 180.0)
       group = yield
-      0.upto(longitudinal_extent / spacing).map do |count|
-        map.declination > 0 ? bounds[0][1] - count * spacing : bounds[0][0] + count * spacing
-      end.map do |easting|
-        eastings = [ easting, easting + extents[1] * Math::tan(map.declination * Math::PI / 180.0) ]
-        northings = bounds.last
-        [ eastings, northings ].transpose
-      end.map do |line|
-        map.coords_to_mm map.reproject_from(projection, line)
+      [ [ bl, br ], [ tl, tr ] ].map.with_index do |edge, index|
+        [ [ 0, 0 - margin ].min, [ width, width - margin ].max ].map do |extension|
+          edge.along (extension + margin * index) / width
+        end
+      end.map do |edge|
+        (edge.distance / spacing).ceil.times.map do |n|
+          edge.along(n * spacing / edge.distance)
+        end
+      end.transpose.map do |line|
+        map.coords_to_mm line
       end.map.with_index do |points, index|
         step = arrows || points.distance
         start = index.even? ? 0.25 : 0.75
@@ -1859,7 +1859,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         group.add_element("path", "d" => d, "fill" => "none", "marker-mid" => arrows ? "url(##{name}#{SEGMENT}marker)" : "none")
       end.tap do
         group.elements["//svg/defs"].add_element("marker", "id" => "#{name}#{SEGMENT}marker", "markerWidth" => 20, "markerHeight" => 8, "viewBox" => "-20 -4 20 8", "orient" => "auto") do |marker|
-          marker.add_element("path", "d" => "M 0 0 L -20 -4 L -20 4 Z", "stroke" => "none", "fill" => params["stroke"] || "black")
+          marker.add_element("path", "d" => "M 0 0 L -20 -4 L -13 0 L -20 4 Z", "stroke" => "none", "fill" => params["stroke"] || "black")
         end if arrows
       end if group
     rescue ServerError => e

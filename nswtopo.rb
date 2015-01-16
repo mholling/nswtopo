@@ -334,12 +334,6 @@ class Array
     end
   end
   
-  def disjoint_from?(points)
-    [ self, perps ].transpose.any? do |vertex, perp|
-      points.all? { |point| point.minus(vertex).dot(perp) >= 0 }
-    end
-  end
-  
   def surrounds?(points)
     [ self, perps ].transpose.all?  do |vertex, perp|
       points.all? { |point| point.minus(vertex).dot(perp) < 0 }
@@ -412,6 +406,68 @@ class Array
     replace smooth(*args)
   end
   
+  def between_critical_supports
+    indices = [ self[0].map.with_index.min_by(&:first), self[1].map.with_index.max_by(&:first) ].map(&:last)
+    calipers = [ [ 0, -1 ], [ 0, 1 ] ]
+    rotation = 0
+    count = 0
+    
+    while rotation <= 2 * Math::PI
+      pairs = zip(indices).map do |polygon, index|
+        polygon.values_at (index - 1) % polygon.length, (index + 1) % polygon.length
+      end
+      edges = zip(indices).map do |polygon, index|
+        polygon.values_at index, (index + 1) % polygon.length
+      end
+      vertices = zip(indices).map do |polygon, index|
+        polygon[index]
+      end
+      
+      angles = edges.zip(calipers).map do |edge, caliper|
+        vector = edge.difference.rotate_by(-rotation)
+        Math::acos vector.dot(caliper) / vector.norm
+      end
+      angle, which = angles.map.with_index.min_by(&:first)
+      
+      perp = vertices.difference.perp
+      comparisons = [ 1, -1 ].zip(pairs).map do |sign, pair|
+        pair.map { |point| sign * point.minus(vertices.first).dot(perp) <=> 0 }
+      end.flatten
+      count += 1 if comparisons.inject(&:+).abs == 4
+      
+      case count
+        when 1 then yield edges.rotate(which)
+        when 2 then break
+      end
+      
+      rotation += angle
+      indices[which] += 1
+      indices[which] %= self[which].length
+    end
+  end
+  
+  def disjoint?
+    between_critical_supports do |edges|
+      return true
+    end
+    return false
+  end
+  
+  def minimum_distance
+    distance = nil
+    between_critical_supports do |edges|
+      edge_vector = edges.first.difference
+      vertex_vector = edges.map(&:first).difference
+      vertex_dot_edge = vertex_vector.dot edge_vector
+      if vertex_dot_edge <= 0 || vertex_dot_edge >= edge_vector.dot(edge_vector)
+        distance = [ *distance, vertex_vector.norm ].min
+      else
+        distance = [ *distance, vertex_vector.proj(edge_vector.perp).abs ].min
+      end
+    end
+    distance || 0
+  end
+  
   def overlaps
     order = flatten(1).transpose.map { |values| values.max - values.min }.inject(&:>) ? :to_a : :reverse
     events, sweep, results = AVLTree.new, AVLTree.new, []
@@ -423,8 +479,10 @@ class Array
       point, index, event = events.pop
       case event
       when :start
-        sweep.each do |other|
-          results << [ index, other ] unless self[index].disjoint_from? self[other]
+        sweep.reject do |other|
+          values_at(index, other).disjoint?
+        end.each do |other|
+          results << [ index, other ]
         end
         sweep.insert index
       when :stop

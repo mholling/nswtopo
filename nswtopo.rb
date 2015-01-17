@@ -412,60 +412,57 @@ class Array
     rotation = 0
     count = 0
     
-    while rotation <= 2 * Math::PI
-      pairs = zip(indices).map do |polygon, index|
-        polygon.values_at (index - 1) % polygon.length, (index + 1) % polygon.length
+    Enumerator.new do |yielder|
+      while rotation <= 2 * Math::PI
+        pairs = zip(indices).map do |polygon, index|
+          polygon.values_at (index - 1) % polygon.length, (index + 1) % polygon.length
+        end
+        edges = zip(indices).map do |polygon, index|
+          polygon.values_at index, (index + 1) % polygon.length
+        end
+        vertices = zip(indices).map do |polygon, index|
+          polygon[index]
+        end
+        
+        angles = edges.zip(calipers).map do |edge, caliper|
+          vector = edge.difference.rotate_by(-rotation)
+          Math::acos vector.dot(caliper) / vector.norm
+        end
+        angle, which = angles.map.with_index.min_by(&:first)
+        
+        perp = vertices.difference.perp
+        comparisons = [ 1, -1 ].zip(pairs).map do |sign, pair|
+          pair.map { |point| sign * point.minus(vertices.first).dot(perp) <=> 0 }
+        end.flatten
+        count += 1 if comparisons.inject(&:+).abs == 4
+        
+        case count
+          when 1 then yielder << edges.rotate(which)
+          when 2 then break
+        end
+        
+        rotation += angle
+        indices[which] += 1
+        indices[which] %= self[which].length
       end
-      edges = zip(indices).map do |polygon, index|
-        polygon.values_at index, (index + 1) % polygon.length
-      end
-      vertices = zip(indices).map do |polygon, index|
-        polygon[index]
-      end
-      
-      angles = edges.zip(calipers).map do |edge, caliper|
-        vector = edge.difference.rotate_by(-rotation)
-        Math::acos vector.dot(caliper) / vector.norm
-      end
-      angle, which = angles.map.with_index.min_by(&:first)
-      
-      perp = vertices.difference.perp
-      comparisons = [ 1, -1 ].zip(pairs).map do |sign, pair|
-        pair.map { |point| sign * point.minus(vertices.first).dot(perp) <=> 0 }
-      end.flatten
-      count += 1 if comparisons.inject(&:+).abs == 4
-      
-      case count
-        when 1 then yield edges.rotate(which)
-        when 2 then break
-      end
-      
-      rotation += angle
-      indices[which] += 1
-      indices[which] %= self[which].length
     end
   end
   
   def disjoint?
-    between_critical_supports do |edges|
-      return true
-    end
-    return false
+    between_critical_supports.any?
   end
   
   def minimum_distance
-    distance = nil
-    between_critical_supports do |edges|
+    between_critical_supports.inject(nil) do |distance, edges|
       edge_vector = edges.first.difference
       vertex_vector = edges.map(&:first).difference
       vertex_dot_edge = vertex_vector.dot edge_vector
       if vertex_dot_edge <= 0 || vertex_dot_edge >= edge_vector.dot(edge_vector)
-        distance = [ *distance, vertex_vector.norm ].min
+        [ *distance, vertex_vector.norm ].min
       else
-        distance = [ *distance, vertex_vector.proj(edge_vector.perp).abs ].min
+        [ *distance, vertex_vector.proj(edge_vector.perp).abs ].min
       end
-    end
-    distance || 0
+    end || 0
   end
   
   def overlaps

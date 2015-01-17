@@ -2128,7 +2128,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     # TODO: add diagonal corners as point-source positions
     # TODO: dimensionality reduction of features e.g. area -> line, line -> point
     include VectorRenderer
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth minimum-area format]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth minimum-area format buffer]
     FONT_ASPECT_RATIO = 0.7
     
     def initialize(*args)
@@ -2150,7 +2150,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           [ *key ].any? { |substring| categories.start_with? substring }
         end.values.inject(source_params, &:merge).tap do |merged_params|
           ATTRIBUTES.each do |attribute|
-            feature[attribute] = merged_params[attribute] if merged_params[attribute]
+            feature[attribute] = merged_params[attribute] if merged_params.include? attribute
           end
         end
         feature["labels"] = feature["format"] ? [ feature["format"] % label["labels"] ] : label["labels"]
@@ -2302,9 +2302,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       candidates.each.with_index do |hulls, feature_index|
         feature = @features[feature_index]
-        hulls.map(&:last).each do |candidate1_index|
+        hulls.each do |hull1, candidate1_index|
           label1 = [ feature_index, candidate1_index ]
-          hulls.map(&:last).each do |candidate2_index|
+          hulls.each do |hull2, candidate2_index|
             label2 = [ feature_index, candidate2_index ]
             case feature["dimension"]
             when 0
@@ -2321,7 +2321,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 conflicts[feature_index][candidate1_index][label2] = true
                 conflicts[feature_index][candidate2_index][label1] = true
               end
-              # TODO: add conflicts for line labels which are closer than a specified buffer distance
+              if feature["buffer"] && [ hull1, hull2 ].minimum_distance < feature["buffer"]
+                conflicts[feature_index][candidate1_index][label2] = true
+                conflicts[feature_index][candidate2_index][label1] = true
+              end
             end unless candidate2_index >= candidate1_index
           end
         end

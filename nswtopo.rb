@@ -1914,8 +1914,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         (points.distance / step - start).ceil.times.map do |n|
           points.along (start + n) * step / points.distance
         end.unshift(points.first).push(points.last)
-      end.tap do |points|
-        points.clip! map.mm_corners, false
+      end.tap do |lines|
+        lines.clip! map.mm_corners, false
       end.map do |points|
         points.to_path_data MM_DECIMAL_DIGITS
       end.each do |d|
@@ -1970,8 +1970,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       zones_lines(map).each do |utm, lines|
         lines.inject(&:+).map do |line|
           map.coords_to_mm map.reproject_from(utm, line)
-        end.tap do |points|
-          points.clip! map.mm_corners, false
+        end.tap do |lines|
+          lines.clip! map.mm_corners, false
         end.each do |points|
           group.add_element("path", "d" => points.to_path_data(MM_DECIMAL_DIGITS))
         end

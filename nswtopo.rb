@@ -1989,9 +1989,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           lines.select(&:first).map do |line|
             coords = map.reproject_from(utm, [ line.first, line.last ])
             [ line[0][index], [ coords ].clip(map.coord_corners(-5), false)[0] ]
-          end.reject do |coord, points|
-            points.empty?
-          end.map do |coord, points|
+          end.select(&:last).map do |coord, points|
             labels_percents = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
             labels_percents << [ "%03d" % (coord % 1000), 80 ] unless interval % 1000 == 0
             labels, percents = labels_percents.transpose

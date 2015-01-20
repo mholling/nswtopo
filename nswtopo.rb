@@ -315,23 +315,30 @@ class Array
     ring.map(&:difference).map(&:perp)
   end
   
-  def clip(points, closed = true)
-    [ self, perps ].transpose.inject(points) do |points, (vertex, perp)|
-      point_segments = closed ? points.ring : [ *points, points.last ].segments
-      point_segments.inject([]) do |clipped, segment|
-        inside = segment.map { |point| point.minus(vertex).dot(perp) <= 0 }
-        case
-        when inside.all?
-          clipped << segment[0]
-        when inside[0]
-          clipped << segment[0]
-          clipped << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
-        when inside[1]
-          clipped << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
+  def clip(hull, closed = true)
+    [ hull, hull.perps ].transpose.inject(self) do |result, (vertex, perp)|
+      result.inject([]) do |clipped, points|
+        segments = closed ? points.ring : [ *points, points.last ].segments
+        clipped + segments.inject([[]]) do |lines, segment|
+          inside = segment.map { |point| point.minus(vertex).dot(perp) <= 0 }
+          case
+          when inside.all?
+            lines.last << segment[0]
+          when inside[0]
+            lines.last << segment[0]
+            lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
+          when inside[1]
+            lines << [ ] unless closed
+            lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
+          end
+          lines
         end
-        clipped
       end
-    end
+    end.select(&:many?)
+  end
+  
+  def clip!(*args)
+    replace clip(*args)
   end
   
   def surrounds?(points)
@@ -1610,9 +1617,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when 1, 2
                 feature["geometry"][dimension == 2 ? "rings" : "paths"].map do |points|
                   reproject ? map.reproject_from(projection, points) : points
-                end.map do |path|
-                  map.coord_corners(1.0).clip(path, dimension == 2)
-                end.select(&:many?)
+                end.tap do |lines|
+                  lines.clip! map.coord_corners(1.0), dimension == 2
+                end
               end
               attributes = feature["attributes"]
               type = types && types[attributes[type_field_name]]
@@ -1907,9 +1914,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         (points.distance / step - start).ceil.times.map do |n|
           points.along (start + n) * step / points.distance
         end.unshift(points.first).push(points.last)
+      end.tap do |points|
+        points.clip! map.mm_corners, false
       end.map do |points|
-        map.mm_corners.clip(points, false)
-      end.reject(&:empty?).map do |points|
         points.to_path_data MM_DECIMAL_DIGITS
       end.each do |d|
         group.add_element("path", "d" => d, "fill" => "none", "marker-mid" => arrows ? "url(##{name}#{SEGMENT}marker)" : "none")
@@ -1963,9 +1970,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       zones_lines(map).each do |utm, lines|
         lines.inject(&:+).map do |line|
           map.coords_to_mm map.reproject_from(utm, line)
-        end.map do |points|
-          map.mm_corners.clip(points, false)
-        end.reject(&:empty?).each do |points|
+        end.tap do |points|
+          points.clip! map.mm_corners, false
+        end.each do |points|
           group.add_element("path", "d" => points.to_path_data(MM_DECIMAL_DIGITS))
         end
       end if group
@@ -1981,7 +1988,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         lines.map.with_index do |lines, index|
           lines.select(&:first).map do |line|
             coords = map.reproject_from(utm, [ line.first, line.last ])
-            [ line[0][index], map.coord_corners(-5).clip(coords, false) ]
+            [ line[0][index], [ coords ].clip(map.coord_corners(-5), false)[0] ]
           end.reject do |coord, points|
             points.empty?
           end.map do |coord, points|

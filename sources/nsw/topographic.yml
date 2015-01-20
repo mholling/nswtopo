@@ -25,10 +25,10 @@ sources:
     instance: actmapi
     folder: mga
     service: basic
-  guras:
-    host: mapsq.six.nsw.gov.au
-    folder: sixmaps
-    service: guras
+  # guras:
+  #   host: mapsq.six.nsw.gov.au
+  #   folder: sixmaps
+  #   service: guras
   poi:
     host: maps.six.nsw.gov.au
     folder: sixmaps
@@ -37,10 +37,10 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: Boundaries
-  2m-contours:
-    host: mapsq.six.nsw.gov.au
-    folder: sixmaps
-    service: 2mContour
+  # 2m-contours:
+  #   host: mapsq.six.nsw.gov.au
+  #   folder: sixmaps
+  #   service: 2mContour
 features:
   plantation-horticulture:
     # TODO: include ForestryPlantation-Other(3) ?
@@ -48,20 +48,20 @@ features:
     where: classsubtype = 6 AND generalculturaltype IN (0,1,2,4)
     category: generalculturaltype
   urban-areas: Urban
-  contours-4m:
-  - source: 2m-contours
-    name: 2 m Contour
-    where: mod(elevation,4) = 0
-    category:
-    - classsubtype
-    - relevance
-  - source: 2m-contours
-    name: 2 m Contour Index
-    where: mod(elevation,4) = 0
-    category:
-    - classsubtype
-    - relevance
-    label: elevation
+  # contours-4m:
+  # - source: 2m-contours
+  #   name: 2 m Contour
+  #   where: mod(elevation,4) = 0
+  #   category:
+  #   - classsubtype
+  #   - relevance
+  # - source: 2m-contours
+  #   name: 2 m Contour Index
+  #   where: mod(elevation,4) = 0
+  #   category:
+  #   - classsubtype
+  #   - relevance
+  #   label: elevation
   contours-10m:
   - name: Contour_10m
     category:
@@ -249,13 +249,22 @@ features:
     - classsubtype
     - functionhierarchy
     - roadontype
-  - source: guras
-    name: Road Name Extent
-    where: functionhierarchy NOT IN (6,7,10,11) AND roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
-    # TODO: specify by relevance instead of by function hierarchy?
+  # - source: guras
+  #   name: Road Name Extent
+  #   where: functionhierarchy NOT IN (6,7,10,11) AND roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
+  #   # TODO: specify by relevance instead of by function hierarchy?
+  #   category: functionhierarchy
+  #   label-only: true
+  #   label: roadnamestring
+  - source: rfs
+    name: RoadSegment
+    where: functionhierarchy NOT IN (6,7,10,11) AND roadnamebase NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamebase NOT LIKE '%AUSTRALIAN ALPS%'
     category: functionhierarchy
     label-only: true
-    label: roadnamestring
+    label:
+    - roadnamebase
+    - roadnametype
+    - roadnamesuffix
   railways:
     name: Railway_onground_LS
     where: operationalstatus NOT IN (3,8)
@@ -376,7 +385,7 @@ features:
 # Cableway
 
 intervals-contours:
-  4: contours-4m
+  # 4: contours-4m
   10: contours-10m
   20: contours-20m
 relief-masks:
@@ -1118,19 +1127,19 @@ labels:
     orientation: uphill
     font-size: 1.4
     letter-spacing: 0.05
-    interval: 120
+    repeat-interval: 120
     deviation: 0.1
   contours-10m:
     orientation: uphill
     font-size: 1.4
     letter-spacing: 0.05
-    interval: 120
+    repeat-interval: 120
     deviation: 0.1
   contours-20m:
     orientation: uphill
     font-size: 1.4
     letter-spacing: 0.05
-    interval: 120
+    repeat-interval: 120
     deviation: 0.1
   cliffs-excavation:
     position: [ over, right, above, below, left ]
@@ -1149,17 +1158,17 @@ labels:
   watercourses:
     smooth: 8.0
     deviation: 3.0
-    interval: 100
+    repeat-interval: 100
     margin: 2.5
     fill: "#1667DF"
     letter-spacing: 0.1
     word-spacing: 2.0
   [ watercourses 1, watercourses 2 ]:
     font-size: 1.9
-    interval: 150
+    repeat-interval: 150
   [ watercourses 3, watercourses 4 ]:
     font-size: 1.7
-    interval: 150
+    repeat-interval: 150
   [ watercourses 5, watercourses 6, watercourses 7 ]:
     font-size: 1.5
   [ watercourses 8, watercourses 9, watercourses 10 ]:
@@ -1215,6 +1224,8 @@ labels:
     font-size: 1.4
     letter-spacing: 0.1
     margin: 1.2
+    repeat-buffer: 100
+    collate: true
   [ roads Path, roads Track-Vehicular ]:
     font-size: 1.4
     margin: 0.8

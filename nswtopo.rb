@@ -465,19 +465,20 @@ class Array
     end || 0
   end
   
-  def overlaps
+  def overlaps(buffer = 0)
     order = flatten(1).transpose.map { |values| values.max - values.min }.inject(&:>) ? :to_a : :reverse
     events, sweep, results = AVLTree.new, AVLTree.new, []
+    buffer_vector = [ buffer, buffer ]
     each.with_index do |hull, index|
-      events.insert [ hull.map(&order).min, index, :start ]
-      events.insert [ hull.map(&order).max, index, :stop  ]
+      events.insert [ hull.min_by(&order).minus(buffer_vector), index, :start ]
+      events.insert [ hull.max_by(&order).plus( buffer_vector), index, :stop  ]
     end
     until events.empty? do
       point, index, event = events.pop
       case event
       when :start
         sweep.reject do |other|
-          values_at(index, other).disjoint?
+          buffer.zero? ? values_at(index, other).disjoint? : values_at(index, other).minimum_distance > buffer
         end.each do |other|
           results << [ index, other ]
         end
@@ -1689,7 +1690,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               feature["data"].reject(&:empty?).map do |coords|
                 map.coords_to_mm coords
               end.map do |points|
-                case k = params[sublayer]["bezier"]
+                case k = params[sublayer] && params[sublayer]["bezier"]
                 when Numeric then points.to_bezier(k, MM_DECIMAL_DIGITS, *close)
                 when true    then points.to_bezier(1, MM_DECIMAL_DIGITS, *close)
                 else              points.to_path_data(MM_DECIMAL_DIGITS, *close)
@@ -1991,7 +1992,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             points.map.with_index do |point, index|
               index.zero? ? [ point, points.along(10.0 / mm) ] : [ points.along(1.0 - 10.0 / mm), point ]
             end.map do |segment|
-              { "dimension" => 1, "data" => [ segment ], "labels" => labels, "percents" => percents, "categories" => [ index.zero? ? "eastings" : "northings" ] }
+              { "dimension" => 1, "data" => [ segment ], "labels" => labels, "percents" => percents, "categories" => index.zero? ? "eastings" : "northings" }
             end
           end
         end
@@ -2012,7 +2013,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             line.segments.select do |segment|
               segment[0][1-index] % label_interval == 0
             end.map do |segment|
-              { "dimension" => 1, "data" => [ map.reproject_from(utm, segment) ], "labels" => labels, "percents" => percents, "categories" => [ index.zero? ? "eastings" : "northings" ] }
+              { "dimension" => 1, "data" => [ map.reproject_from(utm, segment) ], "labels" => labels, "percents" => percents, "categories" => index.zero? ? "eastings" : "northings" }
             end
           end
         end
@@ -2090,7 +2091,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         type == :water
       end.map do |type, waypoints|
         waypoints.map do |waypoint, label|
-          { "dimension" => 0, "data" => map.reproject_from_wgs84(waypoint), "labels" => [ label ], "categories" => [ type ] }
+          { "dimension" => 0, "data" => map.reproject_from_wgs84(waypoint), "labels" => label, "categories" => type }
         end
       end.flatten(1)
     end
@@ -2125,102 +2126,114 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class LabelSource < Source
-    # TODO: add diagonal corners as point-source positions
     # TODO: dimensionality reduction of features e.g. area -> line, line -> point
     include VectorRenderer
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position interval deviation smooth minimum-area format buffer]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat-interval deviation smooth minimum-area format repeat-buffer collate]
     FONT_ASPECT_RATIO = 0.7
     
     def initialize(*args)
       super(*args)
       @features = [];
-      @sublayers = [];
     end
     
     def add(source, map)
       sublayer = source.name
       source_params = params[sublayer] || {}
-      source.labels(map).each do |label|
-        categories = [ *label["categories"] ].map(&:to_s).reject(&:empty?).join(?\s)
-        dimension = label["dimension"]
-        feature = { "sublayer" => sublayer, "dimension" => dimension, "categories" => categories }
+      source.labels(map).each do |feature|
+        categories = [ *feature["categories"] ].map(&:to_s).reject(&:empty?).join(?\s)
+        dimension = feature["dimension"]
+        attributes = { "categories" => categories }
+        attributes["percents"] = feature["percents"] if feature["percents"]
         source_params.select do |key, value|
           value.is_a?(Hash)
         end.select do |key, value|
           [ *key ].any? { |substring| categories.start_with? substring }
         end.values.inject(source_params, &:merge).tap do |merged_params|
-          ATTRIBUTES.each do |attribute|
-            feature[attribute] = merged_params[attribute] if merged_params.include? attribute
+          ATTRIBUTES.each do |key|
+            attributes[key] = merged_params[key] if merged_params.include? key
           end
         end
-        feature["labels"] = feature["format"] ? [ feature["format"] % label["labels"] ] : label["labels"]
-        feature["percents"] = label["percents"] if label["percents"]
+        text = attributes["format"] ? attributes["format"] % feature["labels"] : [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
+        _, _, components = @features.find do |other_text, other_sublayer, _|
+          other_sublayer == sublayer && other_text == text
+        end if attributes["collate"]
+        unless components
+          components = [ ]
+          @features << [ text, sublayer, components ]
+        end
         case dimension
         when 0
-          feature["point"] = map.coords_to_mm label["data"]
-          @features << feature
-        when 1
-          feature["points"] = label["data"].map do |coords|
+          data = map.coords_to_mm feature["data"]
+          [ [ dimension, data, attributes ] ]
+        when 1, 2
+          feature["data"].map do |coords|
             map.coords_to_mm coords
+          end.select do |data|
+            dimension == 1 || data.signed_area > (attributes["minimum-area"] || 0)
+          end.map do |data|
+            [ dimension, data, attributes ]
           end
-          @features << feature
-        when 2
-          label["data"].map do |coords|
-            map.coords_to_mm coords
-          end.select do |polygon|
-            polygon.signed_area > (feature["minimum-area"] || 0)
-          end.tap do |points|
-            @features << feature.merge("points" => points) if points.any?
-          end
+        end.each do |component|
+          components << component
         end
-      end.tap do |labels|
-        @sublayers << sublayer unless labels.empty?
       end if source.respond_to? :labels
     end
     
     def draw(map, &block)
-      @features.map do |feature|
-        [ feature, feature["dimension"] == 1 && feature["smooth"] ]
-      end.select(&:last).each do |feature, mm|
-        feature["points"].each { |line| line.smooth! mm, 20 }
+      @features.each do |text, sublayer, components|
+        components.map do |dimension, data, attributes|
+          [ data, dimension == 1 && attributes["smooth"] ]
+        end.select(&:last).each do |line, mm|
+          line.smooth! mm, 20
+        end
       end
       
-      candidates = @features.map do |feature|
-        font_size      = feature["font-size"]      || 1.5
-        letter_spacing = feature["letter-spacing"] || 0
-        word_spacing   = feature["word-spacing"]   || 0
-        label_text     = feature["labels"].join ?\s
-        case feature["dimension"]
-        when 0
-          margin = feature["margin"] || 0
-          lines = label_text.in_two
-          width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
-          height = lines.length * font_size
-          point = feature["point"]
-          rotated = point.rotate_by_degrees(map.rotation)
-          [ *feature["position"] ].map do |position|
-            dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
-            dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
-            f = dx * dy == 0 ? 1 : 0.707
-            [ [ dx, width ], [dy, height ] ].map do |d, l|
-              [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
-            end.inject(&:product).values_at(1,3,2,0).map do |corner|
-              corner.rotate_by_degrees(-map.rotation).plus(point)
+      hulls, sublayers, components, categories, endpoints, elements = @features.map do |text, sublayer, components|
+        components.map do |component|
+          dimension, data, attributes = component
+          font_size      = attributes["font-size"]      || 1.5
+          letter_spacing = attributes["letter-spacing"] || 0
+          word_spacing   = attributes["word-spacing"]   || 0
+          categories     = attributes["categories"]
+          case dimension
+          when 0
+            margin = attributes["margin"] || 0
+            lines = text.in_two
+            width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
+            height = lines.length * font_size
+            transform = "translate(#{data.join ?\s}) rotate(#{-map.rotation})"
+            [ *attributes["position"] ].map do |position|
+              dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
+              dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
+              f = dx * dy == 0 ? 1 : 0.707
+              text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
+              text_element = REXML::Element.new("text")
+              text_element.add_attributes "text-anchor" => text_anchor, "transform" => transform
+              lines.each.with_index do |line, count|
+                x = dx * f * margin
+                y = ((lines.one? ? (1 + dy) * 0.5 : count + dy) - 0.15) * font_size + dy * f * margin
+                text_element.add_element("tspan", "x" => x, "y" => y) do |tspan|
+                  tspan.add_text line
+                end
+              end
+              hull = [ [ dx, width ], [dy, height ] ].map do |d, l|
+                [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
+              end.inject(&:product).values_at(0,2,3,1).map do |corner|
+                corner.rotate_by_degrees(-map.rotation).plus(data)
+              end
+              [ hull, sublayer, component, categories, nil, text_element ]
             end
-          end
-        when 1
-          margin = feature["margin"]
-          interval = feature["interval"] || 150
-          deviation = feature["deviation"] || 5
-          text_length = feature["percents"] ? 0 : label_text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + label_text.count(?\s) * word_spacing
-          baseline_shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
-          feature["candidates"] = []
-          feature["points"].map.with_index do |points, index|
-            start_end_distance = points.values_at(0, -1).distance
-            cumulative = points.segments.inject([start_end_distance]) do |memo, segment|
+          when 1
+            margin = attributes["margin"]
+            repeat_interval = attributes["repeat-interval"] || 150
+            deviation = attributes["deviation"] || 5
+            text_length = attributes["percents"] ? 0 : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
+            baseline_shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
+            start_end_distance = data.values_at(0, -1).distance
+            cumulative = data.segments.inject([start_end_distance]) do |memo, segment|
               memo << memo.last + segment.distance
             end
-            perpendiculars = points.segments.map do |segment|
+            perpendiculars = data.segments.map do |segment|
               [ segment[0][1] - segment[1][1], segment[1][0] - segment[0][0] ]
             end
             cumulative.length.times.inject([]) do |memo, finish|
@@ -2229,17 +2242,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
               start ? memo << (start..finish) : memo
             end.reject do |range|
-              points[range].cosines.any? { |cosine| cosine < 0.9 }
+              data[range].cosines.any? { |cosine| cosine < 0.9 }
             end.map do |range|
-              means = points[range].transpose.map(&:mean)
-              deviations = points[range].transpose.zip(means).map do |values, mean|
+              means = data[range].transpose.map(&:mean)
+              deviations = data[range].transpose.zip(means).map do |values, mean|
                 values.map { |value| value - mean }
               end
               a00, a01, a11 = [ [0, 0], [0, 1], [1, 1] ].map do |axes|
                 deviations.values_at(*axes).transpose.map { |d1, d2| d1 * d2 }.inject(&:+)
               end
               eigenvalue = 0.5 * (a00 + a11 - Math::sqrt(a00**2 + 4 * a01**2 - 2 * a00 * a11 + a11**2))
-              sinuosity = (cumulative[range.last] - cumulative[range.first]) / points[range.last].minus(points[range.first]).norm
+              sinuosity = (cumulative[range.last] - cumulative[range.first]) / data[range.last].minus(data[range.first]).norm
               [ range, eigenvalue, sinuosity ]
             end.reject do |range, eigenvalue, sinuosity|
               eigenvalue > deviation**2 || sinuosity > 1.25
@@ -2248,86 +2261,118 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               baseline, top, bottom = [ 0.0, font_size + 0.5, -0.5 ].map do |shift|
                 perp.times(baseline_shift + shift)
               end.map do |offset|
-                case feature["orientation"]
+                case attributes["orientation"]
                 when "uphill"
-                  points[range].map { |point| point.minus offset }
+                  data[range].map { |point| point.minus offset }
                 when "downhill"
-                  points[range].map { |point| point.plus  offset }.reverse
+                  data[range].map { |point| point.plus  offset }.reverse
                 else
-                  points[range.last].minus(points[range.first]).rotate_by_degrees(map.rotation).first > 0 ?
-                    points[range].map { |point| point.minus offset } :
-                    points[range].map { |point| point.plus  offset }.reverse
+                  data[range.last].minus(data[range.first]).rotate_by_degrees(map.rotation).first > 0 ?
+                    data[range].map { |point| point.minus offset } :
+                    data[range].map { |point| point.plus  offset }.reverse
                 end
               end
-              endpoints = [ cumulative[range.first] / interval, cumulative[range.last] / interval, cumulative.last / interval ]
-              feature["candidates"] << [ index, baseline, endpoints ]
-              (top + bottom.reverse).convex_hull.reverse
+              hull = (top + bottom).convex_hull
+              d = baseline.to_path_data(MM_DECIMAL_DIGITS)
+              id = [ name, sublayer, "path", d.hash ].join SEGMENT
+              path_element = REXML::Element.new("path")
+              path_element.add_attributes "id" => id, "d" => d
+              text_element = REXML::Element.new("text")
+              text_element.add_attributes "text-anchor" => "middle"
+              text_element.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%") do |text_path|
+                if attributes["percents"]
+                  attributes["percents"].zip(text.split ?\s).each.with_index do |(percent, text_part), index|
+                    text_path.add_text ?\s unless index.zero?
+                    text_path.add_element("tspan", "font-size" => "#{percent}%") { |tspan| tspan.add_text text_part }
+                  end
+                else
+                  text_path.add_text text
+                end
+              end
+              endpoints = [ cumulative[range.first] / repeat_interval, cumulative[range.last] / repeat_interval, cumulative.last / repeat_interval ]
+              [ hull, sublayer, component, categories, endpoints, [ text_element, path_element ] ]
             end
-          end.flatten(1)
-        when 2
-          lines = label_text.in_two
-          width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
-          height = lines.length * font_size
-          feature["points"].map(&:centroid).map do |point|
+          when 2
+            lines = text.in_two
+            width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
+            height = lines.length * font_size
+            point = data.centroid
             rotated = point.rotate_by_degrees(map.rotation)
-            [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ].inject(&:product).values_at(1,3,2,0).map do |corner|
+            hull = [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ].inject(&:product).values_at(0,2,3,1).map do |corner|
               corner.rotate_by_degrees(-map.rotation).plus(point)
             end
+            transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
+            text_element = REXML::Element.new("text")
+            text_element.add_attributes "text-anchor" => "middle", "transform" => transform
+            lines.each.with_index do |line, count|
+              y = (lines.one? ? 0.5 : count) * font_size - 0.15 * font_size
+              text_element.add_element("tspan", "x" => 0, "y" => y) do |tspan|
+                tspan.add_text line
+              end
+            end
+            [ [ hull, sublayer, component, categories, nil, text_element ] ]
+          end.select do |hull, *args|
+            map.mm_corners(-2).surrounds? hull
           end
-        end.map.with_index.select do |hull, candidate_index|
-          map.mm_corners(-2).surrounds? hull
-        end
-      end
+        end.flatten(1).transpose
+      end.reject(&:empty?).transpose
       
       conflicts = {}
-      candidates.each.with_index do |hulls, feature_index|
-        hulls.map(&:last).each do |candidate_index|
-          conflicts[feature_index] ||= {}
+      hulls.each.with_index do |hulls, feature_index|
+        conflicts[feature_index] = {}
+        hulls.each.with_index do |hull, candidate_index|
           conflicts[feature_index][candidate_index] = {}
         end
       end
       
-      hulls, labels = candidates.map.with_index do |hulls, feature_index|
-        hulls.map { |hull, candidate_index| [ hull, [ feature_index, candidate_index ] ] }
-      end.flatten(1).transpose
-      hulls ||= []
-      labels ||= []
+      labels = hulls.map.with_index do |hulls, feature_index|
+        hulls.map.with_index { |hull, candidate_index| [ feature_index, candidate_index ] }
+      end.flatten(1)
       
-      hulls.overlaps.each do |index1, index2|
+      hulls.flatten(1).overlaps.each do |index1, index2|
         feature1_index, candidate1_index = label1 = labels[index1]
         feature2_index, candidate2_index = label2 = labels[index2]
         conflicts[feature1_index][candidate1_index][label2] = true
         conflicts[feature2_index][candidate2_index][label1] = true
       end
       
-      candidates.each.with_index do |hulls, feature_index|
-        feature = @features[feature_index]
-        hulls.each do |hull1, candidate1_index|
+      components.each.with_index do |components, feature_index|
+        components.each.with_index do |component1, candidate1_index|
           label1 = [ feature_index, candidate1_index ]
-          hulls.each do |hull2, candidate2_index|
+          dimension, data, attributes = component1
+          components.each.with_index.select do |component2, candidate2_index|
+            candidate2_index < candidate1_index && component1.equal?(component2)
+          end.each do |component2, candidate2_index|
             label2 = [ feature_index, candidate2_index ]
-            case feature["dimension"]
+            case dimension
             when 0
               conflicts[feature_index][candidate1_index][label2] = true
               conflicts[feature_index][candidate2_index][label1] = true
             when 1
-              index1, baseline1, (start1, finish1, total) = feature["candidates"][candidate1_index]
-              index2, baseline2, (start2, finish2, total) = feature["candidates"][candidate2_index]
+              start1, finish1, total = endpoints[feature_index][candidate1_index]
+              start2, finish2, total = endpoints[feature_index][candidate2_index]
               case
-              when index1 != index2
               when start2 - finish1 > 1 && start1 + total - finish2 > 1
               when start1 - finish2 > 1 && start2 + total - finish1 > 1
               else
                 conflicts[feature_index][candidate1_index][label2] = true
                 conflicts[feature_index][candidate2_index][label1] = true
               end
-              if feature["buffer"] && [ hull1, hull2 ].minimum_distance < feature["buffer"]
-                conflicts[feature_index][candidate1_index][label2] = true
-                conflicts[feature_index][candidate2_index][label1] = true
-              end
-            end unless candidate2_index >= candidate1_index
+            end
           end
         end
+      end
+      
+      hulls.zip(components).each.with_index do |(hulls, components), feature_index|
+        buffer = components.map do |_, _, attributes|
+          attributes["repeat-buffer"]
+        end.compact.max
+        hulls.overlaps(buffer).each do |candidate1_index, candidate2_index|
+          label1 = [ feature_index, candidate1_index ]
+          label2 = [ feature_index, candidate2_index ]
+          conflicts[feature_index][candidate1_index][label2] = true
+          conflicts[feature_index][candidate2_index][label1] = true
+        end if buffer
       end
       
       labels = [ ]
@@ -2366,7 +2411,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       5.times do
         labels.select do |feature_index, candidate_index|
-          @features[feature_index]["dimension"] == 0
+          dimension, _, _ = components[feature_index][candidate_index]
+          dimension == 0
         end.each do |label|
           feature_index, candidate_index = label
           counts_candidates = conflicts[feature_index].map do |candidate_index, conflicts|
@@ -2376,63 +2422,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      layers = Hash[@sublayers.zip @sublayers.map(&block)]
+      sublayer_names = sublayers.flatten.uniq
+      layers = Hash[sublayer_names.zip sublayer_names.map(&block)]
       defs = layers.values.first.elements["//svg/defs"] if labels.any?
-      labels.each do |feature_index, candidate_index|
-        feature = @features[feature_index]
-        sublayer = feature["sublayer"]
-        font_size = feature["font-size"]
-        categories = feature["categories"]
-        label_text = feature["labels"].join ?\s
-        group = layers[sublayer].elements["./g[@class='#{categories}')]"] || layers[sublayer].add_element("g", "class" => categories)
-        case feature["dimension"]
-        when 0
-          position = [ *feature["position"] ][candidate_index]
-          margin = feature["margin"] || 0
-          lines = label_text.in_two
-          point = feature["point"]
-          transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-          dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
-          dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
-          text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
-          f = dx * dy == 0 ? 1 : 0.707
-          group.add_element("text", "text-anchor" => text_anchor, "transform" => transform) do |text|
-            lines.each.with_index do |line, count|
-              x = dx * f * margin
-              y = ((lines.one? ? (1 + dy) * 0.5 : count + dy) - 0.15) * font_size + dy * f * margin
-              text.add_element("tspan", "x" => x, "y" => y) do |tspan|
-                tspan.add_text line
-              end
-            end
-          end
-        when 1
-          _, baseline, _ = feature["candidates"][candidate_index]
-          d = baseline.to_path_data(MM_DECIMAL_DIGITS)
-          id = [ name, sublayer, "path", feature_index, candidate_index ].join SEGMENT
-          defs.add_element "path", "id" => id, "d" => d
-          group.add_element("text", "text-anchor" => "middle") do |text|
-            text.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%") do |text_path|
-              if feature["percents"]
-                feature["percents"].zip(feature["labels"]).each.with_index do |(percent, label_text_part), index|
-                  text_path.add_text ?\s unless index.zero?
-                  text_path.add_element("tspan", "font-size" => "#{percent}%") { |tspan| tspan.add_text label_text_part }
-                end
-              else
-                text_path.add_text label_text
-              end
-            end
-          end
-        when 2
-          lines = label_text.in_two
-          point = feature["points"][candidate_index].centroid
-          transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-          group.add_element("text", "text-anchor" => "middle", "transform" => transform) do |text|
-            lines.each.with_index do |line, count|
-              y = (lines.one? ? 0.5 : count) * font_size - 0.15 * font_size
-              text.add_element("tspan", "x" => 0, "y" => y) do |tspan|
-                tspan.add_text line
-              end
-            end
+      labels.map do |feature_index, candidate_index|
+        sublayer = sublayers[feature_index][candidate_index]
+        category = categories[feature_index][candidate_index]
+        element = elements[feature_index][candidate_index]
+        group = layers[sublayer].elements["./g[@class='#{category}')]"] || layers[sublayer].add_element("g", "class" => category)
+        [ element ].flatten.each do |element|
+          case element.name
+          when "text", "textPath" then group.elements << element
+          when "path" then defs.elements << element
           end
         end
       end

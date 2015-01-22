@@ -25,10 +25,10 @@ sources:
     instance: actmapi
     folder: mga
     service: basic
-  # guras:
-  #   host: mapsq.six.nsw.gov.au
-  #   folder: sixmaps
-  #   service: guras
+  guras:
+    host: mapsq.six.nsw.gov.au
+    folder: sixmaps
+    service: Guras
   poi:
     host: maps.six.nsw.gov.au
     folder: sixmaps
@@ -249,22 +249,13 @@ features:
     - classsubtype
     - functionhierarchy
     - roadontype
-  # - source: guras
-  #   name: Road Name Extent
-  #   where: functionhierarchy NOT IN (6,7,10,11) AND roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
-  #   # TODO: specify by relevance instead of by function hierarchy?
-  #   category: functionhierarchy
-  #   label-only: true
-  #   label: roadnamestring
-  - source: rfs
-    name: RoadSegment
-    where: functionhierarchy NOT IN (6,7,10,11) AND roadnamebase NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamebase NOT LIKE '%AUSTRALIAN ALPS%'
+  - source: guras
+    name: Road Name Extent
+    where: functionhierarchy NOT IN (6,7,10,11) AND roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
+    # TODO: specify by relevance instead of by function hierarchy?
     category: functionhierarchy
     label-only: true
-    label:
-    - roadnamebase
-    - roadnametype
-    - roadnamesuffix
+    label: roadnamestring
   railways:
     name: Railway_onground_LS
     where: operationalstatus NOT IN (3,8)

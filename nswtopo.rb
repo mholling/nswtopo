@@ -2370,6 +2370,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end.flatten(1).transpose
       end.reject(&:empty?).transpose
+      return unless hulls
       
       conflicts = {}
       hulls.each.with_index do |hulls, feature_index|

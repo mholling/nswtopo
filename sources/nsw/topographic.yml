@@ -594,17 +594,14 @@ stock-dams:
         fill: "#B3E6E4"
         r: 0.3
 pondage:
-  bezier: 0.5
   fill: "#B3E6E4"
   stroke: "#4985DF"
   stroke-width: 0.12
 coastline:
-  bezier: 0.5
   fill: none
   stroke: black
   stroke-width: 0.2
 water-areas:
-  bezier: 0.5
   order:
     - MainlyDry
     - NonPerennial

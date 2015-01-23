@@ -55,7 +55,7 @@ Usage
 
 The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. You only need to download the script itself, `nswtopo.rb`. Download by clicking the 'ZIP' button, or simply copying and pasting the script out of your browser. More experienced users can install the [git](http://git-scm.com/) command and clone the entire repository with `git clone https://github.com/mholling/nswtopo.git`; update to the latest code at any time with `git pull` from within the `nswtopo` directory.
 
-You will first need to create a directory for the map you are building. Running the script will result in a various image files being downloaded, so a directory is needed to contain them.
+You will first need to create a directory for the map you are building. Running the script will result in a various image and data files being downloaded, so a directory is needed to contain them.
 
 Most likely, you will also want to create a map configuration file called `nswtopo.cfg` in order to customise your map. (This format of this file is [YAML](http://en.wikipedia.org/wiki/YAML), though you don't really need to know this.) This is a simple text file and can be edited with Notepad or whatever text editor you use. Save this file in your map directory as `nswtopo.cfg` (be sure not to use `nswtopo.cfg.txt` by mistake).
 
@@ -110,11 +110,13 @@ or,
 
 Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your Ruby binary). For advanced users, add the script location to your path so you can run it anywhere.
 
-When the script starts it will list the scale of your map (e.g. 1:25000), its rotation, physical size and on-the-ground extent. The script will then proceed to download topographic data. Depending on your connection and the size of your map, many minutes or even hours may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) It is best not to interrupt the program while the topographic data is downloading, as you will have to start over.
+When the script starts it will list the scale of your map (e.g. 1:25000), its rotation, physical size and on-the-ground extent. The script will then proceed to download topographic data. Depending on your connection and the size of your map, many minutes may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) It is best not to interrupt the program while the topographic data is downloading, as you will have to start over.
 
 You can ctrl-c at any point to stop the script. Files which have already downloaded will be skipped when you next execute the script. Conversely, deleting an already-created file will cause that file to be recreated when you run the script again.
 
 After all files have been downloaded, the script will then compile them into a final map image in `.svg` format. The map image is easily viewed in a modern web browser such as Chrome or Firefox, or edited in a vector imaging tool like Inkscape or Illustrator.
+
+Labelling of the map is performed locally. Depending on the size and complexity of the map, this can potentially take many minutes; have patience.
 
 You will likely want to tinker with the configuration file to change the appearance of your final map. To rebuild your map after changing the configuration, you can simply delete `map.svg` (or whatever name you've configured) and run the script again. The map will be recreated from the intermediate files which have been downloaded. You can also add or remove layers without deleting the map; more on this later.
 
@@ -157,7 +159,7 @@ A number of different map layers are available for your map, each obtained from 
     - relief
     - grid
 
-Viewing the map in Inkscape allows you to toggle individual layers on and off. This if helpful, for example, if you wish to view the aerial imagery superimposed against the topographic feature layers for comparison. However, note that Inkscape rendering is not always the best, in particular regarding the correct placement of labels. (This is a problem with Inkscape, not the map file!)
+Viewing the map in Inkscape allows you to toggle individual layers on and off. This if helpful, for example, if you wish to view the aerial imagery superimposed against the topographic feature layers for comparison.
 
 There are a number of map layers specific to NSW and the ACT. These are [described here](sources) in detail. They include several topographic data sources various and various aerial imagery.
 
@@ -192,20 +194,24 @@ The `grid` layer marks the UTM grid onto the map, for use with a GPS or to give 
 You can customise the appearance of the UTM grid and labels if you desire:
 
     grid:
-      interval: 1000          # interval between grid lines (1000 metres by default)
-      width: 0.1              # width in millimetres of the marked lines on the map
-      label-spacing: 5        # number of gridlines between successive labels
-      fontsize: 7.8           # font size (in points) of the grid labels
-      family: Arial Narrow
+      interval: 1000                 # interval between grid lines (1000 metres by default)
+      width: 0.1                     # width in millimetres of the marked lines on the map
+      label-spacing: 5               # number of gridlines between successive labels
+      labels:
+        font-size: 2.75              # font size (in mm) of the grid labels
+        font-family: 'Arial Narrow'  # font family for the labels
+
+Grid labels are rendered periodically across the map at an interval determined by `label-spacing`. Setting the `label-spacing` value to `false` will instead cause the grid labels to be positioned along the four edges of the map.
 
 ## Declination
 
-This layer marks magnetic north lines on the map, and is useful for rogaining maps. The magnetic declination angle for the map centre is automatically retrieved from the Geoscience Australia website. (Override by specifying an `angle: ` value.) Specify spacing and rendering for the magnetic declination lines. 
+This layer marks magnetic north lines on the map, and is useful for rogaining maps. The magnetic declination angle for the map centre is automatically retrieved from an [NOAA online calculator](http://www.ngdc.noaa.gov/geomag-web/#declination). (Override by specifying an `angle: ` value.) Specify spacing and rendering for the magnetic declination lines. 
 
     declination:
       spacing: 1000           # perpendicular spacing of magnetic declination lines in metres
       width: 0.1              # width of the marked lines on the map, in millimetres
-      colour: black           # colour of magnetic declination lines (as a hex triplet or web colour)
+      stroke: darkred         # colour of magnetic declination lines (as a hex triplet or web colour)
+      arrows: 150             # spacing in mm of directional arrows (set to 'false' for no arrows)
 
 ## Controls
 
@@ -213,13 +219,15 @@ Drop a control waypoints file (`controls.kml` or `controls.gpx`) into the direct
 
     controls:
       path: controls.kml      # filename (.kml or .gpx format) or path of control waypoint file
-      fontsize: 14            # font size (in points) for control labels
       diameter: 7.0           # diameter of control circles in millimetres
-      width: 0.2              # thickness of control circles in millimetres
-      colour: "#880088"       # colour of the control markers and labels (as a hex triplet or web colour)
-      water:
-        colour: blue          # colour of water drop markers
       spot-diameter: 0.2      # specify a diameter (in mm) for control centre spots, if desired
+      stroke: "#880088"       # colour of the control markers and labels (as a hex triplet or web colour)
+      stroke-width: 0.2       # thickness of control circles in millimetres
+      water:
+        stroke: blue          # colour of water drop markers
+      labels:
+        font-size: 4.9        # font size (in mm) for control labels
+        fill: "#880088"       # colour for the control labels
 
 ## Canvas
 
@@ -232,17 +240,17 @@ If you wish to create your canvas at a lower resolution, it is fine to resample 
 Excluding & Reordering Layers
 =============================
 
-You can remove a layer that you previously included in the map. To do so, list the layers you wish to exclude as follows:
+You can remove a layer or layer set that you previously included in the map. To do so, list the layers you wish to exclude as follows:
 
     exclude:
     - nsw.aerial
+    - nsw.topographic.reserves
+    - nsw.holdings
     - relief
 
 Run the script again to remove the layers from the composite SVG map. (The original source files will not be deleted.) Use this option with caution, as any changes you have made to the layer in the SVG file will be lost.
 
 It is possible to manually reorder layers using Inkscape. The new layer order is respected when re-running the script.
-
-By default, all label layers are reordered above all other feature layers. (You can turn off this behaviour with a `leave-labels: true` configuration line.)
 
 Overlays
 ========
@@ -265,14 +273,14 @@ This will cause new layers titled `boundaries` and `tracks` to be added to the m
 Specify the colour, width and/or opacity of the overlays as follows:
 
     boundaries:
-      colour: black         # colour out-of-bounds areas in black...
+      fill: black           # colour out-of-bounds areas in black...
       opacity: 0.3          # ...with 0.3 opacity to give a nice grayed-out rendering
     tracks:
-      colour: red           # mark tracks in red...
-      width: 0.2            # ...with a width of 0.2mm
+      stroke: red           # mark tracks in red...
+      stroke-width: 0.2     # ...with a width of 0.2mm
       dash: 4 2             # add a 4mm/2mm dash to the track, if desired
 
-Build or rebuild your map by running the script to add the overlays. (Advanced users may alter the overlay rendering further using Inkscape, e.g. by adding dashes or dots to tracks or patterns to areas.)
+Build or rebuild your map by running the script to add the overlays.
 
 Importing Layers
 ================
@@ -344,11 +352,7 @@ If you select `prj` as an output, a corresponding [ESRI world file](http://en.wi
 
 ## Producing Raster Images
 
-There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). If you're using a Mac, no extra software is required. Otherwise, you must install either [PhantomJS](http://phantomjs.org/download.html) or [Inkscape](http://inkscape.org/). (PhantomJS is recommended for best results.) Then set your configuration file as follows:
-
-* For best results on a Mac, set the following option to rasterise using built-in software:
-
-        rasterise: qlmanage
+There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). To produce a raster map image, install either [PhantomJS](http://phantomjs.org/download.html) or [Inkscape](http://inkscape.org/). (PhantomJS is recommended for best results.) Then set your configuration file as follows:
 
 * To use PhantomJS for rasterising, specify the path of the PhantomJS binary you downloaded. e.g. for Windows:
 
@@ -396,7 +400,7 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         name: rogaine
         bounds: controls.kml       # size the map to contain all the controls ...
         margin: 15                 # ... with a 15mm margin around the outer-most controls
-        rotation: magnetic         # align the map to magnetic north
+        rotation: magnetic         # align the map to magnetic north (optional)
         include:
         - nsw/vegetation-2008-v2   # show vegetation layer (or use a canvas)
         - nsw/topographic          # show topographic layers
@@ -406,7 +410,7 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         nsw.topographic:
           exclude: reserves        # no need to show park & reserve boundaries
         boundaries:                # set style for out-of-bounds
-          colour: black            # (black)
+          stroke: black            # (black)
           opacity: 0.3             # (partially opaque)
 
     If you have trouble fitting your map on one or two A3 sheets, you can either reduce the margin or use the automatic rotation feature (`rotation: auto`) to minimise the map area.

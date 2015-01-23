@@ -2911,10 +2911,20 @@ controls:
       sources.merge! name => params
     end
     
-    sources.keys.select do |name|
+    sources.each do |name, params|
+      config.map do |key, value|
+        [ key.match(%r{#{name}#{SEGMENT}(.+)}), value ]
+      end.select(&:first).map do |match, layer_params|
+        { match[1] => layer_params }
+      end.inject(&:merge).tap do |layers_params|
+        params.deep_merge! layers_params if layers_params
+      end
+    end
+    
+    sources.select do |name, params|
       config[name]
-    end.each do |name|
-      sources[name].deep_merge! config[name]
+    end.each do |name, params|
+      params.deep_merge! config[name]
     end
     
     sources["relief"]["masks"] = sources.map do |name, params|

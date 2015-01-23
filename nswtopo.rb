@@ -2688,10 +2688,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           page.zoomFactor = parseFloat(sys.args[1]);
           page.viewportSize = { width: 1, height: 1 };
           page.open('#{svg_path}', function(status) {
-              window.setTimeout(function() {
-                  page.render('#{png_path}');
-                  phantom.exit();
-              }, 2000);
+              page.render('#{png_path}');
+              phantom.exit();
           });
         ]
         %x["#{rasterise}" "#{js_path}" 1.0]

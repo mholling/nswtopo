@@ -1334,9 +1334,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
           end
-          layer.add_attributes "mask" => "url(##{mask_id})"
-        end
-        layer.add_element("image", "transform" => transform, "width" => dimensions[0], "height" => dimensions[1], "image-rendering" => "optimizeQuality", "xlink:href" => href)
+          layer.add_element("g", "mask" => "url(##{mask_id})")
+        else
+          layer
+        end.add_element("image", "transform" => transform, "width" => dimensions[0], "height" => dimensions[1], "image-rendering" => "optimizeQuality", "xlink:href" => href)
       end
     end
   end
@@ -3132,7 +3133,6 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: relief layer breaks any vector layers above it!
 # TODO: switch to Open3 for shelling out
 # TODO: add nodata transparency in vegetation source?
 # TODO: remove linked images from PDF output?

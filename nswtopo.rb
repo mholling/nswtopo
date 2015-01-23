@@ -1074,7 +1074,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         puts "  #{sublayer}" unless id == name
         [ *params, *params[sublayer] ].inject({}) do |memo, (command, args)|
           memo.deep_merge case command
-          # when "colour"   then { "stroke" => args, "fill" => args } # TODO: update README or reimplement! (with replacement hashes etc)
           when "symbol"   then { "symbols" => { "" => args } }
           when "pattern"  then { "patterns" => { "" => args } }
           when "dupe"     then { "dupes" => { "" => args } }
@@ -1442,7 +1441,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def get_tile(bounds, sizes, options)
-      # TODO: we could tidy this up a bit...
       srs = { "wkt" => options["wkt"] }.to_json
       query = {
         "bbox" => bounds.transpose.flatten.join(?,),
@@ -1761,9 +1759,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def labels(map)
-      # TODO: exclude labels where corresponding feature layer is not present?
       raise BadLayerError.new("source file not found at #{path}") unless path.exist?
-      JSON.parse(path.read).inject([]) do |memo, (sublayer, features)|
+      JSON.parse(path.read).reject do |sublayer, features|
+        params["exclude"].include? sublayer
+      end.inject([]) do |memo, (sublayer, features)|
         memo + features.select do |feature|
           feature.key?("labels")
         end.map(&:dup).each do |feature|
@@ -3005,7 +3004,9 @@ controls:
             elsif xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"]
               source.render_svg(map) do |sublayer|
                 id = [ source.name, *sublayer ].join(SEGMENT)
-                xml.elements["/svg/g[@id='#{id}']"]
+                xml.elements["/svg/g[@id='#{id}']"].tap do |group|
+                  source.params["exclude"] << sublayer unless group
+                end
               end
             else
               before, after = sources.map(&:name).inject([[]]) do |memo, name|

@@ -2935,7 +2935,13 @@ controls:
     end
     
     config["exclude"] = [ *config["exclude"] ].map { |name| name.gsub ?/, SEGMENT }
-    config["exclude"].each { |name| sources.delete name } # TODO: can we exclude individual sublayers here?
+    config["exclude"].each do |source_or_layer_name|
+      sources.delete source_or_layer_name
+      sources.each do |name, params|
+        match = source_or_layer_name.match(%r{^#{name}#{SEGMENT}(.+)})
+        params["exclude"] << match[1] if match
+      end
+    end
     
     label_params = sources.map do |name, params|
       [ name, params["labels"] ]

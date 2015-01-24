@@ -170,6 +170,7 @@ class AVLTree
     end
     rebalance
   end
+  alias << insert
   
   def delete(value)
     case @value <=> value
@@ -516,14 +517,13 @@ class Array
   
   def overlaps(buffer = 0)
     order = flatten(1).transpose.map { |values| values.max - values.min }.inject(&:>) ? :to_a : :reverse
-    events, sweep, results = AVLTree.new, AVLTree.new, []
+    events, sweep, results = AVLTree.new, [], []
     buffer_vector = [ buffer, buffer ]
     each.with_index do |hull, index|
-      events.insert [ hull.min_by(&order).minus(buffer_vector), index, :start ]
-      events.insert [ hull.max_by(&order).plus( buffer_vector), index, :stop  ]
+      events << [ hull.min_by(&order).minus(buffer_vector), index, :start ]
+      events << [ hull.max_by(&order).plus( buffer_vector), index, :stop  ]
     end
-    until events.empty? do
-      point, index, event = events.pop
+    events.each do |point, index, event|
       case event
       when :start
         sweep.reject do |other|
@@ -531,7 +531,7 @@ class Array
         end.each do |other|
           results << [ index, other ]
         end
-        sweep.insert index
+        sweep << index
       when :stop
         sweep.delete index
       end
@@ -3134,6 +3134,7 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
+# TODO: remove AVLTree, just use SortedSet
 # TODO: switch to Open3 for shelling out
 # TODO: add nodata transparency in vegetation source?
 # TODO: remove linked images from PDF output?

@@ -463,28 +463,23 @@ class Array
   end
   
   def between_critical_supports
-    indices = [ self[0].map.with_index.min_by(&:first), self[1].map.with_index.max_by(&:first) ].map(&:last)
+    indices = [ at(0).map.with_index.min.last, at(1).map.with_index.max.last ]
     calipers = [ [ 0, -1 ], [ 0, 1 ] ]
-    rotation = 0
+    rotation = 0.0
     count = 0
     
     Enumerator.new do |yielder|
       while rotation <= 2 * Math::PI
-        pairs = zip(indices).map do |polygon, index|
-          polygon.values_at (index - 1) % polygon.length, (index + 1) % polygon.length
-        end
-        edges = zip(indices).map do |polygon, index|
-          polygon.values_at index, (index + 1) % polygon.length
-        end
-        vertices = zip(indices).map do |polygon, index|
-          polygon[index]
-        end
+        pairs, edges, vertices = zip(indices).map do |polygon, index|
+          pair = polygon.values_at (index - 1) % polygon.length, (index + 1) % polygon.length
+          edge = polygon.values_at index, (index + 1) % polygon.length
+          [ pair, edge, polygon[index] ]
+        end.transpose
         
-        angles = edges.zip(calipers).map do |edge, caliper|
+        angle, which = edges.zip(calipers).map do |edge, caliper|
           vector = edge.difference.rotate_by(-rotation)
           Math::acos vector.dot(caliper) / vector.norm
-        end
-        angle, which = angles.map.with_index.min_by(&:first)
+        end.map.with_index.min
         
         perp = vertices.difference.perp
         comparisons = [ 1, -1 ].zip(pairs).map do |sign, pair|
@@ -492,14 +487,12 @@ class Array
         end.flatten
         count += 1 if comparisons.inject(&:+).abs == 4
         
-        case count
-          when 1 then yielder << edges.rotate(which)
-          when 2 then break
-        end
+        yielder << edges.rotate(which) if count > 0
+        break if count > 1
         
         rotation += angle
         indices[which] += 1
-        indices[which] %= self[which].length
+        indices[which] %= at(which).length
       end
     end
   end

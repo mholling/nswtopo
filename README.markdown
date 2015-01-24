@@ -435,25 +435,34 @@ Several formats of georeferenced output image are available. You can specify `ti
 Customising Topographic Rendering
 =================================
 
-You can control how the raw topographic data (`nsw.topographic.svg`) is rendered into you final map. This allows you to change the colour, size and opacity of individual layers. The default rendering was chosen to give a reasonable map with emphasis on contours, and changes to rendering may not be needed.
+You can control how the raw topographic data (e.g. `nsw.topographic.json`) is rendered into you final map. This allows you to change the colour, size and opacity of individual layers. The default rendering was chosen to give a reasonable map with emphasis on contours, and changes to rendering may not be needed.
 
-To change rendering of a feature, open `nsw.topographic.svg` and identify the name of the topographic layer (e.g. `contours-10m`) containing the feature.
+To change rendering of a feature, open your map and identify the name of the topographic layer (e.g. `nsw.topographic.contours-10m`) containing the feature.
 
-Next, add a `nsw.topographic:` section to your `nswtopo.cfg` file. For each layer which you wish to modify, specify one or more of `opacity`, `width`, `colour` and `dash` values to change the opacity, scaling and colour, respectively, of the features in that layer. Colours should be specified as hex triplets (e.g. `"#FF0000"` for red), alternately a [web colour name](http://en.wikipedia.org/wiki/Web_colors). Use a [colour picker](http://www.google.com/search?q=color+picker) to choose your desired colour and get its hex triplet. `opacity` should be a value between 0.0 and 1.0. The `width` attribute specifies the width of a line in millimetres. The `dash` value specifies a dash array for dashed lines (as a series of dash and space lengths, in millimetres).
+For each layer which you wish to modify, add a corresponding section in your `nswtopo.cfg` file. Specify one or more of `opacity`, `stroke`, `fill`, `stroke-width` and `dash` values to change the opacity, line colour, fill colour, line width and dashes, respectively, of the features in that layer. Colours should be specified as hex triplets (e.g. `"#FF0000"` for red), alternately a [web colour name](http://en.wikipedia.org/wiki/Web_colors). Use a [colour picker](http://www.google.com/search?q=color+picker) to choose your desired colour and get its hex triplet. `opacity` should be a value between 0.0 and 1.0. The `stroke-width` attribute specifies the width of a line in millimetres. The `dash` value specifies a dash array for dashed lines (as a series of dash and space lengths, in millimetres).
 
-The following show some example for changing renderings. Colours can be specified as  or as hex triplets (enclosed in quotes, e.g. `"#FF0000"` for red).
+In the following example, we change the colour of contours to black, and give a semi-opaque, dashed blue style to a route overlay:
 
     include:
     - nsw/topographic
     - route.kml
-    nsw.topographic:
-      contours-10m:
-        colour: black    # change contour colour to black
+    nsw.topographic.contours-10m:
+      stroke: black      # change contour colour to black
     route:
       opacity: 0.5       # set the route overlay to 50% opacity ...
-      colour: "#0000CC"  # ... with a blue colour ...
-      width: 1.0         # ... a 1.0 millimetre width ...
+      stroke: "#0000CC"  # ... with a blue colour ...
+      stroke-width: 1.0  # ... a 1.0 millimetre width ...
       dash: 4 1          # ... and dashed with 4mm dash and 1mm space.
+
+If a topographic layer contains several different colours or feature categories, you may need to override the colours according to category. For example, to change the colour of sealed and unsealed roads:
+
+    nsw.topographic.roads:
+      Sealed:
+        stroke: purple   # sealed roads become purple
+      Unsealed:
+        stroke: green    # unsealed roads become green
+
+(You may need to delve into the map source recipe, e.g. `sources/nsw/topographic.yml`, to determine the names of the various feature categories which are represented.)
 
 Release History
 ===============

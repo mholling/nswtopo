@@ -17,6 +17,10 @@ Along with topographic features, NSW and ACT cadastral lines, trig stations and 
 
 The `nsw/holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is available for the ACT.) 
 
+## Reserves
+
+Include the `nsw/reserves` layer to add boundaries and labels for NSW national parks, natures reserves, state conservation areas and state forests.
+
 ## Aerial Imagery
 
 High-resolution aerial imagery is also available from the NSW LPI department. Include it as follows:

@@ -33,10 +33,6 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: POI
-  boundaries:
-    host: maps.six.nsw.gov.au
-    folder: sixmaps
-    service: Boundaries
   # 2m-contours:
   #   host: mapsq.six.nsw.gov.au
   #   folder: sixmaps
@@ -317,21 +313,6 @@ features:
     where: classsubtype = 4 AND generalculturaltype IN (8,9,11,12)
     category: generalculturaltype
   state-border: State_Border
-  reserves:
-  - source: boundaries
-    name: NPWS Reserve
-    where: classsubtype IN (1,2,4,5,7)
-    category: classsubtype
-    label: [ reservename, reservetype ]
-  - source: boundaries
-    name: State Forest
-    category: StateForest
-    label: stateforestname
-  - source: lpimap
-    name: Building_Large
-    where: classsubtype = 3
-    category: classsubtype
-    label: generalname
   relative-heights:
     name: RelativeHeight
     label-only: true
@@ -1092,13 +1073,6 @@ state-border:
     stroke-width: 1.5
     stroke-dasharray: 0.3 14.7
     stroke-dashoffset: 13.8
-reserves:
-  opacity: 0.5
-  fill: none
-  stroke: "#006400"
-  stroke-width: 0.3
-  RestrictedArea:
-    stroke: "#A9A9A9"
 
 labels:
   dupe: outline

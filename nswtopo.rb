@@ -2162,15 +2162,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def draw(map)
       gps = GPS.new(path)
       group = yield
-      [ [ :tracks, { "fill" => "none", "stroke" => "black", "stroke-width" => "0.4", "stroke-miterlimit" => 2 }, nil ],
-        [ :areas, { "fill" => "black", "stroke" => "none" }, ?Z ]
+      [ [ :tracks, { "fill" => "none" }, nil ],
+        [ :areas, { "fill-rule" => "nonzero" }, ?Z ]
       ].each do |feature, attributes, close|
-        gps.send(feature).map do |list, name|
-          map.coords_to_mm map.reproject_from_wgs84(list)
-        end.map do |points|
-          points.to_path_data(MM_DECIMAL_DIGITS, *close)
-        end.each do |d|
-          group.add_element "path", attributes.merge("d" => d)
+        gps.send(feature).each do |list, name|
+          points = map.coords_to_mm map.reproject_from_wgs84(list)
+          d = points.to_path_data MM_DECIMAL_DIGITS, *close
+          group.add_element "g", "class" => name.gsub(/\W+/, ?-) do |group|
+            group.add_element "path", attributes.merge("d" => d)
+          end
         end
       end if group
     rescue BadGpxKmlFile => e
@@ -2890,10 +2890,6 @@ controls:
         params = YAML.load %Q[---
           class: OverlaySource
           path: #{path}
-          stroke: black
-          stroke-width: 0.4
-          fill: black
-          opacity: 0.4
         ]
         [ path.basename(path.extname).to_s, params ]
       else

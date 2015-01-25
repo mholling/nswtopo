@@ -275,6 +275,7 @@ Specify the colour, width and/or opacity of the overlays as follows:
     boundaries:
       fill: black           # colour out-of-bounds areas in black...
       opacity: 0.3          # ...with 0.3 opacity to give a nice grayed-out rendering
+      stroke: none          # no outline for the area (or specify a colour)
     tracks:
       stroke: red           # mark tracks in red...
       stroke-width: 0.2     # ...with a width of 0.2mm
@@ -410,7 +411,8 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         nsw.topographic:
           exclude: reserves        # no need to show park & reserve boundaries
         boundaries:                # set style for out-of-bounds
-          stroke: black            # (black)
+          fill: black              # (black)
+          stroke: none             # (no outline)
           opacity: 0.3             # (partially opaque)
 
     If you have trouble fitting your map on one or two A3 sheets, you can either reduce the margin or use the automatic rotation feature (`rotation: auto`) to minimise the map area.

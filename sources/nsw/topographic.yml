@@ -16,10 +16,6 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: Hydrography
-  survey:
-    host: maps.six.nsw.gov.au
-    folder: sixmaps
-    service: SurveyMarksPublic
   act-basic:
     host: actmapi.act.gov.au
     instance: actmapi
@@ -296,11 +292,6 @@ features:
   spot-heights:
     name: SpotHeight
     label: elevation
-  # trig-stations:
-  #   source: survey
-  #   name: SurveyMark
-  #   where: marksymbol LIKE 'TS_'
-  #   category: marksymbol
   beacons:
     # TODO: labels from POI
     name: Beacon_Tower
@@ -1006,16 +997,6 @@ spot-heights:
       r: 0.2
       stroke: none
       fill: black
-# trig-stations:
-#   symbol:
-#     path:
-#       d: M 0 -0.9238 L 0.8 0.4619 L -0.8 0.4619 Z
-#       stroke: none
-#       fill: black
-#     circle:
-#       r: 0.38
-#       stroke: none
-#       fill: white
 beacons:
   symbol:
     path:

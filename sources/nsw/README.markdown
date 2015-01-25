@@ -21,6 +21,10 @@ The `nsw/holdings` layer overlays property boundaries and the names of landowner
 
 Include the `nsw/reserves` layer to add boundaries and labels for NSW national parks, natures reserves, state conservation areas and state forests.
 
+## Trig Stations
+
+The `nsw/survey` layer adds symbols for trig stations which are found on various NSW summits. (n.b. The trig stations found on this layer are not always present on the ground!)
+
 ## Aerial Imagery
 
 High-resolution aerial imagery is also available from the NSW LPI department. Include it as follows:

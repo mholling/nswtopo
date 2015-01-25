@@ -1091,18 +1091,24 @@ labels:
     letter-spacing: 0.05
     repeat-interval: 120
     deviation: 0.1
+    collate: true
+    repeat-buffer: 25
   contours-10m:
     orientation: uphill
     font-size: 1.4
     letter-spacing: 0.05
     repeat-interval: 120
     deviation: 0.1
+    collate: true
+    repeat-buffer: 25
   contours-20m:
     orientation: uphill
     font-size: 1.4
     letter-spacing: 0.05
     repeat-interval: 120
     deviation: 0.1
+    collate: true
+    repeat-buffer: 25
   cliffs-excavation:
     position: [ over, right, above, below, left ]
     margin: 0.7
@@ -1121,7 +1127,7 @@ labels:
     smooth: 8.0
     deviation: 3.0
     repeat-interval: 100
-    margin: 2.5
+    margin: 2.0
     fill: "#1667DF"
     letter-spacing: 0.1
     word-spacing: 2.0

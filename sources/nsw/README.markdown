@@ -11,8 +11,6 @@ This map is a derived from the NSW [*Digital Topographic Database*](http://www.l
     - nsw/topographic
     - grid
 
-Along with topographic features, NSW and ACT cadastral lines, trig stations and borders of parks and reserves are also included.
-
 ## Holdings
 
 The `nsw/holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is available for the ACT.) 

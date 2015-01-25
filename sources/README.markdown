@@ -10,7 +10,7 @@ Files in this directory structure contain definitions for downloading various Au
     - nsw/vegetation-2008-v2
     - nsw/topographic
 
-Australia-wide aerial imagery layers are described below. For state-specific map layers (including topographic layers), see the [NSW](nsw) and [ACT](act) directories.
+Australia-wide aerial imagery layers are described below. For state-specific map layers (including topographic layers), see the [NSW](nsw), [ACT](act) and [TAS](tas) directories.
 
 Aerial Imagery
 ==============

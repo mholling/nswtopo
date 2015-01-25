@@ -516,12 +516,13 @@ class Array
   end
   
   def overlaps(buffer = 0)
-    order = flatten(1).transpose.map { |values| values.max - values.min }.inject(&:>) ? :to_a : :reverse
+    axis = flatten(1).transpose.map { |values| values.max - values.min }.map.with_index.max.last
     events, sweep, results = AVLTree.new, [], []
-    buffer_vector = [ buffer, buffer ]
+    buffer_vector = [ buffer, 0 ]
     each.with_index do |hull, index|
-      events << [ hull.min_by(&order).minus(buffer_vector), index, :start ]
-      events << [ hull.max_by(&order).plus( buffer_vector), index, :stop  ]
+      min, max = hull.map { |point| point.rotate axis }.minmax
+      events << [ min.minus(buffer_vector), index, :start ]
+      events << [ max.plus( buffer_vector), index, :stop  ]
     end
     events.each do |point, index, event|
       case event

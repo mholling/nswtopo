@@ -16,6 +16,40 @@ The topographic feature data is often very finely detail, and can sometimes take
 
 Include the `tas/reserves` layer to add boundaries and labels for national parks, natures reserves and conservation areas.
 
+## Vegetation
+
+The `tas/vegetation` source produces a basic vegetation layer suited for use as a topographic underlay:
+
+    include
+    - tas/vegetation
+    - tas/topographic
+
+The data is sourced from [*TASVEG 3.0*](http://dpipwe.tas.gov.au/conservation/flora-of-tasmania/monitoring-and-mapping-tasmanias-vegetation-\(tasveg\)/tasveg-the-digital-vegetation-map-of-tasmania), an overwhelmingly detailed dataset describing the spatial distribution of over 150 vegetation communities found in Tasmania. Representing the full detail of this data on a map in a useful manner is challenging!
+
+Thankfuly, the *TASVEG* vegetation communities are divided into distinct groups, and these groups are simply coloured as follows:
+
+* *Non eucalypt forest and woodland*: light green
+* *Dry eucalypt forest and woodland*: light green
+* *Wet eucalypt forest and woodland*: slightly darker green
+* *Rainforest and related scrub*: slightly darker green
+* *Scrub, heathland and coastal complexes*: light green with leafy symbology
+* *Highland and treeless vegetation*: white
+* *Moorland, sedgeland, rushland and peatland*: white
+* *Native grassland*: white
+* *Other natural environments*: not represented
+* *Saltmarsh and wetland*: not represented
+* *Agricultural, urban and exotic vegetation*: not represented
+
+(The intent of this colouring is to merely distinguish between open and forested areas, not to indicate ease of travel!)
+
+Each layer is sub-classified by the vegetation community code, and it is possible to style individual communities. For example, to give a colour to all areas containing buttongrass:
+
+    tas.vegetation.moorland-sedgeland:
+      [ MBE, MBP, MBR, MBS, MBU, MBW ]:
+        fill: "#F6DFBA"
+
+Separate layers with pine symbology are also included for plantation forests and areas of pencil pine.
+
 ## Aerial Imagery
 
 High-resolution aerial imagery, also available from *theLIST* is available by including the `tas/orthophoto` layer. (The orthophoto layer defaults to 2.0 metres per pixel.)

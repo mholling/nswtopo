@@ -1693,7 +1693,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
                 feature["label-only"] = options["label-only"] if options["label-only"]
                 feature["angle"] = angle if angle
-                attributes.values_at(*options["label"]).tap do |labels|
+                [ *options["label"] ].map do |key|
+                  attributes.fetch(key, key)
+                end.tap do |labels|
                   feature["labels"] = labels unless labels.map(&:to_s).all?(&:empty?)
                 end
               end

@@ -77,7 +77,7 @@ features:
   waterbodies:
   - name: Water Bodies - Water Body and Watercourse (All)
     definition:
-    - HYDARTY1 IN ('Artificial Watercourse','Watercourse','Water Body','Estuary','Sea')
+    - HYDARTY1 IN ('Artificial Watercourse','Watercourse','Water Body','Estuary')
     - HYDARTY2 NOT IN ('Spillway')
     - PERENNIAL NOT IN ('Intermittent')
     category: Perennial
@@ -86,6 +86,9 @@ features:
     - HYDARTY1 IN ('Artificial Watercourse','Watercourse','Water Body')
     - PERENNIAL IN ('Intermittent')
     category: PERENNIAL
+  - name: Water Bodies - Water Body and Watercourse (All)
+    definition: HYDARTY1 IN ('Sea')
+    category: Perennial
   - source: placenames
     name: Placenames
     where: FEAT_TYPE IN ('Bay','Estuary','Passage','Rip','Water Body')

@@ -20,7 +20,7 @@ Include the `tas/reserves` layer to add boundaries and labels for national parks
 
 The `tas/tasveg` source produces a basic vegetation layer suited for use as a topographic underlay:
 
-    include
+    include:
     - tas/tasveg
     - tas/topographic
 

@@ -1014,7 +1014,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     extend RetryOn
     def self.request(uri, req)
       retry_on(Timeout::Error, Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError) do
-        response = Net::HTTP.start(uri.host, uri.port) { |http| http.request(req) }
+        response = Net::HTTP.start(uri.host, uri.port, :read_timeout => 600) { |http| http.request(req) }
         case response
         when Net::HTTPSuccess then yield response
         else response.error!

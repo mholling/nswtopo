@@ -1091,7 +1091,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when "order"
             args.reverse.map do |categories|
-              "./g[starts-with(@class,'#{categories}')]"
+              "./g[contains(@class,'#{categories}')]"
             end.each do |xpath|
               group.elements.collect(xpath, &:remove).reverse.each do |element|
                 group.unshift element
@@ -1100,7 +1100,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "symbols"
             args.each do |categories, elements|
               [ *categories ].map do |category|
-                [ "./g[starts-with(@class,'#{category}')]/use[not(xlink:href)]", [ id, *category.split(?\s), "symbol" ].join(SEGMENT) ]
+                [ "./g[contains(@class,'#{category}')]/use[not(xlink:href)]", [ id, *category.split(?\s), "symbol" ].join(SEGMENT) ]
               end.select do |xpath, symbol_id|
                 group.elements[xpath]
               end.each do |xpath, symbol_id|
@@ -1112,7 +1112,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "patterns"
             args.each do |categories, elements|
               [ *categories ].map do |category|
-                [ "./g[starts-with(@class,'#{category}')]", [ id, *category.split(?\s), "pattern" ].join(SEGMENT) ]
+                [ "./g[contains(@class,'#{category}')]", [ id, *category.split(?\s), "pattern" ].join(SEGMENT) ]
               end.select do |xpath, pattern_id|
                 group.elements["#{xpath}//path[not(@fill='none')]"]
               end.each do |xpath, pattern_id|
@@ -1124,7 +1124,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "dupes"
             args.each do |categories, names|
               [ *categories ].each do |category|
-                xpath = "./g[starts-with(@class,'#{category}')]"
+                xpath = "./g[contains(@class,'#{category}')]"
                 group.elements.each(xpath) do |group|
                   classes = group.attributes["class"].to_s.split(?\s)
                   original_id = [ id, *classes, "original" ].join SEGMENT
@@ -1142,7 +1142,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "samples"
             args.each do |categories, attributes|
               [ *categories ].map do |category|
-                [ "./g[starts-with(@class,'#{category}')]", category]
+                [ "./g[contains(@class,'#{category}')]", category]
               end.select do |xpath, category|
                 group.elements["#{xpath}//path[@fill='none']"]
               end.each do |xpath, category|
@@ -1181,7 +1181,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "endpoints"
             args.each do |categories, attributes|
               [ *categories ].map do |category|
-                [ "./g[starts-with(@class,'#{category}')]", [ id, *category.split(?\s), "endpoint" ].join(SEGMENT) ]
+                [ "./g[contains(@class,'#{category}')]", [ id, *category.split(?\s), "endpoint" ].join(SEGMENT) ]
               end.select do |xpath, symbol_id|
                 group.elements["#{xpath}//path[@fill='none']"]
               end.each do |xpath, symbol_id|

@@ -18,10 +18,10 @@ Include the `tas/reserves` layer to add boundaries and labels for national parks
 
 ## Vegetation
 
-The `tas/vegetation` source produces a basic vegetation layer suited for use as a topographic underlay:
+The `tas/tasveg` source produces a basic vegetation layer suited for use as a topographic underlay:
 
     include
-    - tas/vegetation
+    - tas/tasveg
     - tas/topographic
 
 The data is sourced from [*TASVEG 3.0*](http://dpipwe.tas.gov.au/conservation/flora-of-tasmania/monitoring-and-mapping-tasmanias-vegetation-\(tasveg\)/tasveg-the-digital-vegetation-map-of-tasmania), an overwhelmingly detailed dataset describing the spatial distribution of over 150 vegetation communities found in Tasmania. Representing the full detail of this data on a map in a useful manner is challenging!
@@ -36,19 +36,25 @@ Thankfuly, the *TASVEG* vegetation communities are divided into distinct groups,
 * *Highland and treeless vegetation*: white
 * *Moorland, sedgeland, rushland and peatland*: white
 * *Native grassland*: white
-* *Other natural environments*: not represented
-* *Saltmarsh and wetland*: not represented
-* *Agricultural, urban and exotic vegetation*: not represented
+* *Other natural environments*: white
+* *Saltmarsh and wetland*: white
+* *Agricultural, urban and exotic vegetation*: white
 
 (The intent of this colouring is to merely distinguish between open and forested areas, not to indicate ease of travel!)
 
-Each layer is sub-classified by the vegetation community code, and it is possible to style individual communities. For example, to give a colour to all areas containing buttongrass:
+Additional pine symbology is also included for plantation forests (FPL, FPU) and areas of pencil pine (RPF, RPP).
 
-    tas.vegetation.moorland-sedgeland:
+Each layer is sub-classified by the vegetation community code and group code, and it is possible to style individual communities. For example, to give a colour to all buttongrass communities:
+
+    tas.tasveg.vegetation:
       [ MBE, MBP, MBR, MBS, MBU, MBW ]:
         fill: "#F6DFBA"
 
-Separate layers with pine symbology are also included for plantation forests and areas of pencil pine.
+Or, to colour all vegetation in the *Native grassland* group:
+
+    tas.tasveg.vegetation:
+      Native-grassland:
+        fill: "#F6DFBA"
 
 ## Aerial Imagery
 

@@ -1660,8 +1660,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when "esriGeometryPolygon"  then 2
             end
             if reproject
+              wkt  = source["wkt"]  || body["spatialReference"]["wkt"]
               wkid = source["wkid"] || body["spatialReference"]["latestWkid"] || body["spatialReference"]["wkid"]
-              projection = Projection.new "epsg:#{wkid == 102100 ? 3857 : wkid}"
+              projection = Projection.new(wkt ? wkt.gsub(?", '\"') : "epsg:#{wkid == 102100 ? 3857 : wkid}")
             end
             features += body.fetch("features", [ ]).map do |feature|
               data = case dimension

@@ -1587,9 +1587,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end unless params["sources"]
       
       sources = params["sources"].map do |name, source|
+        source["headers"] ||= {}
         if source["cookie"]
           cookie = HTTP.head(URI.parse source["cookie"]) { |response| response["Set-Cookie"] }
-          source["headers"] = { "Cookie" => cookie }
+          source["headers"]["Cookie"] = cookie
         end
         source["path"] = [ "", source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ]
         uri = URI::HTTP.build(:host => source["host"], :path => source["path"].join(?/), :query => "f=json")

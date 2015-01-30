@@ -1445,6 +1445,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def initialize(*args)
       super(*args)
       params["tile_sizes"] ||= [ 2048, 2048 ]
+      params["url"] ||= URI::HTTP.build(:host => params["host"]).to_s
+      service_type = params["image"] ? "ImageServer" : "MapServer"
+      params["url"] = [ params["url"], params["instance"] || "arcgis", "rest", "services", *params["folder"], params["service"], service_type ].join(?/)
     end
     
     def get_tile(bounds, sizes, options)
@@ -1466,7 +1469,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         query["transparent"] = true
       end
       
-      HTTP.get(export_uri(query), headers) do |response|
+      url = params["url"]
+      export = params["image"] ? "exportImage" : "export"
+      uri = URI.parse "#{url}/#{export}?#{query.to_query}"
+      
+      HTTP.get(uri, headers) do |response|
         block_given? ? yield(response.body) : response.body
       end
     end
@@ -1502,24 +1509,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
-    def export_uri(query)
-      service_type, function = params["image"] ? %w[ImageServer exportImage] : %w[MapServer export]
-      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type, function ].compact.join ?/
-      URI::HTTP.build :host => params["host"], :path => uri_path, :query => query.to_query
-    end
-    
-    def service_uri(query)
-      service_type = params["image"] ? "ImageServer" : "MapServer"
-      uri_path = [ "", params["instance"] || "arcgis", "rest", "services", params["folder"], params["service"], service_type ].compact.join ?/
-      URI::HTTP.build :host => params["host"], :path => uri_path, :query => query.to_query
-    end
-    
     def get_service
       if params["cookie"]
         cookie = HTTP.head(URI.parse params["cookie"]) { |response| response["Set-Cookie"] }
         @headers = { "Cookie" => cookie }
       end
-      @service = HTTP.get_json service_uri("f" => "json"), headers
+      uri = URI.parse params["url"] + "?f=json"
+      @service = HTTP.get_json uri, headers
       service["layers"].each { |layer| layer["name"] = layer["name"].gsub(UNDERSCORES, ?_) } if service["layers"]
       service["mapName"] = service["mapName"].gsub(UNDERSCORES, ?_) if service["mapName"]
     end
@@ -1592,8 +1588,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           cookie = HTTP.head(URI.parse source["cookie"]) { |response| response["Set-Cookie"] }
           source["headers"]["Cookie"] = cookie
         end
-        source["path"] = [ "", source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ]
-        uri = URI::HTTP.build(:host => source["host"], :path => source["path"].join(?/), :query => "f=json")
+        source["url"] ||= URI::HTTP.build(:host => source["host"]).to_s
+        source["url"] = [ source["url"], source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ].join(?/)
+        uri = URI.parse source["url"] + "?f=json"
         source["service"] = HTTP.get_json uri, source["headers"]
         { name => source }
       end.inject(&:merge)
@@ -1626,21 +1623,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         features = []
         options_array.each do |options|
           source = sources[options["source"] || sources.keys.first]
+          url = source["url"]
           options["id"] = source["service"]["layers"].find do |layer|
             layer["name"] == options["name"]
           end.fetch("id") unless options["id"]
           if options["definition"]
             definition = [ *options["definition"] ].map { |clause| "(#{clause})" }.join(" AND ")
             layer = { "source" => { "type" => "mapLayer", "mapLayerId" => options["id"] }, "definitionExpression" => "1<0) OR (#{definition}" }
-            base_path = [ *source["path"], "dynamicLayer" ]
+            layer_id = "dynamicLayer"
             base_query = { "f" => "json", "layer" => layer.to_json }
           else
             where = [ *options["where"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["where"]
-            base_path = [ *source["path"], options["id"] ]
+            layer_id = options["id"]
             base_query = { "f" => "json", "where" => where }
           end
           reproject = params["local-reprojection"] || source["local-reprojection"] || options["local-reprojection"]
-          uri = URI::HTTP.build :host => source["host"], :path => base_path.join(?/), :query => base_query.to_query
+          uri = URI.parse "#{url}/#{layer_id}?#{base_query.to_query}"
           per_page, fields, types, type_id_field = HTTP.get_json(uri, source["headers"]).values_at("maxRecordCount", "fields", "types", "typeIdField")
           per_page = [ *per_page, *options["per-page"], *source["per-page"], 500 ].min
           fields = fields.map { |field| { field["name"] => field } }.inject(&:merge)
@@ -1649,11 +1647,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           field_names = [ *type_field_name, *options["category"], *options["rotate"], *options["label"] ] & fields.keys
           geometry = { "rings" => [ map.wgs84_corners << map.wgs84_corners.first ] }
           query = base_query.merge "inSR" => 4326, "geometryType" => "esriGeometryPolygon", "geometry" => geometry.to_json, "returnIdsOnly" => true
-          uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/), :query => query.to_query
+          uri = URI.parse "#{url}/#{layer_id}/query?#{query.to_query}"
           HTTP.get_json(uri, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
             query = base_query.merge "objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,)
             query.merge! "outSR" => { "wkt" => map.projection.wkt_esri }.to_json unless reproject
-            uri = URI::HTTP.build :host => source["host"], :path => [ *base_path, "query" ].join(?/)
+            uri = URI.parse "#{url}/#{layer_id}/query"
             body = HTTP.post_json uri, query.to_query, source["headers"]
             dimension = case body["geometryType"]
             when "esriGeometryPoint"    then 0
@@ -1682,7 +1680,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               attributes.each do |name, value|
                 case
                 when type_field_name == name # name is the type field name
-                  attributes[name] = type["name"]
+                  attributes[name] = type["name"] if type
                 when values = type && type["domains"][name] && type["domains"][name]["codedValues"] # name is the subtype field name
                   attributes[name] = values.find { |coded_value| coded_value["code"] == value }.fetch("name")
                 when values = fields[name] && fields[name]["domain"] && fields[name]["domain"]["codedValues"] # name is a coded value field name

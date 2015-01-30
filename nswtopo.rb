@@ -41,6 +41,12 @@ class REXML::Element
   end
 end
 
+module REXML::Functions
+  def self.ends_with(string, test)
+    string(string).rindex(string(test)) == string(string).length - string(test).length
+  end
+end
+
 module HashHelpers
   def deep_merge(hash)
     hash.inject(self.dup) do |result, (key, value)|
@@ -1073,6 +1079,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       path.nil? || path.exist?
     end
     
+    def predicate_for(category)
+      category.empty? ?
+        "@class" :
+        "@class='#{category}' or starts-with(@class,'#{category} ') or contains(@class,' #{category} ') or ends-with(@class,' #{category}')"
+    end
+    
     def rerender(xml, map)
       xml.elements.each("/svg/g[@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}')][*]") do |group|
         id = group.attributes["id"]
@@ -1097,8 +1109,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when String, Numeric then memo << [ ".//path", { "stroke-dasharray" => args } ]
             end
           when "order"
-            args.reverse.map do |categories|
-              "./g[contains(@class,'#{categories}')]"
+            args.reverse.map do |category|
+              "./g[#{predicate_for category}]"
             end.each do |xpath|
               group.elements.collect(xpath, &:remove).reverse.each do |element|
                 group.unshift element
@@ -1107,7 +1119,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "symbols"
             args.each do |categories, elements|
               [ *categories ].map do |category|
-                [ "./g[contains(@class,'#{category}')]/use[not(xlink:href)]", [ id, *category.split(?\s), "symbol" ].join(SEGMENT) ]
+                [ "./g[#{predicate_for category}]/use[not(xlink:href)]", [ id, *category.split(?\s), "symbol" ].join(SEGMENT) ]
               end.select do |xpath, symbol_id|
                 group.elements[xpath]
               end.each do |xpath, symbol_id|
@@ -1119,7 +1131,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "patterns"
             args.each do |categories, elements|
               [ *categories ].map do |category|
-                [ "./g[contains(@class,'#{category}')]", [ id, *category.split(?\s), "pattern" ].join(SEGMENT) ]
+                [ "./g[#{predicate_for category}]", [ id, *category.split(?\s), "pattern" ].join(SEGMENT) ]
               end.select do |xpath, pattern_id|
                 group.elements["#{xpath}//path[not(@fill='none')]"]
               end.each do |xpath, pattern_id|
@@ -1131,7 +1143,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "dupes"
             args.each do |categories, names|
               [ *categories ].each do |category|
-                xpath = "./g[contains(@class,'#{category}')]"
+                xpath = "./g[#{predicate_for category}]"
                 group.elements.each(xpath) do |group|
                   classes = group.attributes["class"].to_s.split(?\s)
                   original_id = [ id, *classes, "original" ].join SEGMENT
@@ -1149,7 +1161,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "samples"
             args.each do |categories, attributes|
               [ *categories ].map do |category|
-                [ "./g[contains(@class,'#{category}')]", category]
+                [ "./g[#{predicate_for category}]", category]
               end.select do |xpath, category|
                 group.elements["#{xpath}//path[@fill='none']"]
               end.each do |xpath, category|
@@ -1188,7 +1200,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "endpoints"
             args.each do |categories, attributes|
               [ *categories ].map do |category|
-                [ "./g[contains(@class,'#{category}')]", [ id, *category.split(?\s), "endpoint" ].join(SEGMENT) ]
+                [ "./g[#{predicate_for category}]", [ id, *category.split(?\s), "endpoint" ].join(SEGMENT) ]
               end.select do |xpath, symbol_id|
                 group.elements["#{xpath}//path[@fill='none']"]
               end.each do |xpath, symbol_id|
@@ -1219,9 +1231,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               values = args.values_at *keys
               svg_args = Hash[keys.zip values]
               [ *command ].each do |category|
-                memo << [ "./g[contains(@class,'#{category}')]", svg_args ]
-                memo << [ "./g[not(contains(@class,'#{category}'))]/use[contains(@class,'#{category}')]", svg_args ]
-              end
+                memo << [ "./g[#{predicate_for category}]", svg_args ]
+                memo << [ "./g[@class]/use[#{predicate_for category}]", svg_args ]
+              end if svg_args.any?
             end
           end
           memo

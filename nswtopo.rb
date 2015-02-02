@@ -1737,6 +1737,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
               names_values = feature["attributes"].map do |name_or_alias, value|
+                value = nil if %w[null Null NULL <null> <Null> <NULL>].include? value
                 [ names.fetch(name_or_alias, name_or_alias), value ]
               end
               attributes = Hash[names_values]

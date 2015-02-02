@@ -1080,9 +1080,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def predicate_for(category)
-      category.to_s.empty? ?
-        "@class" :
-        "@class='#{category}' or starts-with(@class,'#{category} ') or contains(@class,' #{category} ') or ends-with(@class,' #{category}')"
+      case category
+      when nil then "@class=''"
+      when ""  then "@class"
+      else "@class='#{category}' or starts-with(@class,'#{category} ') or contains(@class,' #{category} ') or ends-with(@class,' #{category}')"
+      end
     end
     
     def rerender(xml, map)
@@ -1118,7 +1120,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when "symbols"
             args.each do |categories, elements|
-              [ *categories ].map do |category|
+              [ categories ].flatten.map do |category|
                 [ "./g[#{predicate_for category}]/use[not(xlink:href)]", [ id, *category.split(?\s), "symbol" ].join(SEGMENT) ]
               end.select do |xpath, symbol_id|
                 group.elements[xpath]
@@ -1130,7 +1132,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when "patterns"
             args.each do |categories, elements|
-              [ *categories ].map do |category|
+              [ categories ].flatten.map do |category|
                 [ "./g[#{predicate_for category}]", [ id, *category.split(?\s), "pattern" ].join(SEGMENT) ]
               end.select do |xpath, pattern_id|
                 group.elements["#{xpath}//path[not(@fill='none')]"]
@@ -1142,7 +1144,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when "dupes"
             args.each do |categories, names|
-              [ *categories ].each do |category|
+              [ categories ].flatten.each do |category|
                 xpath = "./g[#{predicate_for category}]"
                 group.elements.each(xpath) do |group|
                   classes = group.attributes["class"].to_s.split(?\s)
@@ -1160,7 +1162,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when "samples"
             args.each do |categories, attributes|
-              [ *categories ].map do |category|
+              [ categories ].flatten.map do |category|
                 [ "./g[#{predicate_for category}]", category]
               end.select do |xpath, category|
                 group.elements["#{xpath}//path"]
@@ -1199,7 +1201,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when "endpoints"
             args.each do |categories, attributes|
-              [ *categories ].map do |category|
+              [ categories ].flatten.map do |category|
                 [ "./g[#{predicate_for category}]", [ id, *category.split(?\s), "endpoint" ].join(SEGMENT) ]
               end.select do |xpath, symbol_id|
                 group.elements["#{xpath}//path[@fill='none']"]

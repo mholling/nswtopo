@@ -1750,7 +1750,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
               categories = [ *options["category"] ].map do |name|
-                attributes.fetch(name, name).to_s.gsub(/\W+/, ?-)
+                attributes.fetch(name, name).to_s.gsub(/^\W+|\W+$/, '').gsub(/\W+/, ?-)
               end
               case attributes[options["rotate"]]
               when 0

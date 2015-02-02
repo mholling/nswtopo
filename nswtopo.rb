@@ -1163,7 +1163,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               [ *categories ].map do |category|
                 [ "./g[#{predicate_for category}]", category]
               end.select do |xpath, category|
-                group.elements["#{xpath}//path[@fill='none']"]
+                group.elements["#{xpath}//path"]
               end.each do |xpath, category|
                 elements = case attributes
                 when Array then attributes.map(&:to_a).inject(&:+) || []
@@ -1177,7 +1177,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                     memo << [ "//svg/defs/g[@id='#{symbol_id}']", element ]
                   end
                 end
-                group.elements.each("#{xpath}//path[@fill='none']") do |path|
+                group.elements.each("#{xpath}//path") do |path|
                   uses = []
                   path.attributes["d"].to_s.split(/ Z| Z M | M |M /).reject(&:empty?).each do |subpath|
                     subpath.split(/ L | C -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ /).map do |pair|

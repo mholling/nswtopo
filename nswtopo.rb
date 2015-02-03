@@ -1027,7 +1027,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     extend RetryOn
     def self.request(uri, req)
       retry_on(Timeout::Error, Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError) do
-        response = Net::HTTP.start(uri.host, uri.port, :read_timeout => 600) { |http| http.request(req) }
+        use_ssl = uri.scheme == "https"
+        response = Net::HTTP.start(uri.host, uri.port, :use_ssl => use_ssl, :read_timeout => 600) { |http| http.request(req) }
         case response
         when Net::HTTPSuccess then yield response
         else response.error!
@@ -1459,7 +1460,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def initialize(*args)
       super(*args)
       params["tile_sizes"] ||= [ 2048, 2048 ]
-      params["url"] ||= URI::HTTP.build(:host => params["host"]).to_s
+      params["url"] ||= (params["https"] ? URI::HTTPS : URI::HTTP).build(:host => params["host"]).to_s
       service_type = params["image"] ? "ImageServer" : "MapServer"
       params["url"] = [ params["url"], params["instance"] || "arcgis", "rest", "services", *params["folder"], params["service"], service_type ].join(?/)
     end
@@ -1602,7 +1603,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           cookie = HTTP.head(URI.parse source["cookie"]) { |response| response["Set-Cookie"] }
           source["headers"]["Cookie"] = cookie
         end
-        source["url"] ||= URI::HTTP.build(:host => source["host"]).to_s
+        source["url"] ||= (source["https"] ? URI::HTTPS : URI::HTTP).build(:host => source["host"]).to_s
         source["url"] = [ source["url"], source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ].join(?/)
         { name => source }
       end.inject(&:merge)
@@ -1720,6 +1721,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end.each do |page|
             page.each do |feature|
+              raise BadLayerError.new("#{sublayer} contains no geometry") unless feature["geometry"]
               dimension = case
               when feature["geometry"]["x"]     then 0
               when feature["geometry"]["paths"] then 1

@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# Copyright 2011-2014 Matthew Hollingworth
+# Copyright 2011-2015 Matthew Hollingworth
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@ require 'open-uri'
 # %w[uri net/http rexml/document rexml/formatters/pretty tmpdir yaml fileutils pathname rbconfig json base64 open-uri].each { |file| require file }
 
 GITHUB_SOURCES = "https://github.com/mholling/nswtopo/raw/master/sources/"
+NSWTOPO_VERSION = "1.0.1"
 
 class REXML::Element
   alias_method :unadorned_add_element, :add_element
@@ -2944,6 +2945,13 @@ controls:
     
     map = Map.new(config)
     
+    puts "Map details:"
+    puts "  name: #{map.name}"
+    puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
+    puts "  scale: 1:%i" % map.scale
+    puts "  rotation: %.1f degrees" % map.rotation
+    puts "  extent: %.1fkm x %.1fkm" % map.extents.map { |extent| 0.001 * extent }
+    
     sources = {}
     
     [ *config["import"] ].reverse.map do |file_or_hash|
@@ -3027,16 +3035,15 @@ controls:
       [ name, params["labels"] ]
     end.select(&:last)
     
+    sources.find do |name, params|
+      params.fetch("min-version", NSWTOPO_VERSION).to_s > NSWTOPO_VERSION
+    end.tap do |name, params|
+      abort "Error: map source '#{name}' requires a newer version of this software; please upgrade." if name
+    end
+    
     sources = sources.map do |name, params|
       NSWTopo.const_get(params.delete "class").new(name, params)
     end
-    
-    puts "Map details:"
-    puts "  name: #{map.name}"
-    puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
-    puts "  scale: 1:%i" % map.scale
-    puts "  rotation: %.1f degrees" % map.rotation
-    puts "  extent: %.1fkm x %.1fkm" % map.extents.map { |extent| 0.001 * extent }
     
     sources.reject(&:exist?).recover(InternetError, ServerError, BadLayerError).each do |source|
       source.create(map)

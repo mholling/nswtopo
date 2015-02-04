@@ -400,7 +400,7 @@ class Array
   
   def surrounds?(points)
     [ self, perps ].transpose.all?  do |vertex, perp|
-      points.all? { |point| point.minus(vertex).dot(perp) < 0 }
+      points.all? { |point| point.minus(vertex).dot(perp) > 0 }
     end
   end
   
@@ -1722,18 +1722,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end.each do |page|
             page.each do |feature|
-              raise BadLayerError.new("#{sublayer} contains no geometry") unless feature["geometry"]
-              dimension = case
-              when feature["geometry"]["x"]     then 0
-              when feature["geometry"]["paths"] then 1
-              when feature["geometry"]["rings"] then 2
-              end
-              data = case dimension
-              when 0
-                point = feature["geometry"].values_at("x", "y")
-                projection ? map.reproject_from(projection, point) : point
-              when 1, 2
-                feature["geometry"][dimension == 2 ? "rings" : "paths"].map do |points|
+              geometry = feature["geometry"]
+              raise BadLayerError.new("#{sublayer} contains no geometry") unless geometry
+              dimension, key = [ 0, 0, 1, 2 ].zip(%w[x points paths rings]).find { |dimension, key| geometry.key? key }
+              data = case key
+              when "x"
+                point = geometry.values_at("x", "y")
+                [ projection ? map.reproject_from(projection, point) : point ]
+              when "points"
+                points = geometry[key]
+                projection ? map.reproject_from(projection, points) : points
+              when "paths", "rings"
+                geometry[key].map do |points|
                   projection ? map.reproject_from(projection, points) : points
                 end.tap do |lines|
                   dimension == 1 ? lines.clip_lines!(map.coord_corners(1.0)) : lines.clip_polys!(map.coord_corners(1.0))
@@ -1809,10 +1809,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           features.each do |feature|
             case feature["dimension"]
             when 0
-              x, y = map.coords_to_mm(feature["data"]).round(MM_DECIMAL_DIGITS)
               angle = feature["angle"]
-              transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
-              group.add_element "use", "transform" => transform
+              map.coords_to_mm(feature["data"]).round(MM_DECIMAL_DIGITS).each do |x, y|
+                transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
+                group.add_element "use", "transform" => transform
+              end
             when 1, 2
               close, fill_options = case feature["dimension"]
               when 1 then [ nil, { "fill" => "none" }         ]
@@ -2221,7 +2222,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         type == :water
       end.map do |type, waypoints|
         waypoints.map do |waypoint, label|
-          { "dimension" => 0, "data" => map.reproject_from_wgs84(waypoint), "labels" => label, "categories" => type }
+          { "dimension" => 0, "data" => [ map.reproject_from_wgs84(waypoint) ], "labels" => label, "categories" => type }
         end
       end.flatten(1)
     end
@@ -2318,6 +2319,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
+      labelling_hull = map.mm_corners(-2).reverse
       hulls, sublayers, components, categories, endpoints, elements = @features.map do |text, sublayer, components|
         components.map do |component|
           dimension, data, attributes = component
@@ -2331,28 +2333,34 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             lines = text.in_two
             width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
             height = lines.length * font_size
-            transform = "translate(#{data.join ?\s}) rotate(#{-map.rotation})"
-            [ *attributes["position"] ].map do |position|
-              dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
-              dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
-              f = dx * dy == 0 ? 1 : 0.707
-              text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
-              text_element = REXML::Element.new("text")
-              text_element.add_attributes "text-anchor" => text_anchor, "transform" => transform
-              lines.each.with_index do |line, count|
-                x = dx * f * margin
-                y = ((lines.one? ? (1 + dy) * 0.5 : count + dy) - 0.15) * font_size + dy * f * margin
-                text_element.add_element("tspan", "x" => x, "y" => y) do |tspan|
-                  tspan.add_text line
+            data.map do |point|
+              transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
+              [ *attributes["position"] ].map do |position|
+                dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
+                dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
+                f = dx * dy == 0 ? 1 : 0.707
+                text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
+                text_element = REXML::Element.new("text")
+                text_element.add_attributes "text-anchor" => text_anchor, "transform" => transform
+                lines.each.with_index do |line, count|
+                  x = dx * f * margin
+                  y = ((lines.one? ? (1 + dy) * 0.5 : count + dy) - 0.15) * font_size + dy * f * margin
+                  text_element.add_element("tspan", "x" => x, "y" => y) do |tspan|
+                    tspan.add_text line
+                  end
                 end
+                hull = [ [ dx, width ], [dy, height ] ].map do |d, l|
+                  [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
+                end.inject(&:product).values_at(0,2,3,1).map do |corner|
+                  corner.rotate_by_degrees(-map.rotation).plus(point)
+                end
+                [ hull, text_element ]
+              end.reject do |hull, text_element|
+                (data - [ point ]).any? { |other| hull.surrounds? [ other ] }
+              end.map do |hull, text_element|
+                [ hull, sublayer, component, categories, nil, text_element ]
               end
-              hull = [ [ dx, width ], [dy, height ] ].map do |d, l|
-                [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
-              end.inject(&:product).values_at(0,2,3,1).map do |corner|
-                corner.rotate_by_degrees(-map.rotation).plus(data)
-              end
-              [ hull, sublayer, component, categories, nil, text_element ]
-            end
+            end.flatten(1)
           when 1
             margin = attributes["margin"]
             repeat_interval = attributes["repeat-interval"] || 150
@@ -2442,7 +2450,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
             [ [ hull, sublayer, component, categories, nil, text_element ] ]
           end.select do |hull, *args|
-            map.mm_corners(-2).surrounds? hull
+            labelling_hull.surrounds? hull
           end
         end.flatten(1).transpose
       end.reject(&:empty?).transpose

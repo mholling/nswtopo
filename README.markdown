@@ -491,5 +491,6 @@ Release History
 * 3/7/2014: version 0.8: added RFS layers for stock dams and buildings; extracted various layer sources to external configuration files for greater flexibility; change way of specifying overlays; add ANC and water-drop icons for controls; add some SA and TAS map data sources.
   * 28/8/2014: version 0.8.1: change nsw/vegetation-2008-v2 woody vegetation colour; fix vegetation & relief rendering bug in Windows
   * 11/11/2014: version 0.8.2: add psd format output; fix bug in ArcGIS image servers; change to online source of 1-second SRTM relief data; apply median and bilateral filtering to shaded relief; fix label issues causing bad PhantomJS rasters; float vector label layers above feature layers.
-* 1/27/2014: version 1.0: major update with NSW topographic maps now available for all areas and TAS topographic and vegetation layers also available.
-  * 1/28/2014: version 1.0.1: fix 'command line is too long' bug on Windows
+* 1/27/2015: version 1.0: major update with NSW topographic maps now available for all areas and TAS topographic and vegetation layers also available.
+  * 1/28/2015: version 1.0.1: fix 'command line is too long' bug on Windows
+  * 2/4/2015: add features required for QLD maps

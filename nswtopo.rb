@@ -1580,13 +1580,140 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
-  class ArcGISVector < Source
+  class FeatureSource < Source
     include VectorRenderer
     
     def initialize(*args)
       super(*args)
       @path = Pathname.pwd + "#{name}.json"
       @sublayers = params["features"].keys
+    end
+    
+    def arcgis_features(map, source, options)
+      options["definition"] ||= "1 = 1" if options.delete "redefine"
+      url = [ source["url"], source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ].join(?/)
+      uri = URI.parse "#{url}?f=json"
+      service = HTTP.get_json uri, source["headers"]
+      if params["local-reprojection"] || source["local-reprojection"] || options["local-reprojection"]
+        wkt  = service["spatialReference"]["wkt"]
+        wkid = service["spatialReference"]["latestWkid"] || service["spatialReference"]["wkid"]
+        projection = Projection.new wkt ? wkt.gsub(?", '\"') : "epsg:#{wkid == 102100 ? 3857 : wkid}"
+        projection_corners = map.projection.reproject_to projection, (map.coord_corners << map.coord_corners.first)
+        geometry = { "rings" => [ projection_corners ] }.to_json
+      else
+        sr = { "wkt" => map.projection.wkt_esri }.to_json
+        geometry = { "rings" => [ map.coord_corners << map.coord_corners.first ] }.to_json
+      end
+      geometry_query = { "geometry" => geometry, "geometryType" => "esriGeometryPolygon" }
+      options["id"] ||= service["layers"].find do |layer|
+        layer["name"] == options["name"]
+      end.fetch("id")
+      layer_id = options["id"]
+      uri = URI.parse "#{url}/#{layer_id}?f=json"
+      max_record_count, fields, types, type_id_field, min_scale, max_scale = HTTP.get_json(uri, source["headers"]).values_at *%w[maxRecordCount fields types typeIdField minScale maxScale]
+      fields = fields.map { |field| { field["name"] => field } }.inject({}, &:merge)
+      names = fields.map { |name, field| { field["alias"] => name } }.inject({}, &:merge)
+      types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
+      type_field_name = type_id_field && fields.values.find { |field| field["alias"] == type_id_field }.fetch("name")
+      pages = Enumerator.new do |yielder|
+        if options["definition"] && !service["supportsDynamicLayers"]
+          uri = URI.parse "#{url}/identify"
+          index_attribute = options["page-by"] || source["page-by"] || "OBJECTID"
+          scale = options["scale"]
+          scale ||= max_scale.zero? ? min_scale.zero? ? map.scale : 2 * min_scale : (min_scale + max_scale) / 2
+          pixels = map.wgs84_bounds.map do |bound|
+            bound.reverse.inject(&:-) * 96.0 * 110000 / scale / 0.0254
+          end.map(&:ceil)
+          bounds = projection ? map.transform_bounds_to(projection) : map.bounds
+          query = {
+            "f" => "json",
+            "layers" => "all:#{layer_id}",
+            "tolerance" => 0,
+            "mapExtent" => bounds.transpose.flatten.join(?,),
+            "imageDisplay" => [ *pixels, 96 ].join(?,),
+            "returnGeometry" => true,
+          }
+          query["sr"] = sr if sr
+          query.merge! geometry_query
+          paginate = nil
+          indices = []
+          loop do
+            definitions = [ *options["definition"], *paginate ]
+            definition = "(#{definitions.join ') AND ('})"
+            paged_query = query.merge("layerDefs" => "#{layer_id}:1 = 0) OR (#{definition}")
+            page = HTTP.post_json(uri, paged_query.to_query, source["headers"]).fetch("results", [])
+            break unless page.any?
+            yielder << page
+            indices += page.map { |feature| feature["attributes"][index_attribute] }
+            # paginate = "#{index_attribute} NOT IN (#{indices.join ?,})"
+            paginate = "#{index_attribute} > #{indices.map(&:to_i).max}"
+          end
+        else
+          where = [ *options["where"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["where"]
+          per_page = [ *max_record_count, *options["per-page"], *source["per-page"], 500 ].min
+          if options["definition"]
+            definitions = [ *options["definition"] ]
+            definition = "(#{definitions.join ') AND ('})"
+            layer = { "source" => { "type" => "mapLayer", "mapLayerId" => layer_id }, "definitionExpression" => "1 = 0) OR (#{definition}" }.to_json
+            resource = "dynamicLayer"
+            base_query = { "f" => "json", "layer" => layer }
+          else
+            resource = layer_id
+            base_query = { "f" => "json" }
+          end
+          uri = URI.parse "#{url}/#{resource}/query"
+          query = base_query.merge(geometry_query).merge("returnIdsOnly" => true)
+          query["inSR"] = sr if sr
+          query["where"] = where if where
+          field_names = [ *type_field_name, *options["category"], *options["rotate"], *options["label"] ] & fields.keys
+          HTTP.post_json(uri, query.to_query, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
+            query = base_query.merge("objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,))
+            query["outSR"] = sr if sr
+            page = HTTP.post_json(uri, query.to_query, source["headers"]).fetch("features", [])
+            yielder << page
+          end
+        end
+      end
+      Enumerator.new do |yielder|
+        pages.each do |page|
+          page.each do |feature|
+            geometry = feature["geometry"]
+            raise BadLayerError.new("feature contains no geometry") unless geometry
+            dimension, key = [ 0, 0, 1, 2 ].zip(%w[x points paths rings]).find { |dimension, key| geometry.key? key }
+            data = case key
+            when "x"
+              point = geometry.values_at("x", "y")
+              [ projection ? map.reproject_from(projection, point) : point ]
+            when "points"
+              points = geometry[key]
+              projection ? map.reproject_from(projection, points) : points
+            when "paths", "rings"
+              geometry[key].map do |points|
+                projection ? map.reproject_from(projection, points) : points
+              end.tap do |lines|
+                dimension == 1 ? lines.clip_lines!(map.coord_corners(1.0)) : lines.clip_polys!(map.coord_corners(1.0))
+              end
+            end
+            names_values = feature["attributes"].map do |name_or_alias, value|
+              value = nil if %w[null Null NULL <null> <Null> <NULL>].include? value
+              [ names.fetch(name_or_alias, name_or_alias), value ]
+            end
+            attributes = Hash[names_values]
+            type = types && types[attributes[type_field_name]]
+            attributes.each do |name, value|
+              case
+              when type_field_name == name # name is the type field name
+                attributes[name] = type["name"] if type
+              when values = type && type["domains"][name] && type["domains"][name]["codedValues"] # name is the subtype field name
+                attributes[name] = values.find { |coded_value| coded_value["code"] == value }.fetch("name")
+              when values = fields[name] && fields[name]["domain"] && fields[name]["domain"]["codedValues"] # name is a coded value field name
+                attributes[name] = values.find { |coded_value| coded_value["code"] == value }.fetch("name")
+              end
+            end
+            yielder << [ dimension, data, attributes ]
+          end
+        end
+      end
     end
     
     def create(map)
@@ -1605,7 +1732,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           source["headers"]["Cookie"] = cookie
         end
         source["url"] ||= (source["https"] ? URI::HTTPS : URI::HTTP).build(:host => source["host"]).to_s
-        source["url"] = [ source["url"], source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ].join(?/)
         { name => source }
       end.inject(&:merge)
       
@@ -1636,143 +1762,28 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         $stdout << "  #{sublayer}"
         features = []
         options_array.each do |options|
-          options["definition"] ||= "1 = 1" if options.delete "redefine"
           source = sources[options["source"] || sources.keys.first]
-          url = source["url"]
-          uri = URI.parse "#{url}?f=json"
-          service = HTTP.get_json uri, source["headers"]
-          if params["local-reprojection"] || source["local-reprojection"] || options["local-reprojection"]
-            wkt  = service["spatialReference"]["wkt"]
-            wkid = service["spatialReference"]["latestWkid"] || service["spatialReference"]["wkid"]
-            projection = Projection.new wkt ? wkt.gsub(?", '\"') : "epsg:#{wkid == 102100 ? 3857 : wkid}"
-            projection_corners = map.projection.reproject_to projection, (map.coord_corners << map.coord_corners.first)
-            geometry = { "rings" => [ projection_corners ] }.to_json
-          else
-            sr = { "wkt" => map.projection.wkt_esri }.to_json
-            geometry = { "rings" => [ map.coord_corners << map.coord_corners.first ] }.to_json
-          end
-          geometry_query = { "geometry" => geometry, "geometryType" => "esriGeometryPolygon" }
-          options["id"] ||= service["layers"].find do |layer|
-            layer["name"] == options["name"]
-          end.fetch("id")
-          layer_id = options["id"]
-          uri = URI.parse "#{url}/#{layer_id}?f=json"
-          max_record_count, fields, types, type_id_field, min_scale, max_scale = HTTP.get_json(uri, source["headers"]).values_at *%w[maxRecordCount fields types typeIdField minScale maxScale]
-          fields = fields.map { |field| { field["name"] => field } }.inject({}, &:merge)
-          names = fields.map { |name, field| { field["alias"] => name } }.inject({}, &:merge)
-          types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
-          type_field_name = type_id_field && fields.values.find { |field| field["alias"] == type_id_field }.fetch("name")
-          Enumerator.new do |yielder|
-            if options["definition"] && !service["supportsDynamicLayers"]
-              uri = URI.parse "#{url}/identify"
-              index_attribute = options["page-by"] || source["page-by"] || "OBJECTID"
-              scale = options["scale"]
-              scale ||= max_scale.zero? ? min_scale.zero? ? map.scale : 2 * min_scale : (min_scale + max_scale) / 2
-              pixels = map.wgs84_bounds.map do |bound|
-                bound.reverse.inject(&:-) * 96.0 * 110000 / scale / 0.0254
-              end.map(&:ceil)
-              bounds = projection ? map.transform_bounds_to(projection) : map.bounds
-              query = {
-                "f" => "json",
-                "layers" => "all:#{layer_id}",
-                "tolerance" => 0,
-                "mapExtent" => bounds.transpose.flatten.join(?,),
-                "imageDisplay" => [ *pixels, 96 ].join(?,),
-                "returnGeometry" => true,
-              }
-              query["sr"] = sr if sr
-              query.merge! geometry_query
-              paginate = nil
-              indices = []
-              loop do
-                definitions = [ *options["definition"], *paginate ]
-                definition = "(#{definitions.join ') AND ('})"
-                paged_query = query.merge("layerDefs" => "#{layer_id}:1 = 0) OR (#{definition}")
-                page = HTTP.post_json(uri, paged_query.to_query, source["headers"]).fetch("results", [])
-                break unless page.any?
-                yielder << page
-                indices += page.map { |feature| feature["attributes"][index_attribute] }
-                # paginate = "#{index_attribute} NOT IN (#{indices.join ?,})"
-                paginate = "#{index_attribute} > #{indices.map(&:to_i).max}"
-              end
-            else
-              where = [ *options["where"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["where"]
-              per_page = [ *max_record_count, *options["per-page"], *source["per-page"], 500 ].min
-              if options["definition"]
-                definitions = [ *options["definition"] ]
-                definition = "(#{definitions.join ') AND ('})"
-                layer = { "source" => { "type" => "mapLayer", "mapLayerId" => layer_id }, "definitionExpression" => "1 = 0) OR (#{definition}" }.to_json
-                resource = "dynamicLayer"
-                base_query = { "f" => "json", "layer" => layer }
-              else
-                resource = layer_id
-                base_query = { "f" => "json" }
-              end
-              uri = URI.parse "#{url}/#{resource}/query"
-              query = base_query.merge(geometry_query).merge("returnIdsOnly" => true)
-              query["inSR"] = sr if sr
-              query["where"] = where if where
-              field_names = [ *type_field_name, *options["category"], *options["rotate"], *options["label"] ] & fields.keys
-              HTTP.post_json(uri, query.to_query, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
-                query = base_query.merge("objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,))
-                query["outSR"] = sr if sr
-                page = HTTP.post_json(uri, query.to_query, source["headers"]).fetch("features", [])
-                yielder << page
-              end
+          case source["protocol"]
+          when "arcgis" then arcgis_features(map, source, options)
+          # when "wfs"    then    wfs_features(map, source, options)
+          end.each do |dimension, data, attributes|
+            categories = [ *options["category"] ].map do |name|
+              attributes.fetch(name, name).to_s.gsub(/^\W+|\W+$/, '').gsub(/\W+/, ?-)
             end
-          end.each do |page|
-            page.each do |feature|
-              geometry = feature["geometry"]
-              raise BadLayerError.new("#{sublayer} contains no geometry") unless geometry
-              dimension, key = [ 0, 0, 1, 2 ].zip(%w[x points paths rings]).find { |dimension, key| geometry.key? key }
-              data = case key
-              when "x"
-                point = geometry.values_at("x", "y")
-                [ projection ? map.reproject_from(projection, point) : point ]
-              when "points"
-                points = geometry[key]
-                projection ? map.reproject_from(projection, points) : points
-              when "paths", "rings"
-                geometry[key].map do |points|
-                  projection ? map.reproject_from(projection, points) : points
-                end.tap do |lines|
-                  dimension == 1 ? lines.clip_lines!(map.coord_corners(1.0)) : lines.clip_polys!(map.coord_corners(1.0))
-                end
-              end
-              names_values = feature["attributes"].map do |name_or_alias, value|
-                value = nil if %w[null Null NULL <null> <Null> <NULL>].include? value
-                [ names.fetch(name_or_alias, name_or_alias), value ]
-              end
-              attributes = Hash[names_values]
-              type = types && types[attributes[type_field_name]]
-              attributes.each do |name, value|
-                case
-                when type_field_name == name # name is the type field name
-                  attributes[name] = type["name"] if type
-                when values = type && type["domains"][name] && type["domains"][name]["codedValues"] # name is the subtype field name
-                  attributes[name] = values.find { |coded_value| coded_value["code"] == value }.fetch("name")
-                when values = fields[name] && fields[name]["domain"] && fields[name]["domain"]["codedValues"] # name is a coded value field name
-                  attributes[name] = values.find { |coded_value| coded_value["code"] == value }.fetch("name")
-                end
-              end
-              categories = [ *options["category"] ].map do |name|
-                attributes.fetch(name, name).to_s.gsub(/^\W+|\W+$/, '').gsub(/\W+/, ?-)
-              end
-              case attributes[options["rotate"]]
-              when 0
-                categories << "no-angle"
-              else
-                categories << "angle"
-                angle = 90 - attributes[options["rotate"]]
-              end if options["rotate"]
-              features << { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
-                feature["label-only"] = options["label-only"] if options["label-only"]
-                feature["angle"] = angle if angle
-                [ *options["label"] ].map do |key|
-                  attributes.fetch(key, key)
-                end.tap do |labels|
-                  feature["labels"] = labels unless labels.map(&:to_s).all?(&:empty?)
-                end
+            case attributes[options["rotate"]]
+            when 0
+              categories << "no-angle"
+            else
+              categories << "angle"
+              angle = 90 - attributes[options["rotate"]]
+            end if options["rotate"]
+            features << { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
+              feature["label-only"] = options["label-only"] if options["label-only"]
+              feature["angle"] = angle if angle
+              [ *options["label"] ].map do |key|
+                attributes.fetch(key, key)
+              end.tap do |labels|
+                feature["labels"] = labels unless labels.map(&:to_s).all?(&:empty?)
               end
             end
             $stdout << "\r  #{sublayer} (#{features.length} feature#{?s unless features.one?})"
@@ -1847,6 +1858,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           feature["categories"].unshift sublayer
         end
       end
+    end
+  end
+  
+  class ArcGISVector < FeatureSource
+    def initialize(*args)
+      super(*args)
+      params["sources"].each { |name, source| source["protocol"] = "arcgis" }
     end
   end
   

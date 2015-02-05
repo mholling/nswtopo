@@ -2294,8 +2294,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
         case dimension
         when 0
-          data = map.coords_to_mm feature["data"]
-          [ [ dimension, data, attributes ] ]
+          map.coords_to_mm(feature["data"]).map do |point|
+            [ dimension, point, attributes ]
+          end
         when 1, 2
           feature["data"].map do |coords|
             map.coords_to_mm coords
@@ -2320,8 +2321,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       
       labelling_hull = map.mm_corners(-2).reverse
-      hulls, sublayers, components, categories, endpoints, elements = @features.map do |text, sublayer, components|
-        components.map do |component|
+      hulls, sublayers, dimensions, attributes, component_indices, categories, endpoints, elements = @features.map do |text, sublayer, components|
+        components.map.with_index do |component, component_index|
           dimension, data, attributes = component
           font_size      = attributes["font-size"]      || 1.5
           letter_spacing = attributes["letter-spacing"] || 0
@@ -2333,34 +2334,28 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             lines = text.in_two
             width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
             height = lines.length * font_size
-            data.map do |point|
-              transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-              [ *attributes["position"] ].map do |position|
-                dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
-                dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
-                f = dx * dy == 0 ? 1 : 0.707
-                text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
-                text_element = REXML::Element.new("text")
-                text_element.add_attributes "text-anchor" => text_anchor, "transform" => transform
-                lines.each.with_index do |line, count|
-                  x = dx * f * margin
-                  y = ((lines.one? ? (1 + dy) * 0.5 : count + dy) - 0.15) * font_size + dy * f * margin
-                  text_element.add_element("tspan", "x" => x, "y" => y) do |tspan|
-                    tspan.add_text line
-                  end
+            transform = "translate(#{data.join ?\s}) rotate(#{-map.rotation})"
+            [ *attributes["position"] ].map do |position|
+              dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
+              dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
+              f = dx * dy == 0 ? 1 : 0.707
+              text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
+              text_element = REXML::Element.new("text")
+              text_element.add_attributes "text-anchor" => text_anchor, "transform" => transform
+              lines.each.with_index do |line, count|
+                x = dx * f * margin
+                y = ((lines.one? ? (1 + dy) * 0.5 : count + dy) - 0.15) * font_size + dy * f * margin
+                text_element.add_element("tspan", "x" => x, "y" => y) do |tspan|
+                  tspan.add_text line
                 end
-                hull = [ [ dx, width ], [dy, height ] ].map do |d, l|
-                  [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
-                end.inject(&:product).values_at(0,2,3,1).map do |corner|
-                  corner.rotate_by_degrees(-map.rotation).plus(point)
-                end
-                [ hull, text_element ]
-              end.reject do |hull, text_element|
-                (data - [ point ]).any? { |other| hull.surrounds? [ other ] }
-              end.map do |hull, text_element|
-                [ hull, sublayer, component, categories, nil, text_element ]
               end
-            end.flatten(1)
+              hull = [ [ dx, width ], [dy, height ] ].map do |d, l|
+                [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
+              end.inject(&:product).values_at(0,2,3,1).map do |corner|
+                corner.rotate_by_degrees(-map.rotation).plus(data)
+              end
+              [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_element ]
+            end
           when 1
             margin = attributes["margin"]
             repeat_interval = attributes["repeat-interval"] || 150
@@ -2428,7 +2423,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
               endpoints = [ cumulative[range.first] / repeat_interval, cumulative[range.last] / repeat_interval, cumulative.last / repeat_interval ]
-              [ hull, sublayer, component, categories, endpoints, [ text_element, path_element ] ]
+              [ hull, sublayer, dimension, attributes, component_index, categories, endpoints, [ text_element, path_element ] ]
             end
           when 2
             lines = text.in_two
@@ -2448,7 +2443,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 tspan.add_text line
               end
             end
-            [ [ hull, sublayer, component, categories, nil, text_element ] ]
+            [ [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_element ] ]
           end.select do |hull, *args|
             labelling_hull.surrounds? hull
           end
@@ -2475,13 +2470,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         conflicts[feature2_index][candidate2_index][label1] = true
       end
       
-      components.each.with_index do |components, feature_index|
-        components.each.with_index do |component1, candidate1_index|
+      dimensions.zip(component_indices).each.with_index do |(dimensions, component_indices), feature_index|
+        dimensions.zip(component_indices).each.with_index do |(dimension, component1_index), candidate1_index|
           label1 = [ feature_index, candidate1_index ]
-          dimension, data, attributes = component1
-          components.each.with_index.select do |component2, candidate2_index|
-            candidate2_index < candidate1_index && component1.equal?(component2)
-          end.each do |component2, candidate2_index|
+          component_indices.each.with_index.select do |component2_index, candidate2_index|
+            candidate2_index < candidate1_index && component1_index == component2_index
+          end.each do |component2_index, candidate2_index|
             label2 = [ feature_index, candidate2_index ]
             case dimension
             when 0
@@ -2502,10 +2496,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      hulls.zip(components).each.with_index do |(hulls, components), feature_index|
-        buffer = components.map do |_, _, attributes|
-          attributes["repeat-buffer"]
-        end.compact.max
+      hulls.zip(attributes).each.with_index do |(hulls, attributes), feature_index|
+        buffer = attributes.map { |attributes| attributes["repeat-buffer"] }.compact.max
         hulls.overlaps(buffer).each do |candidate1_index, candidate2_index|
           label1 = [ feature_index, candidate1_index ]
           label2 = [ feature_index, candidate2_index ]
@@ -2550,12 +2542,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       5.times do
         labels.select do |feature_index, candidate_index|
-          dimension, _, _ = components[feature_index][candidate_index]
-          dimension == 0
+          dimensions[feature_index][candidate_index] == 0
         end.each do |label|
-          feature_index, candidate_index = label
-          counts_candidates = conflicts[feature_index].map do |candidate_index, conflicts|
-            [ (labels & conflicts.keys - [ label ]).count, candidate_index ]
+          feature_index, current_candidate_index = label
+          counts_candidates = conflicts[feature_index].select do |new_candidate_index, conflicts|
+            component_indices[feature_index][new_candidate_index] == component_indices[feature_index][current_candidate_index]
+          end.map do |new_candidate_index, conflicts|
+            [ (labels & conflicts.keys - [ label ]).count, new_candidate_index ]
           end
           label[1] = counts_candidates.min.last
         end

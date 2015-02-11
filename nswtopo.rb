@@ -323,6 +323,22 @@ class Array
     ring.map(&:difference).map(&:perp)
   end
   
+  def surrounds?(points)
+    [ self, perps ].transpose.all?  do |vertex, perp|
+      points.all? { |point| point.minus(vertex).dot(perp) > 0 }
+    end
+  end
+  
+  def clip_points(hull)
+    [ hull, hull.perps ].transpose.inject(self) do |result, (vertex, perp)|
+      result.select { |point| point.minus(vertex).dot(perp) <= 0 }
+    end
+  end
+  
+  def clip_points!(hull)
+    replace clip_points(hull)
+  end
+  
   def clip_lines(hull)
     [ hull, hull.perps ].transpose.inject(self) do |result, (vertex, perp)|
       result.inject([]) do |clipped, points|
@@ -396,12 +412,6 @@ class Array
   
   def clip_polys!(hull)
     replace clip_polys(hull)
-  end
-  
-  def surrounds?(points)
-    [ self, perps ].transpose.all?  do |vertex, perp|
-      points.all? { |point| point.minus(vertex).dot(perp) > 0 }
-    end
   end
   
   def round(decimal_digits)
@@ -1050,19 +1060,39 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def self.head(uri, *args, &block)
       request uri, Net::HTTP::Head.new(uri.request_uri, *args), &block
     end
-    
+  end
+  
+  module ArcGIS
     def self.get_json(uri, *args)
-      get(uri, *args) do |response|
+      HTTP.get(uri, *args) do |response|
         JSON.parse(response.body).tap do |result|
-          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+          raise ServerError.new(result["error"]["message"]) if result["error"]
         end
       end
+    rescue JSON::ParserError
+      raise ServerError.new "unexpected response format"
     end
     
     def self.post_json(uri, body, *args)
-      post(uri, body, *args) do |response|
+      HTTP.post(uri, body, *args) do |response|
         JSON.parse(response.body).tap do |result|
-          raise Net::HTTPBadResponse.new(result["error"]["message"]) if result["error"]
+          raise ServerError.new(result["error"]["message"]) if result["error"]
+        end
+      end
+    rescue JSON::ParserError
+      raise ServerError.new "unexpected response format"
+    end
+  end
+  
+  module WFS
+    def self.post_xml(uri, body, *args)
+      HTTP.post(uri, body, *args) do |response|
+        case response.content_type
+        when "text/xml", "application/xml"
+          REXML::Document.new(response.body).tap do |xml|
+            raise ServerError.new xml.elements["//ows:ExceptionText/text()"] if xml.elements["ows:ExceptionReport"]
+          end
+        else raise ServerError.new "unexpected response format"
         end
       end
     end
@@ -1531,7 +1561,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         @headers = { "Cookie" => cookie }
       end
       uri = URI.parse params["url"] + "?f=json"
-      @service = HTTP.get_json uri, headers
+      @service = ArcGIS.get_json uri, headers
       service["layers"].each { |layer| layer["name"] = layer["name"].gsub(UNDERSCORES, ?_) } if service["layers"]
       service["mapName"] = service["mapName"].gsub(UNDERSCORES, ?_) if service["mapName"]
     end
@@ -1593,7 +1623,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       options["definition"] ||= "1 = 1" if options.delete "redefine"
       url = [ source["url"], source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ].join(?/)
       uri = URI.parse "#{url}?f=json"
-      service = HTTP.get_json uri, source["headers"]
+      service = ArcGIS.get_json uri, source["headers"]
       if params["local-reprojection"] || source["local-reprojection"] || options["local-reprojection"]
         wkt  = service["spatialReference"]["wkt"]
         wkid = service["spatialReference"]["latestWkid"] || service["spatialReference"]["wkid"]
@@ -1610,7 +1640,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.fetch("id")
       layer_id = options["id"]
       uri = URI.parse "#{url}/#{layer_id}?f=json"
-      max_record_count, fields, types, type_id_field, min_scale, max_scale = HTTP.get_json(uri, source["headers"]).values_at *%w[maxRecordCount fields types typeIdField minScale maxScale]
+      max_record_count, fields, types, type_id_field, min_scale, max_scale = ArcGIS.get_json(uri, source["headers"]).values_at *%w[maxRecordCount fields types typeIdField minScale maxScale]
       fields = fields.map { |field| { field["name"] => field } }.inject({}, &:merge)
       names = fields.map { |name, field| { field["alias"] => name } }.inject({}, &:merge)
       types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
@@ -1641,7 +1671,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             definitions = [ *options["definition"], *paginate ]
             definition = "(#{definitions.join ') AND ('})"
             paged_query = query.merge("layerDefs" => "#{layer_id}:1 = 0) OR (#{definition}")
-            page = HTTP.post_json(uri, paged_query.to_query, source["headers"]).fetch("results", [])
+            page = ArcGIS.post_json(uri, paged_query.to_query, source["headers"]).fetch("results", [])
             break unless page.any?
             yielder << page
             indices += page.map { |feature| feature["attributes"][index_attribute] }
@@ -1666,10 +1696,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           query["inSR"] = sr if sr
           query["where"] = where if where
           field_names = [ *type_field_name, *options["category"], *options["rotate"], *options["label"] ] & fields.keys
-          HTTP.post_json(uri, query.to_query, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
+          ArcGIS.post_json(uri, query.to_query, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
             query = base_query.merge("objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,))
             query["outSR"] = sr if sr
-            page = HTTP.post_json(uri, query.to_query, source["headers"]).fetch("features", [])
+            page = ArcGIS.post_json(uri, query.to_query, source["headers"]).fetch("features", [])
             yielder << page
           end
         end
@@ -1690,8 +1720,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when "paths", "rings"
               geometry[key].map do |points|
                 projection ? map.reproject_from(projection, points) : points
-              end.tap do |lines|
-                dimension == 1 ? lines.clip_lines!(map.coord_corners(1.0)) : lines.clip_polys!(map.coord_corners(1.0))
               end
             end
             names_values = feature["attributes"].map do |name_or_alias, value|
@@ -1712,6 +1740,89 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
             yielder << [ dimension, data, attributes ]
           end
+        end
+      end
+    end
+    
+    def wfs_features(map, source, options)
+      uri = URI.parse source["url"]
+      type_name = options["name"]
+      per_page = [ *options["per-page"], *source["per-page"], 500 ].min
+      headers = { "Content-Type" => "application/x-www-form-urlencoded" }
+      headers.merge! source["headers"] if source["headers"]
+      base_query = { "service" => "wfs", "version" => "2.0.0" }
+      
+      body = base_query.merge("request" => "DescribeFeatureType", "typeName" => type_name).to_query
+      xml = WFS.post_xml(uri, body, headers)
+      namespace, type = xml.elements["xsd:schema/xsd:element[@name='#{type_name}']/@type"].value.split ?:
+      names = xml.elements.each("xsd:schema/[@name='#{type}']//xsd:element[@name][starts-with(@type,'xsd:')]/@name").map(&:value)
+      types = xml.elements.each("xsd:schema/[@name='#{type}']//xsd:element[@name][starts-with(@type,'xsd:')]/@type").map(&:value)
+      methods = names.zip(types).map do |name, type|
+        method = case type
+        when *%w[xsd:float xsd:double xsd:decimal] then :to_f
+        when *%w[xsd:int xsd:short]                then :to_i
+        else                                            :to_s
+        end
+        { name => method }
+      end.inject({}, &:merge)
+      
+      geometry_name = xml.elements["xsd:schema/[@name='#{type}']//xsd:element[@name][starts-with(@type,'gml:')]/@name"].value
+      geometry_type = xml.elements["xsd:schema/[@name='#{type}']//xsd:element[@name][starts-with(@type,'gml:')]/@type"].value
+      dimension = case geometry_type
+      when *%w[gml:PointPropertyType gml:MultiPointPropertyType] then 0
+      when *%w[gml:CurvePropertyType gml:MultiCurvePropertyType] then 1
+      when *%w[gml:SurfacePropertyType gml:MultiSurfacePropertyType] then 2
+      else raise BadLayerError.new "unsupported geometry type '#{geometry_type}'"
+      end
+      
+      body = base_query.merge("request" => "GetCapabilities").to_query
+      xml = WFS.post_xml(uri, body, headers)
+      default_crs = xml.elements["wfs:WFS_Capabilities/FeatureTypeList/FeatureType[Name[text()='#{namespace}:#{type_name}']]/DefaultCRS"].text
+      wkid = default_crs.match(/EPSG::(\d+)$/)[1]
+      projection = Projection.new "epsg:#{wkid}"
+      
+      points = map.projection.reproject_to(projection, map.coord_corners)
+      polygon = [ *points, points.first ].map { |corner| corner.reverse.join ?\s }.join ?,
+      bounds_filter = "INTERSECTS(#{geometry_name},POLYGON((#{polygon})))"
+      
+      filters = [ bounds_filter, *options["filter"] ]
+      names &= [ *options["category"], *options["rotate"], *options["label"] ]
+      query = {
+        "request" => "GetFeature",
+        "typeNames" => type_name,
+        "propertyName" => names.join(?,),
+        "count" => per_page,
+        "cql_filter" => "(#{filters.join ') AND ('})"
+      }
+      
+      Enumerator.new do |yielder|
+        index = 0
+        loop do
+          body = base_query.merge(query).merge("startIndex" => index).to_query
+          xml = WFS.post_xml(uri, body, headers)
+          xml.elements.each("wfs:FeatureCollection/wfs:member/#{namespace}:#{type_name}") do |member|
+            elements = names.map do |name|
+              member.elements["#{namespace}:#{name}"]
+            end
+            values = methods.values_at(*names).zip(elements).map do |method, element|
+              element ? element.attributes["xsi:nil"] == "true" ? nil : element.text ? element.text.send(method) : "" : nil
+            end
+            attributes = Hash[names.zip values]
+            data = case dimension
+            when 0
+              member.elements.each(".//gml:pos/text()").map(&:to_s).map do |string|
+                string.split.map(&:to_f).reverse
+              end
+            when 1, 2
+              member.elements.each(".//gml:posList/text()").map(&:to_s).map do |string|
+                string.split.map(&:to_f).each_slice(2).map(&:reverse)
+              end
+            end.map do |point_or_points|
+              map.reproject_from projection, point_or_points
+            end
+            yielder << [ dimension, data, attributes ]
+          end.length == per_page || break
+          index += per_page
         end
       end
     end
@@ -1762,13 +1873,27 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         $stdout << "  #{sublayer}"
         features = []
         options_array.each do |options|
+          substitutions = [ *options.delete("category") ].map do |category_or_hash, hash|
+            case category_or_hash
+            when Hash then category_or_hash
+            else { category_or_hash => hash || {} }
+            end
+          end.inject({}, &:merge)
+          options["category"] = substitutions.keys
           source = sources[options["source"] || sources.keys.first]
           case source["protocol"]
           when "arcgis" then arcgis_features(map, source, options)
-          # when "wfs"    then    wfs_features(map, source, options)
+          when "wfs"    then    wfs_features(map, source, options)
           end.each do |dimension, data, attributes|
-            categories = [ *options["category"] ].map do |name|
-              attributes.fetch(name, name).to_s.gsub(/^\W+|\W+$/, '').gsub(/\W+/, ?-)
+            case dimension
+            when 0 then data.clip_points! map.coord_corners(1.0)
+            when 1 then data.clip_lines!  map.coord_corners(1.0)
+            when 2 then data.clip_polys!  map.coord_corners(1.0)
+            end
+            next if data.empty?
+            categories = substitutions.map do |name, substitutes|
+              value = attributes.fetch(name, name)
+              substitutes.fetch(value, value).to_s.gsub(/^\W+|\W+$/, '').gsub(/\W+/, ?-)
             end
             case attributes[options["rotate"]]
             when 0
@@ -1882,9 +2007,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         base_uri = URI.parse "http://www.ga.gov.au/gisimg/rest/services/topography/dem_s_1s/ImageServer/"
         base_query = { "f" => "json", "geometry" => map.wgs84_bounds.map(&:sort).transpose.flatten.plus([ -0.001, -0.001, 0.001, 0.001 ]).join(?,) }
         query = base_query.merge("returnIdsOnly" => true, "where" => "category = 1").to_query
-        raster_ids = HTTP.get_json(base_uri + "query?#{query}").fetch("objectIds")
+        raster_ids = ArcGIS.get_json(base_uri + "query?#{query}").fetch("objectIds")
         query = base_query.merge("rasterIDs" => raster_ids.join(?,), "format" => "TIFF").to_query
-        tile_paths = HTTP.get_json(base_uri + "download?#{query}").fetch("rasterFiles").map do |file|
+        tile_paths = ArcGIS.get_json(base_uri + "download?#{query}").fetch("rasterFiles").map do |file|
           file["id"][/[^@]*/]
         end.select do |url|
           url[/\.tif$/]

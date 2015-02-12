@@ -1901,7 +1901,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               categories << "no-angle"
             else
               categories << "angle"
-              angle = 90 - attributes[options["rotate"]]
+              angle = case options["rotation-style"]
+              when "arithmetic" then attributes[options["rotate"]]
+              when "geographic" then 90 - attributes[options["rotate"]]
+              else                   90 - attributes[options["rotate"]]
+              end
             end if options["rotate"]
             features << { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
               feature["label-only"] = options["label-only"] if options["label-only"]

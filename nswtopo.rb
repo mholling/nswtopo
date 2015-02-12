@@ -325,13 +325,13 @@ class Array
   
   def surrounds?(points)
     [ self, perps ].transpose.all?  do |vertex, perp|
-      points.all? { |point| point.minus(vertex).dot(perp) > 0 }
+      points.all? { |point| point.minus(vertex).dot(perp) >= 0 }
     end
   end
   
   def clip_points(hull)
     [ hull, hull.perps ].transpose.inject(self) do |result, (vertex, perp)|
-      result.select { |point| point.minus(vertex).dot(perp) <= 0 }
+      result.select { |point| point.minus(vertex).dot(perp) >= 0 }
     end
   end
   
@@ -343,7 +343,7 @@ class Array
     [ hull, hull.perps ].transpose.inject(self) do |result, (vertex, perp)|
       result.inject([]) do |clipped, points|
         clipped + [ *points, points.last ].segments.inject([[]]) do |lines, segment|
-          inside = segment.map { |point| point.minus(vertex).dot(perp) <= 0 }
+          inside = segment.map { |point| point.minus(vertex).dot(perp) >= 0 }
           case
           when inside.all?
             lines.last << segment[0]
@@ -367,7 +367,7 @@ class Array
   def clip_polys(hull)
     [ hull, hull.perps ].transpose.inject(self) do |polygons, (vertex, perp)|
       polygons.inject([]) do |clipped, polygon|
-        insides = polygon.map { |point| point.minus(vertex).dot(perp) <= 0 }
+        insides = polygon.map { |point| point.minus(vertex).dot(perp) >= 0 }
         case
         when insides.all? then clipped << polygon
         when insides.none?
@@ -895,7 +895,7 @@ margin: 15
       metres = margin_in_mm * 0.001 * @scale
       @extents.map do |extent|
         [ -0.5 * extent - metres, 0.5 * extent + metres ]
-      end.inject(&:product).values_at(1,3,2,0).map do |point|
+      end.inject(&:product).values_at(0,2,3,1).map do |point|
         @centre.plus point.rotate_by_degrees(@rotation)
       end
     end
@@ -932,7 +932,7 @@ margin: 15
     
     def write_oziexplorer_map(path, name, image, ppi)
       dimensions = dimensions_at(ppi)
-      pixel_corners = [ dimensions, [ :to_a, :reverse ] ].transpose.map { |dimension, order| [ 0, dimension ].send(order) }.inject(:product).values_at(1,3,2,0)
+      pixel_corners = dimensions.each.with_index.map { |dimension, order| [ 0, dimension ].rotate(order) }.inject(:product).values_at(0,2,3,1)
       calibration_strings = [ pixel_corners, wgs84_corners ].transpose.map.with_index do |(pixel_corner, wgs84_corner), index|
         dmh = [ wgs84_corner, [ [ ?E, ?W ], [ ?N, ?S ] ] ].transpose.reverse.map do |coord, hemispheres|
           [ coord.abs.floor, 60 * (coord.abs - coord.abs.floor), coord > 0 ? hemispheres.first : hemispheres.last ]
@@ -956,8 +956,8 @@ Track File = TF      These follow if they exist
 Moving Map Parameters = MM?    These follow if they exist
 MM0,Yes
 MMPNUM,4
-#{pixel_corners.map.with_index { |pixel_corner, index| "MMPXY,#{index+1},#{pixel_corner.join ?,}" }.join ?\n}
-#{wgs84_corners.map.with_index { |wgs84_corner, index| "MMPLL,#{index+1},#{wgs84_corner.join ?,}" }.join ?\n}
+#{pixel_corners.reverse.map.with_index { |pixel_corner, index| "MMPXY,#{index+1},#{pixel_corner.join ?,}" }.join ?\n}
+#{wgs84_corners.reverse.map.with_index { |wgs84_corner, index| "MMPLL,#{index+1},#{wgs84_corner.join ?,}" }.join ?\n}
 MM1B,#{resolution_at ppi}
 MOP,Map Open Position,0,0
 IWH,Map Image Width/Height,#{dimensions.join ?,}
@@ -1624,15 +1624,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       url = [ source["url"], source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ].join(?/)
       uri = URI.parse "#{url}?f=json"
       service = ArcGIS.get_json uri, source["headers"]
+      ring = (map.coord_corners << map.coord_corners.first).reverse
       if params["local-reprojection"] || source["local-reprojection"] || options["local-reprojection"]
         wkt  = service["spatialReference"]["wkt"]
         wkid = service["spatialReference"]["latestWkid"] || service["spatialReference"]["wkid"]
         projection = Projection.new wkt ? wkt.gsub(?", '\"') : "epsg:#{wkid == 102100 ? 3857 : wkid}"
-        projection_corners = map.projection.reproject_to projection, (map.coord_corners << map.coord_corners.first)
-        geometry = { "rings" => [ projection_corners ] }.to_json
+        geometry = { "rings" => [ map.projection.reproject_to(projection, ring) ] }.to_json
       else
         sr = { "wkt" => map.projection.wkt_esri }.to_json
-        geometry = { "rings" => [ map.coord_corners << map.coord_corners.first ] }.to_json
+        geometry = { "rings" => [ ring ] }.to_json
       end
       geometry_query = { "geometry" => geometry, "geometryType" => "esriGeometryPolygon" }
       options["id"] ||= service["layers"].find do |layer|
@@ -1829,6 +1829,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def create(map)
       puts "Downloading: #{name}"
+      feature_hull = map.coord_corners(1.0)
       
       %w[host instance folder service cookie].map do |key|
         { key => params.delete(key) }
@@ -1886,9 +1887,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "wfs"    then    wfs_features(map, source, options)
           end.each do |dimension, data, attributes|
             case dimension
-            when 0 then data.clip_points! map.coord_corners(1.0)
-            when 1 then data.clip_lines!  map.coord_corners(1.0)
-            when 2 then data.clip_polys!  map.coord_corners(1.0)
+            when 0 then data.clip_points! feature_hull
+            when 1 then data.clip_lines!  feature_hull
+            when 2 then data.clip_polys!  feature_hull
             end
             next if data.empty?
             categories = substitutions.map do |name, substitutes|
@@ -2162,7 +2163,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def draw(map)
       arrows = params["arrows"]
-      tl, tr, br, bl = map.coord_corners
+      bl, br, tr, tl = map.coord_corners
       width, height = map.extents
       margin = height * Math::tan((map.rotation + map.declination) * Math::PI / 180.0)
       spacing = params["spacing"] / Math::cos((map.rotation + map.declination) * Math::PI / 180.0)
@@ -2463,7 +2464,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      labelling_hull = map.mm_corners(-2).reverse
+      labelling_hull = map.mm_corners(-2)
       hulls, sublayers, dimensions, attributes, component_indices, categories, endpoints, elements = @features.map do |text, sublayer, components|
         components.map.with_index do |component, component_index|
           dimension, data, attributes = component

@@ -1085,8 +1085,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   module WFS
-    def self.post_xml(uri, body, *args)
-      HTTP.post(uri, body, *args) do |response|
+    def self.get_xml(uri, *args)
+      HTTP.get(uri, *args) do |response|
         case response.content_type
         when "text/xml", "application/xml"
           REXML::Document.new(response.body).tap do |xml|
@@ -1745,15 +1745,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def wfs_features(map, source, options)
-      uri = URI.parse source["url"]
+      url = source["url"]
       type_name = options["name"]
       per_page = [ *options["per-page"], *source["per-page"], 500 ].min
-      headers = { "Content-Type" => "application/x-www-form-urlencoded" }
-      headers.merge! source["headers"] if source["headers"]
+      headers = source["headers"]
       base_query = { "service" => "wfs", "version" => "2.0.0" }
       
-      body = base_query.merge("request" => "DescribeFeatureType", "typeName" => type_name).to_query
-      xml = WFS.post_xml(uri, body, headers)
+      query = base_query.merge("request" => "DescribeFeatureType", "typeName" => type_name).to_query
+      xml = WFS.get_xml URI.parse("#{url}?#{query}"), headers
       namespace, type = xml.elements["xsd:schema/xsd:element[@name='#{type_name}']/@type"].value.split ?:
       names = xml.elements.each("xsd:schema/[@name='#{type}']//xsd:element[@name][starts-with(@type,'xsd:')]/@name").map(&:value)
       types = xml.elements.each("xsd:schema/[@name='#{type}']//xsd:element[@name][starts-with(@type,'xsd:')]/@type").map(&:value)
@@ -1775,8 +1774,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       else raise BadLayerError.new "unsupported geometry type '#{geometry_type}'"
       end
       
-      body = base_query.merge("request" => "GetCapabilities").to_query
-      xml = WFS.post_xml(uri, body, headers)
+      query = base_query.merge("request" => "GetCapabilities").to_query
+      xml = WFS.get_xml URI.parse("#{url}?#{query}"), headers
       default_crs = xml.elements["wfs:WFS_Capabilities/FeatureTypeList/FeatureType[Name[text()='#{namespace}:#{type_name}']]/DefaultCRS"].text
       wkid = default_crs.match(/EPSG::(\d+)$/)[1]
       projection = Projection.new "epsg:#{wkid}"
@@ -1787,7 +1786,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       filters = [ bounds_filter, *options["filter"] ]
       names &= [ *options["category"], *options["rotate"], *options["label"] ]
-      query = {
+      get_query = {
         "request" => "GetFeature",
         "typeNames" => type_name,
         "propertyName" => names.join(?,),
@@ -1798,8 +1797,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       Enumerator.new do |yielder|
         index = 0
         loop do
-          body = base_query.merge(query).merge("startIndex" => index).to_query
-          xml = WFS.post_xml(uri, body, headers)
+          query = base_query.merge(get_query).merge("startIndex" => index).to_query
+          xml = WFS.get_xml URI.parse("#{url}?#{query}"), headers
           xml.elements.each("wfs:FeatureCollection/wfs:member/#{namespace}:#{type_name}") do |member|
             elements = names.map do |name|
               member.elements["#{namespace}:#{name}"]

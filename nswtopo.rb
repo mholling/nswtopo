@@ -1678,6 +1678,25 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             # paginate = "#{index_attribute} NOT IN (#{indices.join ?,})"
             paginate = "#{index_attribute} > #{indices.map(&:to_i).max}"
           end
+        elsif options["page-by"] || source["page-by"]
+          uri = URI.parse "#{url}/#{layer_id}/query"
+          index_attribute = options["page-by"] || source["page-by"]
+          per_page = [ *max_record_count, *options["per-page"], *source["per-page"], 500 ].min
+          field_names = [ index_attribute, *type_field_name, *options["category"], *options["rotate"], *options["label"] ] & fields.keys
+          paginate = nil
+          indices = []
+          loop do
+            query = geometry_query.merge("f" => "json", "returnGeometry" => true, "outFields" => field_names.join(?,))
+            query["inSR"] = query["outSR"] = sr if sr
+            clauses = [ *options["where"], *paginate ]
+            query["where"] = "(#{clauses.join ') AND ('})" if clauses.any?
+            page = ArcGIS.post_json(uri, query.to_query, source["headers"]).fetch("features", [])
+            break unless page.any?
+            yielder << page
+            indices += page.map { |feature| feature["attributes"][index_attribute] }
+            # paginate = "#{index_attribute} NOT IN (#{indices.join ?,})"
+            paginate = "#{index_attribute} > #{indices.map(&:to_i).max}"
+          end
         else
           where = [ *options["where"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["where"]
           per_page = [ *max_record_count, *options["per-page"], *source["per-page"], 500 ].min

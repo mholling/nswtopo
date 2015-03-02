@@ -164,9 +164,9 @@ features:
     category:
     - classsubtype
     - alternativelabel
-  waterfalls: # only shows named waterfalls for now
+  waterfalls:
     name: Waterfalls_springs
-    where: ancillaryhydrotype = 6
+    definition: ancillaryhydrotype = 6
     rotate: symbolrotation
     label: generalname
   mangroves-intertidal:
@@ -177,9 +177,9 @@ features:
   - name: Cliffs_Reefs_Mangroves
     where: classsubtype IN (4,5)
     category: classsubtype
-  # - name: Caves_Pinnacles # can't show point-feature reefs and rock-awash for now
-  #   definition: classsubtype IN (4,5)
-  #   category: classsubtype
+  - name: Caves_Pinnacles
+    definition: classsubtype IN (4,5)
+    category: classsubtype
   - source: poi
     name: Points Of Interest
     where: poitype = 'Reef' AND poiname NOT LIKE '% LEVEE'
@@ -205,10 +205,11 @@ features:
     where: poitype = 'Breakwater'
     label-only: true
     label: poiname
-  caves-pinnacles: # can't show rock-inland (classsubtype = 6) for now
+  caves-pinnacles:
     name: Caves_Pinnacles
     category: classsubtype
     label: generalname
+    definition: classsubtype IN (1,2,6)
   road-tunnels:
     source: rfs
     name: RoadSegment

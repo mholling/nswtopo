@@ -1752,9 +1752,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when type_field_name == name # name is the type field name
                 attributes[name] = type["name"] if type
               when values = type && type["domains"][name] && type["domains"][name]["codedValues"] # name is the subtype field name
-                attributes[name] = values.find { |coded_value| coded_value["code"] == value }.fetch("name")
+                coded_value = values.find { |coded_value| coded_value["code"] == value }
+                attributes[name] = code_value["name"] if coded_value
               when values = fields[name] && fields[name]["domain"] && fields[name]["domain"]["codedValues"] # name is a coded value field name
-                attributes[name] = values.find { |coded_value| coded_value["code"] == value }.fetch("name")
+                coded_value = values.find { |coded_value| coded_value["code"] == value }
+                attributes[name] = code_value["name"] if coded_value
               end
             end
             yielder << [ dimension, data, attributes ]
@@ -1915,14 +1917,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               substitutes.fetch(value, value).to_s.gsub(/^\W+|\W+$/, '').gsub(/\W+/, ?-)
             end
             case attributes[options["rotate"]]
-            when 0
+            when nil, 0, "0"
               categories << "no-angle"
             else
               categories << "angle"
               angle = case options["rotation-style"]
-              when "arithmetic" then attributes[options["rotate"]]
-              when "geographic" then 90 - attributes[options["rotate"]]
-              else                   90 - attributes[options["rotate"]]
+              when "arithmetic" then      attributes[options["rotate"]].to_f
+              when "geographic" then 90 - attributes[options["rotate"]].to_f
+              else                   90 - attributes[options["rotate"]].to_f
               end
             end if options["rotate"]
             features << { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|

@@ -33,6 +33,11 @@ sources:
   #   host: mapsq.six.nsw.gov.au
   #   folder: sixmaps
   #   service: 2mContour
+  old-topo:
+    host: imagery.maps.nsw.gov.au
+    service: topo
+    local-reprojection: true
+    page-by: objectid
 features:
   plantation-horticulture:
     # TODO: include ForestryPlantation-Other(3) ?
@@ -227,6 +232,12 @@ features:
     category:
     - classsubtype
     - generalculturaltype
+  pipelines:
+    source: old-topo
+    name: Pipeline
+    where:
+    - operationalstatus NOT IN (3,5,8)
+    - posreltoground NOT IN (2)
   floodways:
     source: rfs
     name: RoadSegment
@@ -271,7 +282,9 @@ features:
     rotate: symbolrotation
     category: classsubtype
   tanks:
-    source: rfs
+  - source: old-topo
+    name: TankArea
+  - source: rfs
     name: TankPoint
   buildings:
   - name: Dwellings_Buildings
@@ -289,6 +302,13 @@ features:
     source: rfs
     name: TransportFacilityPoint
     where: classsubtype = 6
+  transmission-lines:
+    source: old-topo
+    name: ElectricityTransmissionLine
+  cableways:
+    source: old-topo
+    name: Cableway
+    where: operationalstatus IN (1,2)
   spot-heights:
     name: SpotHeight
     label: elevation
@@ -341,11 +361,6 @@ features:
 # 3:Lookout
 # 3:Observation Tower
 # 3:Picnic Area
-
-# missing:
-# TankArea
-# ElectricityTransmissionLine
-# Cableway
 
 intervals-contours:
   # 4: contours-4m
@@ -834,6 +849,17 @@ recreational-perimeters:
   stroke: black
   stroke-width: 0.15
   stroke-dasharray: 0.8 0.2
+pipelines:
+  dupe: pipes
+  stroke: black
+  stroke-width: 0.8
+  stroke-dasharray: 0.2 5.8
+  stroke-dashoffset: 3
+  pipes:
+    stroke: "#4985DF"
+    stroke-width: 0.2
+    stroke-dasharray: none
+    stroke-dashoffset: none
 floodways:
   stroke: black
   stroke-dasharray: 0.5 0.4
@@ -967,6 +993,9 @@ gates-grids:
         fill: none
         d: M -0.4 -0.35 L 0.4 -0.35 L 0.4 0.35 L -0.4 0.35 Z M -0.4 0.0 L 0.4 0.0
 tanks:
+  stroke: black
+  stroke-width: 0.1
+  fill: white
   symbol:
     circle:
       stroke: black
@@ -991,6 +1020,24 @@ railway-stations:
       fill: red
       stroke-width: 0.15
       r: 0.4
+transmission-lines:
+  dupe: dots
+  stroke: black
+  stroke-width: 0.15
+  stroke-dasharray: 8 2
+  stroke-dashoffset: 5
+  dots:
+    stroke-width: 0.4
+    stroke-dasharray: 0.1 9.9
+    stroke-dashoffset: -4
+    stroke-linecap: round
+cableways:
+  stroke: black
+  stroke-width: 0.15
+  endpoint:
+    line:
+      y1: -0.4
+      y2: 0.4
 spot-heights:
   symbol:
     circle:

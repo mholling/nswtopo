@@ -1753,10 +1753,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 attributes[name] = type["name"] if type
               when values = type && type["domains"][name] && type["domains"][name]["codedValues"] # name is the subtype field name
                 coded_value = values.find { |coded_value| coded_value["code"] == value }
-                attributes[name] = code_value["name"] if coded_value
+                attributes[name] = coded_value["name"] if coded_value
               when values = fields[name] && fields[name]["domain"] && fields[name]["domain"]["codedValues"] # name is a coded value field name
                 coded_value = values.find { |coded_value| coded_value["code"] == value }
-                attributes[name] = code_value["name"] if coded_value
+                attributes[name] = coded_value["name"] if coded_value
               end
             end
             yielder << [ dimension, data, attributes ]

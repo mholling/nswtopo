@@ -33,11 +33,6 @@ sources:
   #   host: mapsq.six.nsw.gov.au
   #   folder: sixmaps
   #   service: 2mContour
-  old-topo:
-    host: imagery.maps.nsw.gov.au
-    service: topo
-    local-reprojection: true
-    page-by: objectid
 features:
   plantation-horticulture:
     # TODO: include ForestryPlantation-Other(3) ?
@@ -233,12 +228,6 @@ features:
     category:
     - classsubtype
     - generalculturaltype
-  pipelines:
-    source: old-topo
-    name: Pipeline
-    where:
-    - operationalstatus NOT IN (3,5,8)
-    - posreltoground NOT IN (2)
   floodways:
     source: rfs
     name: RoadSegment
@@ -283,9 +272,7 @@ features:
     rotate: symbolrotation
     category: classsubtype
   tanks:
-  - source: old-topo
-    name: TankArea
-  - source: rfs
+    source: rfs
     name: TankPoint
   buildings:
   - name: Dwellings_Buildings
@@ -303,13 +290,6 @@ features:
     source: rfs
     name: TransportFacilityPoint
     where: classsubtype = 6
-  transmission-lines:
-    source: old-topo
-    name: ElectricityTransmissionLine
-  cableways:
-    source: old-topo
-    name: Cableway
-    where: operationalstatus IN (1,2)
   spot-heights:
     name: SpotHeight
     label: elevation
@@ -362,6 +342,11 @@ features:
 # 3:Lookout
 # 3:Observation Tower
 # 3:Picnic Area
+
+# missing:
+# TankArea
+# ElectricityTransmissionLine
+# Cableway
 
 intervals-contours:
   # 4: contours-4m
@@ -850,6 +835,7 @@ recreational-perimeters:
   stroke: black
   stroke-width: 0.15
   stroke-dasharray: 0.8 0.2
+# pipelines currently unavailable:
 pipelines:
   dupe: pipes
   stroke: black
@@ -1021,6 +1007,7 @@ railway-stations:
       fill: red
       stroke-width: 0.15
       r: 0.4
+# transmission lines currently unavailable:
 transmission-lines:
   dupe: dots
   stroke: black
@@ -1032,6 +1019,7 @@ transmission-lines:
     stroke-dasharray: 0.1 9.9
     stroke-dashoffset: -4
     stroke-linecap: round
+# cableways currently unavailable:
 cableways:
   stroke: black
   stroke-width: 0.15

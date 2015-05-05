@@ -63,31 +63,31 @@ features:
     label-only: true
     label: FEAT_NAME
   water-tunnels:
-    name: Rivers Streams and Creeks (All)
-    definition: 
+    name: Hydrographic Lines
+    where:
     - HYDLNTY1 IN ('Artificial Watercourse')
     - RELGRND IN ('Under')
   watercourses:
-  - name: Rivers Streams and Creeks (All)
-    definition: 
+  - name: Hydrographic Lines
+    where:
     - HYDLNTY1 IN ('Artificial Watercourse','Watercourse')
     - HYDLNTY2 NOT IN ('Implied','Water pipeline','Penstock')
     - RELGRND NOT IN ('Under')
     label: NAME
   waterbodies:
-  - name: Water Bodies - Water Body and Watercourse (All)
-    definition:
+  - name: Hydrographic Areas
+    where:
     - HYDARTY1 IN ('Artificial Watercourse','Watercourse','Water Body','Estuary')
     - HYDARTY2 NOT IN ('Spillway')
     - PERENNIAL NOT IN ('Intermittent')
     category: Perennial
-  - name: Water Bodies - Water Body and Watercourse (All)
-    definition:
+  - name: Hydrographic Areas
+    where:
     - HYDARTY1 IN ('Artificial Watercourse','Watercourse','Water Body')
     - PERENNIAL IN ('Intermittent')
     category: PERENNIAL
-  - name: Water Bodies - Water Body and Watercourse (All)
-    definition: HYDARTY1 IN ('Sea')
+  - name: Hydrographic Areas
+    where: HYDARTY1 IN ('Sea')
     category: Perennial
   - source: placenames
     name: Placenames
@@ -97,24 +97,24 @@ features:
     label: FEAT_NAME
   submerged-trees: Water Bodies - Submerged Trees
   dams:
-  - name: Rivers Streams and Creeks (All)
-    definition: HYDLNTY1 IN ('Dam')
+  - name: Hydrographic Lines
+    where: HYDLNTY1 IN ('Dam')
     category:
     - 1d
     - HYDLNTY2
-  - name: Water Bodies - Water Body and Watercourse (All)
-    definition: HYDARTY1 IN ('Dam') OR HYDARTY2 IN ('Spillway')
+  - name: Hydrographic Areas
+    where: HYDARTY1 IN ('Dam') OR HYDARTY2 IN ('Spillway')
     category:
     - 2d
     - HYDARTY2
   waterfalls-rapids:
-  - name: Rivers Streams and Creeks (All)
-    definition: HYDLNTY1 IN ('Water Fall')
+  - name: Hydrographic Lines
+    where: HYDLNTY1 IN ('Water Fall')
     category: line-waterfall
   - name: Hydrographic Points
     where: HYDPNTTY IN ('Waterfall')
-  - name: Water Bodies - Water Body and Watercourse (All)
-    definition: HYDARTY1 IN ('Rapid')
+  - name: Hydrographic Areas
+    where: HYDARTY1 IN ('Rapid')
     category: rapid
   - source: placenames
     name: Placenames
@@ -122,14 +122,14 @@ features:
     label-only: true
     label: FEAT_NAME
   water-pipelines:
-    name: Rivers Streams and Creeks (All)
-    definition: 
+    name: Hydrographic Lines
+    where:
     - HYDLNTY1 IN ('Artificial Watercourse')
     - HYDLNTY2 IN ('Water pipeline','Penstock')
     - RELGRND IN ('Above')
   tidal-zones:
-    name: Wetlands
-    definition:
+    name: Hydrographic Areas
+    where:
     - HYDARTY1 IN ('Tidal zone')
     - HYDARTY2 IN ('Rock','Sand','Vegetated mudflat','Unvegetated mudflat')
     category: HYDARTY2

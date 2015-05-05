@@ -5,7 +5,7 @@ This directory contains map layers specific to Tasmania.
 
 ## Topographic
 
-This topographic map is derived from features made avaiable on the [*Land Information System Tasmania*](http://www.thelist.tas.gov.au/) (*theLIST*). It produces a nicely styled topographic map with a full set of landform, casastral, hydrographic and transport features. Spot heights and building features are notably missing, as this data is not available online. Include it in your map layer list as follows:
+This topographic map is derived from features made avaiable on the [*Land Information System Tasmania*](http://www.thelist.tas.gov.au/) (*theLIST*). It produces a nicely styled topographic map with a full set of landform, casastral, hydrographic and transport features. (Spot heights are notably missing, as this data is not available online). Include it in your map layer list as follows:
 
     include:
     - tas/topographic

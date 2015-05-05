@@ -179,6 +179,15 @@ features:
     name: Railways
     where: TSEG_FEAT LIKE '%Bridge%'
     category: TRAN_CLASS
+  buildings:
+  - name: Building Points
+    category: BUILD_TY
+    where: BUILD_TY NOT IN ('Ruin')
+  - name: Building Polygons (Part 1)
+  - name: Building Points
+    label-only: true
+    label: BUILD_NAME
+    where: BUILD_TY IN ('Walking Hut')
   transmission-lines: Transmission Lines
   feature-names:
   - source: placenames
@@ -584,6 +593,17 @@ railway-bridges:
     stroke-width: 0.7
     stroke-dasharray: none
     stroke: white
+buildings:
+  fill: "#808080"
+  stroke: none
+  symbol:
+    rect:
+      width: 0.6
+      height: 0.6
+      x: -0.3
+      y: -0.3
+      stroke: none
+      fill: black
 transmission-lines:
   dupe: dots
   stroke: black
@@ -673,6 +693,11 @@ labels:
   [ roads National-State-Highway, roads Arterial-Road ]:
     font-size: 1.8
     word-spacing: 1.0
+  buildings:
+    font-family: Cambria, Times, serif
+    position: [ right, above, below, left, aboveright, belowright, aboveleft, belowleft ]
+    font-size: 1.5
+    margin: 1.0
   feature-names:
     font-family: Calibri, Arial, Helvetica, sans-serif
     font-style: normal

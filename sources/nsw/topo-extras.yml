@@ -1,0 +1,44 @@
+class: ArcGISVector
+sources:
+  old-topo:
+    host: imagery.maps.nsw.gov.au
+    service: topo
+    local-reprojection: true
+    page-by: objectid
+features:
+  pipelines:
+    name: Pipeline
+    where:
+    - operationalstatus NOT IN (3,5,8)
+    - posreltoground NOT IN (2)
+  transmission-lines: ElectricityTransmissionLine
+  cableways: Cableway
+pipelines:
+  dupe: pipes
+  stroke: black
+  stroke-width: 0.8
+  stroke-dasharray: 0.2 5.8
+  stroke-dashoffset: 3
+  pipes:
+    stroke: "#4985DF"
+    stroke-width: 0.2
+    stroke-dasharray: none
+    stroke-dashoffset: none
+transmission-lines:
+  dupe: dots
+  stroke: black
+  stroke-width: 0.15
+  stroke-dasharray: 8 2
+  stroke-dashoffset: 5
+  dots:
+    stroke-width: 0.4
+    stroke-dasharray: 0.1 9.9
+    stroke-dashoffset: -4
+    stroke-linecap: round
+cableways:
+  stroke: black
+  stroke-width: 0.15
+  endpoint:
+    line:
+      y1: -0.4
+      y2: 0.4

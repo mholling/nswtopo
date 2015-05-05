@@ -1076,7 +1076,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def self.post_json(uri, body, *args)
       HTTP.post(uri, body, *args) do |response|
         JSON.parse(response.body).tap do |result|
-          raise ServerError.new(result["error"]["message"]) if result["error"]
+          if result["error"]
+            message = result["error"]["message"]
+            message = "#{message} (%s)" % result["error"]["details"] if result["error"]["details"]
+            raise ServerError.new message
+          end
         end
       end
     rescue JSON::ParserError

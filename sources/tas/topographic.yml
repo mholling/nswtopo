@@ -74,6 +74,10 @@ features:
     - HYDLNTY2 NOT IN ('Implied','Water pipeline','Penstock')
     - RELGRND NOT IN ('Under')
     label: NAME
+  - name: Hydrographic Lines
+    where: HYDLNTY1 IN ('Hydrographic Connector')
+    label-only: true
+    label: NAME
   waterbodies:
   - name: Hydrographic Areas
     where:

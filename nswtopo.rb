@@ -1078,8 +1078,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         JSON.parse(response.body).tap do |result|
           if result["error"]
             message = result["error"]["message"]
-            message = "#{message} (%s)" % result["error"]["details"] if result["error"]["details"]
-            raise ServerError.new message
+            details = result["error"]["details"]
+            raise ServerError.new [ *message, *details ].join(?\n)
           end
         end
       end

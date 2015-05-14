@@ -17,6 +17,11 @@ sources:
     host: services.thelist.tas.gov.au
     folder: Public
     service: PlacenamePoints
+  geoscience-australia:
+    host: www.ga.gov.au
+    instance: gis
+    folder: topography
+    service: Australian_Topography
 features:
   urban-areas:
     source: natural-environment
@@ -208,13 +213,18 @@ features:
     category: FEAT_TYPE
     label-only: true
     label: FEAT_NAME
-  town-names:
-    # TODO: include 'Suburb/Locality' but only when name does not also exist as 'Town'?
-    source: placenames
-    name: Placenames
-    where: FEAT_TYPE IN ('Town')
+  place-names:
+  - source: geoscience-australia
+    name: Locations
+    where: FEATURETYPE IN ('Place Name')
     label-only: true
-    label: FEAT_NAME
+    label: NAME
+    category: place
+  - source: geoscience-australia
+    name: Populated Places
+    label-only: true
+    label: NAME
+    category: populated
 
 intervals-contours:
   5: contours-5m
@@ -709,11 +719,15 @@ labels:
     font-size: 1.8
     margin: 0.7
     letter-spacing: 0.1
-  town-names:
+  place-names:
     position: [ over, right, above, below, left ]
     font-size: 1.6
     margin: 0.7
     letter-spacing: 0.2
+  place-names place:
+    font-size: 1.6
+  place-names populated:
+    font-size: 1.8
   outline:
     stroke: white
     fill: none

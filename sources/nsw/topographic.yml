@@ -845,8 +845,8 @@ pipelines:
   pipes:
     stroke: "#4985DF"
     stroke-width: 0.2
-    stroke-dasharray: none
-    stroke-dashoffset: none
+    stroke-dasharray: 5.8 0.2
+    stroke-dashoffset: 2.8
 floodways:
   stroke: black
   stroke-dasharray: 0.5 0.4

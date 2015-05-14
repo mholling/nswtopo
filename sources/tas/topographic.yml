@@ -401,8 +401,8 @@ water-pipelines:
   pipes:
     stroke: "#4985DF"
     stroke-width: 0.2
-    stroke-dasharray: none
-    stroke-dashoffset: none
+    stroke-dasharray: 5.8 0.2
+    stroke-dashoffset: 2.8
 tidal-zones:
   patterns:
     Sand:

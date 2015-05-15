@@ -824,7 +824,7 @@ margin: 15
       
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
       @projection = config["utm"] ?
-        Projection.utm(Projection.utm_zone(@projection_centre, Projection.wgs84)) :
+        Projection.utm(config["zone"] || Projection.utm_zone(@projection_centre, Projection.wgs84)) :
         Projection.transverse_mercator(@projection_centre.first, 1.0)
       
       @declination = config["declination"]["angle"] if config["declination"]

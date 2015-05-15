@@ -214,13 +214,7 @@ features:
     label-only: true
     label: FEAT_NAME
   place-names:
-  - source: geoscience-australia
-    name: Locations
-    where: FEATURETYPE IN ('Place Name')
-    label-only: true
-    label: NAME
-    category: place
-  - source: geoscience-australia
+    source: geoscience-australia
     name: Populated Places
     label-only: true
     label: NAME

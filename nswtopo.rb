@@ -591,7 +591,6 @@ name: map
 scale: 25000
 ppi: 300
 rotation: 0
-margin: 15
 ]
   
   module BoundingBox
@@ -816,7 +815,7 @@ margin: 15
         bounds_path = Pathname.new(config["bounds"]).expand_path
         gps = GPS.new bounds_path
         polygon = gps.areas.first
-        config["margin"] = 0 unless (gps.waypoints.any? || gps.tracks.any?)
+        config["margin"] = 15 unless (gps.waypoints.none? && gps.tracks.none?) || config.key?("margin")
         polygon ? polygon.first : gps.tracks.any? ? gps.tracks.to_a.transpose.first.inject(&:+) : gps.waypoints.to_a.transpose.first
       else
         abort "Error: map extent must be provided as a bounds file, zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
@@ -856,7 +855,7 @@ margin: 15
           end.transpose
           @centre.rotate_by_degrees!(rotation)
         end
-        @extents.map! { |extent| extent + 2 * config["margin"] * 0.001 * @scale } if config["bounds"]
+        @extents.map! { |extent| extent + 2 * config["margin"] * 0.001 * @scale } if config["margin"]
       end
 
       enlarged_extents = [ @extents[0] * Math::cos(@rotation * Math::PI / 180.0) + @extents[1] * Math::sin(@rotation * Math::PI / 180.0).abs, @extents[0] * Math::sin(@rotation * Math::PI / 180.0).abs + @extents[1] * Math::cos(@rotation * Math::PI / 180.0) ]

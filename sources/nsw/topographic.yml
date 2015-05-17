@@ -1219,6 +1219,9 @@ labels:
   [ roads Path, roads Track-Vehicular ]:
     font-size: 1.4
     margin: 0.8
+  roads LocalRoad:
+    font-size: 1.5
+    margin: 1.0
   [ roads SubArterialRoad, roads DistributorRoad ]:
     font-size: 1.6
   [ roads Motorway, roads PrimaryRoad, roads ArterialRoad ]:

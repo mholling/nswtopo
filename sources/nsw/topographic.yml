@@ -299,9 +299,9 @@ features:
     name: SpotHeight
     label: elevation
   beacons:
-    # TODO: labels from POI
     name: Beacon_Tower
     where: classsubtype = 12
+    label: generalname
   towers:
     name: Beacon_Tower
     where: classsubtype = 7
@@ -1234,6 +1234,11 @@ labels:
     font-size: 1.4
     margin: 0.7
     position: [ right, above, below, left, aboveright, belowright, aboveleft, belowleft ]
+  beacons:
+    font-family: Cambria, Times, serif
+    position: [ right, aboveright, belowright, left, aboveleft, belowleft, above, below ]
+    font-size: 1.5
+    margin: 1.6
   reserves:
     minimum-area: 400
     fill: "#006400"

@@ -245,7 +245,12 @@ features:
   - source: guras
     name: Road Name Extent
     where: functionhierarchy NOT IN (6,7,10,11) AND roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
-    # TODO: specify by relevance instead of by function hierarchy?
+    category: functionhierarchy
+    label-only: true
+    label: roadnamestring
+  - source: guras
+    name: Road Name Extent
+    where: functionhierarchy IN (6) AND roadnameoid IS NOT NULL AND relevance < 6
     category: functionhierarchy
     label-only: true
     label: roadnamestring

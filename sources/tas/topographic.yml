@@ -97,6 +97,7 @@ features:
     category: PERENNIAL
   - name: Hydrographic Areas
     where: HYDARTY1 IN ('Sea')
+    per-page: 1
     category: Perennial
   - source: placenames
     name: Placenames

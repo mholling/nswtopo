@@ -324,8 +324,10 @@ class Array
   end
   
   def surrounds?(points)
-    [ self, perps ].transpose.all?  do |vertex, perp|
-      points.all? { |point| point.minus(vertex).dot(perp) >= 0 }
+    Enumerator.new do |yielder|
+      points.each do |point|
+        yielder << [ self, perps ].transpose.all? { |vertex, perp| point.minus(vertex).dot(perp) >= 0 }
+      end
     end
   end
   
@@ -793,6 +795,18 @@ rotation: 0
       projection.reproject_to_wgs84(coords).one_or_many do |longitude, latitude|
         (longitude / 6).floor + 31
       end
+    end
+    
+    def self.in_zone?(zone, coords, projection)
+      projection.reproject_to_wgs84(coords).one_or_many do |longitude, latitude|
+        (longitude / 6).floor + 31 == zone
+      end
+    end
+    
+    def self.utm_hull(zone)
+      longitudes = [ 31, 30 ].map { |offset| (zone - offset) * 6.0 }
+      latitudes = [ -80.0, 84.0 ]
+      longitudes.product(latitudes).values_at(0,2,3,1)
     end
   end
   
@@ -2237,7 +2251,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       params["labels"]["margin"] ||= 0.8
     end
     
-    def zones_lines(map)
+    def grids(map)
       interval = params["interval"]
       Projection.utm_zone(map.bounds.inject(&:product), map.projection).inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
@@ -2249,28 +2263,24 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           counts.map { |count| count * interval }
         end
         grid = eastings.map do |easting|
-          column = [ easting ].product(northings.reverse)
-          in_zone = Projection.utm_zone(column, utm).map { |candidate| candidate == zone }
-          [ in_zone, column ].transpose
+          [ easting ].product northings.reverse
         end
-        lines = [ grid, grid.transpose ].map.with_index do |gridlines, index|
-          gridlines.map do |gridline|
-            gridline.select(&:first).map(&:last)
-          end.reject(&:empty?)
-        end
-        [ utm, lines ]
+        [ zone, utm, grid ]
       end
     end
     
     def draw(map)
       group = yield
-      zones_lines(map).each do |utm, lines|
-        lines.inject(&:+).map do |line|
-          map.coords_to_mm map.reproject_from(utm, line)
-        end.tap do |lines|
-          lines.clip_lines! map.mm_corners
-        end.each do |points|
-          group.add_element("path", "d" => points.to_path_data(MM_DECIMAL_DIGITS))
+      grids(map).each do |zone, utm, grid|
+        wgs84_grid = grid.map do |lines|
+          utm.reproject_to_wgs84 lines
+        end
+        [ wgs84_grid, wgs84_grid.transpose ].map do |lines|
+          lines.clip_lines Projection.utm_hull(zone)
+        end.inject(&:+).map do |line|
+          map.coords_to_mm map.reproject_from_wgs84(line)
+        end.clip_lines(map.mm_corners).each do |line|
+          group.add_element "path", "d" => line.to_path_data(MM_DECIMAL_DIGITS)
         end
       end if group
     end
@@ -2279,22 +2289,32 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       params["label-spacing"] ? periodic_labels(map) : edge_labels(map)
     end
     
+    def labels_percents(coord, interval)
+      result = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
+      result << [ "%03d" % (coord % 1000), 80 ] unless interval % 1000 == 0
+      result
+    end
+    
     def edge_labels(map)
       interval = params["interval"]
-      zones_lines(map).map do |utm, lines|
-        lines.map.with_index do |lines, index|
-          lines.select(&:first).map do |line|
-            coords = map.reproject_from(utm, [ line.first, line.last ])
-            [ line[0][index], [ coords ].clip_lines(map.coord_corners(-5))[0] ]
-          end.select(&:last).map do |coord, points|
-            labels_percents = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
-            labels_percents << [ "%03d" % (coord % 1000), 80 ] unless interval % 1000 == 0
-            labels, percents = labels_percents.transpose
-            mm = 1000 * points.distance / map.scale
-            points.map.with_index do |point, index|
-              index.zero? ? [ point, points.along(10.0 / mm) ] : [ points.along(1.0 - 10.0 / mm), point ]
-            end.map do |segment|
-              { "dimension" => 1, "data" => [ segment ], "labels" => labels, "percents" => percents, "categories" => index.zero? ? "eastings" : "northings" }
+      hull = map.coord_corners(-5.0)
+      grids(map).map do |zone, utm, grid|
+        [ grid, grid.transpose ].map.with_index do |grid, index|
+          grid.map do |line|
+            coord = line[0][index]
+            points = map.reproject_from(utm, line)
+            hull.surrounds?(points).to_a.segments.zip(points.segments).select do |on_map, segment|
+              on_map.one? && Projection.in_zone?(zone, segment, map.projection).all?
+            end.group_by(&:first).map do |on_map, onmaps_segments|
+              onmaps_segments.transpose.last.clip_lines(hull).map do |segment|
+                labels, percents = labels_percents(coord, interval).transpose
+                label_length = labels.zip(percents).map { |label, percent| label.length * percent / 100.0 }.inject(&:+) * 2.0
+                segment_length = 1000.0 * segment.distance / map.scale
+                fraction = label_length / segment_length
+                fractions = on_map[1] ? [ 0.0, fraction ] : [ 1.0 - fraction, 1.0 ]
+                baseline = fractions.map { |fraction| segment.along fraction }
+                { "dimension" => 1, "data" => [ baseline ], "labels" => labels, "percents" => percents, "categories" => index.zero? ? "eastings" : "northings" }
+              end
             end
           end
         end
@@ -2303,17 +2323,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def periodic_labels(map)
       label_interval = params["label-spacing"] * params["interval"]
-      zones_lines(map).map do |utm, lines|
-        lines.map.with_index do |lines, index|
-          lines.select do |line|
-            line[0] && line[0][index] % label_interval == 0
-          end.map do |line|
-            coord = line[0][index]
-            labels_percents = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
-            labels_percents << [ "%03d" % (coord % 1000), 80 ] unless label_interval % 1000 == 0
-            labels, percents = labels_percents.transpose
+      grids(map).map do |zone, utm, grid|
+        [ grid, grid.transpose ].map.with_index do |lines, index|
+          lines.select(&:any?).map do |line|
+            [ line, line[0][index] ]
+          end.select do |line, coord|
+            coord % label_interval == 0
+          end.map do |line, coord|
+            labels, percents = labels_percents(coord, label_interval).transpose
             line.segments.select do |segment|
               segment[0][1-index] % label_interval == 0
+            end.select do |segment|
+              Projection.in_zone?(zone, segment, utm).all?
             end.map do |segment|
               { "dimension" => 1, "data" => [ map.reproject_from(utm, segment) ], "labels" => labels, "percents" => percents, "categories" => index.zero? ? "eastings" : "northings" }
             end
@@ -2616,7 +2637,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
             [ [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_element ] ]
           end.select do |hull, *args|
-            labelling_hull.surrounds? hull
+            labelling_hull.surrounds?(hull).all?
           end
         end.flatten(1).transpose
       end.reject(&:empty?).transpose

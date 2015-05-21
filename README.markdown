@@ -195,7 +195,7 @@ You can customise the appearance of the UTM grid and labels if you desire:
 
     grid:
       interval: 1000                 # interval between grid lines (1000 metres by default)
-      width: 0.1                     # width in millimetres of the marked lines on the map
+      stroke-width: 0.1              # width in millimetres of the marked lines on the map
       label-spacing: 5               # number of gridlines between successive labels
       labels:
         font-size: 2.75              # font size (in mm) of the grid labels

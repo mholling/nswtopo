@@ -248,12 +248,14 @@ features:
     category: functionhierarchy
     label-only: true
     label: roadnamestring
+    per-page: 100
   - source: guras
     name: Road Name Extent
     where: functionhierarchy IN (6) AND roadnameoid IS NOT NULL AND relevance < 6
     category: functionhierarchy
     label-only: true
     label: roadnamestring
+    per-page: 100
   railways:
     name: Railway_onground_LS
     where: operationalstatus NOT IN (3,8)
@@ -324,7 +326,7 @@ features:
   - name: Ridge_Beach
     where: generalname <> 'GREAT DIVIDING RANGE'
     category: fuzzylinefeaturetype
-    label-only: trye
+    label-only: true
     label: generalname
   place-names:
     source: lpimap

@@ -2449,9 +2449,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class LabelSource < Source
-    # TODO: dimensionality reduction of features e.g. area -> line, line -> point
     include VectorRenderer
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat-interval deviation smooth minimum-area format repeat-buffer collate]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat-interval deviation smooth minimum-area format repeat-buffer collate transform]
     FONT_ASPECT_RATIO = 0.7
     
     def initialize(*args)
@@ -2475,6 +2474,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           ATTRIBUTES.each do |key|
             attributes[key] = merged_params[key] if merged_params.include? key
           end
+        end
+        case attributes["transform"]
+        when "edges" then dimension = 1 if dimension == 2
+        # TODO: e.g. reducing polygons to medial skeleton would go here
         end
         text = attributes["format"] ? attributes["format"] % feature["labels"] : [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
         _, _, components = @features.find do |other_text, other_sublayer, _|
@@ -2550,16 +2553,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when 1
             margin = attributes["margin"]
+            orientation = attributes["orientation"] || "above"
             repeat_interval = attributes["repeat-interval"] || 150
             deviation = attributes["deviation"] || 5
             text_length = attributes["percents"] ? 0 : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
-            baseline_shift = margin ? (margin < 0 ? margin - 0.85 * font_size : margin) : -0.35 * font_size
             start_end_distance = data.values_at(0, -1).distance
             cumulative = data.segments.inject([start_end_distance]) do |memo, segment|
               memo << memo.last + segment.distance
-            end
-            perpendiculars = data.segments.map do |segment|
-              [ segment[0][1] - segment[1][1], segment[1][0] - segment[0][0] ]
             end
             cumulative.length.times.inject([]) do |memo, finish|
               start = finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
@@ -2582,20 +2582,29 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.reject do |range, eigenvalue, sinuosity|
               eigenvalue > deviation**2 || sinuosity > 1.25
             end.sort_by(&:last).map(&:first).map do |range|
-              perp = perpendiculars[range.first...range.last].inject(&:plus).normalised
+              rightwards = data[range.last].minus(data[range.first]).rotate_by_degrees(map.rotation).first > 0
+              points = case orientation
+              when "uphill"   then data[range]
+              when "downhill" then data[range].reverse
+              else rightwards ? data[range] : data[range].reverse
+              end
+              normal = points.segments.map(&:difference).map(&:perp).inject(&:plus).normalised
+              disposition = case orientation
+              when "above"   then 1
+              when "below"   then -1
+              when "outside" then rightwards ? 1 : -1
+              when "inside"  then rightwards ? -1 : 1
+              else margin ? margin < 0 ? -1 : 1 : 0
+              end
+              baseline_shift = case disposition
+              when  1 then   margin || 0
+              when -1 then -(margin || 0) - 0.85 * font_size
+              when  0 then -0.35 * font_size
+              end
               baseline, top, bottom = [ 0.0, font_size + 0.5, -0.5 ].map do |shift|
-                perp.times(baseline_shift + shift)
+                normal.times(baseline_shift + shift)
               end.map do |offset|
-                case attributes["orientation"]
-                when "uphill"
-                  data[range].map { |point| point.minus offset }
-                when "downhill"
-                  data[range].map { |point| point.plus  offset }.reverse
-                else
-                  data[range.last].minus(data[range.first]).rotate_by_degrees(map.rotation).first > 0 ?
-                    data[range].map { |point| point.minus offset } :
-                    data[range].map { |point| point.plus  offset }.reverse
-                end
+                points.map { |point| point.minus offset }
               end
               hull = (top + bottom).convex_hull
               d = baseline.to_path_data(MM_DECIMAL_DIGITS)

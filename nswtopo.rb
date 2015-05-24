@@ -2475,10 +2475,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             attributes[key] = merged_params[key] if merged_params.include? key
           end
         end
-        case attributes["transform"]
-        when "edges" then dimension = 1 if dimension == 2
-        # TODO: e.g. reducing polygons to medial skeleton would go here
-        end
+        transforms = [ *attributes["transform"] ].map { |transform| [ *transform ].flatten }.inject({}) { |memo, (transform, option)| memo.merge transform => option }
         text = attributes["format"] ? attributes["format"] % feature["labels"] : [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
         _, _, components = @features.find do |other_text, other_sublayer, _|
           other_sublayer == sublayer && other_text == text
@@ -2500,6 +2497,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.map do |data|
             [ dimension, data, attributes ]
           end
+        end.map do |dimension, data, attributes|
+          transforms.each do |command, arg|
+            case command
+            when "edges" then dimension = 1 if dimension == 2
+            when "density"
+              data = data.segments.inject([]) do |points, segment|
+                points += (0...1).step(arg / segment.distance).map do |fraction|
+                  segment.along fraction
+                end
+              end << data.last if dimension == 1
+            end
+          end
+          [ dimension, data, attributes ]
         end.each do |component|
           components << component
         end
@@ -3421,6 +3431,7 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
+# TODO: add medial skeleton option for labeling polygons
 # TODO: remove AVLTree, just use SortedSet
 # TODO: switch to Open3 for shelling out
 # TODO: add nodata transparency in vegetation source?

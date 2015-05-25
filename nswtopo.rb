@@ -445,13 +445,15 @@ class Array
   
   def convex_hull
     start = min_by(&:reverse)
-    (self - [ start ]).sort_by do |point|
-      start.minus(point).normalised.first
-    end.inject([ start ]) do |memo, point|
-      while memo.many? && point.minus(memo[-1]).perp.dot(point.minus memo[-2]) >= 0
-        memo.pop
+    hull, remaining = partition { |point| point == start }
+    remaining.sort_by do |point|
+      [ point.minus(start).angle, point.minus(start).norm ]
+    end.inject(hull) do |memo, p3|
+      while memo.many? do
+        p1, p2 = memo.last(2)
+        (p3.minus p1).perp.dot(p2.minus p1) >= 0 ? memo.pop : break
       end
-      memo << point
+      memo << p3
     end
   end
   

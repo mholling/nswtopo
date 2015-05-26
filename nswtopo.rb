@@ -1052,7 +1052,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   module HTTP
     extend RetryOn
     def self.request(uri, req)
-      retry_on(Timeout::Error, Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError) do
+      retry_on(Timeout::Error, Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError, ServerError) do
         use_ssl = uri.scheme == "https"
         response = Net::HTTP.start(uri.host, uri.port, :use_ssl => use_ssl, :read_timeout => 600) { |http| http.request(req) }
         case response

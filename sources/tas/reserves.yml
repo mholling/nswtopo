@@ -18,12 +18,11 @@ features:
 boundaries:
   opacity: 0.5
   fill: none
-  stroke: "#006400"
-  stroke-width: 0.3
+  stroke: "#008800"
+  stroke-width: 0.4
 labels:
   dupe: outline
   stroke: none
-  fill: black
   font-style: italic
   font-family: Arial, Helvetica, sans-serif
   outline:
@@ -32,10 +31,17 @@ labels:
     stroke-width: 0.5
     stroke-opacity: 0.5
   boundaries:
-    minimum-area: 400
+    minimum-area: 800
+    reduce: edges
+    densify: 2.0
+    smooth: 5.0
+    deviation: 5.0
+    margin: 2.0
+    repeat-buffer: 200
+    orientation: inside
     font-size: 2.5
     letter-spacing: 0.3
-    fill: "#006400"
+    fill: "#008800"
     fill-opacity: 0.5
     font-weight: bold
     font-style: normal

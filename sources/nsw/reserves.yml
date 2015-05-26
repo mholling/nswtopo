@@ -27,14 +27,15 @@ features:
 boundaries:
   opacity: 0.5
   fill: none
-  stroke: "#006400"
-  stroke-width: 0.3
+  stroke: "#008800"
+  stroke-width: 0.4
   RestrictedArea:
-    stroke: "#A9A9A9"
+    stroke: "#777777"
+    stroke-width: 0.8
+    stroke-dasharray: 4 2
 labels:
   dupe: outline
   stroke: none
-  fill: black
   font-style: italic
   font-family: Arial, Helvetica, sans-serif
   outline:
@@ -43,8 +44,15 @@ labels:
     stroke-width: 0.5
     stroke-opacity: 0.5
   boundaries:
-    minimum-area: 400
-    fill: "#006400"
+    minimum-area: 800
+    reduce: edges
+    densify: 2.0
+    smooth: 5.0
+    deviation: 5.0
+    margin: 2.0
+    repeat-buffer: 200
+    orientation: inside
+    fill: "#008800"
     fill-opacity: 0.5
     font-weight: bold
     font-style: normal
@@ -53,5 +61,5 @@ labels:
   boundaries StateForest:
     format: "%s State Forest"
   boundaries RestrictedArea:
-    fill: "#A9A9A9"
+    fill: "#777777"
 

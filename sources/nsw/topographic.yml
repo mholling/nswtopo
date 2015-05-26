@@ -842,18 +842,6 @@ recreational-perimeters:
   stroke: black
   stroke-width: 0.15
   stroke-dasharray: 0.8 0.2
-# pipelines currently unavailable:
-pipelines:
-  dupe: pipes
-  stroke: black
-  stroke-width: 0.8
-  stroke-dasharray: 0.2 5.8
-  stroke-dashoffset: 3
-  pipes:
-    stroke: "#4985DF"
-    stroke-width: 0.2
-    stroke-dasharray: 5.8 0.2
-    stroke-dashoffset: 2.8
 floodways:
   stroke: black
   stroke-dasharray: 0.5 0.4
@@ -1014,26 +1002,6 @@ railway-stations:
       fill: red
       stroke-width: 0.15
       r: 0.4
-# transmission lines currently unavailable:
-transmission-lines:
-  dupe: dots
-  stroke: black
-  stroke-width: 0.15
-  stroke-dasharray: 8 2
-  stroke-dashoffset: 5
-  dots:
-    stroke-width: 0.4
-    stroke-dasharray: 0.1 9.9
-    stroke-dashoffset: -4
-    stroke-linecap: round
-# cableways currently unavailable:
-cableways:
-  stroke: black
-  stroke-width: 0.15
-  endpoint:
-    line:
-      y1: -0.4
-      y2: 0.4
 spot-heights:
   symbol:
     circle:
@@ -1244,21 +1212,6 @@ labels:
     position: [ right, aboveright, belowright, left, aboveleft, belowleft, above, below ]
     font-size: 1.5
     margin: 1.6
-  reserves:
-    minimum-area: 400
-    fill: "#006400"
-    fill-opacity: 0.5
-    font-weight: bold
-    font-style: normal
-    font-size: 2.5
-    letter-spacing: 0.3
-  reserves StateForest:
-    format: "%s State Forest"
-  reserves RestrictedArea:
-    fill: "#A9A9A9"
-  outline reserves:
-    stroke-width: 0.5
-    stroke-opacity: 0.5
   relative-heights:
     format: "%sr"
     font-size: 1.4

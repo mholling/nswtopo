@@ -2522,7 +2522,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
           [ dimension, data, attributes ]
         end.reject do |dimension, data, attributes|
-           data.empty?
+          data.empty?
         end.each do |component|
           components << component
         end
@@ -2530,6 +2530,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def draw(map, &block)
+      map_hull = map.mm_corners
       labelling_hull = map.mm_corners(-2)
       hulls, sublayers, dimensions, attributes, component_indices, categories, endpoints, elements = @features.map do |text, sublayer, components|
         components.map.with_index do |component, component_index|
@@ -2581,6 +2582,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 cumulative[finish] - cumulative[start] > text_length
               end
               start ? memo << (start..finish) : memo
+            end.select do |range|
+              map_hull.surrounds?(data[range]).all?
             end.reject do |range|
               data[range].cosines.any? { |cosine| cosine < 0.9 }
             end.map do |range|

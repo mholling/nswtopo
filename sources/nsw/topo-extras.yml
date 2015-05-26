@@ -6,13 +6,23 @@ sources:
     local-reprojection: true
     page-by: objectid
 features:
+  utility-canals:
+    source: old-topo
+    name: UtilityWaterSupplyCanal
+    where: posreltoground NOT IN (2)
+    label: generalname
   pipelines:
+    source: old-topo
     name: Pipeline
     where:
-    - operationalstatus NOT IN (3,5,8)
     - posreltoground NOT IN (2)
+    - generalname IN ('BENDEELA PIPELINE','CHICHESTER PIPELINE','KANGAROO PIPELINE','MURRAY 1 PRESSURE PIPELINE','MURRAY 2 PRESSURE PIPELINE','WARRAGAMBA PROSPECT PIPELINE','SYDNEY WATER SUPPLY')
+    label: generalname
   transmission-lines: ElectricityTransmissionLine
   cableways: Cableway
+utility-canals:
+  stroke: "#4985DF"
+  stroke-width: 0.2
 pipelines:
   dupe: pipes
   stroke: black
@@ -42,3 +52,24 @@ cableways:
     line:
       y1: -0.4
       y2: 0.4
+labels:
+  utility-canals:
+    deviation: 3.0
+    repeat-interval: 150
+    margin: 1.0
+    fill: black
+    letter-spacing: 0.1
+    word-spacing: 2.0
+    font-size: 1.5
+    collate: true
+    repeat-buffer: 80
+  pipelines:
+    deviation: 3.0
+    repeat-interval: 150
+    margin: 1.0
+    fill: black
+    letter-spacing: 0.1
+    word-spacing: 2.0
+    font-size: 1.5
+    collate: true
+    repeat-buffer: 100

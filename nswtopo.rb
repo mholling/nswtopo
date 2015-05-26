@@ -2452,7 +2452,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class LabelSource < Source
     include VectorRenderer
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat-interval deviation smooth minimum-area format repeat-buffer collate transform]
+    LABELLING_ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat-interval repeat-buffer deviation format collate]
+    LABELLING_TRANSFORMS = %w[reduce densify smooth minimum-area]
     FONT_ASPECT_RATIO = 0.7
     
     def initialize(*args)
@@ -2468,16 +2469,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         dimension = feature["dimension"]
         attributes = { "categories" => categories }
         attributes["percents"] = feature["percents"] if feature["percents"]
+        transforms = { }
         source_params.select do |key, value|
           value.is_a?(Hash)
         end.select do |key, value|
           [ *key ].any? { |substring| categories.start_with? substring }
         end.values.inject(source_params, &:merge).tap do |merged_params|
-          ATTRIBUTES.each do |key|
-            attributes[key] = merged_params[key] if merged_params.include? key
+          merged_params.each do |key, value|
+            case key
+            when *LABELLING_ATTRIBUTES then attributes[key] = value
+            when *LABELLING_TRANSFORMS then transforms[key] = value
+            end
           end
         end
-        transforms = [ *attributes["transform"] ].map { |transform| [ *transform ].flatten }.inject({}) { |memo, (transform, option)| memo.merge transform => option }
         text = attributes["format"] ? attributes["format"] % feature["labels"] : [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
         _, _, components = @features.find do |other_text, other_sublayer, _|
           other_sublayer == sublayer && other_text == text
@@ -2494,16 +2498,21 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         when 1, 2
           feature["data"].map do |coords|
             map.coords_to_mm coords
-          end.select do |data|
-            dimension == 1 || data.signed_area > (attributes["minimum-area"] || 0)
           end.map do |data|
             [ dimension, data, attributes ]
           end
         end.map do |dimension, data, attributes|
-          transforms.each do |command, arg|
-            case command
-            when "edges" then dimension = 1 if dimension == 2
-            when "density"
+          transforms.each do |transform, arg|
+            case transform
+            when "reduce"
+              case arg
+              when "edges" then dimension = 1 if dimension == 2
+              end
+            when "smooth"
+              data.smooth!(arg, 20) if dimension == 1
+            when "minimum-area"
+              data = [] and break if data.signed_area.abs < arg
+            when "densify"
               data = data.segments.inject([]) do |points, segment|
                 points += (0...1).step(arg / segment.distance).map do |fraction|
                   segment.along fraction
@@ -2512,6 +2521,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end
           [ dimension, data, attributes ]
+        end.reject do |dimension, data, attributes|
+           data.empty?
         end.each do |component|
           components << component
         end
@@ -2519,14 +2530,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def draw(map, &block)
-      @features.each do |text, sublayer, components|
-        components.map do |dimension, data, attributes|
-          [ data, dimension == 1 && attributes["smooth"] ]
-        end.select(&:last).each do |line, mm|
-          line.smooth! mm, 20
-        end
-      end
-      
       labelling_hull = map.mm_corners(-2)
       hulls, sublayers, dimensions, attributes, component_indices, categories, endpoints, elements = @features.map do |text, sublayer, components|
         components.map.with_index do |component, component_index|
@@ -2535,8 +2538,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           letter_spacing = attributes["letter-spacing"] || 0
           word_spacing   = attributes["word-spacing"]   || 0
           categories     = attributes["categories"]
-          case dimension
-          when 0
+          case
+          when dimension == 0
             margin = attributes["margin"] || 0
             lines = text.in_two
             width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
@@ -2563,7 +2566,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
               [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_element ]
             end
-          when 1
+          when dimension == 1
             margin = attributes["margin"]
             orientation = attributes["orientation"] || "above"
             repeat_interval = attributes["repeat-interval"] || 150
@@ -2638,7 +2641,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               endpoints = [ cumulative[range.first] / repeat_interval, cumulative[range.last] / repeat_interval, cumulative.last / repeat_interval ]
               [ hull, sublayer, dimension, attributes, component_index, categories, endpoints, [ text_element, path_element ] ]
             end
-          when 2
+          when dimension == 2 && data.signed_area > 0
             lines = text.in_two
             width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
             height = lines.length * font_size
@@ -2657,6 +2660,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end
             [ [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_element ] ]
+          else [ ]
           end.select do |hull, *args|
             labelling_hull.surrounds?(hull).all?
           end

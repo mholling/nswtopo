@@ -565,6 +565,21 @@ class Array
     end
     results
   end
+  
+  def principal_components
+    centre = transpose.map(&:mean)
+    deviations = map { |point| point.minus centre }.transpose
+    a00, a01, a11 = [ [0, 0], [0, 1], [1, 1] ].map do |axes|
+      deviations.values_at(*axes).transpose.map { |d1, d2| d1 * d2 }.inject(&:+)
+    end
+    eigenvalues = [ -1, +1 ].map do |sign|
+      0.5 * (a00 + a11 + sign * Math::sqrt(a00**2 + 4 * a01**2 - 2 * a00 * a11 + a11**2))
+    end
+    eigenvectors = eigenvalues.reverse.map do |eigenvalue|
+      [ a00 + a01 - eigenvalue, a11 + a01 - eigenvalue ]
+    end
+    eigenvalues.zip eigenvectors
+  end
 end
 
 class String
@@ -2492,16 +2507,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
         case dimension
         when 0
-          map.coords_to_mm(feature["data"]).map do |point|
-            [ dimension, point, attributes ]
+          map.coords_to_mm(feature["data"]).each do |point|
+            components << [ dimension, point, attributes ]
           end
         when 1, 2
-          feature["data"].map do |coords|
+          data = feature["data"].map do |coords|
             map.coords_to_mm coords
-          end.map do |data|
-            [ dimension, data, attributes ]
           end
-        end.map do |dimension, data, attributes|
           transforms.each do |transform, arg|
             case transform
             when "reduce"
@@ -2509,22 +2521,26 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when "edges" then dimension = 1 if dimension == 2
               end
             when "smooth"
-              data.smooth!(arg, 20) if dimension == 1
+              data.map! do |points|
+                points.smooth(arg, 20)
+              end if dimension == 1
             when "minimum-area"
-              data = [] and break if data.signed_area.abs < arg
+              data.reject! do |points|
+                points.signed_area.abs < arg
+              end if dimension == 2
             when "densify"
-              data = data.segments.inject([]) do |points, segment|
-                points += (0...1).step(arg / segment.distance).map do |fraction|
-                  segment.along fraction
-                end
-              end << data.last if dimension == 1
+              data.map! do |points|
+                points.segments.inject([]) do |memo, segment|
+                  memo += (0...1).step(arg / segment.distance).map do |fraction|
+                    segment.along fraction
+                  end
+                end << points.last
+              end if dimension == 1
             end
           end
-          [ dimension, data, attributes ]
-        end.reject do |dimension, data, attributes|
-          data.empty?
-        end.each do |component|
-          components << component
+          data.each do |points|
+            components << [ dimension, points, attributes ]
+          end
         end
       end if source.respond_to? :labels
     end
@@ -2587,14 +2603,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.reject do |range|
               data[range].cosines.any? { |cosine| cosine < 0.9 }
             end.map do |range|
-              means = data[range].transpose.map(&:mean)
-              deviations = data[range].transpose.zip(means).map do |values, mean|
-                values.map { |value| value - mean }
-              end
-              a00, a01, a11 = [ [0, 0], [0, 1], [1, 1] ].map do |axes|
-                deviations.values_at(*axes).transpose.map { |d1, d2| d1 * d2 }.inject(&:+)
-              end
-              eigenvalue = 0.5 * (a00 + a11 - Math::sqrt(a00**2 + 4 * a01**2 - 2 * a00 * a11 + a11**2))
+              eigenvalue, eigenvector = data[range].principal_components.first
               sinuosity = (cumulative[range.last] - cumulative[range.first]) / data[range.last].minus(data[range.first]).norm
               [ range, eigenvalue, sinuosity ]
             end.reject do |range, eigenvalue, sinuosity|

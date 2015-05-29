@@ -2993,8 +2993,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           var sys = require('system');
           page.zoomFactor = parseFloat(sys.args[1]);
           page.viewportSize = { width: 1, height: 1 };
-          page.open('#{svg_path}', function(status) {
-              page.render('#{png_path}');
+          page.open('#{svg_path.to_s.gsub(?', "\\\\\'")}', function(status) {
+              page.render('#{png_path.to_s.gsub(?', "\\\\\'")}');
               phantom.exit();
           });
         ]

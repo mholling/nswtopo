@@ -47,9 +47,9 @@ labels:
     minimum-area: 800
     reduce: edges
     densify: 2.0
-    smooth: 5.0
-    deviation: 5.0
-    margin: 2.0
+    smooth: 20.0
+    deviation: 15.0
+    margin: 5.0
     repeat-buffer: 200
     orientation: inside
     fill: "#008800"

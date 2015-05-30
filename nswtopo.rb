@@ -1432,20 +1432,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include RasterRenderer
     
     def get_raster(map, dimensions, resolution, temp_dir)
-      tile_paths = tiles(map, resolution, temp_dir).map do |tile_bounds, tile_resolution, tile_path|
-        topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
-        WorldFile.write topleft, tile_resolution, 0, Pathname.new("#{tile_path}w")
-        %Q["#{tile_path}"]
-      end
-      
+      src_path = temp_dir + "#{name}.txt"
+      vrt_path = temp_dir + "#{name}.vrt"
       tif_path = temp_dir + "#{name}.tif"
       tfw_path = temp_dir + "#{name}.tfw"
-      vrt_path = temp_dir + "#{name}.vrt"
       
+      tiles(map, resolution, temp_dir).each do |tile_bounds, tile_resolution, tile_path|
+        topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
+        WorldFile.write topleft, tile_resolution, 0, Pathname.new("#{tile_path}w")
+      end.map(&:last).join(?\n).tap do |path_list|
+        src_path.write path_list
+        %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"] unless path_list.empty?
+      end
+
       density = 0.01 * map.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
-      unless tile_paths.empty?
-        %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join ?\s}]
+      if vrt_path.exist?
         map.write_world_file tfw_path, resolution
         resample = params["resample"] || "cubic"
         projection = Projection.new(params["projection"])
@@ -1626,15 +1628,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           resize = (params["resolution"] || params["scale"]) ? "-resize #{dimensions.join ?x}!" : "" # TODO: check?
           %x[convert #{sequence} -compose Copy -layers mosaic -units PixelsPerCentimeter -density #{density} #{resize} #{alpha} "#{raster_path}"]
         else
-          tile_paths = dataset.map do |tile_bounds, _, _, tile_path|
-            topleft = [ tile_bounds.first.first, tile_bounds.last.last ]
-            WorldFile.write topleft, resolution, 0, Pathname.new("#{tile_path}w")
-            %Q["#{tile_path}"]
-          end.join ?\s
+          src_path = temp_dir + "#{name}.txt"
           vrt_path = temp_dir + "#{name}.vrt"
           tif_path = temp_dir + "#{name}.tif"
           tfw_path = temp_dir + "#{name}.tfw"
-          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths}]
+          dataset.each do |tile_bounds, _, _, tile_path|
+            topleft = [ tile_bounds.first.first, tile_bounds.last.last ]
+            WorldFile.write topleft, resolution, 0, Pathname.new("#{tile_path}w")
+          end.map(&:last).join(?\n).tap do |path_list|
+            src_path.write path_list
+          end
+          %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
           %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
           map.write_world_file tfw_path, resolution
           %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -dstalpha -r cubic "#{vrt_path}" "#{tif_path}"]
@@ -2060,8 +2064,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def get_raster(map, dimensions, resolution, temp_dir)
-      dem_path = if params["path"]
-        Pathname.new(params["path"]).expand_path
+      src_path = temp_dir + "dem.txt"
+      dem_path = temp_dir + "dem.vrt"
+      
+      if params["path"]
+        [ *params["path"] ].map do |path|
+          Pathname.glob path
+        end.inject([], &:+).map(&:expand_path).tap do |paths|
+          raise BadLayerError.new("no dem data files at specified path") if paths.empty?
+        end
       else
         base_uri = URI.parse "http://www.ga.gov.au/gisimg/rest/services/topography/dem_s_1s/ImageServer/"
         base_query = { "f" => "json", "geometry" => map.wgs84_bounds.map(&:sort).transpose.flatten.plus([ -0.001, -0.001, 0.001, 0.001 ]).join(?,) }
@@ -2074,18 +2085,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           url[/\.tif$/]
         end.map do |url|
           [ URI.parse(URI.escape url), temp_dir + url[/[^\/]*$/] ]
-        end.map do |uri, tile_path|
+        end.each do |uri, tile_path|
           HTTP.get(uri) do |response|
             tile_path.open("wb") { |file| file << response.body }
           end
-          %Q["#{tile_path}"]
-        end
-    
-        temp_dir.join("dem.vrt").tap do |vrt_path|
-          %x[gdalbuildvrt "#{vrt_path}" #{tile_paths.join ?\s}]
-        end
+        end.map(&:last)
+      end.join(?\n).tap do |path_list|
+        src_path.write path_list
       end
-      raise BadLayerError.new("elevation data not found at #{dem_path}") unless dem_path.exist?
+      %x[gdalbuildvrt -input_file_list "#{src_path}" "#{dem_path}"]
       
       temp_dir.join(path.basename).tap do |tif_path|
         relief_path = temp_dir + "#{name}-uncropped.tif"
@@ -2124,22 +2132,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include RasterRenderer
     
     def get_raster(map, dimensions, resolution, temp_dir)
-      source_paths = [ *params["path"] ].tap do |paths|
-        raise BadLayerError.new("no vegetation data file specified") if paths.empty?
-      end.map do |source_path|
-        Pathname.new(source_path).expand_path
-      end.map do |source_path|
-        raise BadLayerError.new("vegetation data file not found at #{source_path}") unless source_path.file?
-        %Q["#{source_path}"]
-      end.join ?\s
-      
+      src_path = temp_dir + "#{name}.txt"
       vrt_path = temp_dir + "#{name}.vrt"
       tif_path = temp_dir + "#{name}.tif"
       tfw_path = temp_dir + "#{name}.tfw"
       clut_path = temp_dir + "#{name}-clut.png"
       mask_path = temp_dir + "#{name}-mask.png"
       
-      %x[gdalbuildvrt "#{vrt_path}" #{source_paths}]
+      [ *params["path"] ].map do |path|
+        Pathname.glob path
+      end.inject([], &:+).map(&:expand_path).tap do |paths|
+        raise BadLayerError.new("no vegetation data file specified") if paths.empty?
+      end.join(?\n).tap do |path_list|
+        src_path.write path_list
+      end
+      %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
+      
       map.write_world_file tfw_path, resolution
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
       %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]

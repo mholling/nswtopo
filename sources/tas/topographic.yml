@@ -24,9 +24,9 @@ sources:
     service: Australian_Topography
 features:
   urban-areas:
-    source: natural-environment
-    name: Tasveg Live
-    where: VEGCODE IN ('FUR')
+    source: cadastre-administrative
+    name: Land Use 2009-2010
+    where: LU_CODE IN ('5.4.1')
   contours-5m:
   - name: 5m Contours
     category: CONTOUR_TY

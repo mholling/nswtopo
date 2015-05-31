@@ -230,7 +230,7 @@ relief-masks:
 
 urban-areas:
   stroke: none
-  fill: "#FFFABD"
+  fill: "#FFCD86"
 contours-5m:
   stroke: "#805100"
   stroke-width: 0.12

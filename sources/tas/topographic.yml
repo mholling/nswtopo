@@ -603,16 +603,16 @@ railway-bridges:
     stroke-dasharray: none
     stroke: white
 buildings:
-  fill: "#808080"
+  fill: "#606060"
   stroke: none
   symbol:
     rect:
-      width: 0.6
-      height: 0.6
-      x: -0.3
-      y: -0.3
+      width: 0.5
+      height: 0.5
+      x: -0.25
+      y: -0.25
       stroke: none
-      fill: black
+      fill: "#303030"
   symbols:
     Lighthouse:
       path:

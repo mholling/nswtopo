@@ -71,12 +71,13 @@ features:
     name: Hydrographic Lines
     where:
     - HYDLNTY1 IN ('Artificial Watercourse')
-    - RELGRND IN ('Under')
+    - HYDLNTY2 IN ('Water pipeline','Siphon','Water tunnel')
+    - RELGRND IN ('Under','Unknown')
   watercourses:
   - name: Hydrographic Lines
     where:
     - HYDLNTY1 IN ('Artificial Watercourse','Watercourse')
-    - HYDLNTY2 NOT IN ('Implied','Water pipeline','Penstock')
+    - HYDLNTY2 NOT IN ('Implied','Water pipeline','Penstock','Siphon','Water tunnel')
     - RELGRND NOT IN ('Under')
     label: NAME
   - name: Hydrographic Lines
@@ -135,8 +136,8 @@ features:
     name: Hydrographic Lines
     where:
     - HYDLNTY1 IN ('Artificial Watercourse')
-    - HYDLNTY2 IN ('Water pipeline','Penstock')
-    - RELGRND IN ('Above')
+    - HYDLNTY2 IN ('Water pipeline','Penstock','Siphon')
+    - RELGRND IN ('Above','In or on')
   tidal-zones:
     name: Hydrographic Areas
     where:
@@ -382,7 +383,7 @@ waterfalls-rapids:
   line-waterfall:
     stroke: "#4985DF"
     stroke-width: 0.25
-  symbols:
+  symbol:
     point-waterfall:
       circle:
         r: 0.35

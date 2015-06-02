@@ -384,11 +384,10 @@ waterfalls-rapids:
     stroke: "#4985DF"
     stroke-width: 0.25
   symbol:
-    point-waterfall:
-      circle:
-        r: 0.35
-        stroke: none
-        fill: "#4985DF"
+    circle:
+      r: 0.35
+      stroke: none
+      fill: "#4985DF"
   patterns:
     rapid:
       width: 0.7

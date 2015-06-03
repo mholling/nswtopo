@@ -2000,18 +2000,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ yield(sublayer), sublayer, features ]
       end.select(&:first).each do |group, sublayer, features|
         puts "  #{sublayer}"
+        id = group.attributes["id"]
         features.group_by do |feature|
           feature["categories"].reject(&:empty?).join(?\s)
-        end.map do |categories, features|
-          [ group.add_element("g", "class" => categories), features ]
-        end.each do |group, features|
+        end.each do |categories, features|
+          category_group = group.add_element("g", "class" => categories)
+          category_group.add_attribute "id", [ id, *categories.split(?\s) ].join(SEGMENT) unless categories.empty?
           features.each do |feature|
             case feature["dimension"]
             when 0
               angle = feature["angle"]
               map.coords_to_mm(feature["data"]).round(MM_DECIMAL_DIGITS).each do |x, y|
                 transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
-                group.add_element "use", "transform" => transform
+                category_group.add_element "use", "transform" => transform
               end
             when 1, 2
               close, fill_options = case feature["dimension"]
@@ -2027,7 +2028,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 else              points.to_path_data(MM_DECIMAL_DIGITS, *close)
                 end
               end.tap do |subpaths|
-                group.add_element "path", fill_options.merge("d" => subpaths.join(?\s)) if subpaths.any?
+                category_group.add_element "path", fill_options.merge("d" => subpaths.join(?\s)) if subpaths.any?
               end
             end
           end

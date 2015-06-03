@@ -360,7 +360,8 @@ intervals-contours:
   10: contours-10m
   20: contours-20m
 relief-masks:
-- water-areas
+- water-areas.Perennial
+- water-areas.SeaLike
 
 plantation-horticulture:
   patterns:

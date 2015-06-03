@@ -227,7 +227,7 @@ intervals-contours:
   10: contours-10m
   20: contours-20m
 relief-masks:
-- waterbodies
+- waterbodies.Perennial
 
 urban-areas:
   stroke: none

@@ -222,12 +222,23 @@ features:
     category:
     - runwaydefinition
     - runwaysurface
-  recreational-perimeters:
-    name: Damwall_Racetrack
+  perimeters:
+  - name: Damwall_Racetrack
     where: classsubtype = 6
     category:
     - classsubtype
     - generalculturaltype
+  - name: Damwall_Racetrack
+    where: classsubtype = 3
+    category: classsubtype
+  fences:
+    name: Damwall_Racetrack
+    where: classsubtype = 2
+    category: classsubtype
+  conveyors:
+    name: Damwall_Racetrack
+    where: classsubtype = 1
+    category: classsubtype
   floodways:
     source: rfs
     name: RoadSegment
@@ -335,11 +346,6 @@ features:
     category: placetype
     label-only: true
     label: generalname
-
-# LPIMap/Damwall_Racetrack (GeneralCulturalLine)
-# (classsubtype:generalculturaltype)
-# 2:0 Fence:Undefined
-# 1:0 ConveyorBelt:Undefined
 
 # POI/POI (PointOfInterest)
 # (poigroup:poitype)
@@ -839,10 +845,29 @@ runways:
   LandingGround:
     stroke: "#A8A8A8"
     stroke-width: 0.7
-recreational-perimeters:
+perimeters:
   stroke: black
   stroke-width: 0.15
   stroke-dasharray: 0.8 0.2
+fences:
+  dupe: hatching
+  stroke: "#444444"
+  stroke-width: 0.1
+  stroke-dasharray: 1.4 0.6
+  stroke-dashoffset: 1.0
+  hatching:
+    stroke-width: 0.4
+    stroke-dasharray: 0.1 1.9
+    stroke-dashoffset: 1.3
+conveyors:
+  dupe: hatching
+  stroke: white
+  stroke-width: 0.3
+  stroke-dasharray: 1.0 0.1
+  hatching:
+    stroke: black
+    stroke-width: 0.45
+    stroke-dasharray: 1 0
 floodways:
   stroke: black
   stroke-dasharray: 0.5 0.4

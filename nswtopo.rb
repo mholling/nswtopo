@@ -3016,7 +3016,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       else
         abort("Error: specify either phantomjs, inkscape or qlmanage as your rasterise method (see README).")
       end
-      %x[mogrify -units PixelsPerInch -density #{ppi} "#{png_path}"]
+      %x[mogrify -units PixelsPerInch -density #{ppi} -alpha off "#{png_path}"]
     end
   end
   
@@ -3424,7 +3424,7 @@ controls:
             when "tif"
               tfw_path = Pathname.new("#{raster_path}w")
               map.write_world_file tfw_path, map.resolution_at(ppi)
-              %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=LZW" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" "#{raster_path}" "#{output_path}"]
+              %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=DEFLATE" -co "ZLEVEL=9" -co "TILED=YES" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" "#{raster_path}" "#{output_path}"]
             when "gif", "jpg"
               %x[convert "#{raster_path}" "#{output_path}"]
             when "kmz"

@@ -2153,12 +2153,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
       %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]
       
-      low, high = { "low" => 0, "high" => 100 }.merge(params["contrast"] || {}).values_at("low", "high")
+      low, high, factor = { "low" => 0, "high" => 100, "factor" => 0.0 }.merge(params["contrast"] || {}).values_at("low", "high", "factor")
       fx = params["mapping"].inject(0.0) do |memo, (key, value)|
         "j==#{key} ? %.5f : (#{memo})" % (value < low ? 0.0 : value > high ? 1.0 : (value - low).to_f / (high - low))
       end
-      
-      %x[convert -size 1x256 canvas:black -fx "#{fx}" "#{clut_path}"]
+      %x[convert -size 1x256 canvas:black -fx "#{fx}" -sigmoidal-contrast #{factor}x50% "#{clut_path}"]
       %x[convert "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
       
       woody, nonwoody = params["colour"].values_at("woody", "non-woody")

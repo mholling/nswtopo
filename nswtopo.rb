@@ -2322,25 +2322,27 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def edge_labels(map)
       interval = params["interval"]
-      hull = map.coord_corners(-5.0)
+      corners = map.coord_corners(-5.0)
       grids(map).map do |zone, utm, grid|
-        [ grid, grid.transpose ].map.with_index do |grid, index|
-          grid.map do |line|
-            coord = line[0][index]
-            points = map.reproject_from(utm, line)
-            hull.surrounds?(points).to_a.segments.zip(points.segments).select do |on_map, segment|
-              on_map.one? && Projection.in_zone?(zone, segment, map.projection).all?
-            end.group_by(&:first).map do |on_map, onmaps_segments|
-              onmaps_segments.transpose.last.clip_lines(hull).map do |segment|
-                labels, percents = labels_percents(coord, interval).transpose
-                label_length = labels.zip(percents).map { |label, percent| label.length * percent / 100.0 }.inject(&:+) * 2.0
-                segment_length = 1000.0 * segment.distance / map.scale
-                fraction = label_length / segment_length
-                fractions = on_map[1] ? [ 0.0, fraction ] : [ 1.0 - fraction, 1.0 ]
-                baseline = fractions.map { |fraction| segment.along fraction }
-                { "dimension" => 1, "data" => [ baseline ], "labels" => labels, "percents" => percents, "categories" => index.zero? ? "eastings" : "northings" }
-              end
+        corners.zip(corners.perps).map.with_index do |(corner, perp), index|
+          eastings, outgoing = index % 2 == 0, index < 2
+          (eastings ? grid : grid.transpose).map do |line|
+            coord = line[0][eastings ? 0 : 1]
+            segment = map.reproject_from(utm, line).segments.find do |points|
+              points.one? { |point| point.minus(corner).dot(perp) < 0.0 }
             end
+            segment[outgoing ? 1 : 0] = segment.along(corner.minus(segment[0]).dot(perp) / segment.difference.dot(perp)) if segment
+            [ coord, segment ]
+          end.select(&:last).select do |coord, segment|
+            corners.surrounds?(segment).any? && Projection.in_zone?(zone, segment[outgoing ? 1 : 0], map.projection)
+          end.map do |coord, segment|
+            labels, percents = labels_percents(coord, interval).transpose
+            label_length = labels.zip(percents).map { |label, percent| label.length * percent / 100.0 }.inject(&:+) * 2.0
+            segment_length = 1000.0 * segment.distance / map.scale
+            fraction = label_length / segment_length
+            fractions = outgoing ? [ 1.0 - fraction, 1.0 ] : [ 0.0, fraction ]
+            baseline = fractions.map { |fraction| segment.along fraction }
+            { "dimension" => 1, "data" => [ baseline ], "labels" => labels, "percents" => percents, "categories" => eastings ? "eastings" : "northings" }
           end
         end
       end.flatten

@@ -3301,7 +3301,7 @@ controls:
     end
     
     updates = sources.reject do |source|
-      xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"] && FileUtils.uptodate?(svg_path, [ *source.path ])
+      source.path ? FileUtils.uptodate?(svg_path, [ *source.path ]) : xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"]
     end
     
     Dir.mktmppath do |temp_dir|

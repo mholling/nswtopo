@@ -2577,13 +2577,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
               f = dx * dy == 0 ? 1 : 0.707
               text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
-              text_element = REXML::Element.new("text")
-              text_element.add_attributes "text-anchor" => text_anchor, "transform" => transform
-              lines.each.with_index do |line, count|
+              text_elements = lines.map.with_index do |line, count|
                 x = dx * f * margin
                 y = ((lines.one? ? (1 + dy) * 0.5 : count + dy) - 0.15) * font_size + dy * f * margin
-                text_element.add_element("tspan", "x" => x, "y" => y) do |tspan|
-                  tspan.add_text line
+                REXML::Element.new("text").tap do |text|
+                  text.add_attributes "text-anchor" => text_anchor, "transform" => transform, "x" => x, "y" => y
+                  text.add_text line
                 end
               end
               hull = [ [ dx, width ], [dy, height ] ].map do |d, l|
@@ -2591,7 +2590,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
-              [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_element ]
+              [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_elements ]
             end
           when dimension == 1
             margin = attributes["margin"]
@@ -2673,15 +2672,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               corner.rotate_by_degrees(-map.rotation).plus(point)
             end
             transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-            text_element = REXML::Element.new("text")
-            text_element.add_attributes "text-anchor" => "middle", "transform" => transform
-            lines.each.with_index do |line, count|
+            text_elements = lines.map.with_index do |line, count|
               y = (lines.one? ? 0.5 : count) * font_size - 0.15 * font_size
-              text_element.add_element("tspan", "x" => 0, "y" => y) do |tspan|
-                tspan.add_text line
+              REXML::Element.new("text").tap do |text|
+                text.add_attributes "text-anchor" => "middle", "transform" => transform, "x" => 0, "y" => y
+                text.add_text line
               end
             end
-            [ [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_element ] ]
+            [ [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_elements ] ]
           else [ ]
           end.select do |hull, *args|
             labelling_hull.surrounds?(hull).all?

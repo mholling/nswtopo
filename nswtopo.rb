@@ -3075,16 +3075,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       when /phantomjs/
         xml = REXML::Document.new(svg_path.read)
         width, height = %w[width height].map { |name| xml.elements["/svg"].attributes[name] }
+        modified_svg_path = temp_dir + "rasterise.svg"
+        modified_svg_path.open("w") do |file|
+          formatter = REXML::Formatters::Pretty.new
+          formatter.compact = true
+          formatter.write xml.root, file
+        end
         js_path = temp_dir + "makepdf.js"
         File.write js_path, %Q[
           var page = require('webpage').create();
-          var sys = require('system');
           page.paperSize = { width: '#{width}', height: '#{height}' };
-          page.open('#{svg_path}', function(status) {
-              window.setTimeout(function() {
-                  page.render('#{pdf_path}');
-                  phantom.exit();
-              }, 2000);
+          page.open('#{modified_svg_path}', function(status) {
+              page.render('#{pdf_path.to_s.gsub(?', "\\\\\'")}');
+              phantom.exit();
           });
         ]
         %x["#{rasterise}" "#{js_path}"]

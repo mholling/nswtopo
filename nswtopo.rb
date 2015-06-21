@@ -2296,17 +2296,26 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def draw(map)
       group = yield
-      grids(map).each do |zone, utm, grid|
+      grids(map).map do |zone, utm, grid|
         wgs84_grid = grid.map do |lines|
           utm.reproject_to_wgs84 lines
         end
-        [ wgs84_grid, wgs84_grid.transpose ].map do |lines|
+        eastings, northings = [ wgs84_grid, wgs84_grid.transpose ].map do |lines|
           lines.clip_lines Projection.utm_hull(zone)
-        end.inject(&:+).map do |line|
-          map.coords_to_mm map.reproject_from_wgs84(line)
-        end.clip_lines(map.mm_corners).each do |line|
-          group.add_element "path", "d" => line.to_path_data(MM_DECIMAL_DIGITS)
         end
+        [ eastings, northings, [ northings.map(&:first) ] ].map do |lines|
+          lines.map do |line|
+            map.coords_to_mm map.reproject_from_wgs84(line)
+          end.clip_lines(map.mm_corners)
+        end
+      end.transpose.map do |lines|
+        lines.inject([], &:+)
+      end.zip(%w[eastings northings boundary]).each do |lines, category|
+        group.add_element("g", "class" => category) do |group|
+          lines.each do |line|
+            group.add_element "path", "d" => line.to_path_data(MM_DECIMAL_DIGITS)
+          end
+        end if lines.any?
       end if group
     end
     
@@ -3143,6 +3152,8 @@ grid:
   label-spacing: 5
   stroke: black
   stroke-width: 0.1
+  boundary:
+    stroke: gray
   labels:
     margin: 0.8
     dupe: outline

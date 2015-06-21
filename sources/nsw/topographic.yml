@@ -255,14 +255,14 @@ features:
     - roadontype
   - source: guras
     name: Road Name Extent
-    where: functionhierarchy NOT IN (6,7,10,11) AND roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
+    where: operationalstatus NOT IN (3,8) AND functionhierarchy NOT IN (6,7,10,11) AND roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%' AND roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
     category: functionhierarchy
     label-only: true
     label: roadnamestring
     per-page: 100
   - source: guras
     name: Road Name Extent
-    where: functionhierarchy IN (6) AND roadnameoid IS NOT NULL AND relevance < 6
+    where: operationalstatus NOT IN (3,8) AND functionhierarchy IN (6) AND roadnameoid IS NOT NULL AND relevance < 6
     category: functionhierarchy
     label-only: true
     label: roadnamestring

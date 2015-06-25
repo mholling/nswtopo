@@ -3005,32 +3005,32 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x[convert "#{square_png_path}" -crop #{dimensions.join ?x}+0+0 +repage "#{png_path}"]
       when /phantomjs/i
         js_path = temp_dir + "rasterise.js"
+        page_path = temp_dir + "rasterise.svg"
+        test = REXML::Document.new
+        test.add_element("svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg", "width"  => "1in", "height" => "1in")
         xml = REXML::Document.new(svg_path.read)
         REXML::XPath.each(xml, "//image[@xlink:href]/@xlink:href").map(&:to_s).grep(/\.jpg$|\.png$/i).map do |href|
           svg_path.parent.join href
         end.select(&:file?).each do |image_path|
           FileUtils.cp image_path, temp_dir
         end
-        modified_svg_path = temp_dir + "rasterise.svg"
-        modified_svg_path.open("w") do |file|
-          formatter = REXML::Formatters::Pretty.new
-          formatter.compact = true
-          formatter.write xml.root, file
-        end
-        2.times.inject(1.0) do |zoom|
+        [ test, xml ].inject(1.0) do |zoom, xml|
           File.write js_path, %Q[
             var page = require('webpage').create();
             page.zoomFactor = #{zoom};
             page.viewportSize = { width: 1, height: 1 };
-            page.open('#{modified_svg_path}', function(status) {
+            page.open('#{page_path}', function(status) {
                 page.render('#{png_path.to_s.gsub(?', "\\\\\'")}');
                 phantom.exit();
             });
           ]
+          page_path.open("w") do |file|
+            formatter = REXML::Formatters::Pretty.new
+            formatter.compact = true
+            formatter.write xml.root, file
+          end
           %x["#{rasterise}" "#{js_path}"]
-          test_dimensions = %x[identify -format "%w,%h" "#{png_path}"].split(?,).map(&:to_f)
-          index = dimensions[0] > dimensions[1] ? 0 : 1
-          screen_ppi = (test_dimensions[index] * ppi / dimensions[index]).round
+          screen_ppi = %x[identify -format "%w" "#{png_path}"].to_i
           ppi.to_f / screen_ppi
         end
       else

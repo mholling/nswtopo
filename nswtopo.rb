@@ -2487,7 +2487,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class LabelSource < Source
     include VectorRenderer
     LABELLING_ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat-interval repeat-buffer deviation format collate]
-    LABELLING_TRANSFORMS = %w[reduce densify smooth minimum-area]
+    LABELLING_TRANSFORMS = %w[reduce densify smooth minimum-area minimum-length remove]
     FONT_ASPECT_RATIO = 0.7
     
     def initialize(*args)
@@ -2524,42 +2524,46 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           components = [ ]
           @features << [ text, sublayer, components ]
         end
-        case dimension
+        data = case dimension
         when 0
-          map.coords_to_mm(feature["data"]).each do |point|
-            components << [ dimension, point, attributes ]
-          end
+          map.coords_to_mm feature["data"]
         when 1, 2
-          data = feature["data"].map do |coords|
+          feature["data"].map do |coords|
             map.coords_to_mm coords
           end
-          transforms.each do |transform, arg|
-            case transform
-            when "reduce"
-              case arg
-              when "edges" then dimension = 1 if dimension == 2
-              end
-            when "smooth"
-              data.map! do |points|
-                points.smooth(arg, 20)
-              end if dimension == 1
-            when "minimum-area"
-              data.reject! do |points|
-                points.signed_area.abs < arg
-              end if dimension == 2
-            when "densify"
-              data.map! do |points|
-                points.segments.inject([]) do |memo, segment|
-                  memo += (0...1).step(arg / segment.distance).map do |fraction|
-                    segment.along fraction
-                  end
-                end << points.last
-              end if dimension == 1
+        end
+        transforms.each do |transform, arg|
+          case transform
+          when "reduce"
+            case arg
+            when "edges" then dimension = 1 if dimension == 2
             end
+          when "smooth"
+            data.map! do |points|
+              points.smooth(arg, 20)
+            end if dimension == 1
+          when "minimum-area"
+            data.reject! do |points|
+              points.signed_area.abs < arg
+            end if dimension == 2
+          when "densify"
+            data.map! do |points|
+              points.segments.inject([]) do |memo, segment|
+                memo += (0...1).step(arg / segment.distance).map do |fraction|
+                  segment.along fraction
+                end
+              end << points.last
+            end if dimension == 1
+          when "remove"
+            data.replace []
+          when "minimum-length"
+            data.reject! do |points|
+              points.segments.map(&:distance).inject(0.0, &:+) < arg
+            end if dimension == 1
           end
-          data.each do |points|
-            components << [ dimension, points, attributes ]
-          end
+        end
+        data.each do |point_or_points|
+          components << [ dimension, point_or_points, attributes ]
         end
       end if source.respond_to? :labels
     end

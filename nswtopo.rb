@@ -3321,6 +3321,8 @@ controls:
       source.create(map)
     end
     
+    return if config["no-output"]
+    
     svg_name = "#{map.name}.svg"
     svg_path = Pathname.pwd + svg_name
     xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml

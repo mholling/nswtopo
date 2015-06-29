@@ -3040,7 +3040,24 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       else
         abort("Error: specify either phantomjs, inkscape or qlmanage as your rasterise method (see README).")
       end
-      if config["dither"]
+      case
+      when config["dither"] && config["gimp"]
+        script_path = temp_dir + "dither.scm"
+        File.write script_path, %Q[
+          (let*
+            (
+              (image (car (gimp-file-load RUN-NONINTERACTIVE "#{png_path}" "#{png_path}")))
+              (drawable (car (gimp-image-get-active-layer image)))
+            )
+            (gimp-image-convert-indexed image FSLOWBLEED-DITHER MAKE-PALETTE 256 FALSE FALSE "")
+            (gimp-file-save RUN-NONINTERACTIVE image drawable "#{png_path}" "#{png_path}")
+            (gimp-quit TRUE)
+          )
+        ]
+        %x[mogrify -background white -alpha Remove "#{png_path}"]
+        %x[cat "#{script_path}" | "#{config['gimp']}" -c -d -f -i -b -]
+        %x[mogrify -units PixelsPerInch -density #{ppi} "#{png_path}"]
+      when config["dither"]
         %x[mogrify -units PixelsPerInch -density #{ppi} -background white -alpha Remove -type Palette -dither Riemersma -define PNG:exclude-chunk=bkgd "#{png_path}"]
       else
         %x[mogrify -units PixelsPerInch -density #{ppi} -background white -alpha Remove "#{png_path}"]

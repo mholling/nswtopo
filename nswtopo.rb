@@ -2124,7 +2124,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       shade = %Q["#{path}" -colorspace Gray -fill white -opaque none -level 0,65% -negate -alpha Copy -fill black +opaque black]
       sun = %Q["#{path}" -colorspace Gray -fill black -opaque none -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
       temp_dir.join("overlay.png").tap do |overlay_path|
-        %x[convert -quiet #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite "#{overlay_path}"]
+        %x[convert -quiet #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite -define png:color-type=6 "#{overlay_path}"]
       end
     end
   end

@@ -1142,6 +1142,7 @@ labels:
     font-size: 1.8
     letter-spacing: 0.1
   watercourses:
+    font-size: 1.4
     smooth: 8.0
     deviation: 3.0
     repeat-interval: 100
@@ -1180,6 +1181,7 @@ labels:
     font-size: 1.3
     fill: "#1667DF"
   reefs-rocks:
+    font-size: 1.8
     font-family: Calibri, Arial, Helvetica, sans-serif
     font-style: normal
   reeds-rocks Reef:
@@ -1187,10 +1189,8 @@ labels:
     margin: 0.7
     fill: "#1667DF"
     letter-spacing: 0.1
-    font-size: 1.8
   reeds-rocks Rock-Awash:
     position: [ right, above, below, left ]
-    font-size: 1.8
     margin: 1.0
     letter-spacing: 0.1
   breakwaters:
@@ -1244,21 +1244,20 @@ labels:
     margin: 0.8
     position: [ right, above, below, left, aboveright, belowright, aboveleft, belowleft ]
   feature-names:
+    font-size: 1.8
     font-family: Calibri, Arial, Helvetica, sans-serif
     font-style: normal
   [ feature-names Gap-Pass-Saddle, feature-names Headland, feature-names Mountain-Hill-Peak, feature-names Peninsula-Spit, feature-names Plateau-Tableland, feature-names Island, feature-names Rapids, feature-names Sandbar-Shoal, feature-names Lock ]:
     position: [ over, right, above, below, left ]
-    font-size: 1.8
     margin: 0.7
     letter-spacing: 0.1
-  [ feature-names Beach, feature-names RangeLike, feature-names ValleyLike ]:
+  [ feature-names Beach, feature-names RangeLike, feature-names ValleyLike, feature-names DuneLike, feature-names GeneralLocality ]:
     smooth: 12
-    font-size: 1.8
     word-spacing: 3
     letter-spacing: 0.5
   [ feature-names Beach, feature-names ValleyLike ]:
     margin: 0.7
-  [ feature-names RangeLike, feature-names ValleyLike ]:
+  [ feature-names RangeLike, feature-names ValleyLike, feature-names DuneLike ]:
     font-size: 2.2
     fill: "#404040"
     opacity: 0.7

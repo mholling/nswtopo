@@ -1982,7 +1982,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.inject(&:merge).tap do |layers|
         Dir.mktmppath do |temp_dir|
           json_path = temp_dir + "#{name}.json"
-          json_path.open("w") { |file| file << (params["pretty"] ? JSON.pretty_generate(layers) : layers.to_json) }
+          json_path.open("w") { |file| file << layers.to_json }
           FileUtils.cp json_path, path
         end
       end
@@ -3009,16 +3009,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x[convert "#{square_png_path}" -crop #{dimensions.join ?x}+0+0 +repage "#{png_path}"]
       when /phantomjs/i
         js_path = temp_dir + "rasterise.js"
-        page_path = temp_dir + "rasterise.svg"
+        test_path = temp_dir + "test.svg"
         test = REXML::Document.new
         test.add_element("svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg", "width"  => "1in", "height" => "1in")
-        xml = REXML::Document.new(svg_path.read)
-        REXML::XPath.each(xml, "//image[@xlink:href]/@xlink:href").map(&:to_s).grep(/\.jpg$|\.png$/i).map do |href|
-          svg_path.parent.join href
-        end.select(&:file?).each do |image_path|
-          FileUtils.cp image_path, temp_dir
-        end
-        [ test, xml ].inject(1.0) do |zoom, xml|
+        test_path.open("w") { |file| test.write file }
+        [ test_path, svg_path.to_s.gsub(?', "\\\\\'") ].inject(1.0) do |zoom, page_path|
           File.write js_path, %Q[
             var page = require('webpage').create();
             page.zoomFactor = #{zoom};
@@ -3028,11 +3023,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 phantom.exit();
             });
           ]
-          page_path.open("w") do |file|
-            formatter = REXML::Formatters::Pretty.new
-            formatter.compact = true
-            formatter.write xml.root, file
-          end
           %x["#{rasterise}" "#{js_path}"]
           screen_ppi = %x[identify -format "%w" "#{png_path}"].to_i
           ppi.to_f / screen_ppi
@@ -3105,17 +3095,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       when /phantomjs/
         xml = REXML::Document.new(svg_path.read)
         width, height = %w[width height].map { |name| xml.elements["/svg"].attributes[name] }
-        modified_svg_path = temp_dir + "rasterise.svg"
-        modified_svg_path.open("w") do |file|
-          formatter = REXML::Formatters::Pretty.new
-          formatter.compact = true
-          formatter.write xml.root, file
-        end
         js_path = temp_dir + "makepdf.js"
         File.write js_path, %Q[
           var page = require('webpage').create();
           page.paperSize = { width: '#{width}', height: '#{height}' };
-          page.open('#{modified_svg_path}', function(status) {
+          page.open('#{svg_path.to_s.gsub(?', "\\\\\'")}', function(status) {
               page.render('#{pdf_path.to_s.gsub(?', "\\\\\'")}');
               phantom.exit();
           });
@@ -3275,7 +3259,6 @@ controls:
         [ name_or_path.gsub(?/, SEGMENT), YAML.load(yaml) ]
       end
       params.merge! "resolution" => resolution if resolution
-      params.merge! "pretty" => config["pretty"] if config["pretty"]
       sources.merge! name => params
     end
     
@@ -3433,13 +3416,9 @@ controls:
           end
         end
         
-        if config["pretty"]
-          formatter = REXML::Formatters::Pretty.new
-          formatter.compact = true
-          formatter.write xml.root, file
-        else
-          xml.write file
-        end
+        formatter = REXML::Formatters::Pretty.new
+        formatter.compact = true
+        formatter.write xml.root, file
       end
       FileUtils.cp tmp_svg_path, svg_path
     end if updates.any? || removals.any?

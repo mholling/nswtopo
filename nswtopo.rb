@@ -2140,7 +2140,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       dem_bounds = map.projection.transform_bounds_to Projection.new(vrt_path), bounds
       ulx, lrx, lry, uly = dem_bounds.flatten
-      %x[gdal_translate -projwin #{ulx} #{uly} #{lrx} #{lry} "#{vrt_path}" "#{dem_path}"]
+      %x[gdal_translate -q -projwin #{ulx} #{uly} #{lrx} #{lry} "#{vrt_path}" "#{dem_path}"]
       
       scale = bounds.zip(dem_bounds).last.map do |bound|
         bound.inject(&:-)

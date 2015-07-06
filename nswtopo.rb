@@ -2164,7 +2164,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           sigma = (500.0 / resolution).round
           filters << "-selective-blur 0x#{sigma}+#{threshold}%" if threshold > 0
         end
-        %x[mogrify -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
+        %x[mogrify -channel RGBA -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
       end
     end
     

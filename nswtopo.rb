@@ -1657,6 +1657,41 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       @sublayers = params["features"].keys
     end
     
+    def shapefile_features(map, source, options)
+      Enumerator.new do |yielder|
+        shape_path = Pathname.new source["path"]
+        projection = Projection.new %x[gdalsrsinfo -o proj4 "#{shape_path}"].gsub(/['"]+/, "").strip
+        xmin, xmax, ymin, ymax = map.transform_bounds_to(projection).map(&:sort).flatten
+        layer = options["name"]
+        where = %Q[-where "%s"] % [ *options["where"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["where"]
+        srs   = %Q[-t_srs "#{map.projection}"]
+        spat  = %Q[-spat #{xmin} #{ymin} #{xmax} #{ymax}]
+        Dir.mktmppath do |temp_dir|
+          json_path = temp_dir + "data.json"
+          %x[ogr2ogr #{where} #{srs} #{spat} -f GeoJSON "#{json_path}" "#{shape_path}" "#{layer}"]
+          JSON.parse(json_path.read).fetch("features").each do |feature|
+            geometry = feature["geometry"]
+            dimension = case geometry["type"]
+            when "Polygon", "MultiPolygon" then 2
+            when "LineString" then 1
+            when "Point", "MultiPoint" then 0
+            else raise BadLayerError.new("cannot process features of type #{geometry['type']}")
+            end
+            data = case geometry["type"]
+            when "Polygon"      then geometry["coordinates"]
+            when "MultiPolygon" then geometry["coordinates"].flatten(1)
+            when "LineString"   then [ geometry["coordinates"] ]
+            when "Point"        then [ geometry["coordinates"] ]
+            when "MultiPoint"   then geometry["coordinates"]
+            else abort("geometry type #{geometry['type']} unimplemented")
+            end
+            attributes = feature["properties"]
+            yielder << [ dimension, data, attributes ]
+          end
+        end
+      end
+    end
+    
     def arcgis_features(map, source, options)
       options["definition"] ||= "1 = 1" if options.delete "redefine"
       url = [ source["url"], source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ].join(?/)
@@ -1941,8 +1976,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           options["category"] = substitutions.keys
           source = sources[options["source"] || sources.keys.first]
           case source["protocol"]
-          when "arcgis" then arcgis_features(map, source, options)
-          when "wfs"    then    wfs_features(map, source, options)
+          when "arcgis"     then    arcgis_features(map, source, options)
+          when "wfs"        then       wfs_features(map, source, options)
+          when "shapefile"  then shapefile_features(map, source, options)
           end.each do |dimension, data, attributes|
             case dimension
             when 0 then data.clip_points! feature_hull

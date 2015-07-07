@@ -1878,7 +1878,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       polygon = [ *points, points.first ].map { |corner| corner.reverse.join ?\s }.join ?,
       bounds_filter = "INTERSECTS(#{geometry_name},POLYGON((#{polygon})))"
       
-      filters = [ bounds_filter, *options["filter"] ]
+      filters = [ bounds_filter, *options["filter"], *options["where"] ]
       names &= [ *options["category"], *options["rotate"], *options["label"] ]
       get_query = {
         "request" => "GetFeature",

@@ -2605,7 +2605,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end << points.last
             end if dimension == 1
           when "remove"
-            data.replace [] if arg
+            [ *arg ].each do |value|
+              data.replace [] if case value
+              when true    then true
+              when String  then text == value
+              when Regexp  then text =~ value
+              when Numeric then text == value.to_s
+              end
+            end
           when "minimum-length"
             data.reject! do |points|
               points.segments.map(&:distance).inject(0.0, &:+) < arg

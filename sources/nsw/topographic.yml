@@ -1184,12 +1184,12 @@ labels:
     font-size: 1.8
     font-family: Calibri, Arial, Helvetica, sans-serif
     font-style: normal
-  reeds-rocks Reef:
+  reefs-rocks Reef:
     position: [ over, right, above, below, left ]
     margin: 0.7
     fill: "#1667DF"
     letter-spacing: 0.1
-  reeds-rocks Rock-Awash:
+  reefs-rocks Rock-Awash:
     position: [ right, above, below, left ]
     margin: 1.0
     letter-spacing: 0.1

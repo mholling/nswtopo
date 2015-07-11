@@ -1,0 +1,79 @@
+class: ArcGISVector
+sources:
+  lpimap:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: LPIMap
+  boundaries:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: Boundaries
+  geoscience-australia:
+    host: www.ga.gov.au
+    instance: gis
+    folder: topography
+    service: Dynamic_National_Map_Reserves
+features:
+  boundaries:
+  - source: boundaries
+    name: NPWS Reserve
+    where: classsubtype IN (1,2,4,5,7)
+    category: classsubtype
+    label: [ reservename, reservetype ]
+  - source: boundaries
+    name: State Forest
+    category: StateForest
+    label: stateforestname
+  - source: lpimap
+    name: Building_Large
+    where: classsubtype = 3
+    category: classsubtype
+    label: generalname
+  - source: geoscience-australia
+    name: Reserves_Land
+    where:
+    - FEATURETYPE IN ('Nature Conservation Reserve','Forestry Reserve')
+    - AUTHORITY IN ('ACT Parks and Conservation Service') OR NAME IN ('KOWEN FOREST','STROMLO STATE FOREST','INGLEDENE STATE FOREST','GIBRALTAR CREEK FOREST','PIERCES CREEK STATE FOREST','URIARRA STATE FOREST')
+    label: NAME
+    category:
+    - ACT
+    - FEATURETYPE
+boundaries:
+  opacity: 0.5
+  fill: none
+  stroke: "#008800"
+  stroke-width: 0.4
+  RestrictedArea:
+    stroke: "#777777"
+    stroke-width: 0.8
+    stroke-dasharray: 4 2
+labels:
+  dupe: outline
+  stroke: none
+  font-style: italic
+  font-family: Arial, Helvetica, sans-serif
+  outline:
+    stroke: white
+    fill: none
+    stroke-width: 0.5
+    stroke-opacity: 0.5
+  boundaries:
+    minimum-area: 800
+    reduce: edges
+    densify: 2.0
+    smooth: 20.0
+    deviation: 15.0
+    margin: 5.0
+    repeat-buffer: 200
+    orientation: inside
+    fill: "#006400"
+    fill-opacity: 0.5
+    font-weight: bold
+    font-style: normal
+    font-size: 2.5
+    letter-spacing: 0.3
+  boundaries StateForest:
+    format: "%s State Forest"
+  boundaries RestrictedArea:
+    fill: "#777777"
+

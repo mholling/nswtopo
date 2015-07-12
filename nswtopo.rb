@@ -1663,12 +1663,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         projection = Projection.new %x[gdalsrsinfo -o proj4 "#{shape_path}"].gsub(/['"]+/, "").strip
         xmin, xmax, ymin, ymax = map.transform_bounds_to(projection).map(&:sort).flatten
         layer = options["name"]
+        sql   = %Q[-sql "%s"] % options["sql"] if options["sql"]
         where = %Q[-where "%s"] % [ *options["where"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["where"]
         srs   = %Q[-t_srs "#{map.projection}"]
         spat  = %Q[-spat #{xmin} #{ymin} #{xmax} #{ymax}]
         Dir.mktmppath do |temp_dir|
           json_path = temp_dir + "data.json"
-          %x[ogr2ogr #{where} #{srs} #{spat} -f GeoJSON "#{json_path}" "#{shape_path}" "#{layer}"]
+          %x[ogr2ogr #{sql || where} #{srs} #{spat} -f GeoJSON "#{json_path}" "#{shape_path}" #{layer unless sql}]
           JSON.parse(json_path.read).fetch("features").each do |feature|
             geometry = feature["geometry"]
             dimension = case geometry["type"]

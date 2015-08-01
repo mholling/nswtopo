@@ -22,9 +22,11 @@ sources:
     folder: mga
     service: basic
   guras:
-    host: mapsq.six.nsw.gov.au
+    host: atlas.nsw.gov.au
+    instance: arcgis1
+    cookie: http://atlas.nsw.gov.au/
     folder: sixmaps
-    service: Guras
+    service: _Guras
   poi:
     host: maps.six.nsw.gov.au
     folder: sixmaps

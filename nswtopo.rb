@@ -1160,11 +1160,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         puts "  #{sublayer}" unless id == name
         [ *params, *params[sublayer] ].inject({}) do |memo, (command, args)|
           memo.deep_merge case command
-          when "symbol"   then { "symbols" => { "" => args } }
-          when "pattern"  then { "patterns" => { "" => args } }
-          when "dupe"     then { "dupes" => { "" => args } }
-          when "sample"   then { "samples" => { "" => args } }
-          when "endpoint" then { "endpoints" => { "" => args } }
+          when "symbol"    then { "symbols" => { "" => args } }
+          when "pattern"   then { "patterns" => { "" => args } }
+          when "dupe"      then { "dupes" => { "" => args } }
+          when "sample"    then { "samples" => { "" => args } }
+          when "endpoint"  then { "inpoints" => { "" => args }, "outpoints" => { "" => args } }
+          when "endpoints" then { "inpoints" => args, "outpoints" => args }
+          when "inpoint"   then { "inpoints" => { "" => args } }
+          when "outpoint"  then { "outpoints" => { "" => args } }
           else { command => args }
           end
         end.inject([]) do |memo, (command, args)|
@@ -1265,10 +1268,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
             end
-          when "endpoints"
+          when "inpoints", "outpoints"
+            index = %w[inpoints outpoints].index command
             args.each do |categories, attributes|
               [ categories ].flatten.map do |category|
-                [ "./g[#{predicate_for category}]", [ id, *category.split(?\s), "endpoint" ].join(SEGMENT) ]
+                [ "./g[#{predicate_for category}]", [ id, *category.split(?\s), command ].join(SEGMENT) ]
               end.select do |xpath, symbol_id|
                 group.elements["#{xpath}//path[@fill='none']"]
               end.each do |xpath, symbol_id|
@@ -1279,9 +1283,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   path.attributes["d"].to_s.split(/ Z| Z M | M |M /).reject(&:empty?).each do |subpath|
                     subpath.split(/ L | C -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ -?[\d\.]+ /).values_at(0,1,-2,-1).map do |pair|
                       pair.split(?\s).map(&:to_f)
-                    end.segments.values_at(0,-1).zip([ :to_a, :reverse ]).map do |segment, order|
-                      segment.send order
-                    end.each do |segment|
+                    end.segments[-index].rotate(index).tap do |segment|
                       angle = 180.0 * segment.difference.angle / Math::PI
                       translate = segment[0].round(MM_DECIMAL_DIGITS).join ?\s
                       uses << { "use" => { "transform" => "translate(#{translate}) rotate(#{angle.round 2})", "xlink:href" => "##{symbol_id}" } }

@@ -52,7 +52,7 @@ labels:
     margin: 5.0
     repeat-buffer: 200
     orientation: inside
-    fill: "#008800"
+    fill: "#006400"
     fill-opacity: 0.5
     font-weight: bold
     font-style: normal

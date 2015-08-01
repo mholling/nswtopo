@@ -1,9 +1,5 @@
 class: ArcGISVector
 sources:
-  lpimap:
-    host: maps.six.nsw.gov.au
-    folder: sixmaps
-    service: LPIMap
   boundaries:
     host: maps.six.nsw.gov.au
     folder: sixmaps
@@ -13,6 +9,10 @@ sources:
     instance: gis
     folder: topography
     service: Dynamic_National_Map_Reserves
+  lpimap:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: LPIMap
 features:
   boundaries:
   - source: boundaries

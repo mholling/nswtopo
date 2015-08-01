@@ -39,7 +39,9 @@ sources:
 features:
   plantation-horticulture:
     name: Building_Large
-    where: classsubtype = 6 AND generalculturaltype IN (0,1,2,4)
+    where:
+    - classsubtype = 6
+    - generalculturaltype IN (0,1,2,4)
     category: generalculturaltype
   urban-areas: Urban
   contours-10m:
@@ -90,7 +92,9 @@ features:
   watercourses:
   - source: hydrography
     name: Hydroline
-    where: classsubtype = 1 AND hydrotype NOT IN (5, 6)
+    where:
+    - classsubtype = 1
+    - hydrotype NOT IN (5, 6)
     category:
     - relevance
     - hydrotype
@@ -133,7 +137,9 @@ features:
     where: classsubtype = 4
   - source: poi
     name: Points Of Interest
-    where: poitype = 'Reef' AND poiname LIKE '% LEVEE'
+    where:
+    - poitype = 'Reef'
+    - poiname LIKE '% LEVEE'
     label-only: true
     label: poiname
   dam-batters:
@@ -163,7 +169,9 @@ features:
     category: classsubtype
   - source: poi
     name: Points Of Interest
-    where: poitype = 'Reef' AND poiname NOT LIKE '% LEVEE'
+    where:
+    - poitype = 'Reef'
+    - poiname NOT LIKE '% LEVEE'
     category: poitype
     label-only: true
     label: poiname
@@ -194,7 +202,10 @@ features:
   road-tunnels:
     source: rfs
     name: RoadSegment
-    where: operationalstatus NOT IN (3,8) AND roadontype = 3 AND classsubtype <> 8
+    where:
+    - operationalstatus NOT IN (3,8)
+    - roadontype = 3
+    - classsubtype <> 8
     category: functionhierarchy
   railway-tunnels:
     name: Railway_intunnel_LS
@@ -235,7 +246,11 @@ features:
   floodways:
     source: rfs
     name: RoadSegment
-    where: operationalstatus NOT IN (3,8) AND roadontype = 4 AND classsubtype <> 8 AND functionhierarchy IN (1,2,3,4,5,6)
+    where:
+    - operationalstatus NOT IN (3,8)
+    - roadontype = 4
+    - classsubtype <> 8
+    - functionhierarchy IN (1,2,3,4,5,6)
     category: functionhierarchy
   roads:
   - source: rfs
@@ -282,14 +297,19 @@ features:
   road-bridges:
     source: rfs
     name: RoadSegment
-    where: operationalstatus NOT IN (3,8) AND roadontype = 2 AND classsubtype <> 8
+    where:
+    - operationalstatus NOT IN (3,8)
+    - roadontype = 2
+    - classsubtype <> 8
     category:
     - functionhierarchy
     - classsubtype
     - surface
   railway-bridges:
     name: Railway_onbridge_LS
-    where: operationalstatus NOT IN (3,8) AND railontype = 2
+    where:
+    - operationalstatus NOT IN (3,8)
+    - railontype = 2
     category: classsubtype
   gates-grids:
     name: Gates_Grids
@@ -308,7 +328,9 @@ features:
     category: large
   - source: poi
     name: Points Of Interest
-    where: poigroup = 1 AND (poitype = 'Homestead' OR (poitype = 'Community Facility' AND poiname LIKE '% HUT'))
+    where:
+    - poigroup = 1
+    - poitype = 'Homestead' OR (poitype = 'Community Facility' AND poiname LIKE '% HUT')
     category: poitype
     label-only: true
     label: poiname
@@ -335,7 +357,9 @@ features:
     where: classsubtype = 7
   yards-quarries-windmills:
     name: Beacon_Tower
-    where: classsubtype = 4 AND generalculturaltype IN (8,9,11,12)
+    where:
+    - classsubtype = 4
+    - generalculturaltype IN (8,9,11,12)
     category: generalculturaltype
   state-border: State_Border
   relative-heights:
@@ -357,7 +381,9 @@ features:
   place-names:
     source: lpimap
     name: PlacePoint_LS
-    where: generalname NOT LIKE '% HUT' AND generalname NOT LIKE '% SWAMP'
+    where:
+    - generalname NOT LIKE '% HUT'
+    - generalname NOT LIKE '% SWAMP'
     category: placetype
     label-only: true
     label: generalname
@@ -1267,21 +1293,6 @@ labels:
     position: [ right, aboveright, belowright, left, aboveleft, belowleft, above, below ]
     font-size: 1.5
     margin: 1.6
-  reserves:
-    minimum-area: 400
-    fill: "#006400"
-    fill-opacity: 0.5
-    font-weight: bold
-    font-style: normal
-    font-size: 2.5
-    letter-spacing: 0.3
-  reserves StateForest:
-    format: "%s State Forest"
-  reserves RestrictedArea:
-    fill: "#A9A9A9"
-  outline reserves:
-    stroke-width: 0.5
-    stroke-opacity: 0.5
   relative-heights:
     format: "%sr"
     font-size: 1.4
@@ -1310,5 +1321,3 @@ labels:
     font-size: 1.6
     margin: 0.7
     letter-spacing: 0.2
-
-# TODO: vegetation for Lord Howe?

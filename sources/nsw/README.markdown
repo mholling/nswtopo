@@ -66,7 +66,7 @@ Build or rebuild your map to view the resulting vegetation underlay.
 
 ## SPOT5 Vegetation
 
-A newer, far superior vegetation data set is becoming available for NSW. Known as *SPOT5 woody extent and foliage projective cover (FPC) (5-10m) 2011*, it has a much higher resolution of 5-10 metres, and further classifies the woody areas by their foliage projective cover (the fraction of green foliage) as a percentage. To obtain this data, email the contact listed [here](https://sdi.nsw.gov.au/catalog/search/resource/details.page?uuid=%7BA9A65A5C-D3F2-4879-8994-6FF855201E30%7D) with a request for the data for your map area. (As the data set is not yet completed as of January 2014, data for your area may or may not be available.)
+A newer, far superior vegetation data set is available for NSW as of mid-2015. Known as *SPOT5 woody extent and foliage projective cover (FPC) (5-10m) 2011*, it has a much higher resolution of 5-10 metres, and further classifies the woody areas by their foliage projective cover (the fraction of green foliage) as a percentage. The entire dataset is available [here](ftp://tern-auscover.science.uq.edu.au/nsw_spot_woody_extent_and_fpc/s5hgps_nsw_y20082012_bcvl0.tif). At 8.6Gb, it's a large download, but worth it if you wish to make many maps. The same FTP server also has [individual tiles](ftp://tern-auscover.science.uq.edu.au/nsw_spot_woody_extent_and_fpc/) available at more reasonable sizes (choose the `bcvm` file), but you'll need to determine which tile contains your map area.
 
 If you obtain the data, unzip it and specify its path as follows:
 
@@ -75,17 +75,15 @@ If you obtain the data, unzip it and specify its path as follows:
     - nsw/topographic
     - grid
     nsw.vegetation-spot5:
-      path: /Users/matthew/nswtopo/SPOT_woody_extent/r422c105.img
-      embed: false     # optional
+      path: /Users/matthew/nswtopo/SPOT_woody_extent/s5hgps_nsw_y20082012_bcvl0.tif
 
-Or, if you have multiple tiles of data:
+Or, if you have tiles of data:
 
     nsw.vegetation-spot5:
       path:
-      - /Users/matthew/nswtopo/SPOT_woody_extent/r422c105.img
-      - /Users/matthew/nswtopo/SPOT_woody_extent/r423c105.img
+      - /Users/matthew/nswtopo/SPOT_woody_extent/s5hgps_r422c105_y20082012_bcvm6_r5m.img
+      - /Users/matthew/nswtopo/SPOT_woody_extent/s5hgps_r423c105_y20082012_bcvm6_r5m.img
       resolution: 5.0
-      embed: false     # optional
 
 Running the script will create and composite the new `nsw.vegetation-spot5` layer in your map. By default, the vegetation layer is embedded as data within the SVG, however this can produce a large, unwieldy file when using the 5-metre data. Specify `embed: false` to link the vegetation by reference instead. (The SVG file will no longer be self-contained.)
 
@@ -93,7 +91,7 @@ Since the SPOT5 data is so detailed, you may wish to adjust its contrast to get 
 
     nsw.vegetation-spot5:
       contrast:
-        low: 30   # default is 0
-        high: 70  # default is 100
+        low: 30   # default is 10
+        high: 70  # default is 75
 
 (This would map 30% or lighter foliage to white and 70% or more to full green, effecting an increase in contrast.)

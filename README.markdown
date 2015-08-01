@@ -5,17 +5,15 @@ This software allows you to download and compile high-resolution vector topograp
 
 This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
 
-*Topographic map data is now available for the entire state of NSW.*
-
 Pre-Requisites
 ==============
 
-The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac but has also been tested on Windows and Ubuntu Linux.
+The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac but has also been tested on Windows and Linux.
 
 The following open-source packages are required in order to run the script:
 
-* The [Ruby programming language](http://ruby-lang.org). You'll need the more recent Ruby 1.9.3, not 1.8.x.
-* [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. The latest ImageMagick at time of development is version 6.7.3. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
+* The [Ruby programming language](http://ruby-lang.org). You'll need at least Ruby 1.9.3, or better yet the latest stable release (2.2.1 as oj August 2015).
+* [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. Version 1.9.x (January 2012) or later is needed.
 * [Inkscape](http://inkscape.org/) (a vector graphics editing program), if you wish to make manual edits or additions to your map.
 * A zip command utility, if you wish to produce KMZ maps.
@@ -24,10 +22,10 @@ An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also
 
 For printing, it is best to produce a [raster](http://en.wikipedia.org/wiki/Raster_graphics) image (e.g. PNG, TIFF) of your map to ensure it is printed correctly. While you can use Inkscape to produce a raster, I recommend [PhantomJS](http://phantomjs.org/) as a better alternative. [Download](http://phantomjs.org/download.html) and unzip the software in your map folder or home directory.
 
-Finally, a geographic viewing or mapping program such as [Google Earth](http://earth.google.com) or [OziExplorer](http://www.oziexplorer.com/) is very useful for easily specifying the area you wish to create a map for, and for viewing your resulting map in conjunction with GPS data.
+Finally, a geographic viewing or mapping program such as [Google Earth](http://earth.google.com) is very useful for easily specifying the area you wish to create a map for, and for viewing your resulting map in conjunction with GPS data.
 
 * _Windows_:
-  * A complete Ruby 1.9.3 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
+  * A complete Ruby 2.2.1 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
   * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php#windows) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
   * Install the GDAL utilities using the [OSGeo4W](http://trac.osgeo.org/osgeo4w/) installer. Unless you want all the software offered by the installer, use the 'advanced install' option to install only GDAL. When presented with packages to install, select 'All -> Uninstall' to deselect everything, then open 'Commandline Utilites', choose 'Install' for the gdal package (some other required packages will also be selected), and install. Subsequently you should use the 'OSGeo4w Shell' as your command line when running nswtopo.rb.
   * (Other ways of obtaining Windows GDAL utilities are listed [here](http://trac.osgeo.org/gdal/wiki/DownloadingGdalBinaries#Windows), however not all of them include GDAL 1.9.x or above, including FWTools which was formerly recommended.)
@@ -36,9 +34,9 @@ Finally, a geographic viewing or mapping program such as [Google Earth](http://e
 * _Mac OS X_:
   * ImageMagick and GDAL can obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS; follow [these instructions](http://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install gdal` and `sudo port install imagemagick +q8`
   * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software:frameworks#gdal_complete) for GDAL, and the instructions [here](http://www.imagemagick.org/script/binary-releases.php#macosx) for ImageMagick. (This may or may not be quicker/easier than installing XCode and MacPorts!)
-  * Type `ruby -v` in a terminal window to see whether a version 1.9.3 or greater Ruby already exists. If not, you can install Ruby 1.9.3 a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/). (If you are using MacPorts, `sudo port install ruby19 +nosuffix` should also work.)
+  * Type `ruby -v` in a terminal window to see whether a version 1.9.3 or greater Ruby already exists. If not, you can install Ruby a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/). (If you are using MacPorts, `sudo port install ruby22 +nosuffix` should also work.)
   * Download and install Inkscape [here](http://inkscape.org/download/), or install it using MacPorts: `sudo port install inkscape`
-* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, Inkscape and zip packages using your distro's package manager (RPM, Aptitude, etc).
+* _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, Inkscape and zip packages using your distro's package manager (Pacman, RPM, Aptitude, etc).
 
 You can check that the tools are correctly installed by using the following commands:
 
@@ -48,7 +46,7 @@ You can check that the tools are correctly installed by using the following comm
 
 You should receive version or usage information for each tool if it is installed correctly and in your path.
 
-A large amount of memory is helpful. I developed the software on a 2Gb machine but it was tight; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. You will also need a decent internet connection. The topographic download won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
+A large amount of memory is helpful; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. You will also need a decent internet connection. The topographic download won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
 
 Usage
 =====
@@ -116,7 +114,7 @@ You can ctrl-c at any point to stop the script. Files which have already downloa
 
 After all files have been downloaded, the script will then compile them into a final map image in `.svg` format. The map image is easily viewed in a modern web browser such as Chrome or Firefox, or edited in a vector imaging tool like Inkscape or Illustrator.
 
-Labelling of the map is performed locally. Depending on the size and complexity of the map, this can potentially take many minutes; have patience.
+Labelling of the map is performed locally. Depending on the size and complexity of the map, this can potentially take many minutes; have patience. (Very occasionally, a map can take an hour or more to label. I would like to improve labelling performance in the future, however it is a hard problem to solve well.)
 
 You will likely want to tinker with the configuration file to change the appearance of your final map. To rebuild your map after changing the configuration, you can simply delete `map.svg` (or whatever name you've configured) and run the script again. The map will be recreated from the intermediate files which have been downloaded. You can also add or remove layers without deleting the map; more on this later.
 
@@ -209,7 +207,7 @@ This layer marks magnetic north lines on the map, and is useful for rogaining ma
 
     declination:
       spacing: 1000           # perpendicular spacing of magnetic declination lines in metres
-      width: 0.1              # width of the marked lines on the map, in millimetres
+      stroke-width: 0.1       # width of the marked lines on the map, in millimetres
       stroke: darkred         # colour of magnetic declination lines (as a hex triplet or web colour)
       arrows: 150             # spacing in mm of directional arrows (set to 'false' for no arrows)
 
@@ -357,7 +355,7 @@ There are a few options for producing your map in PDF or any raster format (PNG,
 
 * To use PhantomJS for rasterising, specify the path of the PhantomJS binary you downloaded. e.g. for Windows:
 
-        rasterise: C:/Users/Matthew/phantomjs-1.9.2-windows/phantomjs.exe
+        rasterise: C:/Users/Matthew/phantomjs-1.9.8-windows/phantomjs.exe
 
 * To use Inkscape for rasterising:
 
@@ -408,8 +406,6 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         - boundaries.kml           # show out-of-bounds areas
         - declination              # show magnetic declination lines
         - controls                 # show controls
-        nsw.topographic:
-          exclude: reserves        # no need to show park & reserve boundaries
         boundaries:                # set style for out-of-bounds
           fill: black              # (black)
           stroke: none             # (no outline)
@@ -491,6 +487,6 @@ Release History
 * 3/7/2014: version 0.8: added RFS layers for stock dams and buildings; extracted various layer sources to external configuration files for greater flexibility; change way of specifying overlays; add ANC and water-drop icons for controls; add some SA and TAS map data sources.
   * 28/8/2014: version 0.8.1: change nsw/vegetation-2008-v2 woody vegetation colour; fix vegetation & relief rendering bug in Windows
   * 11/11/2014: version 0.8.2: add psd format output; fix bug in ArcGIS image servers; change to online source of 1-second SRTM relief data; apply median and bilateral filtering to shaded relief; fix label issues causing bad PhantomJS rasters; float vector label layers above feature layers.
-* 1/27/2015: version 1.0: major update with NSW topographic maps now available for all areas and TAS topographic and vegetation layers also available.
-  * 1/28/2015: version 1.0.1: fix 'command line is too long' bug on Windows.
-  * 2/4/2015: add features required for QLD maps; add version-checking.
+* 27/1/2015: version 1.0: major update with NSW topographic maps now available for all areas and TAS topographic and vegetation layers also available.
+  * 28/1/2015: version 1.0.1: fix 'command line is too long' bug on Windows.
+  * 1/8/2015: HEAD: add features required for QLD maps; add version-checking; add TAS map features; fix some PhantomJS rendering bugs; misc tweaks/improvements/fixes.

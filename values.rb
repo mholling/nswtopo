@@ -1,0 +1,139 @@
+#!/usr/bin/env ruby
+
+# dodgy utility for extracting attribute values from various server protocols
+require 'uri'
+require 'open-uri'
+require 'json'
+require 'net/http'
+require 'uri'
+require 'cgi'
+
+class Hash
+  def to_query
+    reject { |key, value| value.nil? }.map { |args| args.map(&:to_s).map { |text| CGI.escape text }.join ?= }.join ?&
+  end
+end
+
+def show_hierarchy(values, nn = values.transpose.length, n = nn)
+  if n == 1
+    values.each do |value, *nothing|
+      puts "   " * (nn - n) + (value.nil? || value.to_s.strip.empty? ? value.inspect : value.to_s)
+    end
+  else
+    values.group_by(&:first).each do |value, values|
+      puts "   " * (nn - n) + (value.nil? || value.to_s.strip.empty? ? value.inspect : value.to_s)
+      show_hierarchy values.map { |value, *args| args }, nn, n-1
+    end
+  end
+end
+
+def show_arcgis(url, *args, dynamic)
+  query = {
+    "f" => "json",
+    "where" => "1=0) OR (1=1",
+    "classificationDef" => {
+      "type" => "uniqueValueDef",
+      "uniqueValueFields" => [ *args ],
+      "fieldDelimiter" => ?|,
+    }.to_json
+  }
+  if dynamic
+    layer = {
+      "source" => {
+        "type" => "mapLayer",
+        "mapLayerId" => url[/\d+$/]
+      },
+      "definitionExpression" => query.delete("where")
+    }
+    url = url.sub /\d+$/, "dynamicLayer"
+    query.merge! "layer" => layer.to_json
+  end
+  open "#{url}/generateRenderer?#{query.to_query}" do |json|
+    response = JSON.parse(json.read)
+    abort response["error"]["message"] if response["error"]
+    values = response["uniqueValueInfos"].map do |info|
+      info["value"].split(?|).map do |value|
+        value && value =~ /\s*[\n\r]+|\s+$/ ? value.inspect : value
+      end
+    end.sort
+    show_hierarchy(values)
+  end
+end
+
+def show_wfs(url, name, field, *fields, values, filter)
+  uri = URI.parse url
+  query = {
+    "service" => "wfs",
+    "version" => "2.0.0",
+    "request" => "GetFeature",
+    "typeNames" => name,
+    "count" => 1,
+    "startIndex" => 0,
+    "outputFormat" => "application/json",
+  }
+  
+  filters = []
+  loop do
+    cql_filter = [ *filter, *filters ].join " AND "
+    cql_filter.empty? ? query.delete("cql_filter") : query.merge!("cql_filter" => cql_filter)
+    uri.query = query.to_query
+    post = Net::HTTP::Get.new(uri.request_uri)
+    use_ssl = uri.scheme == "https"
+    json = Net::HTTP.start(uri.host, uri.port, :use_ssl => use_ssl, :read_timeout => 600) { |http| http.request(post).body }
+    feature = JSON.parse(json)["features"][0]
+    break unless feature
+
+    value = feature["properties"][field]
+    filters << case value
+    when nil    then "(#{field} IS NOT NULL)"
+    when String then "(#{field} NOT IN ('#{value}'))"
+    else             "(#{field} NOT IN (#{value}))"
+    end
+    
+    value_filter = case value
+    when nil    then "(#{field} IS NULL)"
+    when String then "(#{field} IN ('#{value}'))"
+    else             "(#{field} IN (#{value}))"
+    end
+    
+    puts "%s%s" % [ "   " * values.length, value || "(null)" ]
+    if fields.any?
+      show_wfs(url, name, *fields, [ *values, value ], [ *filter, value_filter ].join(" AND "))
+    end
+  end
+end
+
+
+def show_shapefile(dir, layer, attribute, *attributes, values, where, stats)
+  where_clause = %Q[where #{where}] if where
+  %x[ogrinfo -sql "select distinct #{attribute} from #{layer} #{where_clause} order by #{attribute}" "#{dir}"].scan(%r[#{attribute} \(\w*\) = (.*)]).map(&:first).each do |value|
+    predicate = [ *where, value == "(null)" ? "(#{attribute} IS NULL)" : "(#{attribute} = '#{value}')" ].join(" AND ")
+    if stats
+      count = %x[ogrinfo -sql "select #{attribute} from #{layer} where #{predicate} order by #{attribute}" "#{dir}"].match(/^Feature Count: (\d+)$/)[1]
+      puts "%8s: %s%s" % [ count, "   " * values.length, value ]
+    else
+      puts "%s%s" % [ "   " * values.length, value ]
+    end
+    if attributes.any?
+      show_shapefile dir, layer, *attributes, [ value, *values ], predicate, stats
+    end
+  end
+end
+
+# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/TopographyAndRelief/MapServer"
+# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/CadastreAndAdministrative/MapServer"
+# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/SearchService/MapServer"
+# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/PlacenamePoints/MapServer"
+# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/NaturalEnvironment/MapServer"
+# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/SearchService/MapServer"
+# url = "http://qtopo.dnrm.qld.gov.au/sl_proxy/proxy.ashx?http://sirgis7:6080/arcgis/rest/services/QTopo/QTopo_WebM/MapServer"
+
+dynamic = ARGV.delete "dynamic"
+stats   = ARGV.delete "stats"
+
+case
+when ARGV[0] =~ /rest\/services/ then show_arcgis(*ARGV, dynamic)
+when ARGV[0] =~ /wfs/i then show_wfs(*ARGV, [], nil)
+when ARGV[2] then show_shapefile(*ARGV, [], nil, stats)
+else puts %x[ogrinfo -so "#{ARGV[0]}" #{ARGV[1]}]
+end

@@ -1,3 +1,4 @@
+min-version: '1.1'
 class: ArcGISRaster
 host: maps.six.nsw.gov.au
 folder: sixmaps

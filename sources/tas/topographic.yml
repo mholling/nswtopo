@@ -1,3 +1,4 @@
+min-version: '1.1'
 class: ArcGISVector
 local-reprojection: true
 sources:

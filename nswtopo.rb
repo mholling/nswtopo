@@ -1028,7 +1028,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "width"  => "#{millimetres[0]}mm",
           "height" => "#{millimetres[1]}mm",
           "viewBox" => "0 0 #{millimetres[0]} #{millimetres[1]}",
-          "enable-background" => "new 0 0 #{millimetres[0]} #{millimetres[1]}",
         }
         xml.add_element("svg", attributes) do |svg|
           svg.add_element("sodipodi:namedview", "borderlayer" => true)
@@ -1133,7 +1132,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class Source
-    SVG_PRESENTATION_ATTRIBUTES = %w[alignment-baseline baseline-shift clip-path clip-rule clip color-interpolation-filters color-interpolation color-profile color-rendering color cursor direction display dominant-baseline enable-background fill-opacity fill-rule fill filter flood-color flood-opacity font-family font-size-adjust font-size font-stretch font-style font-variant font-weight glyph-orientation-horizontal glyph-orientation-vertical image-rendering kerning letter-spacing lighting-color marker-end marker-mid marker-start mask opacity overflow pointer-events shape-rendering stop-color stop-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-anchor text-decoration text-rendering unicode-bidi visibility word-spacing writing-mode]
+    SVG_PRESENTATION_ATTRIBUTES = %w[alignment-baseline baseline-shift clip-path clip-rule clip color-interpolation-filters color-interpolation color-profile color-rendering color cursor direction display dominant-baseline fill-opacity fill-rule fill filter flood-color flood-opacity font-family font-size-adjust font-size font-stretch font-style font-variant font-weight glyph-orientation-horizontal glyph-orientation-vertical image-rendering kerning letter-spacing lighting-color marker-end marker-mid marker-start mask opacity overflow pointer-events shape-rendering stop-color stop-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-anchor text-decoration text-rendering unicode-bidi visibility word-spacing writing-mode]
     
     def initialize(name, params)
       @name = name
@@ -3068,25 +3067,32 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
         %x[convert "#{square_png_path}" -crop #{dimensions.join ?x}+0+0 +repage "#{png_path}"]
       when /phantomjs/i
-        js_path = temp_dir + "rasterise.js"
-        test_path = temp_dir + "test.svg"
+        js_path   = temp_dir + "rasterise.js"
+        page_path = temp_dir + "rasterise.svg"
+        out_path  = temp_dir + "rasterise.png"
+        File.write js_path, %Q[
+          var page = require('webpage').create();
+          page.viewportSize = { width: 1, height: 1 };
+          page.open('#{page_path}', function(status) {
+              page.render('#{out_path}');
+              phantom.exit();
+          });
+        ]
         test = REXML::Document.new
         test.add_element("svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg", "width"  => "1in", "height" => "1in")
-        test_path.open("w") { |file| test.write file }
-        [ test_path, svg_path.to_s.gsub(?', "\\\\\'") ].inject(1.0) do |zoom, page_path|
-          File.write js_path, %Q[
-            var page = require('webpage').create();
-            page.zoomFactor = #{zoom};
-            page.viewportSize = { width: 1, height: 1 };
-            page.open('#{page_path}', function(status) {
-                page.render('#{png_path.to_s.gsub(?', "\\\\\'")}');
-                phantom.exit();
-            });
-          ]
-          %x["#{rasterise}" "#{js_path}"]
-          screen_ppi = %x[identify -format "%w" "#{png_path}"].to_i
-          ppi.to_f / screen_ppi
+        page_path.open("w") { |file| test.write file }
+        %x["#{rasterise}" "#{js_path}"]
+        screen_ppi = %x[identify -format "%w" "#{out_path}"].to_f
+        xml = REXML::Document.new(svg_path.read)
+        svg = xml.elements["/svg"]
+        %w[width height].each do |name|
+          attribute = svg.attributes[name]
+          svg.attributes[name] = attribute.sub /\d+(\.\d+)?/, (attribute.to_f * ppi / screen_ppi).to_s
         end
+        page_path.open("w") { |file| xml.write file }
+        %x["#{rasterise}" "#{js_path}"]
+        # TODO: crop to exact size
+        FileUtils.cp out_path, png_path
       else
         abort("Error: specify either phantomjs, inkscape or qlmanage as your rasterise method (see README).")
       end

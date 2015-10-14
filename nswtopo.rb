@@ -592,6 +592,10 @@ class String
       lines.map(&:length).max
     end || [ dup ]
   end
+  
+  def to_category
+    gsub(/^\W+|\W+$/, '').gsub(/\W+/, ?-)
+  end
 end
 
 module NSWTopo
@@ -1990,7 +1994,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             next if data.empty?
             categories = substitutions.map do |name, substitutes|
               value = attributes.fetch(name, name)
-              substitutes.fetch(value, value).to_s.gsub(/^\W+|\W+$/, '').gsub(/\W+/, ?-)
+              substitutes.fetch(value, value).to_s.to_category
             end
             case attributes[options["rotate"]]
             when nil, 0, "0"
@@ -2526,7 +2530,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         gps.send(feature).each do |list, name|
           points = map.coords_to_mm map.reproject_from_wgs84(list)
           d = points.to_path_data MM_DECIMAL_DIGITS, *close
-          group.add_element "g", "class" => name.gsub(/\W+/, ?-) do |group|
+          group.add_element "g", "class" => name.to_category do |group|
             group.add_element "path", attributes.merge("d" => d)
           end
         end

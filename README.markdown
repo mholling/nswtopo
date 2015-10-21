@@ -253,9 +253,9 @@ It is possible to manually reorder layers using Inkscape. The new layer order is
 Overlays
 ========
 
-You can add overlays to your map for representing areas (polygons) and tracks (paths). For rogaine maps, you can use this feature to mark out-of-bounds areas on your map, as well as to add extra tracks which are not shown on the topographic map.
+You can add overlays to your map for representing areas (polygons), tracks (paths) and waypoints. For rogaine maps, you can use this feature to mark out-of-bounds areas on your map, as well as to add extra tracks which are not shown on the topographic map.
 
-The simplest way to create overlays is to use Google Earth or equivalent software. Mark out the out-of-bounds area or areas using the polygon tool, then save these areas to a KML file (e.g. `boundaries.kml`). Similarly, trace out additional unmarked tracks using the path tool, and save them as KML (e.g. `tracks.kml`).
+The simplest way to create overlays is to use Google Earth or equivalent software. Mark out the out-of-bounds area or areas using the polygon tool, then save these areas to a KML file (e.g. `boundaries.kml`). Similarly, trace out additional unmarked tracks using the path tool, add waypoints with the placemark tool, and save them as KML (e.g. `tracks.kml`).
 
 In your configuration file, add your overlay file in the list of included layers, as in the following example:
 
@@ -264,6 +264,7 @@ In your configuration file, add your overlay file in the list of included layers
     - relief
     - boundaries.kml
     - tracks.kml
+    - waypoints.kml
     - grid
 
 This will cause new layers titled `boundaries` and `tracks` to be added to the map. Note the layer ordering, which places the overlays above the topographic layer but below the grid, as you would expect.)
@@ -278,6 +279,30 @@ Specify the colour, width and/or opacity of the overlays as follows:
       stroke: red           # mark tracks in red...
       stroke-width: 0.2     # ...with a width of 0.2mm
       dash: 4 2             # add a 4mm/2mm dash to the track, if desired
+
+For waypoints, specify a symbol using a [path](http://www.w3.org/TR/SVG/paths.html#PathElement):
+
+    waypoints:
+      symbol:
+        path:
+          stroke: black      # draw shape in black...
+          stroke-width: 0.5  # ...with 0.5mm lines...
+          fill: none         # .. and no fill
+          d: M -4 -3.5 L 4 3.5 L 4 -3.5 L -4 3.5 Z
+
+For each type of overlay (area, track or waypoint), multiple styles can be applied by name:
+
+    tracks:
+      day1:       # applied to track with name 'day1'
+        ...
+      day2:       # applied to track with name 'day2'
+        ...
+    waypoints:
+      symbols:
+        fishing:  # applied to waypoints with name 'fishing'
+          ...
+        camping:  # applied to waypoints with name 'camping'
+          ...
 
 Build or rebuild your map by running the script to add the overlays.
 

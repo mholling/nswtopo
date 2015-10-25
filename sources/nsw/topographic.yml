@@ -252,20 +252,11 @@ features:
     name: Road Name Extent
     where:
     - operationalstatus NOT IN (3,8)
-    - functionhierarchy NOT IN (6,7,10,11)
+    - functionhierarchy NOT IN (7,10,11)
+    - functionhierarchy NOT IN (6) OR relevance < 6
     - roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%'
     - roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
-    category: functionhierarchy
-    label-only: true
-    label: roadnamestring
-    per-page: 100
-  - source: guras
-    name: Road Name Extent
-    where:
-    - operationalstatus NOT IN (3,8)
-    - functionhierarchy IN (6)
     - roadnameoid IS NOT NULL
-    - relevance < 6
     category: functionhierarchy
     label-only: true
     label: roadnamestring

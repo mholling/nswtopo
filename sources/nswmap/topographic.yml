@@ -5,6 +5,10 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: LPIMap
+  lpimaplocal:
+    host: mapsq.six.nsw.gov.au
+    folder: sixmaps
+    service: LPIMapLocal
   plan_section_lot:
     host: maps.six.nsw.gov.au
     folder: sixmaps
@@ -279,6 +283,9 @@ features:
     label-only: true
     label: roadnamestring
     per-page: 100
+  - fallback: true
+    source: lpimaplocal
+    name: LS_RoadNameExtent_Labels
   railways:
     name: Railway_onground_LS
     where: operationalstatus NOT IN (3,8)

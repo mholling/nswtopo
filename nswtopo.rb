@@ -1972,51 +1972,64 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.map do |sublayer, options_array|
         $stdout << "  #{sublayer}"
         features = []
-        options_array.each do |options|
-          substitutions = [ *options.delete("category") ].map do |category_or_hash, hash|
-            case category_or_hash
-            when Hash then category_or_hash
-            else { category_or_hash => hash || {} }
-            end
-          end.inject({}, &:merge)
-          options["category"] = substitutions.keys
-          source = sources[options["source"] || sources.keys.first]
-          case source["protocol"]
-          when "arcgis"     then    arcgis_features(map, source, options)
-          when "wfs"        then       wfs_features(map, source, options)
-          when "shapefile"  then shapefile_features(map, source, options)
-          end.each do |dimension, data, attributes|
-            case dimension
-            when 0 then data.clip_points! feature_hull
-            when 1 then data.clip_lines!  feature_hull
-            when 2 then data.clip_polys!  feature_hull
-            end
-            next if data.empty?
-            categories = substitutions.map do |name, substitutes|
-              value = attributes.fetch(name, name)
-              substitutes.fetch(value, value).to_s.to_category
-            end
-            case attributes[options["rotate"]]
-            when nil, 0, "0"
-              categories << "no-angle"
-            else
-              categories << "angle"
-              angle = case options["rotation-style"]
-              when "arithmetic" then      attributes[options["rotate"]].to_f
-              when "geographic" then 90 - attributes[options["rotate"]].to_f
-              else                   90 - attributes[options["rotate"]].to_f
+        options_array.inject([]) do |memo, options|
+          memo << [] unless memo.any? && options.delete("fallback")
+          memo.last << (memo.last.last || {}).merge(options)
+          memo
+        end.each do |fallbacks|
+          fallbacks.inject(nil) do |error, options|
+            substitutions = [ *options.delete("category") ].map do |category_or_hash, hash|
+              case category_or_hash
+              when Hash then category_or_hash
+              else { category_or_hash => hash || {} }
               end
-            end if options["rotate"]
-            features << { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
-              feature["label-only"] = options["label-only"] if options["label-only"]
-              feature["angle"] = angle if angle
-              [ *options["label"] ].map do |key|
-                attributes.fetch(key, key)
-              end.tap do |labels|
-                feature["labels"] = labels unless labels.map(&:to_s).all?(&:empty?)
+            end.inject({}, &:merge)
+            options["category"] = substitutions.keys
+            source = sources[options["source"] || sources.keys.first]
+            begin
+              case source["protocol"]
+              when "arcgis"     then    arcgis_features(map, source, options)
+              when "wfs"        then       wfs_features(map, source, options)
+              when "shapefile"  then shapefile_features(map, source, options)
               end
+            rescue InternetError, ServerError => error
+              next error
+            end.each do |dimension, data, attributes|
+              case dimension
+              when 0 then data.clip_points! feature_hull
+              when 1 then data.clip_lines!  feature_hull
+              when 2 then data.clip_polys!  feature_hull
+              end
+              next if data.empty?
+              categories = substitutions.map do |name, substitutes|
+                value = attributes.fetch(name, name)
+                substitutes.fetch(value, value).to_s.to_category
+              end
+              case attributes[options["rotate"]]
+              when nil, 0, "0"
+                categories << "no-angle"
+              else
+                categories << "angle"
+                angle = case options["rotation-style"]
+                when "arithmetic" then      attributes[options["rotate"]].to_f
+                when "geographic" then 90 - attributes[options["rotate"]].to_f
+                else                   90 - attributes[options["rotate"]].to_f
+                end
+              end if options["rotate"]
+              features << { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
+                feature["label-only"] = options["label-only"] if options["label-only"]
+                feature["angle"] = angle if angle
+                [ *options["label"] ].map do |key|
+                  attributes.fetch(key, key)
+                end.tap do |labels|
+                  feature["labels"] = labels unless labels.map(&:to_s).all?(&:empty?)
+                end
+              end
+              $stdout << "\r  #{sublayer} (#{features.length} feature#{?s unless features.one?})"
             end
-            $stdout << "\r  #{sublayer} (#{features.length} feature#{?s unless features.one?})"
+            break nil
+          end.tap do |error|
+            raise error if error
           end
         end
         puts

@@ -2555,7 +2555,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         coords = map.reproject_from_wgs84(coords_names.transpose.first)
         group.add_element("g", "class" => category) do |category_group|
           map.coords_to_mm(coords).round(MM_DECIMAL_DIGITS).each do |x, y|
-            transform = "translate(#{x} #{y}) rotate(#{map.rotation})"
+            transform = "translate(#{x} #{y}) rotate(#{-map.rotation})"
             category_group.add_element "use", "transform" => transform
           end
         end

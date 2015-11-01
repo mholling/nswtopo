@@ -66,7 +66,7 @@ Build or rebuild your map to view the resulting vegetation underlay.
 
 ## SPOT5 Vegetation
 
-A newer, far superior vegetation data set is available for NSW as of mid-2015. Known as *SPOT5 woody extent and foliage projective cover (FPC) (5-10m) 2011*, it has a much higher resolution of 5-10 metres, and further classifies the woody areas by their foliage projective cover (the fraction of green foliage) as a percentage. The entire dataset is available [here](ftp://tern-auscover.science.uq.edu.au/nsw_spot_woody_extent_and_fpc/s5hgps_nsw_y20082012_bcvl0.tif). At 8.6Gb, it's a large download, but worth it if you wish to make many maps. The same FTP server also has [individual tiles](ftp://tern-auscover.science.uq.edu.au/nsw_spot_woody_extent_and_fpc/) available at more reasonable sizes (choose the `bcvm` file), but you'll need to determine which tile contains your map area.
+A newer, far superior vegetation data set is available for NSW as of mid-2015. Known as *SPOT5 woody extent and foliage projective cover (FPC) (5-10m) 2011*, it has a much higher resolution of 5-10 metres, and further classifies the woody areas by their foliage projective cover (the fraction of green foliage) as a percentage. The entire dataset is available at [`ftp://tern-auscover.science.uq.edu.au/nsw_spot_woody_extent_and_fpc/s5hgps_nsw_y20082012_bcvl0.tif`](ftp://tern-auscover.science.uq.edu.au/nsw_spot_woody_extent_and_fpc/s5hgps_nsw_y20082012_bcvl0.tif). At 8.6Gb, it's a large download, but worth it if you wish to make many maps. The same FTP server also has individual tiles available at more reasonable sizes (choose the `bcvm` file), but you'll need to determine which tile contains your map area.
 
 If you obtain the data, unzip it and specify its path as follows:
 

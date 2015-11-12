@@ -1446,7 +1446,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
         WorldFile.write topleft, tile_resolution, 0, Pathname.new("#{tile_path}w")
       end.map(&:last).join(?\n).tap do |path_list|
-        src_path.write path_list
+        File.write src_path, path_list
         %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"] unless path_list.empty?
       end
 
@@ -1641,7 +1641,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             topleft = [ tile_bounds.first.first, tile_bounds.last.last ]
             WorldFile.write topleft, resolution, 0, Pathname.new("#{tile_path}w")
           end.map(&:last).join(?\n).tap do |path_list|
-            src_path.write path_list
+            File.write src_path, path_list
           end
           %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
           %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
@@ -2153,7 +2153,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end.map(&:last)
       end.join(?\n).tap do |path_list|
-        src_path.write path_list
+        File.write src_path, path_list
       end
       %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
       
@@ -2214,7 +2214,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end.inject([], &:+).map(&:expand_path).tap do |paths|
         raise BadLayerError.new("no vegetation data file specified") if paths.empty?
       end.join(?\n).tap do |path_list|
-        src_path.write path_list
+        File.write src_path, path_list
       end
       %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
       

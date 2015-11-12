@@ -2224,7 +2224,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       low, high, factor = { "low" => 0, "high" => 100, "factor" => 0.0 }.merge(params["contrast"] || {}).values_at("low", "high", "factor")
       %x[convert -size 1x256 canvas:black "#{clut_path}"]
-      fx = params["mapping"].map do |key, value|
+      params["mapping"].map do |key, value|
         "j==#{key} ? %.5f : u" % (value < low ? 0.0 : value > high ? 1.0 : (value - low).to_f / (high - low))
       end.each do |fx|
         %x[mogrify -fx "#{fx}" "#{clut_path}"]

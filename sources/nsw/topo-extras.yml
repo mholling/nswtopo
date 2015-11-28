@@ -1,26 +1,46 @@
-min-version: '1.1'
+min-version: '1.1.3'
 class: ArcGISVector
 sources:
-  old-topo:
+  edmark:
     host: imagery.maps.nsw.gov.au
-    service: topo
+    service: edmark
     local-reprojection: true
     page-by: objectid
+  oeh-basemap-2:
+    host: appmapdata.environment.nsw.gov.au
+    folder: OEH
+    service: OEHBasemap2
+    local-reprojection: true
+    page-by: OBJECTID
+  oeh-dekho-basemap:
+    host: appmapdata.environment.nsw.gov.au
+    folder: Dekho_Maps
+    service: Basemap_C
+    local-reprojection: true
+    page-by: OBJECTID
 features:
   utility-canals:
-    source: old-topo
-    name: UtilityWaterSupplyCanal
-    where: posreltoground NOT IN (2)
-    label: generalname
+  - source: oeh-basemap-2
+    name: Utility Water Supply Canal
+    where: PosRelToGround NOT IN (2)
+    label: GeneralName
+  - source: oeh-dekho-basemap
+    fallback: true
   pipelines:
-    source: old-topo
-    name: Pipeline
+  - source: oeh-basemap-2
+    name: Pipe Line
     where:
-    - posreltoground NOT IN (2)
-    - generalname IN ('BENDEELA PIPELINE','CHICHESTER PIPELINE','KANGAROO PIPELINE','MURRAY 1 PRESSURE PIPELINE','MURRAY 2 PRESSURE PIPELINE','WARRAGAMBA PROSPECT PIPELINE','SYDNEY WATER SUPPLY')
-    label: generalname
-  transmission-lines: ElectricityTransmissionLine
-  cableways: Cableway
+    - PosRelToGround NOT IN (2)
+    - GeneralName IN ('BENDEELA PIPELINE','CHICHESTER PIPELINE','KANGAROO PIPELINE','MURRAY 1 PRESSURE PIPELINE','MURRAY 2 PRESSURE PIPELINE','WARRAGAMBA PROSPECT PIPELINE','SYDNEY WATER SUPPLY')
+    label: GeneralName
+  - source: oeh-dekho-basemap
+    fallback: true
+  transmission-lines:
+  - source: edmark
+    name: ElectricityTransmissionLine
+  - source: oeh-basemap-2
+    name: Topo.SDE.ElectricityTransmissionLine
+    fallback: true
 utility-canals:
   stroke: "#4985DF"
   stroke-width: 0.2

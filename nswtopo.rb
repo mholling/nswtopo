@@ -1707,7 +1707,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       if params["local-reprojection"] || source["local-reprojection"] || options["local-reprojection"]
         wkt  = service["spatialReference"]["wkt"]
         wkid = service["spatialReference"]["latestWkid"] || service["spatialReference"]["wkid"]
-        projection = Projection.new wkt ? wkt.gsub(?", '\"') : "epsg:#{wkid == 102100 ? 3857 : wkid}"
+        projection = Projection.new wkt ? "ESRI::#{wkt}".gsub(?", '\"') : "epsg:#{wkid == 102100 ? 3857 : wkid}"
         geometry = { "rings" => [ map.projection.reproject_to(projection, ring) ] }.to_json
       else
         sr = { "wkt" => map.projection.wkt_esri }.to_json

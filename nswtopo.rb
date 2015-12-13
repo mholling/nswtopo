@@ -1019,7 +1019,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       millimetres = @extents.map { |extent| 1000.0 * extent / @scale }
       REXML::Document.new.tap do |xml|
         xml << REXML::XMLDecl.new(1.0, "utf-8")
-        xml << REXML::DocType.new("svg", %Q[PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"])
         attributes = {
           "version" => 1.1,
           "baseProfile" => "full",
@@ -3111,6 +3110,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           });
         ]
         test = REXML::Document.new
+        test << REXML::XMLDecl.new(1.0, "utf-8")
         test.add_element("svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg", "width"  => "1in", "height" => "1in")
         page_path.open("w") { |file| test.write file }
         %x["#{rasterise}" "#{js_path}"]
@@ -3516,7 +3516,7 @@ controls:
         
         formatter = REXML::Formatters::Pretty.new
         formatter.compact = true
-        formatter.write xml.root, file
+        formatter.write xml, file
       end
       FileUtils.cp tmp_svg_path, svg_path
     end if updates.any? || removals.any?

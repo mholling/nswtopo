@@ -1942,6 +1942,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           source["headers"]["Cookie"] = cookie
         end
         source["url"] ||= (source["https"] ? URI::HTTPS : URI::HTTP).build(:host => source["host"]).to_s
+        source["headers"]["Referer"] ||= source["url"]
         { name => source }
       end.inject(&:merge)
       

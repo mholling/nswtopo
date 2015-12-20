@@ -1720,13 +1720,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       uri = URI.parse "#{url}/#{layer_id}?f=json"
       max_record_count, fields, types, type_id_field, min_scale, max_scale = ArcGIS.get_json(uri, source["headers"]).values_at *%w[maxRecordCount fields types typeIdField minScale maxScale]
       fields = fields.map { |field| { field["name"] => field } }.inject({}, &:merge)
+      oid_field_name = fields.values.find { |field| field["type"] == "esriFieldTypeOID" }.fetch("name", nil)
       names = fields.map { |name, field| { field["alias"] => name } }.inject({}, &:merge)
       types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
       type_field_name = type_id_field && fields.values.find { |field| field["alias"] == type_id_field }.fetch("name")
       pages = Enumerator.new do |yielder|
         if options["definition"] && !service["supportsDynamicLayers"]
           uri = URI.parse "#{url}/identify"
-          index_attribute = options["page-by"] || source["page-by"] || "OBJECTID"
+          index_attribute = options["page-by"] || source["page-by"] || oid_field_name || "OBJECTID"
           scale = options["scale"]
           scale ||= max_scale.zero? ? min_scale.zero? ? map.scale : 2 * min_scale : (min_scale + max_scale) / 2
           pixels = map.wgs84_bounds.map do |bound|
@@ -1792,7 +1793,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           query = base_query.merge(geometry_query).merge("returnIdsOnly" => true)
           query["inSR"] = sr if sr
           query["where"] = where if where
-          field_names = [ *type_field_name, *options["category"], *options["rotate"], *options["label"] ] & fields.keys
+          field_names = [ *oid_field_name, *type_field_name, *options["category"], *options["rotate"], *options["label"] ] & fields.keys
           ArcGIS.post_json(uri, query.to_query, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
             query = base_query.merge("objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,))
             query["outSR"] = sr if sr

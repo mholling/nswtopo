@@ -48,7 +48,7 @@ def show_arcgis(url, *args, dynamic)
     url = url.sub /\d+$/, "dynamicLayer"
     query.merge! "layer" => layer.to_json
   end
-  open "#{url}/generateRenderer?#{query.to_query}" do |json|
+  open "#{url}/generateRenderer?#{query.to_query}", "Referer" => url do |json|
     response = JSON.parse(json.read)
     abort response["error"]["message"] if response["error"]
     values = response["uniqueValueInfos"].map do |info|

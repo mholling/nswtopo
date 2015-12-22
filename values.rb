@@ -50,7 +50,7 @@ def show_arcgis(url, *args, dynamic)
   end
   open "#{url}/generateRenderer?#{query.to_query}", "Referer" => url do |json|
     response = JSON.parse(json.read)
-    abort response["error"]["message"] if response["error"]
+    abort [ response["error"]["message"], *response["error"]["details"] ].join(?\n) if response["error"]
     values = response["uniqueValueInfos"].map do |info|
       info["value"].split(?|).map do |value|
         value && value =~ /\s*[\n\r]+|\s+$/ ? value.inspect : value
@@ -132,7 +132,7 @@ dynamic = ARGV.delete "dynamic"
 stats   = ARGV.delete "stats"
 
 case
-when ARGV[0] =~ /rest\/services/ then show_arcgis(*ARGV, dynamic)
+when ARGV[0] =~ /\/services\/.*\/MapServer/ then show_arcgis(*ARGV, dynamic)
 when ARGV[0] =~ /wfs/i then show_wfs(*ARGV, [], nil)
 when ARGV[2] then show_shapefile(*ARGV, [], nil, stats)
 else puts %x[ogrinfo -so "#{ARGV[0]}" #{ARGV[1]}]

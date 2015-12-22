@@ -1699,7 +1699,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def arcgis_features(map, source, options)
       options["definition"] ||= "1 = 1" if options.delete "redefine"
-      url = [ source["url"], source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ].join(?/)
+      url = if URI.parse(source["url"]).path.split(?/).any?
+        source["url"]
+      else
+        [ source["url"], source["instance"] || "arcgis", "rest", "services", *source["folder"], source["service"], source["type"] || "MapServer" ].join(?/)
+      end
       uri = URI.parse "#{url}?f=json"
       service = ArcGIS.get_json uri, source["headers"]
       ring = (map.coord_corners << map.coord_corners.first).reverse

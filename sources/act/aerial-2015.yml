@@ -3,7 +3,7 @@ class: ArcGISRaster
 host: data.actmapi.act.gov.au
 instance: arcgis
 folder: actmapi
-service: imagery2012mga
+service: imagery2015mga
 ext: jpg
 image: true
 resolution: 1.0

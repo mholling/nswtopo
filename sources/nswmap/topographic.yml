@@ -22,9 +22,9 @@ sources:
     folder: sixmaps
     service: Hydrography
   act-basic:
-    host: actmapi.act.gov.au
-    instance: actmapi
-    folder: mga
+    host: data.actmapi.act.gov.au
+    instance: arcgis
+    folder: actmapi
     service: basic
   guras:
     host: atlas.nsw.gov.au

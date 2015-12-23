@@ -519,4 +519,4 @@ Release History
   * 13/11/2015: version 1.1.2: bugfixes for Windows and Ruby 1.9
   * 29/11/2015: version 1.1.3: bugfix for lambert conformal conic services
   * 13/12/2015: version 1.1.4: bugfix for Windows PhantomJS output
-  * 15/12/2015: HEAD: add template for NSW map sheets
+  * 23/12/2015: HEAD: add template for NSW map sheets; update ACT server details

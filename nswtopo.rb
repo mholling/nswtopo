@@ -723,6 +723,11 @@ rotation: 0
             name = track.elements["./name"]
             yielder << [ list, name ? name.text : "" ]
           end
+          @xml.elements.each "/kml//Placemark//gx:Track" do |track|
+            list = track.elements.collect("./gx:coord") { |coord| coord.text.split(?\s).take(2).map(&:to_f) }
+            name = track.elements["ancestor::/Placemark[1]"].elements["name"]
+            yielder << [ list, name ? name.text : "" ]
+          end
         end
       end
       

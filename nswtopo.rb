@@ -1948,8 +1948,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       sources = params["sources"].map do |name, source|
         source["headers"] ||= {}
         if source["cookie"]
-          cookie = HTTP.head(URI.parse source["cookie"]) { |response| response["Set-Cookie"] }
-          source["headers"]["Cookie"] = cookie
+          cookies = HTTP.head(URI.parse source["cookie"]) do |response|
+            response.get_fields('Set-Cookie').map { |string| string.split(?;).first }
+          end
+          source["headers"]["Cookie"] = cookies.join("; ") if cookies.any?
         end
         source["url"] ||= (source["https"] ? URI::HTTPS : URI::HTTP).build(:host => source["host"]).to_s
         source["headers"]["Referer"] ||= source["url"]

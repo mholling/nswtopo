@@ -1955,6 +1955,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
         source["url"] ||= (source["https"] ? URI::HTTPS : URI::HTTP).build(:host => source["host"]).to_s
         source["headers"]["Referer"] ||= source["url"]
+        source["headers"]["User-Agent"] ||= "Ruby/#{RUBY_VERSION}"
         { name => source }
       end.inject(&:merge)
       

@@ -319,6 +319,10 @@ class Array
     [ -self[1], self[0] ]
   end
   
+  def cross(other)
+    perp.dot other
+  end
+  
   def perps
     ring.map(&:difference).map(&:perp)
   end
@@ -451,26 +455,26 @@ class Array
     end.inject(hull) do |memo, p3|
       while memo.many? do
         p1, p2 = memo.last(2)
-        (p3.minus p1).perp.dot(p2.minus p1) >= 0 ? memo.pop : break
+        (p3.minus p1).cross(p2.minus p1) < 0 ? break : memo.pop
       end
       memo << p3
     end
   end
   
   def signed_area
-    0.5 * ring.map { |p1, p2| p1.perp.dot p2 }.inject(&:+)
+    0.5 * ring.map { |p1, p2| p1.cross p2 }.inject(&:+)
   end
   
   def centroid
     ring.map do |p1, p2|
-      p1.plus(p2).times(p1.perp.dot(p2))
+      (p1.plus p2).times(p1.cross p2)
     end.inject(&:plus).times(1.0 / 6.0 / signed_area)
   end
   
   def smooth(arc_limit, iterations)
     iterations.times.inject(self) do |points|
-      points.segments.segments.chunk do |segment1, segment2|
-        segment1.difference.perp.dot(segment2.difference) > 0
+      points.segments.segments.chunk do |segments|
+        segments.map(&:difference).inject(&:cross) > 0
       end.map do |leftwards, pairs|
         arc_length = pairs.map(&:first).map(&:distance).inject(&:+)
         pairs.map do |segment1, segment2|

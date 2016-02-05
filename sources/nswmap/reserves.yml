@@ -31,10 +31,15 @@ features:
     category: classsubtype
     label: generalname
   - source: geoscience-australia
-    name: Reserves_Land
-    where:
-    - FEATURETYPE IN ('Nature Conservation Reserve','Forestry Reserve')
-    - AUTHORITY IN ('ACT Parks and Conservation Service') OR NAME IN ('KOWEN FOREST','STROMLO STATE FOREST','INGLEDENE STATE FOREST','GIBRALTAR CREEK FOREST','PIERCES CREEK STATE FOREST','URIARRA STATE FOREST')
+    name: Nature_Conservation_Reserves_Land
+    where: AUTHORITY IN ('ACT Parks and Conservation Service')
+    label: NAME
+    category:
+    - ACT
+    - FEATURETYPE
+  - source: geoscience-australia
+    name: Forestry_Reserves
+    where: NAME IN ('KOWEN FOREST','STROMLO STATE FOREST','INGLEDENE STATE FOREST','GIBRALTAR CREEK FOREST','PIERCES CREEK STATE FOREST','URIARRA STATE FOREST')
     label: NAME
     category:
     - ACT

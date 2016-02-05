@@ -22,7 +22,7 @@ sources:
     host: www.ga.gov.au
     instance: gis
     folder: topography
-    service: Australian_Topography
+    service: Australian_Topography_WM
 features:
   urban-areas:
     source: cadastre-administrative

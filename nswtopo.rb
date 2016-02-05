@@ -3135,6 +3135,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           attribute = svg.attributes[name]
           svg.attributes[name] = attribute.sub /\d+(\.\d+)?/, (attribute.to_f * ppi / screen_ppi).to_s
         end
+        xml.elements.each("//image[@xlink:href]") do |image|
+          next if image.attributes["xlink:href"] =~ /^data:/
+          image.attributes["xlink:href"] = Pathname.pwd + image.attributes["xlink:href"]
+        end
         page_path.open("w") { |file| xml.write file }
         %x["#{rasterise}" "#{js_path}"]
         # TODO: crop to exact size

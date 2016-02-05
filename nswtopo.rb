@@ -27,6 +27,7 @@ require 'rbconfig'
 require 'json'
 require 'base64'
 require 'open-uri'
+require 'set'
 
 # %w[uri net/http rexml/document rexml/formatters/pretty tmpdir yaml fileutils pathname rbconfig json base64 open-uri].each { |file| require file }
 
@@ -215,7 +216,186 @@ class AVLTree
   end
 end
 
+module StraightSkeleton
+  module Node
+    attr_reader :point, :time, :neighbours, :edges, :heading
+    
+    def remove!
+      @active.delete self
+    end
+    
+    def active?
+      @active.include? self
+    end
+    
+    def directions
+      @directions ||= @edges.map do |edge|
+        edge.map(&:point).difference.normalised.perp
+      end
+    end
+    
+    def heading
+      @heading ||= directions.inject(&:plus).normalised
+    end
+    
+    def speed
+      @speed ||= 1.0 / directions[1].dot(heading)
+    end
+    
+    def edge
+      [ self, @neighbours[1] ]
+    end
+    
+    def collapses
+      @neighbours.map.with_index do |neighbour, index|
+        cos = neighbour.heading.dot heading
+        next if cos*cos == 1.0
+        distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
+        next if distance < 0
+        Collapse.new @active, @candidates, heading.times(distance).plus(@point), @time + distance / speed, [ neighbour, self ].rotate(index)
+      end.compact.sort.take(1)
+    end
+  end
+  
+  module InteriorNode
+    include Node
+    
+    def <=>(other)
+      @time <=> other.time
+    end
+    
+    def insert!
+      @edges = [ @neighbours[0].edges[1], @neighbours[1].edges[0] ]
+      @neighbours[0].neighbours[1] = @neighbours[1].neighbours[0] = self
+      @active << self
+      [ self, *@neighbours ].map(&:collapses).flatten.each do |candidate|
+        @candidates << candidate
+      end
+    end
+    
+    def process
+      return unless viable?
+      removals do |node|
+        node.remove!
+        yield [ node.point, @point ]
+      end
+    end
+  end
+  
+  class Vertex
+    include Node
+    
+    def initialize(active, candidates, point)
+      @neighbours, @active, @candidates, @point, @time = [ ], active, candidates, point, 0
+    end
+    
+    def add
+      @edges = [ [ @neighbours[0], self ], [ self, @neighbours[1] ] ]
+      @active << self
+    end
+    
+    def splits
+      return [ ] unless directions.inject(&:cross) < 0
+      @active.map(&:edge).map do |edge|
+        next if edge.include? self
+        e0, e1 = edge.map(&:point)
+        h0, h1 = edge.map(&:heading)
+        direction = e1.minus(e0).normalised.perp
+        time = direction.dot(@point.minus e0) / (1 - speed * heading.dot(direction))
+        next if time < 0 || time.nan?
+        point = heading.times(speed * time).plus(@point)
+        next if point.minus(e0).dot(direction) < 0
+        next if point.minus(e0).cross(h0) < 0
+        next if point.minus(e1).cross(h1) > 0
+        Split.new @active, @candidates, point, time, self, edge
+      end.compact.sort.take(1)
+    end
+    
+    def self.[](polygon)
+      active, candidates = Set.new, AVLTree.new
+      polygon.each do |points|
+        points.ring.reject do |segment|
+          segment.inject(&:==)
+        end.ring.reject do |segments|
+          segments.map(&:difference).inject(&:cross).zero?
+        end.map(&:first).map(&:last).map do |point|
+          Vertex.new active, candidates, point
+        end.ring.each do |edge|
+          edge[1].neighbours[0], edge[0].neighbours[1] = edge
+        end.map(&:first).each(&:add).map do |node|
+          node.splits + node.collapses
+        end.flatten.each do |candidate|
+          candidates << candidate
+        end
+      end
+      Enumerator.new do |yielder|
+        while candidate = candidates.pop
+          candidate.process do |segment|
+            yielder << segment
+          end
+        end
+      end
+    end
+  end
+  
+  class Collapse
+    include InteriorNode
+    
+    def initialize(active, candidates, point, time, sources)
+      @active, @candidates, @point, @time, @sources = active, candidates, point, time, sources
+    end
+    
+    def viable?
+      @sources.all?(&:active?)
+    end
+    
+    def removals(&block)
+      @neighbours = [ @sources[0].neighbours[0], @sources[1].neighbours[1] ]
+      @neighbours.inject(&:==) ? block.call(@neighbours[0]) : insert!
+      @sources.each(&block)
+    end
+  end
+  
+  class Split
+    include InteriorNode
+    
+    def initialize(active, candidates, point, time, source, split)
+      @active, @candidates, @point, @time, @sources, @split = active, candidates, point, time, [ source ], split
+    end
+    
+    def viable?
+      return false unless @sources.all?(&:active?)
+      @split = @active.map(&:edge).select do |edge|
+        edge[0].edges[1] == @split || edge[1].edges[0] == @split
+      end.find do |edge|
+        e0, e1 = edge.map(&:point)
+        h0, h1 = edge.map(&:heading)
+        next if point.minus(e0).cross(h0) < 0
+        next if point.minus(e1).cross(h1) > 0
+        true
+      end
+    end
+    
+    def split(index, &block)
+      @neighbours = [ @sources[0].neighbours[index], @split[1-index] ].rotate index
+      @neighbours.inject(&:==) ? block.call(@neighbours[0]) : insert!
+    end
+    
+    def removals(&block)
+      dup.split(0, &block)
+      dup.split(1, &block)
+      @sources.each(&block)
+    end
+  end
+  
+  def straight_skeleton
+    Vertex[self].to_a
+  end
+end
+
 class Array
+  include StraightSkeleton
+  
   def median
     sort[length / 2]
   end

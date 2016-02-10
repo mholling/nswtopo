@@ -220,6 +220,10 @@ module StraightSkeleton
   module Node
     attr_reader :point, :time, :neighbours, :edges, :heading
     
+    def interior?
+      is_a? InteriorNode
+    end
+    
     def remove!
       @active.delete self
     end
@@ -275,9 +279,9 @@ module StraightSkeleton
     
     def process
       return unless viable?
-      removals do |node|
+      replace! do |node, index = 0|
         node.remove!
-        yield [ node.point, @point ]
+        yield [ node, self ].rotate index
       end
     end
   end
@@ -330,8 +334,8 @@ module StraightSkeleton
       end
       Enumerator.new do |yielder|
         while candidate = candidates.pop
-          candidate.process do |segment|
-            yielder << segment
+          candidate.process do |nodes|
+            yielder << nodes
           end
         end
       end
@@ -349,7 +353,7 @@ module StraightSkeleton
       @sources.all?(&:active?)
     end
     
-    def removals(&block)
+    def replace!(&block)
       @neighbours = [ @sources[0].neighbours[0], @sources[1].neighbours[1] ]
       @neighbours.inject(&:==) ? block.call(@neighbours[0]) : insert!
       @sources.each(&block)
@@ -378,10 +382,10 @@ module StraightSkeleton
     
     def split(index, &block)
       @neighbours = [ @sources[0].neighbours[index], @split[1-index] ].rotate index
-      @neighbours.inject(&:==) ? block.call(@neighbours[0]) : insert!
+      @neighbours.inject(&:==) ? block.call(@neighbours[0], @neighbours[0].is_a?(Collapse) ? 1 : 0) : insert!
     end
     
-    def removals(&block)
+    def replace!(&block)
       dup.split(0, &block)
       dup.split(1, &block)
       @sources.each(&block)
@@ -389,7 +393,63 @@ module StraightSkeleton
   end
   
   def straight_skeleton
-    Vertex[self].to_a
+    Vertex[self].map do |nodes|
+      nodes.map(&:point)
+    end
+  end
+  
+  def centreline
+    splits, ends = { }, { }
+    Vertex[self].each do |node0, node1|
+      case [ node0.class, node1.class ]
+      when [ Split, Collapse ], [ Split, Split ]
+        splits[node1] = [ *splits[node1], [ node0, node1 ] ]
+      when [ Collapse, Collapse ]
+        splits.delete(node0).each do |path|
+          splits[node1] = [ *splits[node1], [ *path, node1 ] ]
+        end if splits[node0]
+      end
+      next unless node1.is_a? Collapse
+      case node0
+      when Vertex
+        ends[node1] = [ *ends[node1], [ node0, node1 ] ]
+      when Collapse
+        ends[node1] = [ *ends[node1], [ *ends.delete(node0).last, node1 ] ] if ends[node0]
+      end
+      ends[node1] = ends[node1].group_by do |*nodes, node, node1|
+        node
+      end.map do |node, paths|
+        paths.map do |path|
+          path.map(&:point).segments.map(&:difference).map(&:norm).inject(0, &:+)
+        end.zip(paths).max_by(&:first)
+      end.sort_by(&:first).last(2).map(&:last) if ends[node1]
+    end
+    neighbours = Hash.new do |neighbours, point|
+      neighbours[point] = Set.new
+    end
+    paths, lengths = { }, { }
+    [ ends.values, splits.values ].flatten(2).map do |path|
+      path.select(&:interior?).map(&:point)
+    end.select(&:many?).each do |path|
+      [ path, path.reverse ].each do |path|
+        p0, *points, p1 = path
+        neighbours[p0] << p1
+        paths.store [ p0, p1 ], [ *points, p1]
+        lengths.store [ p0, p1 ], path.segments.map(&:distance).inject(&:+)
+      end
+    end
+    maximum, result = 0, nil
+    candidates = neighbours.keys.map do |point|
+      [ [ point ], 0, Set[point] ]
+    end
+    while candidates.any?
+      points, distance, visited = candidates.pop
+      maximum, result = distance, points if distance > maximum
+      (neighbours[points.last] - visited).each do |neighbour|
+        candidates << [ [ *points, neighbour ], distance + lengths.fetch([ points.last, neighbour ]), visited.dup.add(neighbour) ]
+      end
+    end
+    result ? [ paths.values_at(*result.segments).inject(result.take(1), &:+) ] : [ ]
   end
 end
 
@@ -2818,8 +2878,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           case transform
           when "reduce"
             case arg
-            when "edges" then dimension = 1 if dimension == 2
-            end
+            when "edges" then dimension = 1
+            when "centreline"
+              dimension = 1
+              data.replace data.centreline
+            end if dimension == 2
           when "smooth"
             data.map! do |points|
               points.smooth(arg, 20)

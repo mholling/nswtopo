@@ -218,7 +218,7 @@ end
 
 module StraightSkeleton
   module Node
-    attr_reader :point, :time, :neighbours, :edges, :heading
+    attr_reader :point, :time, :neighbours, :edges, :heading, :whence
     
     def interior?
       is_a? InteriorNode
@@ -289,8 +289,8 @@ module StraightSkeleton
   class Vertex
     include Node
     
-    def initialize(active, candidates, point)
-      @neighbours, @active, @candidates, @point, @time = [ ], active, candidates, point, 0
+    def initialize(active, candidates, point, index)
+      @neighbours, @active, @candidates, @whence, @point, @time = [ ], active, candidates, Set[index], point, 0
     end
     
     def add
@@ -317,13 +317,13 @@ module StraightSkeleton
     
     def self.[](polygon)
       active, candidates = Set.new, AVLTree.new
-      polygon.each do |points|
+      polygon.each.with_index do |points, index|
         points.ring.reject do |segment|
           segment.inject(&:==)
         end.ring.reject do |segments|
           segments.map(&:difference).inject(&:cross).zero?
         end.map(&:first).map(&:last).map do |point|
-          Vertex.new active, candidates, point
+          Vertex.new active, candidates, point, index
         end.ring.each do |edge|
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end.map(&:first).each(&:add).map do |node|
@@ -347,6 +347,7 @@ module StraightSkeleton
     
     def initialize(active, candidates, point, time, sources)
       @active, @candidates, @point, @time, @sources = active, candidates, point, time, sources
+      @whence = @sources.map(&:whence).inject(&:|)
     end
     
     def viable?
@@ -365,6 +366,7 @@ module StraightSkeleton
     
     def initialize(active, candidates, point, time, source, split)
       @active, @candidates, @point, @time, @sources, @split = active, candidates, point, time, [ source ], split
+      @whence = [ source, *@split ].map(&:whence).inject(&:|)
     end
     
     def viable?
@@ -424,32 +426,38 @@ module StraightSkeleton
         end.zip(paths).max_by(&:first)
       end.sort_by(&:first).last(2).map(&:last) if ends[node1]
     end
-    neighbours = Hash.new do |neighbours, point|
-      neighbours[point] = Set.new
-    end
+    neighbours = Hash.new { |neighbours, point| neighbours[point] = Set.new }
+    whence = Hash.new { |whence, point| whence[point] = Set.new }
     paths, lengths = { }, { }
     [ ends.values, splits.values ].flatten(2).map do |path|
-      path.select(&:interior?).map(&:point)
+      path.select(&:interior?)
     end.select(&:many?).each do |path|
       [ path, path.reverse ].each do |path|
-        p0, *points, p1 = path
+        p0, *points, p1 = path.map(&:point)
+        whence[p1] |= path.last.whence
         neighbours[p0] << p1
         paths.store [ p0, p1 ], [ *points, p1]
-        lengths.store [ p0, p1 ], path.segments.map(&:distance).inject(&:+)
+        lengths.store [ p0, p1 ], path.map(&:point).segments.map(&:distance).inject(&:+)
       end
     end
-    maximum, result = 0, nil
+    distances, centrelines = Hash.new(0), { }
+    areas = map(&:signed_area)
     candidates = neighbours.keys.map do |point|
       [ [ point ], 0, Set[point] ]
     end
     while candidates.any?
       points, distance, visited = candidates.pop
-      maximum, result = distance, points if distance > maximum
-      (neighbours[points.last] - visited).each do |neighbour|
-        candidates << [ [ *points, neighbour ], distance + lengths.fetch([ points.last, neighbour ]), visited.dup.add(neighbour) ]
+      next if (neighbours[points.last] - visited).each do |point|
+        candidates << [ [ *points, point ], distance + lengths.fetch([ points.last, point ]), visited.dup.add(point) ]
+      end.any?
+      index = whence.values_at(*points).inject(&:|).find do |index|
+        areas[index] > 0
       end
+      distances[index], centrelines[index] = distance, points if index && distance > distances[index]
     end
-    result ? [ paths.values_at(*result.segments).inject(result.take(1), &:+) ] : [ ]
+    centrelines.values.map do |points|
+      paths.values_at(*points.segments).inject(points.take(1), &:+)
+    end
   end
 end
 
@@ -3853,8 +3861,6 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: add medial skeleton option for labeling polygons
-# TODO: remove AVLTree, just use SortedSet
 # TODO: switch to Open3 for shelling out
 # TODO: add nodata transparency in vegetation source?
 # TODO: remove linked images from PDF output?

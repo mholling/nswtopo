@@ -401,35 +401,40 @@ module StraightSkeleton
   end
   
   def centreline
-    splits, ends = { }, { }
+    ends   = Hash.new { |ends,   node|   ends[node] = [ ] }
+    splits = Hash.new { |splits, node| splits[node] = [ ] }
     Vertex[self].each do |node0, node1|
       case [ node0.class, node1.class ]
       when [ Split, Collapse ], [ Split, Split ]
-        splits[node1] = [ *splits[node1], [ node0, node1 ] ]
+        splits[node1] << [ node0, node1 ]
       when [ Collapse, Collapse ]
         splits.delete(node0).each do |path|
-          splits[node1] = [ *splits[node1], [ *path, node1 ] ]
-        end if splits[node0]
+          splits[node1] << [ *path, node1 ]
+        end if splits.key? node0
+        ends.delete(node0).each do |path|
+          ends[node1] << [ *path, node1 ]
+        end if ends.key? node0
+      when [ Vertex, Collapse ]
+        ends[node1] << [ node0, node1 ]
       end
-      next unless node1.is_a? Collapse
-      case node0
-      when Vertex
-        ends[node1] = [ *ends[node1], [ node0, node1 ] ]
-      when Collapse
-        ends[node1] = [ *ends[node1], [ *ends.delete(node0).last, node1 ] ] if ends[node0]
-      end
-      ends[node1] = ends[node1].group_by do |*nodes, node, node1|
+    end
+    ends = ends.map do |node1, paths|
+      paths.reject do |*nodes, node, node1|
+        splits[node1].any? do |*nodes, node0, node1|
+          node0 == node
+        end if splits.key? node1
+      end.group_by do |*nodes, node, node1|
         node
       end.map do |node, paths|
         paths.map do |path|
           path.map(&:point).segments.map(&:difference).map(&:norm).inject(0, &:+)
         end.zip(paths).max_by(&:first)
-      end.sort_by(&:first).last(2).map(&:last) if ends[node1]
+      end.sort_by(&:first).last(2).map(&:last)
     end
     neighbours = Hash.new { |neighbours, point| neighbours[point] = Set.new }
     whence = Hash.new { |whence, point| whence[point] = Set.new }
     paths, lengths = { }, { }
-    [ ends.values, splits.values ].flatten(2).map do |path|
+    [ ends, splits.values ].flatten(2).map do |path|
       path.select(&:interior?)
     end.select(&:many?).each do |path|
       [ path, path.reverse ].each do |path|

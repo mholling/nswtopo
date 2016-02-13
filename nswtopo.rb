@@ -464,6 +464,18 @@ module StraightSkeleton
       paths.values_at(*points.segments).inject(points.take(1), &:+)
     end
   end
+  
+  def centrepoints
+    counts = Hash.new(0)
+    peaks = Vertex[self].map(&:last).each do |node|
+      counts[node] += 1
+    end.select do |node|
+      counts[node] == 3
+    end.sort_by(&:time)
+    peaks.select do |node|
+      node.time > 0.5 * peaks.last.time
+    end.reverse.map(&:point)
+  end
 end
 
 class Array
@@ -2895,6 +2907,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when "centreline"
               dimension = 1
               data.replace data.centreline
+            when "centrepoints"
+              dimension = 0
+              data.replace data.centrepoints
             end if dimension == 2
           when "smooth"
             data.map! do |points|

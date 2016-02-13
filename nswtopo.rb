@@ -218,7 +218,7 @@ end
 
 module StraightSkeleton
   module Node
-    attr_reader :point, :time, :neighbours, :edges, :heading, :whence
+    attr_reader :point, :time, :neighbours, :edges, :heading, :whence, :original
     
     def interior?
       is_a? InteriorNode
@@ -290,7 +290,7 @@ module StraightSkeleton
     include Node
     
     def initialize(active, candidates, point, index)
-      @neighbours, @active, @candidates, @whence, @point, @time = [ ], active, candidates, Set[index], point, 0
+      @original, @neighbours, @active, @candidates, @whence, @point, @time = self, [ ], active, candidates, Set[index], point, 0
     end
     
     def add
@@ -335,7 +335,7 @@ module StraightSkeleton
       Enumerator.new do |yielder|
         while candidate = candidates.pop
           candidate.process do |nodes|
-            yielder << nodes
+            yielder << nodes.map(&:original)
           end
         end
       end
@@ -346,7 +346,7 @@ module StraightSkeleton
     include InteriorNode
     
     def initialize(active, candidates, point, time, sources)
-      @active, @candidates, @point, @time, @sources = active, candidates, point, time, sources
+      @original, @active, @candidates, @point, @time, @sources = self, active, candidates, point, time, sources
       @whence = @sources.map(&:whence).inject(&:|)
     end
     
@@ -365,7 +365,7 @@ module StraightSkeleton
     include InteriorNode
     
     def initialize(active, candidates, point, time, source, split)
-      @active, @candidates, @point, @time, @sources, @split = active, candidates, point, time, [ source ], split
+      @original, @active, @candidates, @point, @time, @sources, @split = self, active, candidates, point, time, [ source ], split
       @whence = [ source, *@split ].map(&:whence).inject(&:|)
     end
     
@@ -431,18 +431,15 @@ module StraightSkeleton
         end.zip(paths).max_by(&:first)
       end.sort_by(&:first).last(2).map(&:last)
     end
-    neighbours = Hash.new { |neighbours, point| neighbours[point] = Set.new }
-    whence = Hash.new { |whence, point| whence[point] = Set.new }
+    neighbours = Hash.new { |neighbours, node| neighbours[node] = Set.new }
     paths, lengths = { }, { }
     [ ends, splits.values ].flatten(2).map do |path|
       path.select(&:interior?)
     end.select(&:many?).each do |path|
-      [ path, path.reverse ].each do |path|
-        p0, *points, p1 = path.map(&:point)
-        whence[p1] |= path.last.whence
-        neighbours[p0] << p1
-        paths.store [ p0, p1 ], [ *points, p1]
-        lengths.store [ p0, p1 ], path.map(&:point).segments.map(&:distance).inject(&:+)
+      [ path, path.reverse ].each do |node0, *nodes, node1|
+        neighbours[node0] << node1
+        paths.store [ node0, node1 ], [ *nodes, node1]
+        lengths.store [ node0, node1 ], [ node0, *nodes, node1 ].map(&:point).segments.map(&:distance).inject(&:+)
       end
     end
     distances, centrelines = Hash.new(0), { }
@@ -451,17 +448,17 @@ module StraightSkeleton
       [ [ point ], 0, Set[point] ]
     end
     while candidates.any?
-      points, distance, visited = candidates.pop
-      next if (neighbours[points.last] - visited).each do |point|
-        candidates << [ [ *points, point ], distance + lengths.fetch([ points.last, point ]), visited.dup.add(point) ]
+      nodes, distance, visited = candidates.pop
+      next if (neighbours[nodes.last] - visited).each do |node|
+        candidates << [ [ *nodes, node ], distance + lengths.fetch([ nodes.last, node ]), visited.dup.add(node) ]
       end.any?
-      index = whence.values_at(*points).inject(&:|).find do |index|
+      index = nodes.map(&:whence).inject(&:|).find do |index|
         areas[index] > 0
       end
-      distances[index], centrelines[index] = distance, points if index && distance > distances[index]
+      distances[index], centrelines[index] = distance, nodes if index && distance > distances[index]
     end
-    centrelines.values.map do |points|
-      paths.values_at(*points.segments).inject(points.take(1), &:+)
+    centrelines.values.map do |nodes|
+      paths.values_at(*nodes.segments).inject(nodes.take(1), &:+).map(&:point)
     end
   end
   

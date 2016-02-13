@@ -220,10 +220,6 @@ module StraightSkeleton
   module Node
     attr_reader :point, :time, :neighbours, :edges, :heading, :whence, :original
     
-    def interior?
-      is_a? InteriorNode
-    end
-    
     def remove!
       @active.delete self
     end
@@ -433,9 +429,7 @@ module StraightSkeleton
     end
     neighbours = Hash.new { |neighbours, node| neighbours[node] = Set.new }
     paths, lengths = { }, { }
-    [ ends, splits.values ].flatten(2).map do |path|
-      path.select(&:interior?)
-    end.select(&:many?).each do |path|
+    [ ends, splits.values ].flatten(2).select(&:many?).each do |path|
       [ path, path.reverse ].each do |node0, *nodes, node1|
         neighbours[node0] << node1
         paths.store [ node0, node1 ], [ *nodes, node1]
@@ -458,8 +452,13 @@ module StraightSkeleton
       distances[index], centrelines[index] = distance, nodes if index && distance > distances[index]
     end
     centrelines.values.map do |nodes|
-      paths.values_at(*nodes.segments).inject(nodes.take(1), &:+).map(&:point)
-    end
+      max_time = nodes.map(&:time).max
+      paths.values_at(*nodes.segments).inject(nodes.take(1), &:+).chunk do |node|
+        node.time > 0.5 * max_time
+      end.select(&:first).map(&:last).map do |nodes|
+        nodes.map(&:point)
+      end
+    end.flatten(1)
   end
   
   def centrepoints

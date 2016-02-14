@@ -396,7 +396,7 @@ module StraightSkeleton
     end
   end
   
-  def centreline
+  def centreline(margin_fraction = 0.25)
     ends   = Hash.new { |ends,   node|   ends[node] = [ ] }
     splits = Hash.new { |splits, node| splits[node] = [ ] }
     Vertex[self].each do |node0, node1|
@@ -454,14 +454,14 @@ module StraightSkeleton
     centrelines.values.map do |nodes|
       max_time = nodes.map(&:time).max
       paths.values_at(*nodes.segments).inject(nodes.take(1), &:+).chunk do |node|
-        node.time > 0.5 * max_time
+        node.time > margin_fraction * max_time
       end.select(&:first).map(&:last).map do |nodes|
         nodes.map(&:point)
       end
     end.flatten(1)
   end
   
-  def centrepoints
+  def centrepoints(margin_fraction = 0.5)
     counts = Hash.new(0)
     peaks = Vertex[self].map(&:last).each do |node|
       counts[node] += 1
@@ -469,7 +469,7 @@ module StraightSkeleton
       counts[node] == 3
     end.sort_by(&:time)
     peaks.select do |node|
-      node.time > 0.5 * peaks.last.time
+      node.time > margin_fraction * peaks.last.time
     end.reverse.map(&:point)
   end
 end
@@ -2895,17 +2895,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             map.coords_to_mm coords
           end
         end
-        transforms.each do |transform, arg|
+        transforms.each do |transform, (arg, *args)|
           case transform
           when "reduce"
             case arg
             when "edges" then dimension = 1
             when "centreline"
               dimension = 1
-              data.replace data.centreline
+              data.replace data.centreline(*args)
             when "centrepoints"
               dimension = 0
-              data.replace data.centrepoints
+              data.replace data.centrepoints(*args)
             end if dimension == 2
           when "smooth"
             data.map! do |points|

@@ -455,7 +455,7 @@ module StraightSkeleton
       travel = nodes.map(&:travel).max
       paths.values_at(*nodes.segments).inject(nodes.take(1), &:+).chunk do |node|
         node.travel > margin_fraction * travel
-      end.select(&:first).map(&:last).map do |nodes|
+      end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
         nodes.map(&:point)
       end
     end.flatten(1)

@@ -218,7 +218,7 @@ end
 
 module StraightSkeleton
   module Node
-    attr_reader :point, :time, :neighbours, :edges, :heading, :whence, :original
+    attr_reader :point, :travel, :neighbours, :edges, :heading, :whence, :original
     
     def remove!
       @active.delete self
@@ -238,8 +238,8 @@ module StraightSkeleton
       @heading ||= directions.inject(&:plus).normalised
     end
     
-    def speed
-      @speed ||= 1.0 / directions[1].dot(heading)
+    def secant
+      @secant ||= 1.0 / directions[1].dot(heading)
     end
     
     def edge
@@ -252,7 +252,7 @@ module StraightSkeleton
         next if cos*cos == 1.0
         distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
         next if distance < 0
-        Collapse.new @active, @candidates, heading.times(distance).plus(@point), @time + distance / speed, [ neighbour, self ].rotate(index)
+        Collapse.new @active, @candidates, heading.times(distance).plus(@point), @travel + distance / secant, [ neighbour, self ].rotate(index)
       end.compact.sort.take(1)
     end
   end
@@ -261,7 +261,7 @@ module StraightSkeleton
     include Node
     
     def <=>(other)
-      @time <=> other.time
+      @travel <=> other.travel
     end
     
     def insert!
@@ -286,7 +286,7 @@ module StraightSkeleton
     include Node
     
     def initialize(active, candidates, point, index)
-      @original, @neighbours, @active, @candidates, @whence, @point, @time = self, [ ], active, candidates, Set[index], point, 0
+      @original, @neighbours, @active, @candidates, @whence, @point, @travel = self, [ ], active, candidates, Set[index], point, 0
     end
     
     def add
@@ -301,13 +301,13 @@ module StraightSkeleton
         e0, e1 = edge.map(&:point)
         h0, h1 = edge.map(&:heading)
         direction = e1.minus(e0).normalised.perp
-        time = direction.dot(@point.minus e0) / (1 - speed * heading.dot(direction))
-        next if time < 0 || time.nan?
-        point = heading.times(speed * time).plus(@point)
+        travel = direction.dot(@point.minus e0) / (1 - secant * heading.dot(direction))
+        next if travel < 0 || travel.nan?
+        point = heading.times(secant * travel).plus(@point)
         next if point.minus(e0).dot(direction) < 0
         next if point.minus(e0).cross(h0) < 0
         next if point.minus(e1).cross(h1) > 0
-        Split.new @active, @candidates, point, time, self, edge
+        Split.new @active, @candidates, point, travel, self, edge
       end.compact.sort.take(1)
     end
     
@@ -341,8 +341,8 @@ module StraightSkeleton
   class Collapse
     include InteriorNode
     
-    def initialize(active, candidates, point, time, sources)
-      @original, @active, @candidates, @point, @time, @sources = self, active, candidates, point, time, sources
+    def initialize(active, candidates, point, travel, sources)
+      @original, @active, @candidates, @point, @travel, @sources = self, active, candidates, point, travel, sources
       @whence = @sources.map(&:whence).inject(&:|)
     end
     
@@ -360,8 +360,8 @@ module StraightSkeleton
   class Split
     include InteriorNode
     
-    def initialize(active, candidates, point, time, source, split)
-      @original, @active, @candidates, @point, @time, @sources, @split = self, active, candidates, point, time, [ source ], split
+    def initialize(active, candidates, point, travel, source, split)
+      @original, @active, @candidates, @point, @travel, @sources, @split = self, active, candidates, point, travel, [ source ], split
       @whence = [ source, *@split ].map(&:whence).inject(&:|)
     end
     
@@ -452,9 +452,9 @@ module StraightSkeleton
       distances[index], centrelines[index] = distance, nodes if index && distance > distances[index]
     end
     centrelines.values.map do |nodes|
-      max_time = nodes.map(&:time).max
+      travel = nodes.map(&:travel).max
       paths.values_at(*nodes.segments).inject(nodes.take(1), &:+).chunk do |node|
-        node.time > margin_fraction * max_time
+        node.travel > margin_fraction * travel
       end.select(&:first).map(&:last).map do |nodes|
         nodes.map(&:point)
       end
@@ -467,10 +467,10 @@ module StraightSkeleton
       counts[node] += 1
     end.select do |node|
       counts[node] == 3
-    end.sort_by(&:time)
+    end.sort_by(&:travel).reverse
     peaks.select do |node|
-      node.time > margin_fraction * peaks.last.time
-    end.reverse.map(&:point)
+      node.travel > margin_fraction * peaks.first.travel
+    end.map(&:point)
   end
 end
 

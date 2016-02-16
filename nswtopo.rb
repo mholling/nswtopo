@@ -228,31 +228,38 @@ module StraightSkeleton
       @active.include? self
     end
     
+    def terminal?
+      @neighbours.one?
+    end
+    
     def directions
       @directions ||= @edges.map do |edge|
-        edge.map(&:point).difference.normalised.perp
+        edge.map(&:point).difference.normalised.perp if edge
       end
     end
     
     def heading
-      @heading ||= directions.inject(&:plus).normalised
+      @heading ||= directions.compact.inject(&:plus).normalised
     end
     
     def secant
-      @secant ||= 1.0 / directions[1].dot(heading)
+      @secant ||= 1.0 / directions.compact.first.dot(heading)
     end
     
     def edge
-      [ self, @neighbours[1] ]
+      [ self, @neighbours[1] ] if @neighbours[1]
     end
     
     def collapses
       @neighbours.map.with_index do |neighbour, index|
+        next unless neighbour
         cos = neighbour.heading.dot heading
         next if cos*cos == 1.0
         distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
-        next if distance < 0
-        Collapse.new @active, @candidates, heading.times(distance).plus(@point), @travel + distance / secant, [ neighbour, self ].rotate(index)
+        next if distance < 0 || distance.nan?
+        travel = @travel + distance / secant
+        next if @limit && travel > @limit
+        Collapse.new @active, @candidates, @limit, heading.times(distance).plus(@point), travel, [ neighbour, self ].rotate(index)
       end.compact.sort.take(1)
     end
   end
@@ -265,10 +272,13 @@ module StraightSkeleton
     end
     
     def insert!
-      @edges = [ @neighbours[0].edges[1], @neighbours[1].edges[0] ]
-      @neighbours[0].neighbours[1] = @neighbours[1].neighbours[0] = self
+      @edges = @neighbours.map.with_index do |neighbour, index|
+        next unless neighbour
+        neighbour.neighbours[1-index] = self
+        neighbour.edges[1-index]
+      end
       @active << self
-      [ self, *@neighbours ].map(&:collapses).flatten.each do |candidate|
+      [ self, *@neighbours ].compact.map(&:collapses).flatten.each do |candidate|
         @candidates << candidate
       end
     end
@@ -277,7 +287,7 @@ module StraightSkeleton
       return unless viable?
       replace! do |node, index = 0|
         node.remove!
-        yield [ node, self ].rotate index
+        yield [ node, self ].rotate(index) if block_given?
       end
     end
   end
@@ -285,49 +295,65 @@ module StraightSkeleton
   class Vertex
     include Node
     
-    def initialize(active, candidates, point, index)
-      @original, @neighbours, @active, @candidates, @whence, @point, @travel = self, [ ], active, candidates, Set[index], point, 0
+    def initialize(active, candidates, limit, point, index)
+      @original, @neighbours, @active, @candidates, @limit, @whence, @point, @travel = self, [ nil, nil ], active, candidates, limit, Set[index], point, 0
     end
     
     def add
-      @edges = [ [ @neighbours[0], self ], [ self, @neighbours[1] ] ]
+      @edges = @neighbours.map.with_index do |neighbour, index|
+        [ neighbour, self ].rotate(index) if neighbour
+      end
       @active << self
     end
     
     def splits
-      return [ ] unless directions.inject(&:cross) < 0
-      @active.map(&:edge).map do |edge|
-        next if edge.include? self
+      return [ ] if terminal? || directions.inject(&:cross) >= 0
+      @active.map(&:edge).compact.map do |edge|
         e0, e1 = edge.map(&:point)
+        next if e0 == @point || e1 == @point
         h0, h1 = edge.map(&:heading)
         direction = e1.minus(e0).normalised.perp
         travel = direction.dot(@point.minus e0) / (1 - secant * heading.dot(direction))
         next if travel < 0 || travel.nan?
+        next if @limit && travel > @limit
         point = heading.times(secant * travel).plus(@point)
         next if point.minus(e0).dot(direction) < 0
         next if point.minus(e0).cross(h0) < 0
         next if point.minus(e1).cross(h1) > 0
-        Split.new @active, @candidates, point, travel, self, edge
+        Split.new @active, @candidates, @limit, point, travel, self, edge
       end.compact.sort.take(1)
     end
     
-    def self.[](polygon)
+    def self.vertices(data, pairs, limit = nil)
       active, candidates = Set.new, AVLTree.new
-      polygon.each.with_index do |points, index|
-        points.ring.reject do |segment|
+      data.each.with_index do |points, index|
+        nodes = points.send(pairs).reject do |segment|
           segment.inject(&:==)
-        end.ring.reject do |segments|
-          segments.map(&:difference).inject(&:cross).zero?
-        end.map(&:first).map(&:last).map do |point|
-          Vertex.new active, candidates, point, index
-        end.ring.each do |edge|
+        end.map(&:first).map do |point|
+          Vertex.new active, candidates, limit, point, index
+        end
+        nodes.send(pairs).each do |edge|
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
-        end.map(&:first).each(&:add).map do |node|
+        end
+        nodes.each(&:add).map do |node|
           node.splits + node.collapses
         end.flatten.each do |candidate|
           candidates << candidate
         end
       end
+      [ active, candidates ]
+    end
+    
+    def self.polygon(data, *args)
+      vertices(data, :ring, *args)
+    end
+    
+    def self.lines(data, *args)
+      vertices(data, :segments, *args)
+    end
+    
+    def self.skeleton(data)
+      active, candidates = Vertex.polygon(data)
       Enumerator.new do |yielder|
         while candidate = candidates.pop
           candidate.process do |nodes|
@@ -336,13 +362,30 @@ module StraightSkeleton
         end
       end
     end
+    
+    def self.inset(data, vertices, travel)
+      active, candidates = Vertex.send(vertices, data, travel)
+      while candidate = candidates.pop
+        candidate.process
+      end
+      result = [ ]
+      while node = active.first
+        result << [ ]
+        while node && node.active?
+          result.last << node.heading.times(travel - node.travel).plus(node.point)
+          node.remove!
+          node = node.neighbours[1]
+        end
+      end
+      result
+    end
   end
   
   class Collapse
     include InteriorNode
     
-    def initialize(active, candidates, point, travel, sources)
-      @original, @active, @candidates, @point, @travel, @sources = self, active, candidates, point, travel, sources
+    def initialize(active, candidates, limit, point, travel, sources)
+      @original, @active, @candidates, @limit, @point, @travel, @sources = self, active, candidates, limit, point, travel, sources
       @whence = @sources.map(&:whence).inject(&:|)
     end
     
@@ -352,7 +395,7 @@ module StraightSkeleton
     
     def replace!(&block)
       @neighbours = [ @sources[0].neighbours[0], @sources[1].neighbours[1] ]
-      @neighbours.inject(&:==) ? block.call(@neighbours[0]) : insert!
+      @neighbours.inject(&:==) ? block.call(@neighbours[0]) : insert! if @neighbours.any?
       @sources.each(&block)
     end
   end
@@ -360,14 +403,14 @@ module StraightSkeleton
   class Split
     include InteriorNode
     
-    def initialize(active, candidates, point, travel, source, split)
-      @original, @active, @candidates, @point, @travel, @sources, @split = self, active, candidates, point, travel, [ source ], split
+    def initialize(active, candidates, limit, point, travel, source, split)
+      @original, @active, @candidates, @limit, @point, @travel, @sources, @split = self, active, candidates, limit, point, travel, [ source ], split
       @whence = [ source, *@split ].map(&:whence).inject(&:|)
     end
     
     def viable?
       return false unless @sources.all?(&:active?)
-      @split = @active.map(&:edge).select do |edge|
+      @split = @active.map(&:edge).compact.select do |edge|
         edge[0].edges[1] == @split || edge[1].edges[0] == @split
       end.find do |edge|
         e0, e1 = edge.map(&:point)
@@ -380,7 +423,7 @@ module StraightSkeleton
     
     def split(index, &block)
       @neighbours = [ @sources[0].neighbours[index], @split[1-index] ].rotate index
-      @neighbours.inject(&:==) ? block.call(@neighbours[0], @neighbours[0].is_a?(Collapse) ? 1 : 0) : insert!
+      @neighbours.inject(&:==) ? block.call(@neighbours[0], @neighbours[0].is_a?(Collapse) ? 1 : 0) : insert! if @neighbours.any?
     end
     
     def replace!(&block)
@@ -391,7 +434,7 @@ module StraightSkeleton
   end
   
   def straight_skeleton
-    Vertex[self].map do |nodes|
+    Vertex.skeleton(self).map do |nodes|
       nodes.map(&:point)
     end
   end
@@ -399,7 +442,7 @@ module StraightSkeleton
   def centreline(margin_fraction = 0.25)
     ends   = Hash.new { |ends,   node|   ends[node] = [ ] }
     splits = Hash.new { |splits, node| splits[node] = [ ] }
-    Vertex[self].each do |node0, node1|
+    Vertex.skeleton(self).each do |node0, node1|
       case [ node0.class, node1.class ]
       when [ Split, Collapse ], [ Split, Split ]
         splits[node1] << [ node0, node1 ]
@@ -463,7 +506,7 @@ module StraightSkeleton
   
   def centrepoints(margin_fraction = 0.5)
     counts = Hash.new(0)
-    peaks = Vertex[self].map(&:last).each do |node|
+    peaks = Vertex.skeleton(self).map(&:last).each do |node|
       counts[node] += 1
     end.select do |node|
       counts[node] == 3
@@ -471,6 +514,14 @@ module StraightSkeleton
     peaks.select do |node|
       node.travel > margin_fraction * peaks.first.travel
     end.map(&:point)
+  end
+  
+  def buffer_polygon(margin)
+    margin < 0 ? Vertex.inset(self, :polygon, -margin) : map(&:reverse).buffer_polygon(-margin).map(&:reverse)
+  end
+  
+  def buffer_lines(margin)
+    Vertex.inset(self + map(&:reverse), :lines, margin.abs)
   end
 end
 

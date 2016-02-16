@@ -520,8 +520,12 @@ module StraightSkeleton
     margin < 0 ? Vertex.inset(self, :polygon, -margin) : map(&:reverse).buffer_polygon(-margin).map(&:reverse)
   end
   
-  def buffer_lines(margin)
-    Vertex.inset(self + map(&:reverse), :lines, margin.abs)
+  def buffer_lines(margin, both = true)
+    case
+    when both       then Vertex.inset(self + map(&:reverse), :lines, margin.abs)
+    when margin < 0 then Vertex.inset(map(&:reverse), :lines, -margin)
+    when margin > 0 then Vertex.inset(self, :lines, margin)
+    end
   end
 end
 

@@ -218,7 +218,7 @@ end
 
 module StraightSkeleton
   module Node
-    attr_reader :point, :travel, :neighbours, :edges, :heading, :whence, :original
+    attr_reader :point, :travel, :neighbours, :edges, :whence, :original
     
     def remove!
       @active.delete self
@@ -232,18 +232,18 @@ module StraightSkeleton
       @neighbours.one?
     end
     
-    def directions
-      @directions ||= @edges.map do |edge|
+    def headings
+      @headings ||= @edges.map do |edge|
         edge.map(&:point).difference.normalised.perp if edge
       end
     end
     
     def heading
-      @heading ||= directions.compact.inject(&:plus).normalised
+      @heading ||= headings.compact.inject(&:plus).normalised
     end
     
     def secant
-      @secant ||= 1.0 / directions.compact.first.dot(heading)
+      @secant ||= 1.0 / headings.compact.first.dot(heading)
     end
     
     def edge
@@ -253,7 +253,7 @@ module StraightSkeleton
     def collapses
       @neighbours.map.with_index do |neighbour, index|
         next unless neighbour
-        cos = neighbour.heading.dot heading
+        cos = Math::cos(neighbour.heading.angle - heading.angle)
         next if cos*cos == 1.0
         distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
         next if distance < 0 || distance.nan?
@@ -307,7 +307,7 @@ module StraightSkeleton
     end
     
     def splits
-      return [ ] if terminal? || directions.inject(&:cross) >= 0
+      return [ ] if terminal? || headings.inject(&:cross) >= 0
       @active.map(&:edge).compact.map do |edge|
         e0, e1 = edge.map(&:point)
         next if e0 == @point || e1 == @point
@@ -324,32 +324,30 @@ module StraightSkeleton
       end.compact.sort.take(1)
     end
     
-    def self.vertices(data, pairs, limit = nil)
-      active, candidates = Set.new, AVLTree.new
-      data.each.with_index do |points, index|
-        nodes = points.send(pairs).reject do |segment|
-          segment.inject(&:==)
-        end.map(&:first).map do |point|
-          Vertex.new active, candidates, limit, point, index
-        end
-        nodes.send(pairs).each do |edge|
-          edge[1].neighbours[0], edge[0].neighbours[1] = edge
-        end
-        nodes.each(&:add).map do |node|
-          node.splits + node.collapses
-        end.flatten.each do |candidate|
-          candidates << candidate
+    class << self
+      { :polygon => :ring, :lines => :segments }.each do |name, pairs|
+        define_method(name) do |data, limit|
+          active, candidates = Set.new, AVLTree.new
+          data.each.with_index do |points, index|
+            nodes = points.send(pairs).reject do |segment|
+              segment.inject(&:==)
+            end.map(&:first).tap do |pruned|
+              pruned << points.last if pairs == :segments
+            end.map do |point|
+              Vertex.new active, candidates, limit, point, index
+            end
+            nodes.send(pairs).each do |edge|
+              edge[1].neighbours[0], edge[0].neighbours[1] = edge
+            end
+            nodes.each(&:add).map do |node|
+              node.splits + node.collapses
+            end.flatten.each do |candidate|
+              candidates << candidate
+            end
+          end
+          [ active, candidates ]
         end
       end
-      [ active, candidates ]
-    end
-    
-    def self.polygon(data, *args)
-      vertices(data, :ring, *args)
-    end
-    
-    def self.lines(data, *args)
-      vertices(data, :segments, *args)
     end
     
     def self.skeleton(data)
@@ -369,12 +367,13 @@ module StraightSkeleton
         candidate.process
       end
       result = [ ]
-      while node = active.first
-        result << [ ]
-        while node && node.active?
-          result.last << node.heading.times(travel - node.travel).plus(node.point)
-          node.remove!
-          node = node.neighbours[1]
+      while active.any?
+        nodes = [ active.first ]
+        while node = nodes.last.neighbours[1] and node != nodes.first
+          nodes << node
+        end
+        result << nodes.each(&:remove!).map do |node|
+          node.heading.times((travel - node.travel) * node.secant).plus(node.point)
         end
       end
       result
@@ -2904,8 +2903,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class LabelSource < Source
     include VectorRenderer
-    LABELLING_ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat-interval repeat-buffer deviation format collate]
-    LABELLING_TRANSFORMS = %w[reduce densify smooth minimum-area minimum-length remove]
+    LABELLING_ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate]
+    LABELLING_TRANSFORMS = %w[reduce buffer densify smooth minimum-area minimum-length remove]
     FONT_ASPECT_RATIO = 0.7
     
     def initialize(*args)
@@ -2954,7 +2953,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           case transform
           when "reduce"
             case arg
-            when "edges" then dimension = 1
             when "centreline"
               dimension = 1
               data.replace data.centreline(*args)
@@ -2962,6 +2960,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               dimension = 0
               data.replace data.centrepoints(*args)
             end if dimension == 2
+          when "buffer"
+            case dimension
+            when 1 then data.replace data.buffer_lines(arg, *args)
+            when 2 then data.replace data.buffer_polygon(arg, *args)
+            end
           when "smooth"
             data.map! do |points|
               points.smooth(arg, 20)
@@ -3002,15 +3005,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def draw(map, &block)
       map_hull = map.mm_corners
       labelling_hull = map.mm_corners(-2)
-      hulls, sublayers, dimensions, attributes, component_indices, categories, endpoints, elements = @features.map do |text, sublayer, components|
+      hulls, sublayers, dimensions, attributes, component_indices, categories, elements = @features.map do |text, sublayer, components|
         components.map.with_index do |component, component_index|
           dimension, data, attributes = component
           font_size      = attributes["font-size"]      || 1.5
           letter_spacing = attributes["letter-spacing"] || 0
           word_spacing   = attributes["word-spacing"]   || 0
           categories     = attributes["categories"]
-          case
-          when dimension == 0
+          case dimension
+          when 0
             margin = attributes["margin"] || 0
             lines = text.in_two
             width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
@@ -3036,10 +3039,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
               [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_elements ]
             end
-          when dimension == 1
-            margin = attributes["margin"]
-            orientation = attributes["orientation"] || "above"
-            repeat_interval = attributes["repeat-interval"] || 150
+          when 1, 2
+            orientation = attributes["orientation"]
             deviation = attributes["deviation"] || 5
             text_length = attributes["percents"] ? 0 : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
             start_end_distance = data.values_at(0, -1).distance
@@ -3063,37 +3064,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               eigenvalue > deviation**2 || sinuosity > 1.25
             end.sort_by(&:last).map(&:first).map do |range|
               rightwards = data[range.last].minus(data[range.first]).rotate_by_degrees(map.rotation).first > 0
-              points = case orientation
+              hull = [ data[range] ].buffer_lines(0.5 * font_size).flatten(1).convex_hull
+              d = case orientation
               when "uphill"   then data[range]
               when "downhill" then data[range].reverse
               else rightwards ? data[range] : data[range].reverse
-              end
-              normal = points.segments.map(&:difference).map(&:perp).inject(&:plus).normalised
-              disposition = case orientation
-              when "above"   then 1
-              when "below"   then -1
-              when "outside" then rightwards ? 1 : -1
-              when "inside"  then rightwards ? -1 : 1
-              else margin ? margin < 0 ? -1 : 1 : 0
-              end
-              baseline_shift = case disposition
-              when  1 then   margin || 0
-              when -1 then -(margin || 0) - 0.85 * font_size
-              when  0 then -0.35 * font_size
-              end
-              baseline, top, bottom = [ 0.0, font_size + 0.5, -0.5 ].map do |shift|
-                normal.times(baseline_shift + shift)
-              end.map do |offset|
-                points.map { |point| point.minus offset }
-              end
-              hull = (top + bottom).convex_hull
-              d = baseline.to_path_data(MM_DECIMAL_DIGITS)
+              end.to_path_data(MM_DECIMAL_DIGITS)
               id = [ name, sublayer, "path", d.hash ].join SEGMENT
               path_element = REXML::Element.new("path")
               path_element.add_attributes "id" => id, "d" => d
               text_element = REXML::Element.new("text")
               text_element.add_attributes "text-anchor" => "middle"
-              text_element.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%") do |text_path|
+              text_element.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%", "alignment-baseline" => "middle") do |text_path|
                 if attributes["percents"]
                   attributes["percents"].zip(text.split ?\s).each.with_index do |(percent, text_part), index|
                     text_path.add_text ?\s unless index.zero?
@@ -3103,28 +3085,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   text_path.add_text text
                 end
               end
-              endpoints = [ cumulative[range.first] / repeat_interval, cumulative[range.last] / repeat_interval, cumulative.last / repeat_interval ]
-              [ hull, sublayer, dimension, attributes, component_index, categories, endpoints, [ text_element, path_element ] ]
+              [ hull, sublayer, dimension, attributes, component_index, categories, [ text_element, path_element ] ]
             end
-          when dimension == 2 && data.signed_area > 0
-            lines = text.in_two
-            width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
-            height = lines.length * font_size
-            point = data.centroid
-            rotated = point.rotate_by_degrees(map.rotation)
-            hull = [ [ -0.5 * width, 0.5 * width ], [ -0.5 * height, 0.5 * height ] ].inject(&:product).values_at(0,2,3,1).map do |corner|
-              corner.rotate_by_degrees(-map.rotation).plus(point)
-            end
-            transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
-            text_elements = lines.map.with_index do |line, count|
-              y = (lines.one? ? 0.5 : count) * font_size - 0.15 * font_size
-              REXML::Element.new("text").tap do |text|
-                text.add_attributes "text-anchor" => "middle", "transform" => transform, "x" => 0, "y" => y
-                text.add_text line
-              end
-            end
-            [ [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_elements ] ]
-          else [ ]
           end.select do |hull, *args|
             labelling_hull.surrounds?(hull).all?
           end
@@ -3162,23 +3124,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when 0
               conflicts[feature_index][candidate1_index][label2] = true
               conflicts[feature_index][candidate2_index][label1] = true
-            when 1
-              start1, finish1, total = endpoints[feature_index][candidate1_index]
-              start2, finish2, total = endpoints[feature_index][candidate2_index]
-              case
-              when start2 - finish1 > 1 && start1 + total - finish2 > 1
-              when start1 - finish2 > 1 && start2 + total - finish1 > 1
-              else
-                conflicts[feature_index][candidate1_index][label2] = true
-                conflicts[feature_index][candidate2_index][label1] = true
-              end
             end
           end
         end
       end
       
       hulls.zip(attributes).each.with_index do |(hulls, attributes), feature_index|
-        buffer = attributes.map { |attributes| attributes["repeat-buffer"] }.compact.max
+        buffer = attributes.map { |attributes| attributes["repeat"] }.compact.max
         hulls.overlaps(buffer).each do |candidate1_index, candidate2_index|
           label1 = [ feature_index, candidate1_index ]
           label2 = [ feature_index, candidate2_index ]

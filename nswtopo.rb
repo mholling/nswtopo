@@ -326,7 +326,7 @@ module StraightSkeleton
     
     class << self
       { :polygon => :ring, :lines => :segments }.each do |name, pairs|
-        define_method(name) do |data, limit|
+        define_method(name) do |data, limit = nil|
           active, candidates = Set.new, AVLTree.new
           data.each.with_index do |points, index|
             nodes = points.send(pairs).reject do |segment|
@@ -3003,7 +3003,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def draw(map, &block)
-      map_hull = map.mm_corners
       labelling_hull = map.mm_corners(-2)
       hulls, sublayers, dimensions, attributes, component_indices, categories, elements = @features.map do |text, sublayer, components|
         components.map.with_index do |component, component_index|
@@ -3043,32 +3042,44 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             orientation = attributes["orientation"]
             deviation = attributes["deviation"] || 5
             text_length = attributes["percents"] ? 0 : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
-            start_end_distance = data.values_at(0, -1).distance
-            cumulative = data.segments.inject([start_end_distance]) do |memo, segment|
-              memo << memo.last + segment.distance
-            end
-            cumulative.length.times.inject([]) do |memo, finish|
-              start = finish.downto(memo.any? ? memo.last.first + 1 : 0).find do |start|
-                cumulative[finish] - cumulative[start] > text_length
+            distances = data.ring.map(&:distance)
+            Enumerator.new do |yielder|
+              indices, distance = [ 0, 1 ], distances[0]
+              loop do
+                while distance < text_length
+                  index = indices.last
+                  break if dimension == 2 && index == indices[0]
+                  break if dimension == 1 && index == distances.length - 1
+                  distance += distances[index]
+                  index += 1
+                  index %= distances.length
+                  indices << index
+                end
+                break if distance < text_length
+                while distance >= text_length
+                  yielder << indices.dup unless distance >= text_length + distances[indices.first]
+                  break if dimension == 2 && indices[1] == 0
+                  distance -= distances[indices.shift]
+                end
+                break if distance >= text_length
               end
-              start ? memo << (start..finish) : memo
-            end.select do |range|
-              map_hull.surrounds?(data[range]).all?
-            end.reject do |range|
-              data[range].cosines.any? { |cosine| cosine < 0.9 }
-            end.map do |range|
-              eigenvalue, eigenvector = data[range].principal_components.first
-              sinuosity = (cumulative[range.last] - cumulative[range.first]) / data[range.last].minus(data[range.first]).norm
-              [ range, eigenvalue, sinuosity ]
-            end.reject do |range, eigenvalue, sinuosity|
+            end.map do |indices|
+              [ data.values_at(*indices), distances.values_at(*indices).inject(&:+) ]
+            end.reject do |baseline, length|
+              baseline.cosines.any? { |cosine| cosine < 0.9 }
+            end.map do |baseline, length|
+              eigenvalue, eigenvector = baseline.principal_components.first
+              sinuosity = length / baseline.values_at(0, -1).difference.norm
+              [ baseline, eigenvalue, sinuosity ]
+            end.reject do |baseline, eigenvalue, sinuosity|
               eigenvalue > deviation**2 || sinuosity > 1.25
-            end.sort_by(&:last).map(&:first).map do |range|
-              rightwards = data[range.last].minus(data[range.first]).rotate_by_degrees(map.rotation).first > 0
-              hull = [ data[range] ].buffer_lines(0.5 * font_size).flatten(1).convex_hull
+            end.sort_by(&:last).map(&:first).map do |baseline|
+              rightwards = baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
+              hull = [ baseline ].buffer_lines(0.5 * font_size).flatten(1).convex_hull
               d = case orientation
-              when "uphill"   then data[range]
-              when "downhill" then data[range].reverse
-              else rightwards ? data[range] : data[range].reverse
+              when "uphill"   then baseline
+              when "downhill" then baseline.reverse
+              else rightwards ? baseline : baseline.reverse
               end.to_path_data(MM_DECIMAL_DIGITS)
               id = [ name, sublayer, "path", d.hash ].join SEGMENT
               path_element = REXML::Element.new("path")

@@ -803,6 +803,20 @@ class Array
     replace smooth(*args)
   end
   
+  def densify(step, closed)
+    (closed ? ring : segments).inject([]) do |memo, segment|
+      memo += (0...1).step(step / segment.distance).map do |fraction|
+        segment.along fraction
+      end
+    end.tap do |result|
+      result << points.last unless closed
+    end
+  end
+  
+  def densify!(*args)
+    replace densify(*args)
+  end
+  
   def between_critical_supports
     indices = [ at(0).map.with_index.min.last, at(1).map.with_index.max.last ]
     calipers = [ [ 0, -1 ], [ 0, 1 ] ]
@@ -2975,12 +2989,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end if dimension == 2
           when "densify"
             data.map! do |points|
-              points.segments.inject([]) do |memo, segment|
-                memo += (0...1).step(arg / segment.distance).map do |fraction|
-                  segment.along fraction
-                end
-              end << points.last
-            end if dimension == 1
+              points.densify(arg, dimension == 2)
+            end if dimension > 0
           when "remove"
             [ *arg ].each do |value|
               data.replace [] if case value

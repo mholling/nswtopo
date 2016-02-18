@@ -516,15 +516,11 @@ module StraightSkeleton
   end
   
   def buffer_polygon(margin)
-    margin < 0 ? Vertex.inset(self, :polygon, -margin) : map(&:reverse).buffer_polygon(-margin).map(&:reverse)
+    margin > 0 ? Vertex.inset(self, :polygon, margin) : map(&:reverse).buffer_polygon(-margin).map(&:reverse)
   end
   
-  def buffer_lines(margin, both = true)
-    case
-    when both       then Vertex.inset(self + map(&:reverse), :lines, margin.abs)
-    when margin < 0 then Vertex.inset(map(&:reverse), :lines, -margin)
-    when margin > 0 then Vertex.inset(self, :lines, margin)
-    end
+  def buffer_lines(margin)
+    Vertex.inset(self + map(&:reverse), :lines, margin.abs)
   end
 end
 
@@ -2976,8 +2972,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end if dimension == 2
           when "buffer"
             case dimension
-            when 1 then data.replace data.buffer_lines(arg, *args)
-            when 2 then data.replace data.buffer_polygon(arg, *args)
+            when 1 then data.replace data.buffer_lines(arg)
+            when 2 then data.replace data.buffer_polygon(arg)
             end
           when "smooth"
             data.map! do |points|

@@ -1186,8 +1186,10 @@ rotation: 0
   end
   
   class Map
+    attr_reader :debug
+    
     def initialize(config)
-      @name, @scale = config.values_at("name", "scale")
+      @name, @scale, @debug = config.values_at("name", "scale", "debug")
       
       wgs84_points = case
       when config["zone"] && config["eastings"] && config["northings"]
@@ -3035,6 +3037,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           word_spacing   = attributes["word-spacing"]   || 0
           categories     = attributes["categories"]
           case dimension
+          when 0 then block.call("points").add_element "circle", "r" => 0.3, "stroke" => "none", "fill" => "blue", "cx" => data[0], "cy" => data[1]
+          when 1 then block.call("lines").add_element "path", "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => data.to_path_data(MM_DECIMAL_DIGITS)
+          when 2 then block.call("areas").add_element "path", "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => data.to_path_data(MM_DECIMAL_DIGITS, ?Z)
+          end if map.debug
+          case dimension
           when 0
             margin = attributes["margin"] || 0
             lines = text.in_two
@@ -3123,6 +3130,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           end.select do |hull, *args|
             labelling_hull.surrounds?(hull).all?
+          end.reject do |hull, *args|
+            map.debug && block.call("candidates").add_element("path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => hull.to_path_data(MM_DECIMAL_DIGITS, ?Z))
           end
         end.flatten(1).transpose
       end.reject(&:empty?).transpose

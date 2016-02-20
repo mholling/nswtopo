@@ -807,12 +807,12 @@ class Array
     end
   end
   
-  def densify(closed, step)
-    # TODO: change to evenly-spaced divisions
+  def densify(closed, distance)
     map do |points|
       (closed ? points.ring : points.segments).inject([]) do |memo, segment|
-        memo += (0...1).step(step / segment.distance).map do |fraction|
-          segment.along fraction
+        steps = (segment.distance / distance).ceil
+        memo += steps.times.map do |step|
+          segment.along(step.to_f / steps)
         end
       end.tap do |result|
         result << points.last unless closed

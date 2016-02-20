@@ -324,34 +324,31 @@ module StraightSkeleton
       end.compact.sort.take(1)
     end
     
-    class << self
-      { :polygon => :ring, :lines => :segments }.each do |name, pairs|
-        define_method(name) do |data, limit = nil|
-          active, candidates = Set.new, AVLTree.new
-          data.each.with_index do |points, index|
-            nodes = points.send(pairs).reject do |segment|
-              segment.inject(&:==)
-            end.map(&:first).tap do |pruned|
-              pruned << points.last if pairs == :segments
-            end.map do |point|
-              Vertex.new active, candidates, limit, point, index
-            end
-            nodes.send(pairs).each do |edge|
-              edge[1].neighbours[0], edge[0].neighbours[1] = edge
-            end
-            nodes.each(&:add).map do |node|
-              node.splits + node.collapses
-            end.flatten.each do |candidate|
-              candidates << candidate
-            end
-          end
-          [ active, candidates ]
+    def self.[](data, closed = true, limit = nil)
+      active, candidates = Set.new, AVLTree.new
+      pairs = closed ? :ring : :segments
+      data.each.with_index do |points, index|
+        nodes = points.send(pairs).reject do |segment|
+          segment.inject(&:==)
+        end.map(&:first).tap do |pruned|
+          pruned << points.last if pairs == :segments
+        end.map do |point|
+          Vertex.new active, candidates, limit, point, index
+        end
+        nodes.send(pairs).each do |edge|
+          edge[1].neighbours[0], edge[0].neighbours[1] = edge
+        end
+        nodes.each(&:add).map do |node|
+          node.splits + node.collapses
+        end.flatten.each do |candidate|
+          candidates << candidate
         end
       end
+      [ active, candidates ]
     end
     
     def self.skeleton(data)
-      active, candidates = Vertex.polygon(data)
+      active, candidates = Vertex[data]
       Enumerator.new do |yielder|
         while candidate = candidates.pop
           candidate.process do |nodes|
@@ -361,22 +358,20 @@ module StraightSkeleton
       end
     end
     
-    def self.inset(data, vertices, travel)
-      active, candidates = Vertex.send(vertices, data, travel)
-      while candidate = candidates.pop
-        candidate.process
+    def self.progress(closed, data, travel)
+      active, candidates = Vertex[data, closed, travel]
+      while candidates.any?
+        candidates.pop.process
       end
-      result = [ ]
-      while active.any?
-        nodes = [ active.first ]
-        while node = nodes.last.neighbours[1] and node != nodes.first
-          nodes << node
-        end
-        result << nodes.each(&:remove!).map do |node|
-          node.heading.times((travel - node.travel) * node.secant).plus(node.point)
+      Enumerator.new do |yielder|
+        while active.any?
+          nodes = [ active.first ]
+          while node = nodes.last.neighbours[1] and node != nodes.first
+            nodes << node
+          end
+          yielder << nodes.each(&:remove!)
         end
       end
-      result
     end
   end
   
@@ -515,12 +510,20 @@ module StraightSkeleton
     end.map(&:point)
   end
   
-  def buffer_polygon(margin)
-    margin > 0 ? Vertex.inset(self, :polygon, margin) : map(&:reverse).buffer_polygon(-margin).map(&:reverse)
+  def inset(closed, margin)
+    Vertex.progress(closed, self, margin).map do |nodes|
+      nodes.map do |node|
+        node.point.plus node.heading.times((margin - node.travel) * node.secant)
+      end
+    end
   end
   
-  def buffer_lines(margin)
-    Vertex.inset(self + map(&:reverse), :lines, margin.abs)
+  def buffer(closed, margin)
+    if closed
+      margin > 0 ? inset(closed, margin) : map(&:reverse).inset(closed, -margin).map(&:reverse)
+    else
+      (self + map(&:reverse)).inset(closed, margin.abs).map(&:reverse)
+    end
   end
 end
 
@@ -572,7 +575,7 @@ class Array
   def angle
     Math::atan2 at(1), at(0)
   end
-
+  
   def norm
     Math::sqrt(dot self)
   end
@@ -782,35 +785,52 @@ class Array
     end.inject(&:plus).times(1.0 / 6.0 / signed_area)
   end
   
-  def smooth(arc_limit, iterations)
-    iterations.times.inject(self) do |points|
+  def smooth(closed, left, right, *args)
+    cosine_limits = [ *args, 180 ].map do |arg|
+      Math::cos(arg * Math::PI / 180)
+    end
+    smooth_interior = lambda do |*points|
       points.segments.segments.chunk do |segments|
-        segments.map(&:difference).inject(&:cross) > 0
-      end.map do |leftwards, pairs|
-        arc_length = pairs.map(&:first).map(&:distance).inject(&:+)
-        pairs.map do |segment1, segment2|
-          arc_length < arc_limit ? segment1.first.plus(segment2.last).times(0.5) : segment1.last
+        directions = segments.map(&:difference).map(&:normalised)
+        sine, cosine = directions.inject(&:cross), directions.inject(&:dot)
+        (sine > 0 ? left : right) && cosine < cosine_limits[0] && cosine > cosine_limits[1]
+      end.map do |apply_smoothing, segment_pairs|
+        next segment_pairs.map(&:first).map(&:last) unless apply_smoothing
+        smoothed = segment_pairs.map do |segments|
+          [ segments[0].along(0.75), segments[1].along(0.25) ]
+        end.flatten(1)
+        smooth_interior.call segment_pairs.first.first.first, *smoothed, segment_pairs.last.last.last
+      end.flatten(1)
+    end
+    map do |points|
+      closed ? smooth_interior.call(points.last, *points, points.first) : [ points.first, *smooth_interior.call(*points), points.last ]
+    end
+  end
+  
+  def densify(closed, step)
+    # TODO: change to evenly-spaced divisions
+    map do |points|
+      (closed ? points.ring : points.segments).inject([]) do |memo, segment|
+        memo += (0...1).step(step / segment.distance).map do |fraction|
+          segment.along fraction
         end
-      end.flatten(1).unshift(points.first).push(points.last)
-    end
-  end
-  
-  def smooth!(*args)
-    replace smooth(*args)
-  end
-  
-  def densify(step, closed)
-    (closed ? ring : segments).inject([]) do |memo, segment|
-      memo += (0...1).step(step / segment.distance).map do |fraction|
-        segment.along fraction
+      end.tap do |result|
+        result << points.last unless closed
       end
-    end.tap do |result|
-      result << points.last unless closed
     end
   end
   
-  def densify!(*args)
-    replace densify(*args)
+  def simplify(closed, arg)
+    map do |points|
+      pruned, area = points.take(1), 0
+      points.segments.each do |segment|
+        area -= segment[0].cross(pruned[-1])
+        area += segment[0].cross(segment[1])
+        area += segment[1].cross(pruned[-1])
+        pruned << segment[1] and area = 0 if area.abs > arg
+      end
+      closed || pruned.last == points.last ? pruned : pruned << points.last
+    end.reject(&:one?)
   end
   
   def between_critical_supports
@@ -2914,7 +2934,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class LabelSource < Source
     include VectorRenderer
     LABELLING_ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate]
-    LABELLING_TRANSFORMS = %w[reduce buffer densify smooth minimum-area minimum-length remove]
+    LABELLING_TRANSFORMS = %w[reduce buffer densify simplify smooth smooth-outer smooth-inner minimum-area minimum-length remove]
     FONT_ASPECT_RATIO = 0.7
     
     def initialize(*args)
@@ -2959,36 +2979,29 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             map.coords_to_mm coords
           end
         end
-        transforms.each do |transform, (arg, *args)|
+        transforms.each do |transform, (*args)|
           case transform
           when "reduce"
-            case arg
+            case args.shift
             when "centreline"
-              dimension = 1
-              data.replace data.centreline(*args)
+              dimension = 1 and data.replace data.centreline(*args)
             when "centrepoints"
-              dimension = 0
-              data.replace data.centrepoints(*args)
+              dimension = 0 and data.replace data.centrepoints(*args)
             end if dimension == 2
           when "buffer"
-            case dimension
-            when 1 then data.replace data.buffer_lines(arg)
-            when 2 then data.replace data.buffer_polygon(arg)
-            end
+            data.replace data.buffer(dimension == 2, *args) if dimension > 0
           when "smooth"
-            data.map! do |points|
-              points.smooth(arg, 20)
-            end if dimension == 1
-          when "minimum-area"
-            data.reject! do |points|
-              points.signed_area.abs < arg
-            end if dimension == 2
+            data.replace data.smooth(dimension == 2, true, true, *args) if dimension > 0
+          when "smooth-outer"
+            data.replace data.smooth(dimension == 2, false, true, *args) if dimension > 0
+          when "smooth-inner"
+            data.replace data.smooth(dimension == 2, true, false, *args) if dimension > 0
           when "densify"
-            data.map! do |points|
-              points.densify(arg, dimension == 2)
-            end if dimension > 0
+            data.replace data.densify(dimension == 2, *args) if dimension > 0
+          when "simplify"
+            data.replace data.simplify(dimension == 2, *args) if dimension > 0
           when "remove"
-            [ *arg ].each do |value|
+            args.each do |value|
               data.replace [] if case value
               when true    then true
               when String  then text == value
@@ -2996,9 +3009,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when Numeric then text == value.to_s
               end
             end
+          when "minimum-area"
+            data.reject! do |points|
+              points.signed_area.abs < args[0]
+            end if dimension == 2
           when "minimum-length"
             data.reject! do |points|
-              points.segments.map(&:distance).inject(0.0, &:+) < arg
+              points.segments.map(&:distance).inject(0.0, &:+) < args[0]
             end if dimension == 1
           end
         end
@@ -3068,20 +3085,20 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   distance -= distances[indices.shift]
                 end
                 break if distance >= text_length
-              end
+              end if data.many?
             end.map do |indices|
-              [ data.values_at(*indices), distances.values_at(*indices).inject(&:+) ]
+              [ data.values_at(*indices), distances.values_at(*indices[0..-2]).inject(&:+) ]
             end.reject do |baseline, length|
               baseline.cosines.any? { |cosine| cosine < 0.9 }
             end.map do |baseline, length|
               eigenvalue, eigenvector = baseline.principal_components.first
-              sinuosity = length / baseline.values_at(0, -1).difference.norm
+              sinuosity = length / baseline.values_at(0, -1).distance
               [ baseline, eigenvalue, sinuosity ]
             end.reject do |baseline, eigenvalue, sinuosity|
               eigenvalue > deviation**2 || sinuosity > 1.25
             end.sort_by(&:last).map(&:first).map do |baseline|
               rightwards = baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
-              hull = [ baseline ].buffer_lines(0.5 * font_size).flatten(1).convex_hull
+              hull = [ baseline ].buffer(false, 0.5 * font_size).flatten(1).convex_hull
               d = case orientation
               when "uphill"   then baseline
               when "downhill" then baseline.reverse
@@ -3901,6 +3918,7 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
+# TODO: breakout Array vector methods into modules
 # TODO: switch to Open3 for shelling out
 # TODO: add nodata transparency in vegetation source?
 # TODO: remove linked images from PDF output?

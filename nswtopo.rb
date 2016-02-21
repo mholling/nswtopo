@@ -518,12 +518,12 @@ module StraightSkeleton
     end
   end
   
+  def offset(closed, margin)
+    margin > 0 ? map(&:reverse).inset(closed, margin).map(&:reverse) : inset(closed, -margin)
+  end
+  
   def buffer(closed, margin)
-    if closed
-      margin > 0 ? inset(closed, margin).map(&:reverse) : map(&:reverse).inset(closed, -margin)
-    else
-      (self + map(&:reverse)).inset(closed, margin.abs).map(&:reverse)
-    end
+    (self + map(&:reverse)).inset(closed, margin.abs)
   end
 end
 
@@ -779,12 +779,12 @@ class Array
     end.inject(&:plus).times(1.0 / 6.0 / signed_area)
   end
   
-  def smooth(closed, limit, cutoff_left = false, cutoff_right = cutoff_left )
+  def smooth(closed, limit, cutoff = false)
     smooth_interior = lambda do |*points|
       points.segments.segments.chunk do |segments|
         directions = segments.map(&:difference).map(&:normalised)
         angle = Math.atan2(directions.inject(&:cross), directions.inject(&:dot)) * 180.0 / Math::PI
-        angle.abs < limit || (cutoff_left && angle > cutoff_left) || (cutoff_right && angle < -cutoff_right)
+        angle.abs < limit || (cutoff && angle.abs > cutoff)
       end.map do |no_smoothing, segment_pairs|
         next segment_pairs.map(&:first).map(&:last) if no_smoothing
         smoothed = segment_pairs.map do |segments|
@@ -2701,7 +2701,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def initialize(*args)
       super(*args)
       params["labels"]["orientation"] = "uphill"
-      params["labels"]["margin"] ||= 0.8
     end
     
     def grids(map)
@@ -2927,7 +2926,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class LabelSource < Source
     include VectorRenderer
     LABELLING_ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate]
-    LABELLING_TRANSFORMS = %w[reduce buffer densify simplify smooth minimum-area minimum-length remove]
+    LABELLING_TRANSFORMS = %w[reduce offset buffer densify simplify smooth minimum-area minimum-length remove]
     FONT_ASPECT_RATIO = 0.7
     
     def initialize(*args)
@@ -2981,6 +2980,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when "centrepoints"
               dimension = 0 and data.replace data.centrepoints(*args)
             end if dimension == 2
+          when "offset"
+            data.replace data.offset(dimension == 2, *args) if dimension > 0
           when "buffer"
             data.replace data.buffer(dimension == 2, *args) if dimension > 0
           when "smooth"
@@ -3061,7 +3062,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             deviation   = attributes["deviation"] || 5
             min_radius  = attributes["min-radius"] || 3
             max_angle   = (attributes["max-angle"] || 25) * Math::PI / 180
-            text_length = attributes["percents"] ? 0 : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
+            text_length = attributes["percents"] ? data.distance : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
             distances = data.ring.map(&:distance)
             arclengths = data.ring.map(&:midpoint).ring.map(&:distance).rotate(-1)
             angles = data.ring.map(&:difference).map(&:normalised).ring.map do |directions|
@@ -3119,7 +3120,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 if attributes["percents"]
                   attributes["percents"].zip(text.split ?\s).each.with_index do |(percent, text_part), index|
                     text_path.add_text ?\s unless index.zero?
-                    text_path.add_element("tspan", "font-size" => "#{percent}%") { |tspan| tspan.add_text text_part }
+                    text_path.add_element("tspan", "font-size" => "#{percent}%", "alignment-baseline" => "middle") { |tspan| tspan.add_text text_part }
                   end
                 else
                   text_path.add_text text
@@ -3597,7 +3598,6 @@ grid:
   boundary:
     stroke: gray
   labels:
-    margin: 0.8
     dupe: outline
     outline:
       stroke: white
@@ -3606,6 +3606,7 @@ grid:
       stroke-opacity: 0.75
     font-family: "'Arial Narrow', sans-serif"
     font-size: 2.75
+    offset: 2.0
     stroke: none
     fill: black
 declination:

@@ -520,7 +520,7 @@ module StraightSkeleton
   
   def buffer(closed, margin)
     if closed
-      margin > 0 ? inset(closed, margin) : map(&:reverse).inset(closed, -margin).map(&:reverse)
+      margin > 0 ? inset(closed, margin).map(&:reverse) : map(&:reverse).inset(closed, -margin)
     else
       (self + map(&:reverse)).inset(closed, margin.abs).map(&:reverse)
     end
@@ -621,12 +621,6 @@ class Array
   
   def midpoint
     transpose.map(&:mean)
-  end
-  
-  def cosines
-    segments.map(&:difference).map(&:normalised).segments.map do |vectors|
-      vectors.inject(&:dot)
-    end
   end
   
   def perp
@@ -785,17 +779,14 @@ class Array
     end.inject(&:plus).times(1.0 / 6.0 / signed_area)
   end
   
-  def smooth(closed, left, right, *args)
-    cosine_limits = [ *args, 180 ].map do |arg|
-      Math::cos(arg * Math::PI / 180)
-    end
+  def smooth(closed, limit, cutoff_left = false, cutoff_right = cutoff_left )
     smooth_interior = lambda do |*points|
       points.segments.segments.chunk do |segments|
         directions = segments.map(&:difference).map(&:normalised)
-        sine, cosine = directions.inject(&:cross), directions.inject(&:dot)
-        (sine > 0 ? left : right) && cosine < cosine_limits[0] && cosine > cosine_limits[1]
-      end.map do |apply_smoothing, segment_pairs|
-        next segment_pairs.map(&:first).map(&:last) unless apply_smoothing
+        angle = Math.atan2(directions.inject(&:cross), directions.inject(&:dot)) * 180.0 / Math::PI
+        angle.abs < limit || (cutoff_left && angle > cutoff_left) || (cutoff_right && angle < -cutoff_right)
+      end.map do |no_smoothing, segment_pairs|
+        next segment_pairs.map(&:first).map(&:last) if no_smoothing
         smoothed = segment_pairs.map do |segments|
           [ segments[0].along(0.75), segments[1].along(0.25) ]
         end.flatten(1)
@@ -820,14 +811,14 @@ class Array
     end
   end
   
-  def simplify(closed, arg)
+  def simplify(closed, max_area)
     map do |points|
       pruned, area = points.take(1), 0
       points.segments.each do |segment|
         area -= segment[0].cross(pruned[-1])
         area += segment[0].cross(segment[1])
         area += segment[1].cross(pruned[-1])
-        pruned << segment[1] and area = 0 if area.abs > arg
+        pruned << segment[1] and area = 0 if area.abs > max_area
       end
       closed || pruned.last == points.last ? pruned : pruned << points.last
     end.reject(&:one?)
@@ -2936,7 +2927,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class LabelSource < Source
     include VectorRenderer
     LABELLING_ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate]
-    LABELLING_TRANSFORMS = %w[reduce buffer densify simplify smooth smooth-outer smooth-inner minimum-area minimum-length remove]
+    LABELLING_TRANSFORMS = %w[reduce buffer densify simplify smooth minimum-area minimum-length remove]
     FONT_ASPECT_RATIO = 0.7
     
     def initialize(*args)
@@ -2993,11 +2984,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when "buffer"
             data.replace data.buffer(dimension == 2, *args) if dimension > 0
           when "smooth"
-            data.replace data.smooth(dimension == 2, true, true, *args) if dimension > 0
-          when "smooth-outer"
-            data.replace data.smooth(dimension == 2, false, true, *args) if dimension > 0
-          when "smooth-inner"
-            data.replace data.smooth(dimension == 2, true, false, *args) if dimension > 0
+            attributes["max-angle"] = args[0] = (args[0] == true ? 20 : args[0])
+            data.replace data.smooth(dimension == 2, *args) if dimension > 0
           when "densify"
             data.replace data.densify(dimension == 2, *args) if dimension > 0
           when "simplify"
@@ -3070,9 +3058,21 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when 1, 2
             orientation = attributes["orientation"]
-            deviation = attributes["deviation"] || 5
+            deviation   = attributes["deviation"] || 5
+            min_radius  = attributes["min-radius"] || 3
+            max_angle   = (attributes["max-angle"] || 25) * Math::PI / 180
             text_length = attributes["percents"] ? 0 : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
             distances = data.ring.map(&:distance)
+            arclengths = data.ring.map(&:midpoint).ring.map(&:distance).rotate(-1)
+            angles = data.ring.map(&:difference).map(&:normalised).ring.map do |directions|
+              Math.atan2 directions.inject(&:cross), directions.inject(&:dot)
+            end.rotate(-1)
+            too_sharp = angles.map do |angle|
+              angle.abs > max_angle
+            end
+            too_tight = angles.zip(arclengths).map do |angle, arclength|
+              arclength < min_radius * angle.abs
+            end
             Enumerator.new do |yielder|
               indices, distance = [ 0, 1 ], distances[0]
               loop do
@@ -3093,16 +3093,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
                 break if distance >= text_length
               end if data.many?
+            end.reject do |indices|
+              indices[1...-1].any? { |index| too_tight[index] || too_sharp[index] }
             end.map do |indices|
-              [ data.values_at(*indices), distances.values_at(*indices[0..-2]).inject(&:+) ]
-            end.reject do |baseline, length|
-              baseline.cosines.any? { |cosine| cosine < 0.9 }
-            end.map do |baseline, length|
+              data.values_at *indices
+            end.map do |baseline|
               eigenvalue, eigenvector = baseline.principal_components.first
-              sinuosity = length / baseline.values_at(0, -1).distance
-              [ baseline, eigenvalue, sinuosity ]
-            end.reject do |baseline, eigenvalue, sinuosity|
-              eigenvalue > deviation**2 || sinuosity > 1.25
+              [ baseline, eigenvalue ]
+            end.reject do |baseline, eigenvalue|
+              eigenvalue > deviation**2
             end.sort_by(&:last).map(&:first).map do |baseline|
               rightwards = baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
               hull = [ baseline ].buffer(false, 0.5 * font_size).flatten(1).convex_hull

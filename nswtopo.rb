@@ -216,6 +216,460 @@ class AVLTree
   end
 end
 
+module ArrayHelpers
+  def median
+    sort[length / 2]
+  end
+  
+  def mean
+    empty? ? nil : inject(&:+) / length
+  end
+  
+  def many?
+    length > 1
+  end
+end
+
+module Vector
+  def rotate_by(angle)
+    cos = Math::cos(angle)
+    sin = Math::sin(angle)
+    [ self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos ]
+  end
+
+  def rotate_by!(angle)
+    replace rotate_by(angle)
+  end
+  
+  def rotate_by_degrees(angle)
+    rotate_by(angle * Math::PI / 180.0)
+  end
+  
+  def rotate_by_degrees!(angle)
+    replace rotate_by_degrees(angle)
+  end
+  
+  def plus(other)
+    [ self, other ].transpose.map { |values| values.inject(:+) }
+  end
+
+  def minus(other)
+    [ self, other ].transpose.map { |values| values.inject(:-) }
+  end
+
+  def dot(other)
+    [ self, other ].transpose.map { |values| values.inject(:*) }.inject(:+)
+  end
+  
+  def times(scalar)
+    map { |value| value * scalar }
+  end
+  
+  def angle
+    Math::atan2 at(1), at(0)
+  end
+  
+  def norm
+    Math::sqrt(dot self)
+  end
+  
+  def normalised
+    times(1.0 / norm)
+  end
+  
+  def proj(other)
+    dot(other) / other.norm
+  end
+  
+  def perp
+    [ -self[1], self[0] ]
+  end
+  
+  def cross(other)
+    perp.dot other
+  end
+  
+  def one_or_many(&block)
+    case first
+    when Numeric then block.(self)
+    else map(&block)
+    end
+  end
+  
+  def round(decimal_digits)
+    one_or_many do |point|
+      point.map { |value| value.round decimal_digits }
+    end
+  end
+end
+
+module Segment
+  def segments
+    self[0..-2].zip self[1..-1]
+  end
+  
+  def ring
+    zip rotate
+  end
+  
+  def difference
+    last.minus first
+  end
+  
+  def distance
+    difference.norm
+  end
+  
+  def along(fraction)
+    self[1].times(fraction).plus self[0].times(1.0 - fraction)
+  end
+  
+  def midpoint
+    transpose.map(&:mean)
+  end
+end
+
+module VectorSequence
+  def perps
+    ring.map(&:difference).map(&:perp)
+  end
+  
+  def signed_area
+    0.5 * ring.map { |p1, p2| p1.cross p2 }.inject(&:+)
+  end
+  
+  def centroid
+    ring.map do |p1, p2|
+      (p1.plus p2).times(p1.cross p2)
+    end.inject(&:plus).times(1.0 / 6.0 / signed_area)
+  end
+  
+  def surrounds?(points)
+    Enumerator.new do |yielder|
+      points.each do |point|
+        yielder << [ self, perps ].transpose.all? { |vertex, perp| point.minus(vertex).dot(perp) >= 0 }
+      end
+    end
+  end
+  
+  def convex_hull
+    start = min_by(&:reverse)
+    hull, remaining = partition { |point| point == start }
+    remaining.sort_by do |point|
+      [ point.minus(start).angle, point.minus(start).norm ]
+    end.inject(hull) do |memo, p3|
+      while memo.many? do
+        p1, p2 = memo.last(2)
+        (p3.minus p1).cross(p2.minus p1) < 0 ? break : memo.pop
+      end
+      memo << p3
+    end
+  end
+  
+  def minimum_bounding_box
+    polygon = convex_hull
+    indices = [ [ :min_by, :max_by ], [ 0, 1 ] ].inject(:product).map do |min, axis|
+      polygon.map.with_index.send(min) { |point, index| point[axis] }.last
+    end
+    calipers = [ [ 0, -1 ], [ 1, 0 ], [ 0, 1 ], [ -1, 0 ] ]
+    rotation = 0.0
+    candidates = []
+
+    while rotation < Math::PI / 2
+      edges = indices.map do |index|
+        polygon[(index + 1) % polygon.length].minus polygon[index]
+      end
+      angle, which = [ edges, calipers ].transpose.map do |edge, caliper|
+        Math::acos(edge.dot(caliper) / edge.norm)
+      end.map.with_index.min_by { |angle, index| angle }
+  
+      calipers.each { |caliper| caliper.rotate_by!(angle) }
+      rotation += angle
+  
+      break if rotation >= Math::PI / 2
+  
+      dimensions = [ 0, 1 ].map do |offset|
+        polygon[indices[offset + 2]].minus(polygon[indices[offset]]).proj(calipers[offset + 1])
+      end
+  
+      centre = polygon.values_at(*indices).map do |point|
+        point.rotate_by(-rotation)
+      end.partition.with_index do |point, index|
+        index.even?
+      end.map.with_index do |pair, index|
+        0.5 * pair.map { |point| point[index] }.inject(:+)
+      end.rotate_by(rotation)
+  
+      if rotation < Math::PI / 4
+        candidates << [ centre, dimensions, rotation ]
+      else
+        candidates << [ centre, dimensions.reverse, rotation - Math::PI / 2 ]
+      end
+  
+      indices[which] += 1
+      indices[which] %= polygon.length
+    end
+
+    candidates.min_by { |centre, dimensions, rotation| dimensions.inject(:*) }
+  end
+  
+  def principal_components
+    centre = transpose.map(&:mean)
+    deviations = map { |point| point.minus centre }.transpose
+    a00, a01, a11 = [ [0, 0], [0, 1], [1, 1] ].map do |axes|
+      deviations.values_at(*axes).transpose.map { |d1, d2| d1 * d2 }.inject(&:+)
+    end
+    eigenvalues = [ -1, +1 ].map do |sign|
+      0.5 * (a00 + a11 + sign * Math::sqrt(a00**2 + 4 * a01**2 - 2 * a00 * a11 + a11**2))
+    end
+    eigenvectors = eigenvalues.reverse.map do |eigenvalue|
+      [ a00 + a01 - eigenvalue, a11 + a01 - eigenvalue ]
+    end
+    eigenvalues.zip eigenvectors
+  end
+end
+
+module VectorSequences
+  def smooth(closed, limit, cutoff = false)
+    smooth_interior = lambda do |*points|
+      points.segments.segments.chunk do |segments|
+        directions = segments.map(&:difference).map(&:normalised)
+        angle = Math.atan2(directions.inject(&:cross), directions.inject(&:dot)) * 180.0 / Math::PI
+        angle.abs < limit || (cutoff && angle.abs > cutoff)
+      end.map do |no_smoothing, segment_pairs|
+        next segment_pairs.map(&:first).map(&:last) if no_smoothing
+        smoothed = segment_pairs.map do |segments|
+          [ segments[0].along(0.75), segments[1].along(0.25) ]
+        end.flatten(1)
+        smooth_interior.call segment_pairs.first.first.first, *smoothed, segment_pairs.last.last.last
+      end.flatten(1)
+    end
+    map do |points|
+      closed ? smooth_interior.call(points.last, *points, points.first) : [ points.first, *smooth_interior.call(*points), points.last ]
+    end
+  end
+  
+  def densify(closed, distance)
+    map do |points|
+      (closed ? points.ring : points.segments).inject([]) do |memo, segment|
+        steps = (segment.distance / distance).ceil
+        memo += steps.times.map do |step|
+          segment.along(step.to_f / steps)
+        end
+      end.tap do |result|
+        result << points.last unless closed
+      end
+    end
+  end
+  
+  def simplify(closed, max_area)
+    map do |points|
+      pruned, area = points.take(1), 0
+      points.segments.each do |segment|
+        area -= segment[0].cross(pruned[-1])
+        area += segment[0].cross(segment[1])
+        area += segment[1].cross(pruned[-1])
+        pruned << segment[1] and area = 0 if area.abs > max_area
+      end
+      closed || pruned.last == points.last ? pruned : pruned << points.last
+    end.reject(&:one?)
+  end
+end
+
+module Clipping
+  def clip_points(hull)
+    [ hull, hull.perps ].transpose.inject(self) do |result, (vertex, perp)|
+      result.select { |point| point.minus(vertex).dot(perp) >= 0 }
+    end
+  end
+  
+  def clip_points!(hull)
+    replace clip_points(hull)
+  end
+  
+  def clip_lines(hull)
+    [ hull, hull.perps ].transpose.inject(self) do |result, (vertex, perp)|
+      result.inject([]) do |clipped, points|
+        clipped + [ *points, points.last ].segments.inject([[]]) do |lines, segment|
+          inside = segment.map { |point| point.minus(vertex).dot(perp) >= 0 }
+          case
+          when inside.all?
+            lines.last << segment[0]
+          when inside[0]
+            lines.last << segment[0]
+            lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
+          when inside[1]
+            lines << [ ]
+            lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
+          end
+          lines
+        end
+      end
+    end.select(&:many?)
+  end
+  
+  def clip_lines!(hull)
+    replace clip_lines(hull)
+  end
+  
+  def clip_polys(hull)
+    [ hull, hull.perps ].transpose.inject(self) do |polygons, (vertex, perp)|
+      polygons.inject([]) do |clipped, polygon|
+        insides = polygon.map { |point| point.minus(vertex).dot(perp) >= 0 }
+        case
+        when insides.all? then clipped << polygon
+        when insides.none?
+        else
+          outgoing = insides.ring.map.with_index.select { |inside, index| inside[0] && !inside[1] }.map(&:last)
+           ingoing = insides.ring.map.with_index.select { |inside, index| !inside[0] && inside[1] }.map(&:last)
+          pairs = [ outgoing, ingoing ].map do |indices|
+            polygon.ring.map.with_index.to_a.values_at(*indices).map do |segment, index|
+              [ segment.along(vertex.minus(segment[0]).dot(perp).to_f / segment.difference.dot(perp)), index ]
+            end.sort_by do |intersection, index|
+              [ vertex.minus(intersection).dot(perp.perp), index ]
+            end
+          end.transpose
+          clipped << []
+          while pairs.any?
+            index ||= pairs[0][1][1]
+            start ||= pairs[0][0][1]
+            pair = pairs.min_by do |pair|
+              intersections, indices = pair.transpose
+              (indices[0] - index) % polygon.length
+            end
+            pairs.delete pair
+            intersections, indices = pair.transpose
+            while (indices[0] - index) % polygon.length > 0
+              index += 1
+              index %= polygon.length
+              clipped.last << polygon[index]
+            end
+            clipped.last << intersections[0] << intersections[1]
+            if index == start
+              clipped << []
+              index = start = nil
+            else
+              index = indices[1]
+            end
+          end
+        end
+        clipped.select(&:any?)
+      end
+    end
+  end
+  
+  def clip_polys!(hull)
+    replace clip_polys(hull)
+  end
+end
+
+module Overlap
+  def between_critical_supports
+    indices = [ at(0).map.with_index.min.last, at(1).map.with_index.max.last ]
+    calipers = [ [ 0, -1 ], [ 0, 1 ] ]
+    rotation = 0.0
+    count = 0
+    
+    Enumerator.new do |yielder|
+      while rotation <= 2 * Math::PI
+        pairs, edges, vertices = zip(indices).map do |polygon, index|
+          pair = polygon.values_at (index - 1) % polygon.length, (index + 1) % polygon.length
+          edge = polygon.values_at index, (index + 1) % polygon.length
+          [ pair, edge, polygon[index] ]
+        end.transpose
+        
+        angle, which = edges.zip(calipers).map do |edge, caliper|
+          vector = edge.difference.rotate_by(-rotation)
+          Math::acos vector.dot(caliper) / vector.norm
+        end.map.with_index.min
+        
+        perp = vertices.difference.perp
+        comparisons = [ 1, -1 ].zip(pairs).map do |sign, pair|
+          pair.map { |point| sign * point.minus(vertices.first).dot(perp) <=> 0 }
+        end.flatten
+        count += 1 if comparisons.inject(&:+).abs == 4
+        
+        yielder << edges.rotate(which) if count > 0
+        break if count > 1
+        
+        rotation += angle
+        indices[which] += 1
+        indices[which] %= at(which).length
+      end
+    end
+  end
+  
+  def disjoint?
+    between_critical_supports.any?
+  end
+  
+  def minimum_distance
+    between_critical_supports.inject(nil) do |distance, edges|
+      edge_vector = edges.first.difference
+      vertex_vector = edges.map(&:first).difference
+      vertex_dot_edge = vertex_vector.dot edge_vector
+      if vertex_dot_edge <= 0 || vertex_dot_edge >= edge_vector.dot(edge_vector)
+        [ *distance, vertex_vector.norm ].min
+      else
+        [ *distance, vertex_vector.proj(edge_vector.perp).abs ].min
+      end
+    end || 0
+  end
+  
+  def overlaps(buffer = 0)
+    axis = flatten(1).transpose.map { |values| values.max - values.min }.map.with_index.max.last
+    events, tops, bots, results = AVLTree.new, [], [], []
+    margin = [ buffer, 0 ]
+    each.with_index do |hull, index|
+      min, max = hull.map { |point| point.rotate axis }.minmax
+      events << [ min.minus(margin), index, :start ]
+      events << [ max.plus( margin), index, :stop  ]
+    end
+    events.each do |point, index, event|
+      top, bot = at(index).transpose[1-axis].minmax
+      case event
+      when :start
+        not_above = bots.select { |bot, other| bot >= top - buffer }.map(&:last)
+        not_below = tops.select { |top, other| top <= bot + buffer }.map(&:last)
+        (not_below & not_above).reject do |other|
+          buffer.zero? ? values_at(index, other).disjoint? : values_at(index, other).minimum_distance > buffer
+        end.each do |other|
+          results << [ index, other ]
+        end
+        tops << [ top, index ]
+        bots << [ bot, index ]
+      when :stop
+        tops.delete [ top, index ]
+        bots.delete [ bot, index ]
+      end
+    end
+    results
+  end
+end
+
+module SVGPath
+  def to_path_data(decimal_digits, *close)
+    round(decimal_digits).inject do |memo, point|
+      [ *memo, ?L, *point ]
+    end.unshift(?M).push(*close).join(?\s)
+  end
+  
+  def to_bezier(k, decimal_digits, *close)
+    points = close.any? ? [ last, *self, first ] : [ first, *self, last ]
+    midpoints = points.segments.map(&:midpoint)
+    distances = points.segments.map(&:distance)
+    offsets = midpoints.zip(distances).segments.map(&:transpose).map do |segment, distance|
+      segment.along(distance.first / distance.inject(&:+))
+    end.zip(self).map(&:difference)
+    controls = midpoints.segments.zip(offsets).map do |segment, offset|
+      segment.map { |point| [ point, point.plus(offset) ].along(k) }
+    end.flatten(1).drop(1).round(decimal_digits).each_slice(2)
+    drop(1).round(decimal_digits).zip(controls).map do |point, (control1, control2)|
+      [ ?C, *control1, *control2, *point ]
+    end.flatten.unshift(?M, *first.round(decimal_digits)).push(*close).join(?\s)
+  end
+end
+
 module StraightSkeleton
   module Node
     attr_reader :point, :travel, :neighbours, :edges, :whence, :original
@@ -527,400 +981,7 @@ module StraightSkeleton
   end
 end
 
-class Array
-  include StraightSkeleton
-  
-  def median
-    sort[length / 2]
-  end
-  
-  def mean
-    empty? ? nil : inject(&:+) / length
-  end
-  
-  def rotate_by(angle)
-    cos = Math::cos(angle)
-    sin = Math::sin(angle)
-    [ self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos ]
-  end
-
-  def rotate_by!(angle)
-    self[0], self[1] = rotate_by(angle)
-  end
-  
-  def rotate_by_degrees(angle)
-    rotate_by(angle * Math::PI / 180.0)
-  end
-  
-  def rotate_by_degrees!(angle)
-    self[0], self[1] = rotate_by_degrees(angle)
-  end
-  
-  def plus(other)
-    [ self, other ].transpose.map { |values| values.inject(:+) }
-  end
-
-  def minus(other)
-    [ self, other ].transpose.map { |values| values.inject(:-) }
-  end
-
-  def dot(other)
-    [ self, other ].transpose.map { |values| values.inject(:*) }.inject(:+)
-  end
-  
-  def times(scalar)
-    map { |value| value * scalar }
-  end
-  
-  def angle
-    Math::atan2 at(1), at(0)
-  end
-  
-  def norm
-    Math::sqrt(dot self)
-  end
-  
-  def normalised
-    times(1.0 / norm)
-  end
-  
-  def proj(other)
-    dot(other) / other.norm
-  end
-  
-  def one_or_many(&block)
-    case first
-    when Numeric then block.(self)
-    else map(&block)
-    end
-  end
-  
-  def many?
-    length > 1
-  end
-  
-  def segments
-    self[0..-2].zip self[1..-1]
-  end
-  
-  def ring
-    zip rotate
-  end
-  
-  def difference
-    last.minus first
-  end
-  
-  def distance
-    difference.norm
-  end
-  
-  def along(fraction)
-    self[1].times(fraction).plus self[0].times(1.0 - fraction)
-  end
-  
-  def midpoint
-    transpose.map(&:mean)
-  end
-  
-  def perp
-    [ -self[1], self[0] ]
-  end
-  
-  def cross(other)
-    perp.dot other
-  end
-  
-  def perps
-    ring.map(&:difference).map(&:perp)
-  end
-  
-  def surrounds?(points)
-    Enumerator.new do |yielder|
-      points.each do |point|
-        yielder << [ self, perps ].transpose.all? { |vertex, perp| point.minus(vertex).dot(perp) >= 0 }
-      end
-    end
-  end
-  
-  def clip_points(hull)
-    [ hull, hull.perps ].transpose.inject(self) do |result, (vertex, perp)|
-      result.select { |point| point.minus(vertex).dot(perp) >= 0 }
-    end
-  end
-  
-  def clip_points!(hull)
-    replace clip_points(hull)
-  end
-  
-  def clip_lines(hull)
-    [ hull, hull.perps ].transpose.inject(self) do |result, (vertex, perp)|
-      result.inject([]) do |clipped, points|
-        clipped + [ *points, points.last ].segments.inject([[]]) do |lines, segment|
-          inside = segment.map { |point| point.minus(vertex).dot(perp) >= 0 }
-          case
-          when inside.all?
-            lines.last << segment[0]
-          when inside[0]
-            lines.last << segment[0]
-            lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
-          when inside[1]
-            lines << [ ]
-            lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
-          end
-          lines
-        end
-      end
-    end.select(&:many?)
-  end
-  
-  def clip_lines!(hull)
-    replace clip_lines(hull)
-  end
-  
-  def clip_polys(hull)
-    [ hull, hull.perps ].transpose.inject(self) do |polygons, (vertex, perp)|
-      polygons.inject([]) do |clipped, polygon|
-        insides = polygon.map { |point| point.minus(vertex).dot(perp) >= 0 }
-        case
-        when insides.all? then clipped << polygon
-        when insides.none?
-        else
-          outgoing = insides.ring.map.with_index.select { |inside, index| inside[0] && !inside[1] }.map(&:last)
-           ingoing = insides.ring.map.with_index.select { |inside, index| !inside[0] && inside[1] }.map(&:last)
-          pairs = [ outgoing, ingoing ].map do |indices|
-            polygon.ring.map.with_index.to_a.values_at(*indices).map do |segment, index|
-              [ segment.along(vertex.minus(segment[0]).dot(perp).to_f / segment.difference.dot(perp)), index ]
-            end.sort_by do |intersection, index|
-              [ vertex.minus(intersection).dot(perp.perp), index ]
-            end
-          end.transpose
-          clipped << []
-          while pairs.any?
-            index ||= pairs[0][1][1]
-            start ||= pairs[0][0][1]
-            pair = pairs.min_by do |pair|
-              intersections, indices = pair.transpose
-              (indices[0] - index) % polygon.length
-            end
-            pairs.delete pair
-            intersections, indices = pair.transpose
-            while (indices[0] - index) % polygon.length > 0
-              index += 1
-              index %= polygon.length
-              clipped.last << polygon[index]
-            end
-            clipped.last << intersections[0] << intersections[1]
-            if index == start
-              clipped << []
-              index = start = nil
-            else
-              index = indices[1]
-            end
-          end
-        end
-        clipped.select(&:any?)
-      end
-    end
-  end
-  
-  def clip_polys!(hull)
-    replace clip_polys(hull)
-  end
-  
-  def round(decimal_digits)
-    one_or_many do |point|
-      point.map { |value| value.round decimal_digits }
-    end
-  end
-  
-  def to_path_data(decimal_digits, *close)
-    round(decimal_digits).inject do |memo, point|
-      [ *memo, ?L, *point ]
-    end.unshift(?M).push(*close).join(?\s)
-  end
-  
-  def to_bezier(k, decimal_digits, *close)
-    points = close.any? ? [ last, *self, first ] : [ first, *self, last ]
-    midpoints = points.segments.map(&:midpoint)
-    distances = points.segments.map(&:distance)
-    offsets = midpoints.zip(distances).segments.map(&:transpose).map do |segment, distance|
-      segment.along(distance.first / distance.inject(&:+))
-    end.zip(self).map(&:difference)
-    controls = midpoints.segments.zip(offsets).map do |segment, offset|
-      segment.map { |point| [ point, point.plus(offset) ].along(k) }
-    end.flatten(1).drop(1).round(decimal_digits).each_slice(2)
-    drop(1).round(decimal_digits).zip(controls).map do |point, (control1, control2)|
-      [ ?C, *control1, *control2, *point ]
-    end.flatten.unshift(?M, *first.round(decimal_digits)).push(*close).join(?\s)
-  end
-  
-  def convex_hull
-    start = min_by(&:reverse)
-    hull, remaining = partition { |point| point == start }
-    remaining.sort_by do |point|
-      [ point.minus(start).angle, point.minus(start).norm ]
-    end.inject(hull) do |memo, p3|
-      while memo.many? do
-        p1, p2 = memo.last(2)
-        (p3.minus p1).cross(p2.minus p1) < 0 ? break : memo.pop
-      end
-      memo << p3
-    end
-  end
-  
-  def signed_area
-    0.5 * ring.map { |p1, p2| p1.cross p2 }.inject(&:+)
-  end
-  
-  def centroid
-    ring.map do |p1, p2|
-      (p1.plus p2).times(p1.cross p2)
-    end.inject(&:plus).times(1.0 / 6.0 / signed_area)
-  end
-  
-  def smooth(closed, limit, cutoff = false)
-    smooth_interior = lambda do |*points|
-      points.segments.segments.chunk do |segments|
-        directions = segments.map(&:difference).map(&:normalised)
-        angle = Math.atan2(directions.inject(&:cross), directions.inject(&:dot)) * 180.0 / Math::PI
-        angle.abs < limit || (cutoff && angle.abs > cutoff)
-      end.map do |no_smoothing, segment_pairs|
-        next segment_pairs.map(&:first).map(&:last) if no_smoothing
-        smoothed = segment_pairs.map do |segments|
-          [ segments[0].along(0.75), segments[1].along(0.25) ]
-        end.flatten(1)
-        smooth_interior.call segment_pairs.first.first.first, *smoothed, segment_pairs.last.last.last
-      end.flatten(1)
-    end
-    map do |points|
-      closed ? smooth_interior.call(points.last, *points, points.first) : [ points.first, *smooth_interior.call(*points), points.last ]
-    end
-  end
-  
-  def densify(closed, distance)
-    map do |points|
-      (closed ? points.ring : points.segments).inject([]) do |memo, segment|
-        steps = (segment.distance / distance).ceil
-        memo += steps.times.map do |step|
-          segment.along(step.to_f / steps)
-        end
-      end.tap do |result|
-        result << points.last unless closed
-      end
-    end
-  end
-  
-  def simplify(closed, max_area)
-    map do |points|
-      pruned, area = points.take(1), 0
-      points.segments.each do |segment|
-        area -= segment[0].cross(pruned[-1])
-        area += segment[0].cross(segment[1])
-        area += segment[1].cross(pruned[-1])
-        pruned << segment[1] and area = 0 if area.abs > max_area
-      end
-      closed || pruned.last == points.last ? pruned : pruned << points.last
-    end.reject(&:one?)
-  end
-  
-  def between_critical_supports
-    indices = [ at(0).map.with_index.min.last, at(1).map.with_index.max.last ]
-    calipers = [ [ 0, -1 ], [ 0, 1 ] ]
-    rotation = 0.0
-    count = 0
-    
-    Enumerator.new do |yielder|
-      while rotation <= 2 * Math::PI
-        pairs, edges, vertices = zip(indices).map do |polygon, index|
-          pair = polygon.values_at (index - 1) % polygon.length, (index + 1) % polygon.length
-          edge = polygon.values_at index, (index + 1) % polygon.length
-          [ pair, edge, polygon[index] ]
-        end.transpose
-        
-        angle, which = edges.zip(calipers).map do |edge, caliper|
-          vector = edge.difference.rotate_by(-rotation)
-          Math::acos vector.dot(caliper) / vector.norm
-        end.map.with_index.min
-        
-        perp = vertices.difference.perp
-        comparisons = [ 1, -1 ].zip(pairs).map do |sign, pair|
-          pair.map { |point| sign * point.minus(vertices.first).dot(perp) <=> 0 }
-        end.flatten
-        count += 1 if comparisons.inject(&:+).abs == 4
-        
-        yielder << edges.rotate(which) if count > 0
-        break if count > 1
-        
-        rotation += angle
-        indices[which] += 1
-        indices[which] %= at(which).length
-      end
-    end
-  end
-  
-  def disjoint?
-    between_critical_supports.any?
-  end
-  
-  def minimum_distance
-    between_critical_supports.inject(nil) do |distance, edges|
-      edge_vector = edges.first.difference
-      vertex_vector = edges.map(&:first).difference
-      vertex_dot_edge = vertex_vector.dot edge_vector
-      if vertex_dot_edge <= 0 || vertex_dot_edge >= edge_vector.dot(edge_vector)
-        [ *distance, vertex_vector.norm ].min
-      else
-        [ *distance, vertex_vector.proj(edge_vector.perp).abs ].min
-      end
-    end || 0
-  end
-  
-  def overlaps(buffer = 0)
-    axis = flatten(1).transpose.map { |values| values.max - values.min }.map.with_index.max.last
-    events, tops, bots, results = AVLTree.new, [], [], []
-    margin = [ buffer, 0 ]
-    each.with_index do |hull, index|
-      min, max = hull.map { |point| point.rotate axis }.minmax
-      events << [ min.minus(margin), index, :start ]
-      events << [ max.plus( margin), index, :stop  ]
-    end
-    events.each do |point, index, event|
-      top, bot = at(index).transpose[1-axis].minmax
-      case event
-      when :start
-        not_above = bots.select { |bot, other| bot >= top - buffer }.map(&:last)
-        not_below = tops.select { |top, other| top <= bot + buffer }.map(&:last)
-        (not_below & not_above).reject do |other|
-          buffer.zero? ? values_at(index, other).disjoint? : values_at(index, other).minimum_distance > buffer
-        end.each do |other|
-          results << [ index, other ]
-        end
-        tops << [ top, index ]
-        bots << [ bot, index ]
-      when :stop
-        tops.delete [ top, index ]
-        bots.delete [ bot, index ]
-      end
-    end
-    results
-  end
-  
-  def principal_components
-    centre = transpose.map(&:mean)
-    deviations = map { |point| point.minus centre }.transpose
-    a00, a01, a11 = [ [0, 0], [0, 1], [1, 1] ].map do |axes|
-      deviations.values_at(*axes).transpose.map { |d1, d2| d1 * d2 }.inject(&:+)
-    end
-    eigenvalues = [ -1, +1 ].map do |sign|
-      0.5 * (a00 + a11 + sign * Math::sqrt(a00**2 + 4 * a01**2 - 2 * a00 * a11 + a11**2))
-    end
-    eigenvectors = eigenvalues.reverse.map do |eigenvalue|
-      [ a00 + a01 - eigenvalue, a11 + a01 - eigenvalue ]
-    end
-    eigenvalues.zip eigenvectors
-  end
-end
+Array.send :include, ArrayHelpers, Vector, Segment, VectorSequence, VectorSequences, Clipping, Overlap, SVGPath, StraightSkeleton
 
 class String
   def in_two
@@ -956,55 +1017,6 @@ ppi: 300
 rotation: 0
 ]
   
-  module BoundingBox
-    def self.minimum_bounding_box(points)
-      polygon = points.convex_hull
-      indices = [ [ :min_by, :max_by ], [ 0, 1 ] ].inject(:product).map do |min, axis|
-        polygon.map.with_index.send(min) { |point, index| point[axis] }.last
-      end
-      calipers = [ [ 0, -1 ], [ 1, 0 ], [ 0, 1 ], [ -1, 0 ] ]
-      rotation = 0.0
-      candidates = []
-  
-      while rotation < Math::PI / 2
-        edges = indices.map do |index|
-          polygon[(index + 1) % polygon.length].minus polygon[index]
-        end
-        angle, which = [ edges, calipers ].transpose.map do |edge, caliper|
-          Math::acos(edge.dot(caliper) / edge.norm)
-        end.map.with_index.min_by { |angle, index| angle }
-    
-        calipers.each { |caliper| caliper.rotate_by!(angle) }
-        rotation += angle
-    
-        break if rotation >= Math::PI / 2
-    
-        dimensions = [ 0, 1 ].map do |offset|
-          polygon[indices[offset + 2]].minus(polygon[indices[offset]]).proj(calipers[offset + 1])
-        end
-    
-        centre = polygon.values_at(*indices).map do |point|
-          point.rotate_by(-rotation)
-        end.partition.with_index do |point, index|
-          index.even?
-        end.map.with_index do |pair, index|
-          0.5 * pair.map { |point| point[index] }.inject(:+)
-        end.rotate_by(rotation)
-    
-        if rotation < Math::PI / 4
-          candidates << [ centre, dimensions, rotation ]
-        else
-          candidates << [ centre, dimensions.reverse, rotation - Math::PI / 2 ]
-        end
-    
-        indices[which] += 1
-        indices[which] %= polygon.length
-      end
-  
-      candidates.min_by { |centre, dimensions, rotation| dimensions.inject(:*) }
-    end
-  end
-
   module WorldFile
     def self.write(topleft, resolution, angle, path)
       path.open("w") do |file|
@@ -1223,7 +1235,7 @@ rotation: 0
         puts "Calculating map bounds..."
         bounding_points = reproject_from_wgs84 wgs84_points
         if config["rotation"] == "auto"
-          @centre, @extents, @rotation = BoundingBox.minimum_bounding_box(bounding_points)
+          @centre, @extents, @rotation = bounding_points.minimum_bounding_box
           @rotation *= 180.0 / Math::PI
         else
           @rotation = config["rotation"]
@@ -3927,7 +3939,6 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: breakout Array vector methods into modules
 # TODO: switch to Open3 for shelling out
 # TODO: add nodata transparency in vegetation source?
 # TODO: remove linked images from PDF output?

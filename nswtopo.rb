@@ -2983,47 +2983,56 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             map.coords_to_mm coords
           end
         end
-        transforms.each do |transform, (*args)|
-          case transform
-          when "reduce"
-            case args.shift
-            when "centreline"
-              dimension = 1 and data.replace data.centreline(*args)
-            when "centrepoints"
-              dimension = 0 and data.replace data.centrepoints(*args)
-            end if dimension == 2
-          when "offset"
-            data.replace data.offset(dimension == 2, *args) if dimension > 0
-          when "buffer"
-            data.replace data.buffer(dimension == 2, *args) if dimension > 0
-          when "smooth"
-            attributes["max-angle"] = args[0] = (args[0] == true ? 20 : args[0])
-            data.replace data.smooth(dimension == 2, *args) if dimension > 0
-          when "densify"
-            data.replace data.densify(dimension == 2, *args) if dimension > 0
-          when "simplify"
-            data.replace data.simplify(dimension == 2, *args) if dimension > 0
-          when "remove"
-            args.each do |value|
-              data.replace [] if case value
-              when true    then true
-              when String  then text == value
-              when Regexp  then text =~ value
-              when Numeric then text == value.to_s
+        transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (*args))|
+          dimensioned_data.map do |dimension, data|
+            case transform
+            when "reduce"
+              case args.shift
+              when "centreline"
+                [ [ 1, data.centreline(*args) ] ]
+              when "centrepoints"
+                [ [ 0, data.centrepoints(*args) ] ]
+              end if dimension == 2
+            when "offset"
+              [ [ dimension, data.offset(dimension == 2, *args) ] ] if dimension > 0
+            when "buffer"
+              [ [ dimension, data.buffer(dimension == 2, *args) ] ] if dimension > 0
+            when "smooth"
+              attributes["max-angle"] = args[0] = (args[0] == true ? 20 : args[0])
+              [ [ dimension, data.smooth(dimension == 2, *args) ] ] if dimension > 0
+            when "densify"
+              [ [ dimension, data.densify(dimension == 2, *args) ] ] if dimension > 0
+            when "simplify"
+              [ [ dimension, data.simplify(dimension == 2, *args) ] ] if dimension > 0
+            when "remove"
+              [ ] if args.any? do |value|
+                case value
+                when true    then true
+                when String  then text == value
+                when Regexp  then text =~ value
+                when Numeric then text == value.to_s
+                end
               end
-            end
-          when "minimum-area"
-            data.reject! do |points|
-              points.signed_area.abs < args[0]
-            end if dimension == 2
-          when "minimum-length"
-            data.reject! do |points|
-              points.segments.map(&:distance).inject(0.0, &:+) < args[0]
-            end if dimension == 1
+            when "minimum-area"
+              if dimension == 2
+                pruned = data.reject do |points|
+                  points.signed_area.abs < args[0]
+                end
+                [ [ dimension, pruned ] ]
+              end
+            when "minimum-length"
+              if dimension == 1
+                pruned = data.reject do |points|
+                  points.segments.map(&:distance).inject(0.0, &:+) < args[0]
+                end
+                [ [ dimension, pruned ] ]
+              end
+            end || [ [ dimension, data ] ]
+          end.flatten(1)
+        end.each do |dimension, data|
+          data.each do |point_or_points|
+            components << [ dimension, point_or_points, attributes ]
           end
-        end
-        data.each do |point_or_points|
-          components << [ dimension, point_or_points, attributes ]
         end
       end if source.respond_to? :labels
     end

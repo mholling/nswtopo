@@ -887,10 +887,13 @@ module StraightSkeleton
     end
   end
   
-  def centreline(margin_fraction = 0.25)
+  def centrelines_centrepoints(get_lines, get_points, fraction = 0.5)
     ends   = Hash.new { |ends,   node|   ends[node] = [ ] }
     splits = Hash.new { |splits, node| splits[node] = [ ] }
+    counts, travel = Hash.new(0), 0
     Vertex.skeleton(self).each do |node0, node1|
+      counts[node1] += 1
+      travel = [ travel, node1.travel ].max
       case [ node0.class, node1.class ]
       when [ Split, Collapse ], [ Split, Split ]
         splits[node1] << [ node0, node1 ]
@@ -905,6 +908,12 @@ module StraightSkeleton
         ends[node1] << [ node0, node1 ]
       end
     end
+    points = counts.select do |node, count|
+      count == 3
+    end.keys.sort_by(&:travel).reverse.select do |node|
+      node.travel > fraction * travel
+    end.map(&:point) if get_points
+    return [ points ] unless get_lines
     ends = ends.map do |node1, paths|
       paths.reject do |*nodes, node, node1|
         splits[node1].any? do |*nodes, node0, node1|
@@ -927,7 +936,7 @@ module StraightSkeleton
         lengths.store [ node0, node1 ], [ node0, *nodes, node1 ].map(&:point).segments.map(&:distance).inject(&:+)
       end
     end
-    distances, centrelines = Hash.new(0), { }
+    distances, lines = Hash.new(0), { }
     areas = map(&:signed_area)
     candidates = neighbours.keys.map do |point|
       [ [ point ], 0, Set[point] ]
@@ -940,28 +949,16 @@ module StraightSkeleton
       index = nodes.map(&:whence).inject(&:|).find do |index|
         areas[index] > 0
       end
-      distances[index], centrelines[index] = distance, nodes if index && distance > distances[index]
+      distances[index], lines[index] = distance, nodes if index && distance > distances[index]
     end
-    centrelines.values.map do |nodes|
-      travel = nodes.map(&:travel).max
+    lines = lines.values.map do |nodes|
       paths.values_at(*nodes.segments).inject(nodes.take(1), &:+).chunk do |node|
-        node.travel > margin_fraction * travel
+        node.travel > fraction * travel
       end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
         nodes.map(&:point)
       end
     end.flatten(1)
-  end
-  
-  def centrepoints(margin_fraction = 0.5)
-    counts = Hash.new(0)
-    peaks = Vertex.skeleton(self).map(&:last).each do |node|
-      counts[node] += 1
-    end.select do |node|
-      counts[node] == 3
-    end.sort_by(&:travel).reverse
-    peaks.select do |node|
-      node.travel > margin_fraction * peaks.first.travel
-    end.map(&:point)
+    get_points ? [ lines, points ] : [ lines ]
   end
   
   def inset(closed, margin)
@@ -2988,22 +2985,24 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             case transform
             when "reduce"
               case args.shift
-              when "centreline"
-                [ [ 1, data.centreline(*args) ] ]
+              when "centrelines"
+                [ 1 ].zip data.centrelines_centrepoints(true, false, *args)
               when "centrepoints"
-                [ [ 0, data.centrepoints(*args) ] ]
+                [ 0 ].zip data.centrelines_centrepoints(false, true, *args)
+              when "centres"
+                [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args)
               end if dimension == 2
             when "offset"
-              [ [ dimension, data.offset(dimension == 2, *args) ] ] if dimension > 0
+              [ dimension ].zip [ data.offset(dimension == 2, *args) ] if dimension > 0
             when "buffer"
-              [ [ dimension, data.buffer(dimension == 2, *args) ] ] if dimension > 0
+              [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0
             when "smooth"
               attributes["max-angle"] = args[0] = (args[0] == true ? 20 : args[0])
-              [ [ dimension, data.smooth(dimension == 2, *args) ] ] if dimension > 0
+              [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0
             when "densify"
-              [ [ dimension, data.densify(dimension == 2, *args) ] ] if dimension > 0
+              [ dimension ].zip [ data.densify(dimension == 2, *args) ] if dimension > 0
             when "simplify"
-              [ [ dimension, data.simplify(dimension == 2, *args) ] ] if dimension > 0
+              [ dimension ].zip [ data.simplify(dimension == 2, *args) ] if dimension > 0
             when "remove"
               [ ] if args.any? do |value|
                 case value
@@ -3014,26 +3013,23 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
             when "remove-holes"
-              if dimension == 2
-                pruned = data.reject do |points|
-                  points.signed_area < 0
-                end
-                [ [ dimension, pruned ] ]
+              next [ [ dimension, data ] ] unless dimension == 2
+              pruned = data.reject do |points|
+                points.signed_area < 0
               end
+              [ [ dimension, pruned ] ]
             when "minimum-area"
-              if dimension == 2
-                pruned = data.reject do |points|
-                  points.signed_area.abs < args[0]
-                end
-                [ [ dimension, pruned ] ]
+              next [ [ dimension, data ] ] unless dimension == 2
+              pruned = data.reject do |points|
+                points.signed_area.abs < args[0]
               end
+              [ [ dimension, pruned ] ]
             when "minimum-length"
-              if dimension == 1
-                pruned = data.reject do |points|
-                  points.segments.map(&:distance).inject(0.0, &:+) < args[0]
-                end
-                [ [ dimension, pruned ] ]
+              next [ [ dimension, data ] ] unless dimension == 1
+              pruned = data.reject do |points|
+                points.segments.map(&:distance).inject(0.0, &:+) < args[0]
               end
+              [ [ dimension, pruned ] ]
             end || [ [ dimension, data ] ]
           end.flatten(1)
         end.each do |dimension, data|
@@ -3065,7 +3061,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
             height = lines.length * font_size
             transform = "translate(#{data.join ?\s}) rotate(#{-map.rotation})"
-            [ *attributes["position"] ].map do |position|
+            [ *attributes["position"] || "over" ].map do |position|
               dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
               f = dx * dy == 0 ? 1 : 0.707

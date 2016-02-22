@@ -3042,7 +3042,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
-      hulls, sublayers, dimensions, attributes, component_indices, categories, elements = @features.map do |text, sublayer, components|
+      hulls, sublayers, attributes, component_indices, categories, elements, dimensions = @features.map do |text, sublayer, components|
         components.map.with_index do |component, component_index|
           dimension, data, attributes = component
           font_size      = attributes["font-size"]      || 1.5
@@ -3079,7 +3079,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
-              [ hull, sublayer, dimension, attributes, component_index, categories, nil, text_elements ]
+              [ hull, sublayer, attributes, component_index, categories, text_elements, dimension ]
             end
           when 1, 2
             orientation = attributes["orientation"]
@@ -3150,14 +3150,21 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   text_path.add_text text
                 end
               end
-              [ hull, sublayer, dimension, attributes, component_index, categories, [ text_element, path_element ] ]
+              [ hull, sublayer, attributes, component_index, categories, [ text_element, path_element ], dimension ]
             end
           end.select do |hull, *args|
             labelling_hull.surrounds?(hull).all?
-          end.reject do |hull, *args|
-            map.debug && block.call("candidates").add_element("path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => hull.to_path_data(MM_DECIMAL_DIGITS, ?Z))
           end
-        end.flatten(1).transpose
+        end.flatten(1).tap do |candidates|
+          candidates.reject! do |*args, dimension|
+            dimension == 0
+          end if candidates.any? do |*args, dimension|
+            dimension > 0
+          end
+          candidates.each do |hull, *args|
+            block.call("candidates").add_element "path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => hull.to_path_data(MM_DECIMAL_DIGITS, ?Z)
+          end.clear if map.debug
+        end.transpose
       end.reject(&:empty?).transpose
       return unless hulls
       

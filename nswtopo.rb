@@ -3180,30 +3180,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         conflicts[feature2_index][candidate2_index][label1] = true
       end
       
-      dimensions.zip(component_indices).each.with_index do |(dimensions, component_indices), feature_index|
-        dimensions.zip(component_indices).each.with_index do |(dimension, component1_index), candidate1_index|
-          label1 = [ feature_index, candidate1_index ]
-          component_indices.each.with_index.select do |component2_index, candidate2_index|
-            candidate2_index < candidate1_index && component1_index == component2_index
-          end.each do |component2_index, candidate2_index|
-            label2 = [ feature_index, candidate2_index ]
-            case dimension
-            when 0
-              conflicts[feature_index][candidate1_index][label2] = true
-              conflicts[feature_index][candidate2_index][label1] = true
-            end
-          end
-        end
-      end
-      
       hulls.zip(attributes).each.with_index do |(hulls, attributes), feature_index|
-        buffer = attributes.map { |attributes| attributes["repeat"] }.compact.max
+        buffer = attributes.map { |attributes| attributes["repeat"] }.compact.max || 100
         hulls.overlaps(buffer).each do |candidate1_index, candidate2_index|
           label1 = [ feature_index, candidate1_index ]
           label2 = [ feature_index, candidate2_index ]
           conflicts[feature_index][candidate1_index][label2] = true
           conflicts[feature_index][candidate2_index][label1] = true
-        end if buffer
+        end
       end
       
       labels = [ ]

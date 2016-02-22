@@ -2938,7 +2938,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class LabelSource < Source
     include VectorRenderer
     LABELLING_ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate]
-    LABELLING_TRANSFORMS = %w[reduce offset buffer densify simplify smooth minimum-area minimum-length remove]
+    LABELLING_TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
     FONT_ASPECT_RATIO = 0.7
     
     def initialize(*args)
@@ -3012,6 +3012,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 when Regexp  then text =~ value
                 when Numeric then text == value.to_s
                 end
+              end
+            when "remove-holes"
+              if dimension == 2
+                pruned = data.reject do |points|
+                  points.signed_area < 0
+                end
+                [ [ dimension, pruned ] ]
               end
             when "minimum-area"
               if dimension == 2

@@ -2934,8 +2934,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class LabelSource < Source
     include VectorRenderer
-    LABELLING_ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate]
-    LABELLING_TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate categories]
+    TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
     FONT_ASPECT_RATIO  = 0.7
     DEFAULT_FONT_SIZE  = 1.8
     DEFAULT_MARGIN     = 1
@@ -2954,21 +2954,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       sublayer = source.name
       source_params = params[sublayer] || {}
       source.labels(map).each do |feature|
-        categories = [ *feature["categories"] ].map(&:to_s).reject(&:empty?).join(?\s)
         dimension = feature["dimension"]
-        attributes = { "categories" => categories }
-        attributes["percents"] = feature["percents"] if feature["percents"]
-        transforms = {}
-        source_params.select do |key, value|
-          value.is_a?(Hash)
-        end.select do |key, value|
-          [ *key ].any? { |substring| categories.start_with? substring }
-        end.values.inject(source_params, &:merge).tap do |merged_params|
-          merged_params.each do |key, value|
-            case key
-            when *LABELLING_ATTRIBUTES then attributes[key] = value
-            when *LABELLING_TRANSFORMS then transforms[key] = value
-            end
+        transforms, attributes, *dimensioned_attributes = [ nil, nil, "point", "line", "line" ].map do |category|
+          [ *feature["categories"], *category ].map(&:to_s).reject(&:empty?).join(?\s)
+        end.zip([ TRANSFORMS, ATTRIBUTES, ATTRIBUTES, ATTRIBUTES, ATTRIBUTES ]).map do |categories, keys|
+          source_params.select do |key, value|
+            value.is_a?(Hash)
+          end.select do |key, value|
+            [ *key ].any? { |substring| categories.start_with? substring }
+          end.values.push("categories" => categories).inject(source_params, &:merge).select do |key, value|
+            keys.include? key
           end
         end
         text = attributes["format"] ? attributes["format"] % feature["labels"] : [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
@@ -3004,7 +2999,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when "buffer"
               [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0
             when "smooth"
-              attributes["max-angle"] = args[0] = (args[0] == true ? 20 : args[0])
+              dimensioned_attributes[dimension]["max-angle"] = args[0] = (args[0] == true ? 20 : args[0])
               [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0
             when "densify"
               [ dimension ].zip [ data.densify(dimension == 2, *args) ] if dimension > 0
@@ -3041,7 +3036,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.flatten(1)
         end.each do |dimension, data|
           data.each do |point_or_points|
-            components << [ dimension, point_or_points, attributes ]
+            components << [ dimension, point_or_points, dimensioned_attributes[dimension] ]
           end
         end
       end if source.respond_to? :labels

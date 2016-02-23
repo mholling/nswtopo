@@ -2759,10 +2759,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       params["label-spacing"] ? periodic_labels(map) : edge_labels(map)
     end
     
-    def labels_percents(coord, interval)
-      result = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
-      result << [ "%03d" % (coord % 1000), 80 ] unless interval % 1000 == 0
-      result
+    def label(coord, interval)
+      font_size = params["labels"].fetch("font-size", 2.75)
+      parts = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
+      parts << [ "%03d" % (coord % 1000), 80 ] unless interval % 1000 == 0
+      element = REXML::Element.new("textPath")
+      parts.each do |text, percent|
+        element.add_element("tspan", "font-size" => "#{percent}%", "alignment-baseline" => "central").add_text(text)
+      end
+      count = parts.map do |text, percent|
+        text.length * percent / 100.0
+      end.inject(&:+) + parts.size - 1
+      [ count * font_size * LabelSource::FONT_ASPECT_RATIO , element ]
     end
     
     def edge_labels(map)
@@ -2781,13 +2789,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.select(&:last).select do |coord, segment|
             corners.surrounds?(segment).any? && Projection.in_zone?(zone, segment[outgoing ? 1 : 0], map.projection)
           end.map do |coord, segment|
-            labels, percents = labels_percents(coord, interval).transpose
-            label_length = labels.zip(percents).map { |label, percent| label.length * percent / 100.0 }.inject(&:+) * 2.0
+            label_length, label_element = label(coord, interval)
             segment_length = 1000.0 * segment.distance / map.scale
             fraction = label_length / segment_length
             fractions = outgoing ? [ 1.0 - fraction, 1.0 ] : [ 0.0, fraction ]
             baseline = fractions.map { |fraction| segment.along fraction }
-            { "dimension" => 1, "data" => [ baseline ], "labels" => labels, "percents" => percents, "categories" => eastings ? "eastings" : "northings" }
+            { "dimension" => 1, "data" => [ baseline ], "labels" => label_element, "categories" => eastings ? "eastings" : "northings" }
           end
         end
       end.flatten
@@ -2802,13 +2809,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.select do |line, coord|
             coord % label_interval == 0
           end.map do |line, coord|
-            labels, percents = labels_percents(coord, label_interval).transpose
             line.segments.select do |segment|
               segment[0][1-index] % label_interval == 0
             end.select do |segment|
               Projection.in_zone?(zone, segment, utm).all?
             end.map do |segment|
-              { "dimension" => 1, "data" => [ map.reproject_from(utm, segment) ], "labels" => labels, "percents" => percents, "categories" => index.zero? ? "eastings" : "northings" }
+              map.reproject_from utm, segment
+            end.map do |segment|
+              label_length, label_element = label(coord, label_interval)
+              segment_length = 1000.0 * segment.distance / map.scale
+              fraction = label_length / segment_length
+              baseline = [ segment.along(0.5 * (1 - fraction)), segment.along(0.5 * (1 + fraction)) ]
+              { "dimension" => 1, "data" => [ baseline ], "labels" => label_element, "categories" => index.zero? ? "eastings" : "northings" }
             end
           end
         end
@@ -2936,7 +2948,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include VectorRenderer
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate categories]
     TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
-    FONT_ASPECT_RATIO  = 0.7
+    FONT_ASPECT_RATIO  = 0.6
     DEFAULT_FONT_SIZE  = 1.8
     DEFAULT_MARGIN     = 1
     DEFAULT_REPEAT     = 100
@@ -2966,7 +2978,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             keys.include? key
           end
         end
-        text = attributes["format"] ? attributes["format"] % feature["labels"] : [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
+        text = case
+        when feature["labels"].is_a?(REXML::Element)
+          feature["labels"]
+        when attributes["format"]
+          attributes["format"] % feature["labels"]
+        else
+          [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
+        end
         _, _, components = @features.find do |other_text, other_sublayer, _|
           other_sublayer == sublayer && other_text == text
         end if attributes["collate"]
@@ -3088,7 +3107,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             deviation   = attributes["deviation"]  || DEFAULT_DEVIATION
             min_radius  = attributes["min-radius"] || DEFAULT_MIN_RADIUS
             max_angle   = (attributes["max-angle"] || DEFAULT_MAX_ANGLE) * Math::PI / 180
-            text_length = attributes["percents"] ? data.distance : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
+            text_length = text.is_a?(REXML::Element) ? data.distance : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
             distances = data.ring.map(&:distance)
             arclengths = data.ring.map(&:midpoint).ring.map(&:distance).rotate(-1)
             angles = data.ring.map(&:difference).map(&:normalised).ring.map do |directions|
@@ -3142,15 +3161,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               path_element.add_attributes "id" => id, "d" => d
               text_element = REXML::Element.new("text")
               text_element.add_attributes "text-anchor" => "middle"
-              text_element.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%", "alignment-baseline" => "middle") do |text_path|
-                if attributes["percents"]
-                  attributes["percents"].zip(text.split ?\s).each.with_index do |(percent, text_part), index|
-                    text_path.add_text ?\s unless index.zero?
-                    text_path.add_element("tspan", "font-size" => "#{percent}%", "alignment-baseline" => "middle") { |tspan| tspan.add_text text_part }
-                  end
-                else
-                  text_path.add_text text
-                end
+              case text
+              when REXML::Element
+                text_element.add_element(text, "xlink:href" => "##{id}", "startOffset" => "50%", "alignment-baseline" => "central")
+              when String
+                text_element.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%", "alignment-baseline" => "central").add_text(text)
               end
               [ hull, sublayer, attributes, component_index, categories, [ text_element, path_element ], dimension ]
             end

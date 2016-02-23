@@ -928,7 +928,7 @@ module StraightSkeleton
       end.sort_by(&:first).last(2).map(&:last)
     end
     neighbours = Hash.new { |neighbours, node| neighbours[node] = Set.new }
-    paths, lengths = { }, { }
+    paths, lengths = {}, {}
     [ ends, splits.values ].flatten(2).select(&:many?).each do |path|
       [ path, path.reverse ].each do |node0, *nodes, node1|
         neighbours[node0] << node1
@@ -936,7 +936,7 @@ module StraightSkeleton
         lengths.store [ node0, node1 ], [ node0, *nodes, node1 ].map(&:point).segments.map(&:distance).inject(&:+)
       end
     end
-    distances, lines = Hash.new(0), { }
+    distances, lines = Hash.new(0), {}
     areas = map(&:signed_area)
     candidates = neighbours.keys.map do |point|
       [ [ point ], 0, Set[point] ]
@@ -1491,7 +1491,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   end
   
   class Source
-    SVG_PRESENTATION_ATTRIBUTES = %w[alignment-baseline baseline-shift clip-path clip-rule clip color-interpolation-filters color-interpolation color-profile color-rendering color cursor direction display dominant-baseline fill-opacity fill-rule fill filter flood-color flood-opacity font-family font-size-adjust font-size font-stretch font-style font-variant font-weight glyph-orientation-horizontal glyph-orientation-vertical image-rendering kerning letter-spacing lighting-color marker-end marker-mid marker-start mask opacity overflow pointer-events shape-rendering stop-color stop-opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-anchor text-decoration text-rendering unicode-bidi visibility word-spacing writing-mode]
+    SVG_PRESENTATION_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
     
     def initialize(name, params)
       @name = name
@@ -2936,11 +2936,18 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include VectorRenderer
     LABELLING_ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate]
     LABELLING_TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
-    FONT_ASPECT_RATIO = 0.7
+    FONT_ASPECT_RATIO  = 0.7
+    DEFAULT_FONT_SIZE  = 1.8
+    DEFAULT_MARGIN     = 1
+    DEFAULT_REPEAT     = 100
+    DEFAULT_DEVIATION  = 5
+    DEFAULT_MIN_RADIUS = 2
+    DEFAULT_MAX_ANGLE  = 25
     
     def initialize(*args)
       super(*args)
       @features = [];
+      @params["font-size"] = DEFAULT_FONT_SIZE
     end
     
     def add(source, map)
@@ -2951,7 +2958,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         dimension = feature["dimension"]
         attributes = { "categories" => categories }
         attributes["percents"] = feature["percents"] if feature["percents"]
-        transforms = { }
+        transforms = {}
         source_params.select do |key, value|
           value.is_a?(Hash)
         end.select do |key, value|
@@ -3045,7 +3052,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       hulls, sublayers, attributes, component_indices, categories, elements, dimensions = @features.map do |text, sublayer, components|
         components.map.with_index do |component, component_index|
           dimension, data, attributes = component
-          font_size      = attributes["font-size"]      || 1.5
+          font_size      = attributes["font-size"]      || DEFAULT_FONT_SIZE
           letter_spacing = attributes["letter-spacing"] || 0
           word_spacing   = attributes["word-spacing"]   || 0
           categories     = attributes["categories"]
@@ -3056,7 +3063,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end if map.debug
           case dimension
           when 0
-            margin = attributes["margin"] || 0
+            margin = attributes["margin"] || DEFAULT_MARGIN
             lines = text.in_two
             width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
             height = lines.length * font_size
@@ -3083,9 +3090,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when 1, 2
             orientation = attributes["orientation"]
-            deviation   = attributes["deviation"] || 5
-            min_radius  = attributes["min-radius"] || 3
-            max_angle   = (attributes["max-angle"] || 25) * Math::PI / 180
+            deviation   = attributes["deviation"]  || DEFAULT_DEVIATION
+            min_radius  = attributes["min-radius"] || DEFAULT_MIN_RADIUS
+            max_angle   = (attributes["max-angle"] || DEFAULT_MAX_ANGLE) * Math::PI / 180
             text_length = attributes["percents"] ? data.distance : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
             distances = data.ring.map(&:distance)
             arclengths = data.ring.map(&:midpoint).ring.map(&:distance).rotate(-1)
@@ -3188,7 +3195,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       
       hulls.zip(attributes).each.with_index do |(hulls, attributes), feature_index|
-        buffer = attributes.map { |attributes| attributes["repeat"] }.compact.max || 100
+        buffer = attributes.map { |attributes| attributes["repeat"] }.compact.max || DEFAULT_REPEAT
         hulls.overlaps(buffer).each do |candidate1_index, candidate2_index|
           label1 = [ feature_index, candidate1_index ]
           label2 = [ feature_index, candidate2_index ]
@@ -3202,7 +3209,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         { feature_index => candidate_indices.map do |candidate_index, label_conflicts|
           { candidate_index => label_conflicts.dup }
         end.inject(&:merge) }
-      end.inject(&:merge) || { }
+      end.inject({}, &:merge)
       
       while pending.any?
         pending.map do |feature_index, candidate_indices|
@@ -3942,6 +3949,7 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
+# TODO: use textLength to ensure correct label widths?
 # TODO: switch to Open3 for shelling out
 # TODO: add nodata transparency in vegetation source?
 # TODO: remove linked images from PDF output?

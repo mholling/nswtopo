@@ -344,6 +344,12 @@ module VectorSequence
     end.inject(&:plus).times(1.0 / 6.0 / signed_area)
   end
   
+  def convex?
+    ring.map(&:difference).ring.all? do |directions|
+      directions.inject(&:cross) >= 0
+    end
+  end
+  
   def surrounds?(points)
     Enumerator.new do |yielder|
       points.each do |point|
@@ -888,6 +894,8 @@ module StraightSkeleton
   end
   
   def centrelines_centrepoints(get_lines, get_points, fraction = 0.5)
+    points = map(&:centroid) if get_points && all?(&:convex?)
+    return [ points ] if points && !get_lines
     ends   = Hash.new { |ends,   node|   ends[node] = [ ] }
     splits = Hash.new { |splits, node| splits[node] = [ ] }
     counts, travel = Hash.new(0), 0
@@ -908,7 +916,7 @@ module StraightSkeleton
         ends[node1] << [ node0, node1 ]
       end
     end
-    points = counts.select do |node, count|
+    points ||= counts.select do |node, count|
       count == 3
     end.keys.sort_by(&:travel).reverse.select do |node|
       node.travel > fraction * travel

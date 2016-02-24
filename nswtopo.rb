@@ -990,7 +990,24 @@ end
 
 Array.send :include, ArrayHelpers, Vector, Segment, VectorSequence, VectorSequences, Clipping, Overlap, SVGPath, StraightSkeleton
 
-class String
+module GlyphLength
+  WIDTHS = {
+    ?A => 724, ?B => 598, ?C => 640, ?D => 750, ?E => 549, ?F => 484, ?G => 720, ?H => 742, ?I => 326, ?J => 315, ?K => 678, ?L => 522, ?M => 835,
+    ?N => 699, ?O => 779, ?P => 532, ?Q => 779, ?R => 675, ?S => 536, ?T => 596, ?U => 722, ?V => 661, ?W => 975, ?X => 641, ?Y => 641, ?Z => 684,
+    ?a => 441, ?b => 540, ?c => 448, ?d => 542, ?e => 466, ?f => 321, ?g => 479, ?h => 551, ?i => 278, ?j => 268, ?k => 530, ?l => 269, ?m => 833,
+    ?n => 560, ?o => 554, ?p => 549, ?q => 534, ?r => 398, ?s => 397, ?t => 340, ?u => 542, ?v => 535, ?w => 818, ?x => 527, ?y => 535, ?z => 503,
+    ?0 => 533, ?1 => 533, ?2 => 533, ?3 => 533, ?4 => 533, ?5 => 533, ?6 => 533, ?7 => 533, ?8 => 533, ?9 => 533, ?! => 254, ?" => 444, ?# => 644,
+    ?$ => 536, ?% => 719, ?& => 796, ?' => 235, ?( => 304, ?) => 304, ?* => 416, ?+ => 533, ?, => 217, ?- => 294, ?. => 216, ?/ => 273, ?\\ => 273,
+    ?[ => 342, ?] => 342, ?^ => 247, ?_ => 475, ?` => 247, ?: => 216, ?; => 217, ?< => 533, ?= => 533, ?> => 533, ?? => 361, ?@ => 757, ?\s => 200,
+  }
+  WIDTHS.default = WIDTHS[?M]
+  
+  def glyph_length(font_size, letter_spacing = 0, word_spacing = 0)
+    WIDTHS.values_at(*chars).inject(0, &:+) * 0.001 * font_size + [ length - 1, 0 ].max * letter_spacing + count(?\s) * word_spacing
+  end
+end
+
+module StringHelpers
   def in_two
     return split ?\n if match ?\n
     words = split ?\s
@@ -1005,6 +1022,8 @@ class String
     gsub(/^\W+|\W+$/, '').gsub(/\W+/, ?-)
   end
 end
+
+String.send :include, StringHelpers, GlyphLength
 
 module NSWTopo
   SEGMENT = ?.
@@ -2773,14 +2792,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       font_size = params["labels"].fetch("font-size", 2.75)
       parts = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
       parts << [ "%03d" % (coord % 1000), 80 ] unless interval % 1000 == 0
-      element = REXML::Element.new("textPath")
+      text_path = REXML::Element.new("textPath")
       parts.each do |text, percent|
-        element.add_element("tspan", "font-size" => "#{percent}%", "alignment-baseline" => "central").add_text(text)
+        text_path.add_element("tspan", "font-size" => "#{percent}%", "alignment-baseline" => "central").add_text(text)
       end
-      count = parts.map do |text, percent|
-        text.length * percent / 100.0
-      end.inject(&:+) + parts.size - 1
-      [ count * font_size * LabelSource::FONT_ASPECT_RATIO , element ]
+      length = parts.map do |text, percent|
+        [ ?\s.glyph_length(font_size), text.glyph_length(font_size) * percent / 100.0 ]
+      end.flatten.drop(1).inject(&:+)
+      [ length, text_path ]
     end
     
     def edge_labels(map)
@@ -2799,12 +2818,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end.select(&:last).select do |coord, segment|
             corners.surrounds?(segment).any? && Projection.in_zone?(zone, segment[outgoing ? 1 : 0], map.projection)
           end.map do |coord, segment|
-            label_length, label_element = label(coord, interval)
+            length, text_path = label(coord, interval)
             segment_length = 1000.0 * segment.distance / map.scale
-            fraction = label_length / segment_length
+            fraction = length / segment_length
             fractions = outgoing ? [ 1.0 - fraction, 1.0 ] : [ 0.0, fraction ]
             baseline = fractions.map { |fraction| segment.along fraction }
-            { "dimension" => 1, "data" => [ baseline ], "labels" => label_element, "categories" => eastings ? "eastings" : "northings" }
+            { "dimension" => 1, "data" => [ baseline ], "labels" => text_path, "categories" => eastings ? "eastings" : "northings" }
           end
         end
       end.flatten
@@ -2826,11 +2845,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.map do |segment|
               map.reproject_from utm, segment
             end.map do |segment|
-              label_length, label_element = label(coord, label_interval)
+              length, text_path = label(coord, label_interval)
               segment_length = 1000.0 * segment.distance / map.scale
-              fraction = label_length / segment_length
+              fraction = length / segment_length
               baseline = [ segment.along(0.5 * (1 - fraction)), segment.along(0.5 * (1 + fraction)) ]
-              { "dimension" => 1, "data" => [ baseline ], "labels" => label_element, "categories" => index.zero? ? "eastings" : "northings" }
+              { "dimension" => 1, "data" => [ baseline ], "labels" => text_path, "categories" => index.zero? ? "eastings" : "northings" }
             end
           end
         end
@@ -2958,7 +2977,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     include VectorRenderer
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate categories]
     TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
-    FONT_ASPECT_RATIO  = 0.6
     DEFAULT_FONT_SIZE  = 1.8
     DEFAULT_MARGIN     = 1
     DEFAULT_REPEAT     = 100
@@ -3089,7 +3107,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when 0
             margin = attributes["margin"] || DEFAULT_MARGIN
             lines = text.in_two
-            width = lines.map(&:length).max * (font_size * FONT_ASPECT_RATIO + letter_spacing)
+            width = lines.map do |line|
+              line.glyph_length(font_size, letter_spacing)
+            end.max
             height = lines.length * font_size
             transform = "translate(#{data.join ?\s}) rotate(#{-map.rotation})"
             [ *attributes["position"] || "over" ].map do |position|
@@ -3117,7 +3137,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             deviation   = attributes["deviation"]  || DEFAULT_DEVIATION
             min_radius  = attributes["min-radius"] || DEFAULT_MIN_RADIUS
             max_angle   = (attributes["max-angle"] || DEFAULT_MAX_ANGLE) * Math::PI / 180
-            text_length = text.is_a?(REXML::Element) ? data.distance : text.length * (font_size * FONT_ASPECT_RATIO + letter_spacing) + text.count(?\s) * word_spacing
+            text_length = case text
+            when REXML::Element then data.distance
+            when String then text.glyph_length(font_size, letter_spacing, word_spacing)
+            end
             distances = data.ring.map(&:distance)
             arclengths = data.ring.map(&:midpoint).ring.map(&:distance).rotate(-1)
             angles = data.ring.map(&:difference).map(&:normalised).ring.map do |directions|

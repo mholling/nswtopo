@@ -468,16 +468,18 @@ module VectorSequences
     end
   end
   
-  def simplify(closed, max_area)
+  def simplify(closed, max_area, cutoff = false)
     map do |points|
       pruned, area = points.take(1), 0
-      points.segments.each do |segment|
-        area -= segment[0].cross(pruned[-1])
-        area += segment[0].cross(segment[1])
-        area += segment[1].cross(pruned[-1])
-        pruned << segment[1] and area = 0 if area.abs > max_area
+      points.send(closed ? :ring : :segments).segments.each do |segments|
+        directions = segments.map(&:difference).map(&:normalised)
+        angle = Math.atan2(directions.inject(&:cross), directions.inject(&:dot)) * 180.0 / Math::PI
+        area -= segments[0][0].cross pruned[-1]
+        area += segments[0][0].cross segments[0][1]
+        area += segments[0][1].cross pruned[-1]
+        pruned << segments[0][1] and area = 0 if area.abs > max_area || (cutoff && angle.abs > cutoff)
       end
-      closed || pruned.last == points.last ? pruned : pruned << points.last
+      closed ? pruned : pruned << points.last
     end.reject(&:one?)
   end
 end

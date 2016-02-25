@@ -433,6 +433,31 @@ module VectorSequence
     end
     eigenvalues.zip eigenvectors
   end
+  
+  def path_length
+    segments.map(&:difference).map(&:norm).inject(0, &:+)
+  end
+  
+  def crop(length)
+    start = 0.5 * (path_length - length)
+    stop = start + length
+    points, total = [], 0
+    segments.each do |segment|
+      distance = segment.distance
+      case
+      when total + distance <= start
+      when total <= start
+        points << segment.along((start - total) / distance)
+        points << segment.along((stop  - total) / distance) if total + distance >= stop
+      else
+        points << segment[0]
+        points << segment.along((stop  - total) / distance) if total + distance >= stop
+      end
+      total += distance
+      break if total >= stop
+    end
+    points
+  end
 end
 
 module VectorSequences
@@ -3108,7 +3133,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             margin = attributes["margin"] || DEFAULT_MARGIN
             lines = text.in_two
             width = lines.map do |line|
-              line.glyph_length(font_size, letter_spacing)
+              line.glyph_length(font_size, letter_spacing, word_spacing)
             end.max
             height = lines.length * font_size
             transform = "translate(#{data.join ?\s}) rotate(#{-map.rotation})"
@@ -3138,7 +3163,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             min_radius  = attributes["min-radius"] || DEFAULT_MIN_RADIUS
             max_angle   = (attributes["max-angle"] || DEFAULT_MAX_ANGLE) * Math::PI / 180
             text_length = case text
-            when REXML::Element then data.distance
+            when REXML::Element then data.path_length
             when String then text.glyph_length(font_size, letter_spacing, word_spacing)
             end
             distances = data.ring.map(&:distance)
@@ -3175,7 +3200,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.reject do |indices|
               indices[1...-1].any? { |index| too_tight[index] || too_sharp[index] }
             end.map do |indices|
-              data.values_at *indices
+              data.values_at(*indices).crop(text_length)
             end.map do |baseline|
               eigenvalue, eigenvector = baseline.principal_components.first
               [ baseline, eigenvalue ]
@@ -3183,22 +3208,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               eigenvalue > deviation**2
             end.sort_by(&:last).map(&:first).map do |baseline|
               rightwards = baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
-              hull = [ baseline ].buffer(false, 0.5 * font_size).flatten(1).convex_hull
-              d = case orientation
+              case orientation
               when "uphill"   then baseline
               when "downhill" then baseline.reverse
               else rightwards ? baseline : baseline.reverse
-              end.to_path_data(MM_DECIMAL_DIGITS)
-              id = [ name, sublayer, "path", d.hash ].join SEGMENT
+              end
+            end.map do |baseline|
+              hull = [ baseline ].buffer(false, 0.5 * font_size).flatten(1).convex_hull
+              path_id = [ name, sublayer, "path", baseline.hash ].join SEGMENT
               path_element = REXML::Element.new("path")
-              path_element.add_attributes "id" => id, "d" => d
+              path_element.add_attributes "id" => path_id, "d" => baseline.to_path_data(MM_DECIMAL_DIGITS), "pathLength" => text_length.round(MM_DECIMAL_DIGITS)
               text_element = REXML::Element.new("text")
-              text_element.add_attributes "text-anchor" => "middle"
               case text
               when REXML::Element
-                text_element.add_element(text, "xlink:href" => "##{id}", "startOffset" => "50%", "alignment-baseline" => "central")
+                text_element.add_element(text, "xlink:href" => "##{path_id}", "alignment-baseline" => "central")
               when String
-                text_element.add_element("textPath", "xlink:href" => "##{id}", "startOffset" => "50%", "alignment-baseline" => "central").add_text(text)
+                text_element.add_element("textPath", "xlink:href" => "##{path_id}", "alignment-baseline" => "central", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto").add_text(text)
               end
               [ hull, sublayer, attributes, component_index, categories, [ text_element, path_element ], dimension ]
             end
@@ -3992,7 +4017,6 @@ if File.identical?(__FILE__, $0)
   NSWTopo.run
 end
 
-# TODO: use textLength to ensure correct label widths?
 # TODO: switch to Open3 for shelling out
 # TODO: add nodata transparency in vegetation source?
 # TODO: remove linked images from PDF output?

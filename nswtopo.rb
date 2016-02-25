@@ -2818,8 +2818,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       parts = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
       parts << [ "%03d" % (coord % 1000), 80 ] unless interval % 1000 == 0
       text_path = REXML::Element.new("textPath")
-      parts.each do |text, percent|
-        text_path.add_element("tspan", "font-size" => "#{percent}%", "alignment-baseline" => "central").add_text(text)
+      parts.each.with_index do |(text, percent), index|
+        tspan = text_path.add_element "tspan", "font-size" => "#{percent}%"
+        tspan.add_attributes "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS) if index.zero?
+        tspan.add_text text
       end
       length = parts.map do |text, percent|
         [ ?\s.glyph_length(font_size), text.glyph_length(font_size) * percent / 100.0 ]
@@ -3221,9 +3223,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               text_element = REXML::Element.new("text")
               case text
               when REXML::Element
-                text_element.add_element(text, "xlink:href" => "##{path_id}", "alignment-baseline" => "central")
+                text_element.add_element text, "xlink:href" => "##{path_id}"
               when String
-                text_element.add_element("textPath", "xlink:href" => "##{path_id}", "alignment-baseline" => "central", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto").add_text(text)
+                text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
+                text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
               [ hull, sublayer, attributes, component_index, categories, [ text_element, path_element ], dimension ]
             end

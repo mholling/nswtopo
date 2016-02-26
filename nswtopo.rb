@@ -3217,9 +3217,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             end.map do |baseline|
               hull = [ baseline ].buffer(false, 0.5 * font_size).flatten(1).convex_hull
+              baseline << baseline[-1].minus(baseline[-2]).normalised.times(text_length * 0.25).plus(baseline[-1])
               path_id = [ name, sublayer, "path", baseline.hash ].join SEGMENT
               path_element = REXML::Element.new("path")
-              path_element.add_attributes "id" => path_id, "d" => baseline.to_path_data(MM_DECIMAL_DIGITS), "pathLength" => text_length.round(MM_DECIMAL_DIGITS)
+              path_element.add_attributes "id" => path_id, "d" => baseline.to_path_data(MM_DECIMAL_DIGITS), "pathLength" => baseline.path_length.round(MM_DECIMAL_DIGITS)
               text_element = REXML::Element.new("text")
               case text
               when REXML::Element

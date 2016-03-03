@@ -1730,13 +1730,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       max_record_count, fields, types, type_id_field, min_scale, max_scale = ArcGIS.get_json(uri, source["headers"]).values_at *%w[maxRecordCount fields types typeIdField minScale maxScale]
       fields = fields.map { |field| { field["name"] => field } }.inject({}, &:merge)
       oid_field_name = fields.values.find { |field| field["type"] == "esriFieldTypeOID" }.fetch("name", nil)
+      oid_field_alias = fields.values.find { |field| field["type"] == "esriFieldTypeOID" }.fetch("alias", oid_field_name)
       names = fields.map { |name, field| { field["alias"] => name } }.inject({}, &:merge)
       types = types && types.map { |type| { type["id"] => type } }.inject(&:merge)
       type_field_name = type_id_field && fields.values.find { |field| field["alias"] == type_id_field }.fetch("name")
       pages = Enumerator.new do |yielder|
         if options["definition"] && !service["supportsDynamicLayers"]
           uri = URI.parse "#{url}/identify"
-          index_attribute = options["page-by"] || source["page-by"] || oid_field_name || "OBJECTID"
+          index_attribute = options["page-by"] || source["page-by"] || oid_field_alias || "OBJECTID"
           scale = options["scale"]
           scale ||= max_scale.zero? ? min_scale.zero? ? map.scale : 2 * min_scale : (min_scale + max_scale) / 2
           pixels = map.wgs84_bounds.map do |bound|

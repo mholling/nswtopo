@@ -74,23 +74,15 @@ cableways:
       y1: -0.4
       y2: 0.4
 labels:
-  utility-canals:
-    deviation: 3.0
-    repeat-interval: 150
-    margin: 1.0
+  [ utility-canals, pipelines ]:
     fill: black
     letter-spacing: 0.1
     word-spacing: 2.0
     font-size: 1.5
     collate: true
-    repeat-buffer: 80
-  pipelines:
     deviation: 3.0
-    repeat-interval: 150
-    margin: 1.0
-    fill: black
-    letter-spacing: 0.1
-    word-spacing: 2.0
-    font-size: 1.5
-    collate: true
-    repeat-buffer: 100
+    repeat: 150
+    densify: 10
+    simplify: [ 1.0, 15 ]
+    smooth: 20
+    buffer: 3.0

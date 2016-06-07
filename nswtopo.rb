@@ -1759,7 +1759,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           loop do
             definitions = [ *options["definition"], *paginate ]
             definition = "(#{definitions.join ') AND ('})"
-            paged_query = query.merge("layerDefs" => "#{layer_id}:1 = 0) OR (#{definition}")
+            paged_query = query.merge("layerDefs" => "#{layer_id}:((1 = 0) OR (#{definition}))")
             page = ArcGIS.post_json(uri, paged_query.to_query, source["headers"]).fetch("results", [])
             break unless page.any?
             yielder << page

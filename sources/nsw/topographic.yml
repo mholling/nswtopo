@@ -19,8 +19,8 @@ sources:
     service: RFS
   hydrography:
     host: maps.six.nsw.gov.au
-    folder: sixmaps
-    service: Hydrography
+    folder: public
+    service: NSW_Hydrography
   act-basic:
     host: data.actmapi.act.gov.au
     instance: arcgis
@@ -147,6 +147,7 @@ features:
     - classsubtype
     - alternativelabel
   waterfalls:
+    source: hydrography
     name: Waterfalls_springs
     definition: ancillaryhydrotype = 6
     rotate: symbolrotation
@@ -252,22 +253,22 @@ features:
     - classsubtype
     - functionhierarchy
     - roadontype
-  - source: guras
-    name: Road Name Extent
-    where:
-    - operationalstatus NOT IN (3,8)
-    - functionhierarchy NOT IN (7,10,11)
-    - functionhierarchy NOT IN (6) OR relevance < 6
-    - roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%'
-    - roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
-    - roadnameoid IS NOT NULL
-    category: functionhierarchy
-    label-only: true
-    label: roadnamestring
-    per-page: 100
-  - fallback: true
-    source: lpimaplocal
-    name: LS_RoadNameExtent_Labels
+#  - source: guras
+#    name: name: Road Name Extent
+#    where:
+#    - operationalstatus NOT IN (3,8)
+#    - functionhierarchy NOT IN (7,10,11)
+#    - functionhierarchy NOT IN (6) OR relevance < 6
+#    - roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%'
+#    - roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
+#    - roadnameoid IS NOT NULL
+#    category: functionhierarchy
+#    label-only: true
+#    label: roadnamestring
+#    per-page: 100
+#  - fallback: true
+#    source: lpimaplocal
+#    name: LS_RoadNameExtent_Labels
   railways:
     name: Railway_onground_LS
     where: operationalstatus NOT IN (3,8)

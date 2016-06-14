@@ -5,6 +5,10 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: LPIMap
+  guraslpimap:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: Guras
   lpimaplocal:
     host: mapsq.six.nsw.gov.au
     folder: sixmaps
@@ -253,6 +257,29 @@ features:
     - classsubtype
     - functionhierarchy
     - roadontype
+    label: [roadnamebase, roadnametype, roadnamesuffix]
+  - source: guraslpimap
+    name: RoadSegment
+    where:
+    - functionhierarchy NOT IN (7,10,11)
+    - functionhierarchy NOT IN (6) OR relevance < 6
+    - roadnamebase NOT LIKE '%BICENTENNIAL NATIONAL%'
+    - roadnamebase NOT LIKE '%AUSTRALIAN ALPS%'
+    category: functionhierarchy
+    label-only: true
+    label: [roadnamebase, roadnametype, roadnamesuffix]
+    per-page: 100
+  - source: lpimap
+    name: Roads_onground_LS
+    where:
+    - functionhierarchy NOT IN (7,10,11)
+    - functionhierarchy NOT IN (6) OR relevance < 6
+    - roadnamebase NOT LIKE '%BICENTENNIAL NATIONAL%'
+    - roadnamebase NOT LIKE '%AUSTRALIAN ALPS%'
+    category: functionhierarchy
+    label-only: true
+    label: roadnamestring
+    per-page: 100
 #  - source: guras
 #    name: name: Road Name Extent
 #    where:

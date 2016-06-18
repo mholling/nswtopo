@@ -19,8 +19,8 @@ sources:
     service: RFS
   hydrography:
     host: maps.six.nsw.gov.au
-    folder: sixmaps
-    service: Hydrography
+    folder: public
+    service: NSW_Hydrography
   act-basic:
     host: data.actmapi.act.gov.au
     instance: arcgis
@@ -36,6 +36,10 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: POI
+  raster-labels:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: LPI_RasterLabels_1
   old-topo:
     host: imagery.maps.nsw.gov.au
     service: topo
@@ -270,8 +274,8 @@ features:
     - classsubtype
     - functionhierarchy
     - roadontype
-  - source: guras
-    name: Road Name Extent
+  - source: raster-labels
+    name: Raster_Road_Labels
     where:
     - operationalstatus NOT IN (3,8)
     - functionhierarchy NOT IN (7,10,11)
@@ -282,7 +286,9 @@ features:
     category: functionhierarchy
     label-only: true
     label: roadnamestring
-    per-page: 100
+  - fallback: true
+    source: guras
+    name: Road Name Extent
   - fallback: true
     source: lpimaplocal
     name: LS_RoadNameExtent_Labels

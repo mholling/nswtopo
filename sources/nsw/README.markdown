@@ -19,6 +19,8 @@ This map source retrieves and renders additional layers for pipelines, electrici
 
 The `nsw/holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is available for the ACT.) 
 
+**Layer not available as of June 2016**
+
 ## Reserves
 
 Include the `nsw/reserves` layer to add boundaries and labels for NSW national parks, natures reserves, state conservation areas and state forests.

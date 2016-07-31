@@ -3073,7 +3073,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when "buffer"
               [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0
             when "smooth"
-              dimensioned_attributes[dimension]["max-angle"] = args[0] = (args[0] == true ? 20 : args[0])
+              dimensioned_attributes[dimension]["max-angle"] = args[0] = (args[0] == true ? DEFAULT_MAX_ANGLE : args[0])
               [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0
             when "densify"
               [ dimension ].zip [ data.densify(dimension == 2, *args) ] if dimension > 0

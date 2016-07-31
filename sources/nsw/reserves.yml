@@ -47,7 +47,7 @@ labels:
   boundaries:
     minimum-area: 800
     simplify: [ 1.0, 15 ]
-    offset: -5.0
+    offset: -6.5
     densify: 10.0
     smooth: [ 15, 30 ]
     deviation: 5.0

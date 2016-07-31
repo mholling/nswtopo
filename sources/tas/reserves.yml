@@ -33,11 +33,12 @@ labels:
     stroke-opacity: 0.5
   boundaries:
     minimum-area: 800
-    densify: 2.0
-    smooth: 20.0
-    deviation: 15.0
+    simplify: [ 1.0, 15 ]
     offset: -6.5
-    repeat: 200
+    densify: 10.0
+    smooth: [ 15, 30 ]
+    deviation: 10.0
+    repeat: 150
     font-size: 2.5
     letter-spacing: 0.3
     fill: "#008800"

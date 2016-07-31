@@ -505,13 +505,15 @@ labels:
     font-size: 1.4
     margin: 0.8
   roads:
-    smooth: 5.0
-    deviation: 2.0
     font-size: 1.4
     letter-spacing: 0.1
-    margin: 1.2
     collate: true
+    densify: 5.0
+    simplify: 2.0
+    buffer: 2.0
+    smooth: [ 15, 60 ]
     repeat: 100
+    deviation: 3.0
   [ roads 1, roads 2 ]:
     font-size: 1.8
   [ roads 3, roads 4 ]:

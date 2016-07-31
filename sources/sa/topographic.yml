@@ -430,7 +430,6 @@ labels:
     font-size: 1.4
   bathymetry:
     font-size: 1.4
-    margin: -0.5
     letter-spacing: 0.05
     repeat: 70
     deviation: 0.1

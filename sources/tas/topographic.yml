@@ -644,11 +644,10 @@ labels:
   [ contours-5m, contours-10m, contours-20m ]:
     font-size: 1.4
     letter-spacing: 0.05
-    repeat-interval: 120
     deviation: 0.1
     orientation: uphill
     collate: true
-    repeat-buffer: 25
+    repeat: 70
   wetlands:
     position: [ over, right, above, below, left ]
     margin: 0.7
@@ -660,9 +659,8 @@ labels:
   watercourses:
     smooth: 8.0
     deviation: 3.0
-    repeat-interval: 100
     collate: true
-    repeat-buffer: 100
+    repeat: 80
     margin: 2.0
     fill: "#1667DF"
     letter-spacing: 0.1
@@ -696,7 +694,7 @@ labels:
     letter-spacing: 0.1
     margin: 0.8
     collate: true
-    repeat-buffer: 100
+    repeat: 100
   roads:
     smooth: 5.0
     deviation: 2.0
@@ -704,7 +702,7 @@ labels:
     letter-spacing: 0.1
     margin: 1.2
     collate: true
-    repeat-buffer: 100
+    repeat: 100
   roads Vehicular-Track:
     font-size: 1.4
     margin: 0.8

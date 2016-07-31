@@ -50,7 +50,7 @@ labels:
     smooth: 20.0
     deviation: 15.0
     margin: 5.0
-    repeat-buffer: 200
+    repeat: 200
     orientation: inside
     fill: "#006400"
     fill-opacity: 0.5

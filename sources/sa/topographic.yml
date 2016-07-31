@@ -398,10 +398,10 @@ labels:
     orientation: downhill
     font-size: 1.4
     letter-spacing: 0.05
-    repeat-interval: 120
+    repeat: 70
     deviation: 0.1
     collate: true
-    repeat-buffer: 25
+    repeat: 70
     minimum-length: 30
   [ contours 5002-Contour-standard, contours 5005-Depression-Contour-standard ]:
     remove: true
@@ -410,19 +410,18 @@ labels:
     # TODO: adjust smoothing e.g. for Argadells
     smooth: 8.0
     deviation: 3.0
-    repeat-interval: 100
     collate: true
-    repeat-buffer: 100
+    repeat: 80
     margin: 2.0
     fill: "#1667DF"
     letter-spacing: 0.1
     word-spacing: 2.0
   [ watercourses 6, watercourses 7 ]:
     font-size: 1.9
-    repeat-interval: 150
+    repeat: 120
   [ watercourses 4, watercourses 5 ]:
     font-size: 1.7
-    repeat-interval: 150
+    repeat: 120
   [ watercourses 2, watercourses 3 ]:
     font-size: 1.5
   [ watercourses 9, watercourses 999, watercourses 0, watercourses 1 ]:
@@ -431,7 +430,7 @@ labels:
     font-size: 1.4
     margin: -0.5
     letter-spacing: 0.05
-    repeat-interval: 120
+    repeat: 70
     deviation: 0.1
     fill: "#1667DF"
   spot-heights:

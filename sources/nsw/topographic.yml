@@ -1105,10 +1105,9 @@ labels:
     orientation: uphill
     font-size: 1.4
     letter-spacing: 0.05
-    repeat-interval: 120
     deviation: 0.1
     collate: true
-    repeat-buffer: 25
+    repeat: 70
     minimum-length: 30
   [ contours-10m 10, contours-10m 8, contours-10m 7, contours-10m 6, contours-10m 5, contours-10m 3 ]:
     remove: true
@@ -1132,17 +1131,17 @@ labels:
     font-size: 1.4
     smooth: 8.0
     deviation: 3.0
-    repeat-interval: 100
+    repeat: 80
     margin: 2.0
     fill: "#1667DF"
     letter-spacing: 0.1
     word-spacing: 2.0
   [ watercourses 1, watercourses 2 ]:
     font-size: 1.9
-    repeat-interval: 150
+    repeat: 120
   [ watercourses 3, watercourses 4 ]:
     font-size: 1.7
-    repeat-interval: 150
+    repeat: 120
   [ watercourses 5, watercourses 6, watercourses 7 ]:
     font-size: 1.5
   [ watercourses 8, watercourses 9, watercourses 10 ]:
@@ -1197,7 +1196,7 @@ labels:
     font-size: 1.4
     letter-spacing: 0.1
     margin: 1.2
-    repeat-buffer: 100
+    repeat: 100
     collate: true
   [ roads Path, roads Track-Vehicular ]:
     font-size: 1.4

@@ -468,29 +468,27 @@ labels:
     # orientation: downhill
     font-size: 1.4
     letter-spacing: 0.05
-    repeat-interval: 120
     deviation: 0.1
     collate: true
-    repeat-buffer: 25
+    repeat: 70
   contours-20m:
     orientation: downhill
     font-size: 1.4
     letter-spacing: 0.05
-    repeat-interval: 120
     deviation: 0.1
     collate: true
-    repeat-buffer: 25
+    repeat: 70
   watercourses:
     smooth: 8.0
     deviation: 3.0
-    repeat-interval: 100
+    repeat: 80
     margin: 2.0
     fill: "#1667DF"
     font-size: 1.5
     letter-spacing: 0.1
     word-spacing: 2.0
     collate: true
-    repeat-buffer: 100
+    repeat: 100
   watercourses Minor:
     font-size: 1.5
   watercourses Major:
@@ -502,7 +500,7 @@ labels:
     letter-spacing: 0.1
     margin: 1.2
     collate: true
-    repeat-buffer: 100
+    repeat: 100
     font-size: 1.4
     margin: 0.8
   roads:
@@ -512,7 +510,7 @@ labels:
     letter-spacing: 0.1
     margin: 1.2
     collate: true
-    repeat-buffer: 100
+    repeat: 100
   [ roads 1, roads 2 ]:
     font-size: 1.8
   [ roads 3, roads 4 ]:

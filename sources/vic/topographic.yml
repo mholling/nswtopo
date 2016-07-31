@@ -548,10 +548,9 @@ labels:
     format: "%d"
     font-size: 1.4
     letter-spacing: 0.05
-    repeat-interval: 120
     deviation: 0.1
     collate: true
-    repeat-buffer: 25
+    repeat: 70
   watercourses:
     smooth: 8.0
     deviation: 3.0
@@ -560,31 +559,30 @@ labels:
     letter-spacing: 0.1
     word-spacing: 2.0
     font-size: 1.4
-    repeat-interval: 100
     collate: true
-    repeat-buffer: 100
+    repeat: 80
   watercourses M:
     font-size: 1.4
   watercourses L:
     font-size: 1.6
-    repeat-interval: 150
+    repeat: 120
   watercourses H:
     font-size: 1.8
-    repeat-interval: 150
+    repeat: 120
   waterfalls:
     position: [ right, above, below, left, aboveright, belowright, aboveleft, belowleft ]
     margin: 1.0
     font-size: 1.3
     fill: "#1667DF"
     collate: true
-    repeat-buffer: 20
+    repeat: 20
   roads:
     smooth: 5.0
     deviation: 2.0
     font-size: 1.4
     letter-spacing: 0.1
     margin: 1.2
-    repeat-buffer: 100
+    repeat: 100
     collate: true
   [ roads Walking-Track, roads Bicycle-Track, roads 2wd, roads 4wd ]:
     font-size: 1.4

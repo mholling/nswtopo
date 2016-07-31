@@ -823,6 +823,7 @@ module StraightSkeleton
         end.map do |point|
           Vertex.new active, candidates, limit, point, index
         end
+        next unless nodes.many?
         nodes.send(pairs).each do |edge|
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end

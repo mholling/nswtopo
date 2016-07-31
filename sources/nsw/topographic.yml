@@ -1241,12 +1241,18 @@ labels:
     position: [ over, right, above, below, left ]
     margin: 0.7
     letter-spacing: 0.1
-  [ feature-names Beach, feature-names RangeLike, feature-names ValleyLike, feature-names DuneLike, feature-names GeneralLocality ]:
-    smooth: 12
+  [ feature-names RangeLike, feature-names DuneLike, feature-names GeneralLocality, feature-names Beach, feature-names ValleyLike ]:
     word-spacing: 3
     letter-spacing: 0.5
+    repeat: 100
+    deviation: 5.0
+    densify: 5.0
+    simplify: 2.0
+  [ feature-names RangeLike, feature-names DuneLike, feature-names GeneralLocality ]:
+    smooth: 15
   [ feature-names Beach, feature-names ValleyLike ]:
-    margin: 0.7
+    buffer: 2.5
+    smooth: 15
   [ feature-names RangeLike, feature-names ValleyLike, feature-names DuneLike ]:
     font-size: 2.2
     fill: "#404040"

@@ -476,6 +476,7 @@ module VectorSequences
       end.flatten(1)
     end
     map do |points|
+      next points unless points.many?
       closed ? smooth_interior.call(points.last, *points, points.first) : [ points.first, *smooth_interior.call(*points), points.last ]
     end
   end

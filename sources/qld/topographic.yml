@@ -470,14 +470,14 @@ labels:
     letter-spacing: 0.05
     deviation: 0.1
     collate: true
-    repeat: 70
+    repeat: 40
   contours-20m:
     orientation: downhill
     font-size: 1.4
     letter-spacing: 0.05
     deviation: 0.1
     collate: true
-    repeat: 70
+    repeat: 40
   watercourses:
     fill: "#1667DF"
     font-size: 1.5

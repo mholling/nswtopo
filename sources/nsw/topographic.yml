@@ -1107,7 +1107,7 @@ labels:
     letter-spacing: 0.05
     deviation: 0.1
     collate: true
-    repeat: 70
+    repeat: 40
     minimum-length: 30
   [ contours-10m 10, contours-10m 8, contours-10m 7, contours-10m 6, contours-10m 5, contours-10m 3 ]:
     remove: true

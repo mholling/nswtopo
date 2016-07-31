@@ -550,7 +550,7 @@ labels:
     letter-spacing: 0.05
     deviation: 0.1
     collate: true
-    repeat: 70
+    repeat: 40
   watercourses:
     fill: "#1667DF"
     letter-spacing: 0.1

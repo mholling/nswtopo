@@ -647,7 +647,7 @@ labels:
     deviation: 0.1
     orientation: uphill
     collate: true
-    repeat: 70
+    repeat: 40
   wetlands:
     position: [ over, right, above, below, left ]
     margin: 0.7

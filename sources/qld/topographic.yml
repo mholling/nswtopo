@@ -479,16 +479,17 @@ labels:
     collate: true
     repeat: 70
   watercourses:
-    smooth: 8.0
-    deviation: 3.0
-    repeat: 80
-    margin: 2.0
     fill: "#1667DF"
     font-size: 1.5
     letter-spacing: 0.1
     word-spacing: 2.0
     collate: true
-    repeat: 100
+    densify: 10
+    simplify: 2.0
+    buffer: 3.0
+    smooth: [ 20, 90 ]
+    repeat: 80
+    deviation: 4.0
   watercourses Minor:
     font-size: 1.5
   watercourses Major:

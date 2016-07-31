@@ -552,15 +552,17 @@ labels:
     collate: true
     repeat: 70
   watercourses:
-    smooth: 8.0
-    deviation: 3.0
-    margin: 2.0
     fill: "#1667DF"
     letter-spacing: 0.1
     word-spacing: 2.0
     font-size: 1.4
     collate: true
+    densify: 10
+    simplify: 2.0
+    buffer: 3.0
+    smooth: [ 20, 90 ]
     repeat: 80
+    deviation: 4.0
   watercourses M:
     font-size: 1.4
   watercourses L:

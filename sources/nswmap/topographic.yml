@@ -1181,13 +1181,15 @@ labels:
     letter-spacing: 0.1
   watercourses:
     font-size: 1.4
-    smooth: 8.0
-    deviation: 3.0
-    repeat: 80
-    margin: 2.0
     fill: "#1667DF"
     letter-spacing: 0.1
     word-spacing: 2.0
+    densify: 10
+    simplify: 2.0
+    buffer: 3.0
+    smooth: [ 20, 90 ]
+    repeat: 80
+    deviation: 4.0
   [ watercourses 1, watercourses 2 ]:
     font-size: 1.9
     repeat: 120
@@ -1208,7 +1210,7 @@ labels:
     repeat: 150
     densify: 10
     simplify: [ 1.0, 15 ]
-    smooth: 20
+    smooth: [ 20, 90 ]
     buffer: 3.0
   water-areas:
     position: [ over, right, above, below, left ]
@@ -1264,7 +1266,7 @@ labels:
     repeat: 150
     densify: 10
     simplify: [ 1.0, 15 ]
-    smooth: 20
+    smooth: [ 20, 90 ]
     buffer: 3.0
   roads:
     smooth: 5.0

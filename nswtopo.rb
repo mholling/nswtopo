@@ -3020,8 +3020,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def add(source, map)
-      sublayer = source.name
-      source_params = params[sublayer] || {}
+      source_name = source.name
+      source_params = params[source_name] || {}
       source.labels(map).each do |feature|
         dimension = feature["dimension"]
         transforms, attributes, *dimensioned_attributes = [ nil, nil, "point", "line", "line" ].map do |category|
@@ -3043,12 +3043,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         else
           [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
         end
-        _, _, components = @features.find do |other_text, other_sublayer, _|
-          other_sublayer == sublayer && other_text == text
+        _, _, components = @features.find do |other_text, other_source_name, _|
+          other_source_name == source_name && other_text == text
         end if attributes["collate"]
         unless components
           components = [ ]
-          @features << [ text, sublayer, components ]
+          @features << [ text, source_name, components ]
         end
         data = case dimension
         when 0
@@ -3120,7 +3120,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
-      hulls, sublayers, attributes, component_indices, categories, elements, dimensions = @features.map do |text, sublayer, components|
+      hulls, source_names, attributes, component_indices, categories, elements, dimensions = @features.map do |text, source_name, components|
         components.map.with_index do |component, component_index|
           dimension, data, attributes = component
           font_size      = attributes["font-size"]      || DEFAULT_FONT_SIZE
@@ -3159,7 +3159,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
-              [ hull, sublayer, attributes, component_index, categories, text_elements, dimension ]
+              [ hull, source_name, attributes, component_index, categories, text_elements, dimension ]
             end
           when 1, 2
             orientation = attributes["orientation"]
@@ -3220,7 +3220,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.map do |baseline|
               hull = [ baseline ].buffer(false, 0.5 * font_size).flatten(1).convex_hull
               baseline << baseline[-1].minus(baseline[-2]).normalised.times(text_length * 0.25).plus(baseline[-1])
-              path_id = [ name, sublayer, "path", baseline.hash ].join SEGMENT
+              path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT
               path_element = REXML::Element.new("path")
               path_element.add_attributes "id" => path_id, "d" => baseline.to_path_data(MM_DECIMAL_DIGITS), "pathLength" => baseline.path_length.round(MM_DECIMAL_DIGITS)
               text_element = REXML::Element.new("text")
@@ -3231,7 +3231,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
-              [ hull, sublayer, attributes, component_index, categories, [ text_element, path_element ], dimension ]
+              [ hull, source_name, attributes, component_index, categories, [ text_element, path_element ], dimension ]
             end
           end.select do |hull, *args|
             labelling_hull.surrounds?(hull).all?
@@ -3326,14 +3326,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      sublayer_names = sublayers.flatten.uniq
+      sublayer_names = source_names.flatten.uniq
       layers = Hash[sublayer_names.zip sublayer_names.map(&block)]
       defs = layers.values.first.elements["//svg/defs"] if labels.any?
       labels.map do |feature_index, candidate_index|
-        sublayer = sublayers[feature_index][candidate_index]
+        source_name = source_names[feature_index][candidate_index]
         category = categories[feature_index][candidate_index]
         element = elements[feature_index][candidate_index]
-        group = layers[sublayer].elements["./g[@class='#{category}')]"] || layers[sublayer].add_element("g", "class" => category)
+        group = layers[source_name].elements["./g[@class='#{category}')]"] || layers[source_name].add_element("g", "class" => category)
         [ element ].flatten.each do |element|
           case element.name
           when "text", "textPath" then group.elements << element

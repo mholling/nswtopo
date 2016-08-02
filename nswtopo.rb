@@ -2521,6 +2521,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           feature.key?("labels")
         end.map(&:dup).each do |feature|
           feature["categories"].unshift sublayer
+          feature["sublayer"] = sublayer
         end
       end
     end
@@ -3043,12 +3044,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         else
           [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
         end
-        _, _, components = @features.find do |other_text, other_source_name, _|
-          other_source_name == source_name && other_text == text
+        sublayer = feature["sublayer"]
+        _, _, _, components = @features.find do |other_text, other_source_name, other_sublayer, _|
+          other_source_name == source_name && other_text == text && other_sublayer == sublayer
         end if attributes["collate"]
         unless components
           components = [ ]
-          @features << [ text, source_name, components ]
+          @features << [ text, source_name, sublayer, components ]
         end
         data = case dimension
         when 0
@@ -3120,7 +3122,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
-      hulls, source_names, attributes, component_indices, categories, elements, dimensions = @features.map do |text, source_name, components|
+      hulls, source_names, attributes, component_indices, categories, elements, dimensions = @features.map do |text, source_name, sublayer, components|
         components.map.with_index do |component, component_index|
           dimension, data, attributes = component
           font_size      = attributes["font-size"]      || DEFAULT_FONT_SIZE

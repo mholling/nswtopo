@@ -3120,11 +3120,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end if source.respond_to? :labels
     end
     
+    Label = Struct.new(:feature, :component, :hull, :source_name, :attributes, :categories, :elements, :dimension, :conflicts)
+    
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
-      hulls, source_names, attributes, component_indices, categories, elements, dimensions = @features.map do |text, source_name, sublayer, components|
-        components.map.with_index do |component, component_index|
-          dimension, data, attributes = component
+      candidates = @features.map.with_index do |(text, source_name, sublayer, components), feature|
+        components.map.with_index do |(dimension, data, attributes), component|
           font_size      = attributes["font-size"]      || DEFAULT_FONT_SIZE
           letter_spacing = attributes["letter-spacing"] || 0
           word_spacing   = attributes["word-spacing"]   || 0
@@ -3161,7 +3162,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
-              [ hull, source_name, attributes, component_index, categories, text_elements, dimension ]
+              Label.new feature, component, hull, source_name, attributes, categories, text_elements, dimension, { }
             end
           when 1, 2
             orientation = attributes["orientation"]
@@ -3233,110 +3234,87 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
-              [ hull, source_name, attributes, component_index, categories, [ text_element, path_element ], dimension ]
+              Label.new feature, component, hull, source_name, attributes, categories, [ text_element, path_element ], dimension, { }
             end
-          end.select do |hull, *args|
-            labelling_hull.surrounds?(hull).all?
+          end.select do |candidate|
+            labelling_hull.surrounds?(candidate.hull).all?
           end
-        end.flatten(1).tap do |candidates|
-          candidates.reject! do |*args, dimension|
-            dimension == 0
-          end if candidates.any? do |*args, dimension|
-            dimension > 0
+        end.flatten.tap do |candidates|
+          candidates.reject! do |candidate|
+            candidate.dimension == 0
+          end if candidates.any? do |candidate|
+            candidate.dimension > 0
           end
           candidates.each do |hull, *args|
-            block.call("candidates").add_element "path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => hull.to_path_data(MM_DECIMAL_DIGITS, ?Z)
+            block.call("candidates").add_element "path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => candidate.hull.to_path_data(MM_DECIMAL_DIGITS, ?Z)
           end.clear if map.debug
-        end.transpose
-      end.reject(&:empty?).transpose
-      return unless hulls
+        end
+      end.flatten
       
-      conflicts = {}
-      hulls.each.with_index do |hulls, feature_index|
-        conflicts[feature_index] = {}
-        hulls.each.with_index do |hull, candidate_index|
-          conflicts[feature_index][candidate_index] = {}
+      candidates.map(&:hull).overlaps.map do |indices|
+        candidates.values_at *indices
+      end.each do |candidate1, candidate2|
+        candidate1.conflicts[candidate2] = candidate2.conflicts[candidate1] = true
+      end
+      
+      candidates.group_by(&:feature).values.each do |candidates|
+        buffer = candidates.map { |candidate| candidate.attributes["repeat"] }.compact.max || DEFAULT_REPEAT
+        candidates.map(&:hull).overlaps(buffer).map do |indices|
+          candidates.values_at *indices
+        end.each do |candidate1, candidate2|
+          candidate1.conflicts[candidate2] = candidate2.conflicts[candidate1] = true
         end
       end
       
-      labels = hulls.map.with_index do |hulls, feature_index|
-        hulls.map.with_index { |hull, candidate_index| [ feature_index, candidate_index ] }
-      end.flatten(1)
-      
-      hulls.flatten(1).overlaps.each do |index1, index2|
-        feature1_index, candidate1_index = label1 = labels[index1]
-        feature2_index, candidate2_index = label2 = labels[index2]
-        conflicts[feature1_index][candidate1_index][label2] = true
-        conflicts[feature2_index][candidate2_index][label1] = true
-      end
-      
-      hulls.zip(attributes).each.with_index do |(hulls, attributes), feature_index|
-        buffer = attributes.map { |attributes| attributes["repeat"] }.compact.max || DEFAULT_REPEAT
-        hulls.overlaps(buffer).each do |candidate1_index, candidate2_index|
-          label1 = [ feature_index, candidate1_index ]
-          label2 = [ feature_index, candidate2_index ]
-          conflicts[feature_index][candidate1_index][label2] = true
-          conflicts[feature_index][candidate2_index][label1] = true
-        end
-      end
-      
-      labels = [ ]
-      pending = conflicts.map do |feature_index, candidate_indices|
-        { feature_index => candidate_indices.map do |candidate_index, label_conflicts|
-          { candidate_index => label_conflicts.dup }
-        end.inject(&:merge) }
-      end.inject({}, &:merge)
-      
+      pending, labels = candidates.dup, [ ]
       while pending.any?
-        pending.map do |feature_index, candidate_indices|
-          candidate_indices.map do |candidate_index, label_conflicts|
-            [ [ feature_index, candidate_index ], label_conflicts, [ label_conflicts.length, pending[feature_index].length ] ]
+        pending.group_by(&:feature).values.map do |candidates|
+          candidates.map do |candidate|
+            [ candidate, [ candidate.conflicts.length, candidates.length ] ]
           end
-        end.flatten(1).min_by(&:last).tap do |label, label_conflicts, _|
-          [ label, *label_conflicts.keys ].each do |feature_index, candidate_index|
-            pending[feature_index].delete(candidate_index) if pending[feature_index]
+        end.flatten(1).min_by(&:last).first.tap do |candidate|
+          [ candidate, *candidate.conflicts.keys ].each do |candidate|
+            pending.delete candidate
           end
-          labels << label
-        end
-        pending.reject! do |feature_index, candidate_indices|
-          candidate_indices.empty?
+          labels << candidate
         end
       end
       
-      (conflicts.keys - labels.map(&:first)).each do |feature_index|
-        conflicts[feature_index].min_by do |candidate_index, conflicts|
-          [ (conflicts.keys & labels).count, candidate_index ]
-        end.tap do |candidate_index, conflicts|
+      labels.inject(candidates) do |candidates, label|
+        candidates.reject do |candidate|
+          candidate.feature == label.feature
+        end
+      end.group_by(&:feature).each do |feature, candidates|
+        candidates.min_by.with_index do |candidate, index|
+          [ (candidate.conflicts.keys & labels).count, index ]
+        end.tap do |candidate|
           labels.reject! do |label|
-            conflicts[label] && labels.map(&:first).count(label[0]) > 1
+            candidate.conflicts[label] && labels.any? do |other_label|
+              other_label != label && other_label.feature == label.feature
+            end
           end
-          labels << [ feature_index, candidate_index ]
+          labels << candidate
         end
       end
       
       5.times do
-        labels.select do |feature_index, candidate_index|
-          dimensions[feature_index][candidate_index] == 0
-        end.each do |label|
-          feature_index, current_candidate_index = label
-          counts_candidates = conflicts[feature_index].select do |new_candidate_index, conflicts|
-            component_indices[feature_index][new_candidate_index] == component_indices[feature_index][current_candidate_index]
-          end.map do |new_candidate_index, conflicts|
-            [ (labels & conflicts.keys - [ label ]).count, new_candidate_index ]
+        labels.map! do |label|
+          next label unless label.dimension == 0
+          candidates.select do |candidate|
+            candidate.feature == label.feature && candidate.component == label.component
+          end.min_by.with_index do |candidate, index|
+            [ (labels & candidate.conflicts.keys - [ label ]).count, index ]
           end
-          label[1] = counts_candidates.min.last
         end
       end
       
-      sublayer_names = source_names.flatten.uniq
+      return if labels.none?
+      sublayer_names = labels.map(&:source_name).flatten.uniq
       layers = Hash[sublayer_names.zip sublayer_names.map(&block)]
-      defs = layers.values.first.elements["//svg/defs"] if labels.any?
-      labels.map do |feature_index, candidate_index|
-        source_name = source_names[feature_index][candidate_index]
-        category = categories[feature_index][candidate_index]
-        element = elements[feature_index][candidate_index]
-        group = layers[source_name].elements["./g[@class='#{category}')]"] || layers[source_name].add_element("g", "class" => category)
-        [ element ].flatten.each do |element|
+      defs = layers.values.first.elements["//svg/defs"]
+      labels.each do |label|
+        group = layers[label.source_name].elements["./g[@class='#{label.categories}')]"] || layers[label.source_name].add_element("g", "class" => label.categories)
+        label.elements.each do |element|
           case element.name
           when "text", "textPath" then group.elements << element
           when "path" then defs.elements << element

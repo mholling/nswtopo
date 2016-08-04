@@ -3120,10 +3120,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end if source.respond_to? :labels
     end
     
-    Label = Struct.new(:feature, :component, :hull, :source_name, :attributes, :categories, :elements, :dimension, :conflicts)
+    Label = Struct.new(:feature, :component, :hull, :source_name, :attributes, :categories, :elements, :dimension)
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
+      conflicts = Hash.new { |hash, label| hash[label] = Set.new }
+      
       candidates = @features.map.with_index do |(text, source_name, sublayer, components), feature|
         components.map.with_index do |(dimension, data, attributes), component|
           font_size      = attributes["font-size"]      || DEFAULT_FONT_SIZE
@@ -3162,7 +3164,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
-              Label.new feature, component, hull, source_name, attributes, categories, text_elements, dimension, { }
+              Label.new feature, component, hull, source_name, attributes, categories, text_elements, dimension
             end
           when 1, 2
             orientation = attributes["orientation"]
@@ -3234,7 +3236,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
-              Label.new feature, component, hull, source_name, attributes, categories, [ text_element, path_element ], dimension, { }
+              Label.new feature, component, hull, source_name, attributes, categories, [ text_element, path_element ], dimension
             end
           end.select do |candidate|
             labelling_hull.surrounds?(candidate.hull).all?
@@ -3254,30 +3256,30 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices
       end.each do |candidate1, candidate2|
-        candidate1.conflicts[candidate2] = candidate2.conflicts[candidate1] = true
+        conflicts[candidate1] << candidate2
+        conflicts[candidate2] << candidate1
       end
       
-      candidates.group_by(&:feature).values.each do |candidates|
+      candidates.group_by(&:feature).each do |feature, candidates|
         buffer = candidates.map { |candidate| candidate.attributes["repeat"] }.compact.max || DEFAULT_REPEAT
         candidates.map(&:hull).overlaps(buffer).map do |indices|
           candidates.values_at *indices
         end.each do |candidate1, candidate2|
-          candidate1.conflicts[candidate2] = candidate2.conflicts[candidate1] = true
+          conflicts[candidate1] << candidate2
+          conflicts[candidate2] << candidate1
         end
       end
       
-      pending, labels = candidates.dup, [ ]
+      pending, labels = Set.new(candidates), Set.new
       while pending.any?
-        pending.group_by(&:feature).values.map do |candidates|
+        label = pending.group_by(&:feature).map do |feature, candidates|
           candidates.map do |candidate|
-            [ candidate, [ candidate.conflicts.length, candidates.length ] ]
+            [ candidate, [ conflicts[candidate].length, candidates.length ] ]
           end
-        end.flatten(1).min_by(&:last).first.tap do |candidate|
-          [ candidate, *candidate.conflicts.keys ].each do |candidate|
-            pending.delete candidate
-          end
-          labels << candidate
-        end
+        end.flatten(1).min_by(&:last).first
+        pending.subtract conflicts[label]
+        pending.delete label
+        labels << label
       end
       
       labels.inject(candidates) do |candidates, label|
@@ -3285,16 +3287,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           candidate.feature == label.feature
         end
       end.group_by(&:feature).each do |feature, candidates|
-        candidates.min_by.with_index do |candidate, index|
-          [ (candidate.conflicts.keys & labels).count, index ]
-        end.tap do |candidate|
-          labels.reject! do |label|
-            candidate.conflicts[label] && labels.any? do |other_label|
-              other_label != label && other_label.feature == label.feature
-            end
-          end
-          labels << candidate
+        label = candidates.min_by.with_index do |candidate, index|
+          [ (conflicts[candidate] & labels).length, index ]
         end
+        labels.reject! do |other|
+          conflicts[label].include?(other) && labels.any? do |extra|
+            extra != other && extra.feature == other.feature
+          end
+        end
+        labels << label
       end
       
       5.times do
@@ -3303,7 +3304,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           candidates.select do |candidate|
             candidate.feature == label.feature && candidate.component == label.component
           end.min_by.with_index do |candidate, index|
-            [ (labels & candidate.conflicts.keys - [ label ]).count, index ]
+            [ (labels & conflicts[candidate] - [ label ]).count, index ]
           end
         end
       end

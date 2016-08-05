@@ -3120,7 +3120,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end if source.respond_to? :labels
     end
     
-    Label = Struct.new(:feature, :component, :hull, :source_name, :attributes, :categories, :elements, :dimension)
+    Label = Struct.new(:feature, :component, :priority, :hull, :source_name, :attributes, :categories, :elements, :dimension)
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
@@ -3146,7 +3146,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.max
             height = lines.length * font_size
             transform = "translate(#{data.join ?\s}) rotate(#{-map.rotation})"
-            [ *attributes["position"] || "over" ].map do |position|
+            [ *attributes["position"] || "over" ].map.with_index do |position, priority|
               dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
               f = dx * dy == 0 ? 1 : 0.707
@@ -3164,7 +3164,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
-              Label.new feature, component, hull, source_name, attributes, categories, text_elements, dimension
+              Label.new feature, component, priority, hull, source_name, attributes, categories, text_elements, dimension
             end
           when 1, 2
             orientation = attributes["orientation"]
@@ -3222,7 +3222,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when "downhill" then baseline.reverse
               else rightwards ? baseline : baseline.reverse
               end
-            end.map do |baseline|
+            end.map.with_index do |baseline, priority|
               hull = [ baseline ].buffer(false, 0.5 * font_size).flatten(1).convex_hull
               baseline << baseline[-1].minus(baseline[-2]).normalised.times(text_length * 0.25).plus(baseline[-1])
               path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT
@@ -3236,7 +3236,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
-              Label.new feature, component, hull, source_name, attributes, categories, [ text_element, path_element ], dimension
+              Label.new feature, component, priority, hull, source_name, attributes, categories, [ text_element, path_element ], dimension
             end
           end.select do |candidate|
             labelling_hull.surrounds?(candidate.hull).all?
@@ -3287,8 +3287,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           candidate.feature == label.feature
         end
       end.group_by(&:feature).each do |feature, candidates|
-        label = candidates.min_by.with_index do |candidate, index|
-          [ (conflicts[candidate] & labels).length, index ]
+        label = candidates.min_by do |candidate|
+          [ (conflicts[candidate] & labels).length, candidate.priority ]
         end
         labels.reject! do |other|
           conflicts[label].include?(other) && labels.any? do |extra|
@@ -3303,8 +3303,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           next label unless label.dimension == 0
           candidates.select do |candidate|
             candidate.feature == label.feature && candidate.component == label.component
-          end.min_by.with_index do |candidate, index|
-            [ (labels & conflicts[candidate] - [ label ]).count, index ]
+          end.min_by do |candidate|
+            [ (labels & conflicts[candidate] - [ label ]).count, candidate.priority ]
           end
         end
       end

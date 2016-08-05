@@ -3299,9 +3299,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       
       5.times do
-        labels.map! do |label|
-          next label unless label.dimension == 0
-          candidates.select do |candidate|
+        labels = labels.inject(labels.dup) do |labels, label|
+          next labels unless label.dimension == 0
+          labels.delete label
+          labels << candidates.select do |candidate|
             candidate.feature == label.feature && candidate.component == label.component
           end.min_by do |candidate|
             [ (labels & conflicts[candidate] - [ label ]).count, candidate.priority ]

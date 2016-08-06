@@ -3120,8 +3120,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end if source.respond_to? :labels
     end
     
-    PointLabel = Struct.new :source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :categories, :elements
-    LineLabel  = Struct.new :source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :categories, :elements, :centre
+    PointLabel = Struct.new :source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :elements
+    LineLabel  = Struct.new :source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :elements, :centre
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
@@ -3133,7 +3133,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           font_size      = attributes["font-size"]      || DEFAULT_FONT_SIZE
           letter_spacing = attributes["letter-spacing"] || 0
           word_spacing   = attributes["word-spacing"]   || 0
-          categories     = attributes["categories"]
           case dimension
           when 0 then block.call("points").add_element "circle", "r" => 0.3, "stroke" => "none", "fill" => "blue", "cx" => data[0], "cy" => data[1]
           when 1 then block.call("lines").add_element "path", "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => data.to_path_data(MM_DECIMAL_DIGITS)
@@ -3166,7 +3165,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
-              PointLabel.new source_name, sublayer, feature, component, priority, hull, attributes, categories, text_elements
+              PointLabel.new source_name, sublayer, feature, component, priority, hull, attributes, text_elements
             end
           when 1, 2
             orientation = attributes["orientation"]
@@ -3241,7 +3240,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
-              LineLabel.new source_name, sublayer, feature, component, priority, hull, attributes, categories, [ text_element, path_element ], centre
+              LineLabel.new source_name, sublayer, feature, component, priority, hull, attributes, [ text_element, path_element ], centre
             end
           end.select do |candidate|
             labelling_hull.surrounds?(candidate.hull).all?
@@ -3353,7 +3352,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       layers = Hash[sublayer_names.zip sublayer_names.map(&block)]
       defs = layers.values.first.elements["//svg/defs"]
       labels.each do |label|
-        group = layers[label.source_name].elements["./g[@class='#{label.categories}')]"] || layers[label.source_name].add_element("g", "class" => label.categories)
+        categories = label.attributes["categories"]
+        group = layers[label.source_name].elements["./g[@class='#{categories}')]"] || layers[label.source_name].add_element("g", "class" => categories)
         label.elements.each do |element|
           case element.name
           when "text", "textPath" then group.elements << element

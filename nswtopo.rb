@@ -3289,19 +3289,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       candidates.group_by do |candidate|
         [ candidate.feature, candidate.component, candidate.attributes["separation-along"] ]
       end.each do |(feature, component, buffer), candidates|
-        case candidates[0]
-        when PointLabel
-          candidates.permutation(2).each do |candidate1, candidate2|
+        candidates.permutation(2).each do |candidate1, candidate2|
+          case candidate1
+          when PointLabel
             conflicts[candidate1] << candidate2
-          end
-        when LineLabel
-          total = totals[feature][component]
-          candidates.permutation(2).select do |candidate1, candidate2|
-            (candidate2.centre - candidate1.centre) % total < buffer
-          end.each do |candidate1, candidate2|
+          when LineLabel
+            next unless buffer
+            next unless (candidate2.centre - candidate1.centre) % totals[feature][component] < buffer
             conflicts[candidate1] << candidate2
             conflicts[candidate2] << candidate1
-          end if buffer
+          end
         end
       end
       

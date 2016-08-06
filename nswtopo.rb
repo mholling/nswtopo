@@ -3005,11 +3005,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class LabelSource < Source
     include VectorRenderer
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along deviation format collate categories]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all deviation format collate categories]
     TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE  = 1.8
     DEFAULT_MARGIN     = 1
-    DEFAULT_REPEAT     = 100
+    DEFAULT_SEPARATION = 100
     DEFAULT_DEVIATION  = 5
     DEFAULT_MIN_RADIUS = 2
     DEFAULT_MAX_ANGLE  = 25
@@ -3120,8 +3120,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end if source.respond_to? :labels
     end
     
-    PointLabel = Struct.new :feature, :component, :priority, :hull, :source_name, :attributes, :categories, :elements
-    LineLabel  = Struct.new :feature, :component, :priority, :hull, :source_name, :attributes, :categories, :elements, :centre
+    PointLabel = Struct.new :source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :categories, :elements
+    LineLabel  = Struct.new :source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :categories, :elements, :centre
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
@@ -3166,7 +3166,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
-              PointLabel.new feature, component, priority, hull, source_name, attributes, categories, text_elements
+              PointLabel.new source_name, sublayer, feature, component, priority, hull, attributes, categories, text_elements
             end
           when 1, 2
             orientation = attributes["orientation"]
@@ -3222,7 +3222,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               [ baseline, centre, eigenvalue ]
             end.reject do |baseline, centre, eigenvalue|
               eigenvalue > deviation**2
-            end.map do |baseline, centre, eigenvalue|
+            end.map do |baseline, centre, priority|
               case orientation
               when "uphill"
               when "downhill" then baseline.reverse!
@@ -3241,7 +3241,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
-              LineLabel.new feature, component, eigenvalue, hull, source_name, attributes, categories, [ text_element, path_element ], centre
+              LineLabel.new source_name, sublayer, feature, component, priority, hull, attributes, categories, [ text_element, path_element ], centre
             end
           end.select do |candidate|
             labelling_hull.surrounds?(candidate.hull).all?
@@ -3252,11 +3252,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end unless candidates.all? do |candidate|
             candidate.is_a? PointLabel
           end
-          candidates.each do |hull, *args|
-            block.call("candidates").add_element "path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => candidate.hull.to_path_data(MM_DECIMAL_DIGITS, ?Z)
-          end.clear if map.debug
         end
       end.flatten
+      
+      candidates.each do |hull, *args|
+        block.call("candidates").add_element "path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => candidate.hull.to_path_data(MM_DECIMAL_DIGITS, ?Z)
+      end.clear if map.debug
       
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices
@@ -3266,7 +3267,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       
       candidates.group_by(&:feature).each do |feature, candidates|
-        buffer = candidates.map { |candidate| candidate.attributes["separation"] }.compact.max || DEFAULT_REPEAT
+        buffer = candidates.map { |candidate| candidate.attributes["separation"] }.compact.max || DEFAULT_SEPARATION
+        candidates.map(&:hull).overlaps(buffer).map do |indices|
+          candidates.values_at *indices
+        end.each do |candidate1, candidate2|
+          conflicts[candidate1] << candidate2
+          conflicts[candidate2] << candidate1
+        end
+      end
+      
+      candidates.group_by do |candidate|
+        [ candidate.source_name, candidate.sublayer ]
+      end.values.each do |candidates|
+        next unless buffer = candidates.map { |candidate| candidate.attributes["separation-all"] }.compact.max
         candidates.map(&:hull).overlaps(buffer).map do |indices|
           candidates.values_at *indices
         end.each do |candidate1, candidate2|

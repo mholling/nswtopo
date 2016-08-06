@@ -3009,7 +3009,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE  = 1.8
     DEFAULT_MARGIN     = 1
-    DEFAULT_SEPARATION = 100
     DEFAULT_DEVIATION  = 5
     DEFAULT_MIN_RADIUS = 2
     DEFAULT_MAX_ANGLE  = 25
@@ -3265,45 +3264,44 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         conflicts[candidate2] << candidate1
       end
       
-      candidates.group_by(&:feature).each do |feature, candidates|
-        buffer = candidates.map { |candidate| candidate.attributes["separation"] }.compact.max || DEFAULT_SEPARATION
+      candidates.group_by do |candidate|
+        [ candidate.feature, candidate.attributes["separation"] ]
+      end.each do |(feature, buffer), candidates|
         candidates.map(&:hull).overlaps(buffer).map do |indices|
           candidates.values_at *indices
         end.each do |candidate1, candidate2|
           conflicts[candidate1] << candidate2
           conflicts[candidate2] << candidate1
-        end
+        end if buffer
       end
       
       candidates.group_by do |candidate|
-        [ candidate.source_name, candidate.sublayer ]
-      end.values.each do |candidates|
-        next unless buffer = candidates.map { |candidate| candidate.attributes["separation-all"] }.compact.max
+        [ candidate.source_name, candidate.sublayer, candidate.attributes["separation-all"] ]
+      end.each do |(source_name, sublayer, buffer), candidates|
         candidates.map(&:hull).overlaps(buffer).map do |indices|
           candidates.values_at *indices
         end.each do |candidate1, candidate2|
           conflicts[candidate1] << candidate2
           conflicts[candidate2] << candidate1
-        end
+        end if buffer
       end
       
       candidates.group_by do |candidate|
-        [ candidate.feature, candidate.component ]
-      end.each do |(feature, component), candidates|
+        [ candidate.feature, candidate.component, candidate.attributes["separation-along"] ]
+      end.each do |(feature, component, buffer), candidates|
         case candidates[0]
         when PointLabel
           candidates.permutation(2).each do |candidate1, candidate2|
             conflicts[candidate1] << candidate2
           end
         when LineLabel
-          next unless buffer = candidates.map { |candidate| candidate.attributes["separation-along"] }.compact.max
           total = totals[feature][component]
           candidates.permutation(2).select do |candidate1, candidate2|
             (candidate2.centre - candidate1.centre) % total < buffer
           end.each do |candidate1, candidate2|
             conflicts[candidate1] << candidate2
             conflicts[candidate2] << candidate1
-          end
+          end if buffer
         end
       end
       

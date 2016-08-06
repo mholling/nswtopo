@@ -634,7 +634,14 @@ module Overlap
   end
   
   def disjoint?
-    between_critical_supports.any?
+    [ self, rotate ].any? do |hull1, hull2|
+      hull1.ring.any? do |edge|
+        inwards = edge.difference.perp.normalised
+        hull2.all? do |point|
+          edge[0].minus(point).dot(inwards) > 0
+        end
+      end
+    end
   end
   
   def minimum_distance

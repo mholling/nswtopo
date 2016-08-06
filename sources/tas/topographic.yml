@@ -647,7 +647,7 @@ labels:
     deviation: 0.1
     orientation: uphill
     collate: true
-    repeat: 40
+    separation: 40
   wetlands:
     position: [ over, right, above, below, left ]
     margin: 0.7
@@ -666,7 +666,7 @@ labels:
     simplify: 2.0
     buffer: 3.0
     smooth: [ 20, 90 ]
-    repeat: 80
+    separation: 80
     deviation: 4.0
   waterbodies:
     position: [ over, right, above, below, left ]
@@ -697,7 +697,7 @@ labels:
     simplify: 2.0
     buffer: 1.7
     smooth: [ 15, 60 ]
-    repeat: 100
+    separation: 100
     deviation: 3.0
     font-size: 1.4
     buffer: 1.7
@@ -709,7 +709,7 @@ labels:
     simplify: 2.0
     buffer: 2.0
     smooth: [ 15, 60 ]
-    repeat: 100
+    separation: 100
     deviation: 3.0
   roads Vehicular-Track:
     font-size: 1.4

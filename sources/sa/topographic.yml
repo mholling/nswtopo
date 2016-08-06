@@ -398,10 +398,10 @@ labels:
     orientation: downhill
     font-size: 1.4
     letter-spacing: 0.05
-    repeat: 40
+    separation: 40
     deviation: 0.1
     collate: true
-    repeat: 40
+    separation: 40
     minimum-length: 30
   [ contours 5002-Contour-standard, contours 5005-Depression-Contour-standard ]:
     remove: true
@@ -416,14 +416,14 @@ labels:
     simplify: 2.0
     buffer: 3.0
     smooth: [ 20, 90 ]
-    repeat: 80
+    separation: 80
     deviation: 4.0
   [ watercourses 6, watercourses 7 ]:
     font-size: 1.9
-    repeat: 120
+    separation: 120
   [ watercourses 4, watercourses 5 ]:
     font-size: 1.7
-    repeat: 120
+    separation: 120
   [ watercourses 2, watercourses 3 ]:
     font-size: 1.5
   [ watercourses 9, watercourses 999, watercourses 0, watercourses 1 ]:
@@ -431,7 +431,7 @@ labels:
   bathymetry:
     font-size: 1.4
     letter-spacing: 0.05
-    repeat: 40
+    separation: 40
     deviation: 0.1
     fill: "#1667DF"
   spot-heights:

@@ -550,7 +550,7 @@ labels:
     letter-spacing: 0.05
     deviation: 0.1
     collate: true
-    repeat: 40
+    separation: 40
   watercourses:
     fill: "#1667DF"
     letter-spacing: 0.1
@@ -561,23 +561,23 @@ labels:
     simplify: 2.0
     buffer: 3.0
     smooth: [ 20, 90 ]
-    repeat: 80
+    separation: 80
     deviation: 4.0
   watercourses M:
     font-size: 1.4
   watercourses L:
     font-size: 1.6
-    repeat: 120
+    separation: 120
   watercourses H:
     font-size: 1.8
-    repeat: 120
+    separation: 120
   waterfalls:
     position: [ right, above, below, left, aboveright, belowright, aboveleft, belowleft ]
     margin: 1.0
     font-size: 1.3
     fill: "#1667DF"
     collate: true
-    repeat: 20
+    separation: 20
   roads:
     font-size: 1.4
     letter-spacing: 0.1
@@ -586,7 +586,7 @@ labels:
     simplify: 2.0
     buffer: 2.0
     smooth: [ 15, 60 ]
-    repeat: 100
+    separation: 100
     deviation: 3.0
   [ roads Walking-Track, roads Bicycle-Track, roads 2wd, roads 4wd ]:
     font-size: 1.4

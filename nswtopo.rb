@@ -3005,7 +3005,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class LabelSource < Source
     include VectorRenderer
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat repeat-along deviation format collate categories]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along deviation format collate categories]
     TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE  = 1.8
     DEFAULT_MARGIN     = 1
@@ -3266,7 +3266,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       
       candidates.group_by(&:feature).each do |feature, candidates|
-        buffer = candidates.map { |candidate| candidate.attributes["repeat"] }.compact.max || DEFAULT_REPEAT
+        buffer = candidates.map { |candidate| candidate.attributes["separation"] }.compact.max || DEFAULT_REPEAT
         candidates.map(&:hull).overlaps(buffer).map do |indices|
           candidates.values_at *indices
         end.each do |candidate1, candidate2|
@@ -3284,7 +3284,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             conflicts[candidate1] << candidate2
           end
         when LineLabel
-          next unless buffer = candidates.map { |candidate| candidate.attributes["repeat-along"] }.compact.max
+          next unless buffer = candidates.map { |candidate| candidate.attributes["separation-along"] }.compact.max
           total = totals[feature][component]
           candidates.permutation(2).select do |candidate1, candidate2|
             (candidate2.centre - candidate1.centre) % total < buffer

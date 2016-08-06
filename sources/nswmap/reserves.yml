@@ -70,7 +70,7 @@ labels:
     densify: 10.0
     smooth: [ 15, 30 ]
     deviation: 5.0
-    repeat: 150
+    separation: 150
     fill: "#006400"
     fill-opacity: 0.5
     font-weight: bold

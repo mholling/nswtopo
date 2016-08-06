@@ -470,14 +470,14 @@ labels:
     letter-spacing: 0.05
     deviation: 0.1
     collate: true
-    repeat: 40
+    separation: 40
   contours-20m:
     orientation: downhill
     font-size: 1.4
     letter-spacing: 0.05
     deviation: 0.1
     collate: true
-    repeat: 40
+    separation: 40
   watercourses:
     fill: "#1667DF"
     font-size: 1.5
@@ -488,7 +488,7 @@ labels:
     simplify: 2.0
     buffer: 3.0
     smooth: [ 20, 90 ]
-    repeat: 80
+    separation: 80
     deviation: 4.0
   watercourses Minor:
     font-size: 1.5
@@ -502,7 +502,7 @@ labels:
     simplify: 2.0
     buffer: 1.7
     smooth: [ 15, 60 ]
-    repeat: 100
+    separation: 100
     deviation: 3.0
   roads:
     font-size: 1.4
@@ -512,7 +512,7 @@ labels:
     simplify: 2.0
     buffer: 2.0
     smooth: [ 15, 60 ]
-    repeat: 100
+    separation: 100
     deviation: 3.0
   [ roads 1, roads 2 ]:
     font-size: 1.8

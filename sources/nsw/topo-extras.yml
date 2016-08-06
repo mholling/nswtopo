@@ -81,7 +81,7 @@ labels:
     font-size: 1.5
     collate: true
     deviation: 3.0
-    repeat: 150
+    separation: 150
     densify: 10
     simplify: [ 1.0, 15 ]
     smooth: [ 20, 90 ]

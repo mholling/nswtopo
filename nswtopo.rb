@@ -3005,7 +3005,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class LabelSource < Source
     include VectorRenderer
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat deviation format collate categories]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position repeat repeat-along deviation format collate categories]
     TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE  = 1.8
     DEFAULT_MARGIN     = 1
@@ -3120,11 +3120,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end if source.respond_to? :labels
     end
     
-    Label = Struct.new(:feature, :component, :priority, :hull, :source_name, :attributes, :categories, :elements, :dimension)
+    PointLabel = Struct.new :feature, :component, :priority, :hull, :source_name, :attributes, :categories, :elements
+    LineLabel  = Struct.new :feature, :component, :priority, :hull, :source_name, :attributes, :categories, :elements, :centre
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
       conflicts = Hash.new { |hash, label| hash[label] = Set.new }
+      totals    = Hash.new { |hash, feature| hash[feature] = { } }
       
       candidates = @features.map.with_index do |(text, source_name, sublayer, components), feature|
         components.map.with_index do |(dimension, data, attributes), component|
@@ -3164,7 +3166,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
-              Label.new feature, component, priority, hull, source_name, attributes, categories, text_elements, dimension
+              PointLabel.new feature, component, priority, hull, source_name, attributes, categories, text_elements
             end
           when 1, 2
             orientation = attributes["orientation"]
@@ -3176,6 +3178,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when String then text.glyph_length(font_size, letter_spacing, word_spacing)
             end
             distances = data.ring.map(&:distance)
+            *cumulative, total = distances.inject([0]) do |memo, distance|
+              memo << memo.last + distance
+            end
+            totals[feature][component] = total
             arclengths = data.ring.map(&:midpoint).ring.map(&:distance).rotate(-1)
             angles = data.ring.map(&:difference).map(&:normalised).ring.map do |directions|
               Math.atan2 directions.inject(&:cross), directions.inject(&:dot)
@@ -3209,20 +3215,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.reject do |indices|
               indices[1...-1].any? { |index| too_tight[index] || too_sharp[index] }
             end.map do |indices|
-              data.values_at(*indices).crop(text_length)
-            end.map do |baseline|
+              start, stop = cumulative.values_at(*indices)
+              centre = (start + 0.5 * (stop - start) % total) % total
+              baseline = data.values_at(*indices).crop(text_length)
               eigenvalue, eigenvector = baseline.principal_components.first
-              [ baseline, eigenvalue ]
-            end.reject do |baseline, eigenvalue|
+              [ baseline, centre, eigenvalue ]
+            end.reject do |baseline, centre, eigenvalue|
               eigenvalue > deviation**2
-            end.sort_by(&:last).map(&:first).map do |baseline|
-              rightwards = baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
+            end.map do |baseline, centre, eigenvalue|
               case orientation
-              when "uphill"   then baseline
-              when "downhill" then baseline.reverse
-              else rightwards ? baseline : baseline.reverse
+              when "uphill"
+              when "downhill" then baseline.reverse!
+              else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
               end
-            end.map.with_index do |baseline, priority|
               hull = [ baseline ].buffer(false, 0.5 * font_size).flatten(1).convex_hull
               baseline << baseline[-1].minus(baseline[-2]).normalised.times(text_length * 0.25).plus(baseline[-1])
               path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT
@@ -3236,16 +3241,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
-              Label.new feature, component, priority, hull, source_name, attributes, categories, [ text_element, path_element ], dimension
+              LineLabel.new feature, component, eigenvalue, hull, source_name, attributes, categories, [ text_element, path_element ], centre
             end
           end.select do |candidate|
             labelling_hull.surrounds?(candidate.hull).all?
           end
         end.flatten.tap do |candidates|
           candidates.reject! do |candidate|
-            candidate.dimension == 0
-          end if candidates.any? do |candidate|
-            candidate.dimension > 0
+            candidate.is_a? PointLabel
+          end unless candidates.all? do |candidate|
+            candidate.is_a? PointLabel
           end
           candidates.each do |hull, *args|
             block.call("candidates").add_element "path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => candidate.hull.to_path_data(MM_DECIMAL_DIGITS, ?Z)
@@ -3267,6 +3272,26 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.each do |candidate1, candidate2|
           conflicts[candidate1] << candidate2
           conflicts[candidate2] << candidate1
+        end
+      end
+      
+      candidates.group_by do |candidate|
+        [ candidate.feature, candidate.component ]
+      end.each do |(feature, component), candidates|
+        case candidates[0]
+        when PointLabel
+          candidates.permutation(2).each do |candidate1, candidate2|
+            conflicts[candidate1] << candidate2
+          end
+        when LineLabel
+          next unless buffer = candidates.map { |candidate| candidate.attributes["repeat-along"] }.compact.max
+          total = totals[feature][component]
+          candidates.permutation(2).select do |candidate1, candidate2|
+            (candidate2.centre - candidate1.centre) % total < buffer
+          end.each do |candidate1, candidate2|
+            conflicts[candidate1] << candidate2
+            conflicts[candidate2] << candidate1
+          end
         end
       end
       
@@ -3300,7 +3325,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       5.times do
         labels = labels.inject(labels.dup) do |labels, label|
-          next labels unless label.dimension == 0
+          next labels unless label.is_a? PointLabel
           labels.delete label
           labels << candidates.select do |candidate|
             candidate.feature == label.feature && candidate.component == label.component

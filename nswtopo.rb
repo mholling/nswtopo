@@ -265,6 +265,10 @@ module Vector
     map { |value| value * scalar }
   end
   
+  def negate
+    map { |value| -value }
+  end
+  
   def angle
     Math::atan2 at(1), at(0)
   end
@@ -598,63 +602,39 @@ module Clipping
 end
 
 module Overlap
-  def between_critical_supports
-    indices = [ at(0).map.with_index.min.last, at(1).map.with_index.max.last ]
-    calipers = [ [ 0, -1 ], [ 0, 1 ] ]
-    rotation = 0.0
-    count = 0
-    
-    Enumerator.new do |yielder|
-      while rotation <= 2 * Math::PI
-        pairs, edges, vertices = zip(indices).map do |polygon, index|
-          pair = polygon.values_at (index - 1) % polygon.length, (index + 1) % polygon.length
-          edge = polygon.values_at index, (index + 1) % polygon.length
-          [ pair, edge, polygon[index] ]
-        end.transpose
-        
-        angle, which = edges.zip(calipers).map do |edge, caliper|
-          vector = edge.difference.rotate_by(-rotation)
-          Math::acos vector.dot(caliper) / vector.norm
-        end.map.with_index.min
-        
-        perp = vertices.difference.perp
-        comparisons = [ 1, -1 ].zip(pairs).map do |sign, pair|
-          pair.map { |point| sign * point.minus(vertices.first).dot(perp) <=> 0 }
-        end.flatten
-        count += 1 if comparisons.inject(&:+).abs == 4
-        
-        yielder << edges.rotate(which) if count > 0
-        break if count > 1
-        
-        rotation += angle
-        indices[which] += 1
-        indices[which] %= at(which).length
-      end
-    end
-  end
-  
-  def disjoint?
-    [ self, rotate ].any? do |hull1, hull2|
-      hull1.ring.any? do |edge|
-        inwards = edge.difference.perp.normalised
-        hull2.all? do |point|
-          edge[0].minus(point).dot(inwards) > 0
+  def separated_by?(buffer)
+    simplex = [ map(&:first).inject(&:minus) ]
+    search = simplex[0].negate
+    loop do
+      return false unless simplex[0].dot(search.normalised).abs > buffer
+      max = self[0].max_by { |point| point.dot search }
+      min = self[1].min_by { |point| point.dot search }
+      support = max.minus min
+      return true unless simplex[0].minus(support).dot(search) < 0
+      rays = simplex.map { |point| point.minus support }
+      case simplex.length
+      when 1
+        case
+        when rays[0].dot(support) > 0
+          simplex, search = [ support ], support.negate
+        when rays[0].cross(support) < 0
+          simplex, search = [ support, *simplex ], rays[0].perp
+        else
+          simplex, search = [ *simplex, support ], rays[0].perp.negate
+        end
+      when 2
+        case
+        when rays[0].cross(support) > 0 && rays[0].perp.cross(support) > 0
+          simplex, search = [ simplex[0], support ], rays[0].perp.negate
+        when rays[1].cross(support) < 0 && rays[1].perp.cross(support) > 0
+          simplex, search = [ support, simplex[1] ], rays[1].perp
+        when rays[0].cross(support) <= 0 && rays[1].cross(support) >= 0
+          return false
+        else
+          simplex, search = [ support ], support.negate
         end
       end
     end
-  end
-  
-  def minimum_distance
-    between_critical_supports.inject(nil) do |distance, edges|
-      edge_vector = edges.first.difference
-      vertex_vector = edges.map(&:first).difference
-      vertex_dot_edge = vertex_vector.dot edge_vector
-      if vertex_dot_edge <= 0 || vertex_dot_edge >= edge_vector.dot(edge_vector)
-        [ *distance, vertex_vector.norm ].min
-      else
-        [ *distance, vertex_vector.proj(edge_vector.perp).abs ].min
-      end
-    end || 0
   end
   
   def overlaps(buffer = 0)
@@ -673,7 +653,7 @@ module Overlap
         not_above = bots.select { |bot, other| bot >= top - buffer }.map(&:last)
         not_below = tops.select { |top, other| top <= bot + buffer }.map(&:last)
         (not_below & not_above).reject do |other|
-          buffer.zero? ? values_at(index, other).disjoint? : values_at(index, other).minimum_distance > buffer
+          values_at(index, other).separated_by? buffer
         end.each do |other|
           results << [ index, other ]
         end

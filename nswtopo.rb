@@ -734,7 +734,7 @@ module StraightSkeleton
         distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
         next if distance < 0 || distance.nan?
         travel = @travel + distance / secant
-        next if @neighbours.map(&:travel).max > travel
+        next if @neighbours.compact.map(&:travel).max > travel
         next if @limit && travel > @limit
         Collapse.new @active, @candidates, @limit, heading.times(distance).plus(@point), travel, [ neighbour, self ].rotate(index)
       end.compact.sort.take(1)

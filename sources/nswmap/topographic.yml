@@ -1317,7 +1317,7 @@ labels:
     font-family: Calibri, Arial, Helvetica, sans-serif
     font-style: normal
   [ feature-names Gap-Pass-Saddle, feature-names Headland, feature-names Mountain-Hill-Peak, feature-names Peninsula-Spit, feature-names Plateau-Tableland, feature-names Island, feature-names Rapids, feature-names Sandbar-Shoal, feature-names Lock ]:
-    position: [ over, right, above, below, left ]
+    position: [ over, right, left, above, below ]
     margin: 0.7
     letter-spacing: 0.1
   [ feature-names RangeLike, feature-names DuneLike, feature-names GeneralLocality, feature-names Beach, feature-names ValleyLike ]:

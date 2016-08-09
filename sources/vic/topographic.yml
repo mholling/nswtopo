@@ -545,11 +545,16 @@ labels:
     stroke-width: 0.25
     stroke-opacity: 0.75
   contours-10m:
-    format: "%d"
+    fill: "#805100"
     font-size: 1.4
     letter-spacing: 0.05
-    deviation: 0.1
+    format: "%d"
+    orientation: uphill
     collate: true
+    deviation: 0.075
+    minimum-length: 30
+    separation-all: 15
+    separation-along: 100
     separation: 40
   watercourses:
     fill: "#1667DF"

@@ -638,6 +638,7 @@ module Overlap
   end
   
   def overlaps(buffer = 0)
+    return [] if empty?
     axis = flatten(1).transpose.map { |values| values.max - values.min }.map.with_index.max.last
     events, tops, bots, results = AVLTree.new, [], [], []
     margin = [ buffer, 0 ]

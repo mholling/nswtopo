@@ -3240,7 +3240,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end.flatten
       
-      candidates.each do |hull, *args|
+      candidates.each do |candidate, *args|
         block.call("candidates").add_element "path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => candidate.hull.to_path_data(MM_DECIMAL_DIGITS, ?Z)
       end.clear if map.debug
       

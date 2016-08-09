@@ -744,7 +744,7 @@ module StraightSkeleton
     include Node
     
     def <=>(other)
-      @travel <=> other.travel
+      [ @travel, hash ] <=> [ other.travel, other.hash ]
     end
     
     def insert!

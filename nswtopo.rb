@@ -793,7 +793,7 @@ module StraightSkeleton
     end
     
     def splits
-      return [ ] if terminal? || headings.inject(&:cross) >= 0
+      return [ ] unless terminal? || headings.inject(&:cross) < 0
       @active.map(&:edge).compact.map do |edge|
         e0, e1 = edge.map(&:point)
         next if e0 == @point || e1 == @point
@@ -814,9 +814,9 @@ module StraightSkeleton
       active, candidates = Set.new, AVLTree.new
       pairs = closed ? :ring : :segments
       data.each.with_index do |points, index|
-        points = points.send(pairs).reject do |segment|
+        points = points.ring.reject do |segment|
           segment.inject(&:==)
-        end.map(&:first) + points.last(closed ? 0 : 1)
+        end.map(&:first)
         next unless points.many?
         bevel = points.send(pairs).map(&:difference).send(pairs).map do |directions|
           directions.inject(&:cross) < 0 && directions.inject(&:dot) < 0

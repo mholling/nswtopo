@@ -709,8 +709,16 @@ module StraightSkeleton
     end
     
     def headings
-      @headings ||= @edges.map do |edge|
-        edge.map(&:point).difference.normalised.perp if edge
+      @headings ||= @edges.map.with_index do |edge, index|
+        next unless edge
+        points = edge.map(&:point)
+        if points.inject(&:equal?)
+          [ edge[index].edges[index], @edges[1-index] ].map do |edge|
+            edge.map(&:point).difference.normalised.perp
+          end.inject(&:plus).normalised
+        else
+          points.difference.normalised.perp
+        end
       end
     end
     
@@ -729,6 +737,7 @@ module StraightSkeleton
     def collapses
       @neighbours.map.with_index do |neighbour, index|
         next unless neighbour
+        next if neighbour.point.equal? @point
         cos = Math::cos(neighbour.heading.angle - heading.angle)
         next if cos*cos == 1.0
         distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
@@ -805,14 +814,19 @@ module StraightSkeleton
       active, candidates = Set.new, AVLTree.new
       pairs = closed ? :ring : :segments
       data.each.with_index do |points, index|
-        nodes = points.send(pairs).reject do |segment|
+        points = points.send(pairs).reject do |segment|
           segment.inject(&:==)
-        end.map(&:first).tap do |pruned|
-          pruned << points.last if pairs == :segments
+        end.map(&:first) + points.last(closed ? 0 : 1)
+        next unless points.many?
+        bevel = points.send(pairs).map(&:difference).send(pairs).map do |directions|
+          directions.inject(&:cross) < 0 && directions.inject(&:dot) < 0
+        end
+        closed ? bevel.rotate!(-1) : bevel.unshift(false).push(false)
+        nodes = points.zip(bevel).inject([]) do |memo, (point, bevel)|
+          bevel ? memo << point << point : memo << point
         end.map do |point|
           Vertex.new active, candidates, limit, point, index
         end
-        next unless nodes.many?
         nodes.send(pairs).each do |edge|
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end

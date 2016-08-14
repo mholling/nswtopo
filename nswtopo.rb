@@ -3107,16 +3107,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args)
               end if dimension == 2
             when "offset"
-              [ dimension ].zip [ data.offset(dimension == 2, *args) ] if dimension > 0
+              [ dimension ].zip [ data.offset(dimension == 2, *args) ] if dimension > 0 && args[0]
             when "buffer"
-              [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0
+              [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0 && args[0]
             when "smooth"
               dimensioned_attributes[dimension]["max-angle"] = args[0] = (args[0] == true ? DEFAULT_MAX_ANGLE : args[0])
-              [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0
+              [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0 && args[0]
             when "densify"
-              [ dimension ].zip [ data.densify(dimension == 2, *args) ] if dimension > 0
+              [ dimension ].zip [ data.densify(dimension == 2, *args) ] if dimension > 0 && args[0]
             when "simplify"
-              [ dimension ].zip [ data.simplify(dimension == 2, *args) ] if dimension > 0
+              [ dimension ].zip [ data.simplify(dimension == 2, *args) ] if dimension > 0 && args[0]
             when "remove"
               [ ] if args.any? do |value|
                 case value

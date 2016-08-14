@@ -1031,7 +1031,7 @@ module StraightSkeleton
       nodes.map do |node|
         node.point.plus node.heading.times((margin - node.travel) * node.secant)
       end
-    end
+    end.select(&:many?)
   end
   
   def offset(closed, margin)

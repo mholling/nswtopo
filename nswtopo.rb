@@ -708,6 +708,14 @@ module StraightSkeleton
       @neighbours.one?
     end
     
+    def incoming?
+      @neighbours[0]
+    end
+    
+    def outgoing?
+      @neighbours[1]
+    end
+    
     def headings
       @headings ||= @edges.map.with_index do |edge, index|
         next unless edge
@@ -813,10 +821,10 @@ module StraightSkeleton
     def self.[](data, closed = true, limit = nil)
       active, candidates = Set.new, AVLTree.new
       pairs = closed ? :ring : :segments
-      data.map(&:ring).map do |segments|
+      data.map(&pairs).map do |segments|
         segments.reject do |segment|
           segment.inject(&:==)
-        end.map(&:first)
+        end.map(&:first) + segments.last(closed ? 0 : 1).map(&:last)
       end.map.with_index do |points, index|
         next [ ] unless points.many?
         bevel = points.send(pairs).map(&:difference).send(pairs).map do |directions|
@@ -832,10 +840,21 @@ module StraightSkeleton
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end
         nodes
-      end.flatten.each(&:add).map do |node|
-        node.splits + node.collapses
-      end.flatten.each do |candidate|
-        candidates << candidate
+      end.flatten.each(&:add).each do |node|
+        node.splits.each    { |candidate| candidates << candidate }
+        node.collapses.each { |candidate| candidates << candidate }
+      end.select(&:terminal?).permutation(2).select do |node1, node2|
+        node1.point == node2.point
+      end.select do |node1, node2|
+        node1.incoming? && node2.outgoing?
+      end.select do |node1, node2|
+        node1.heading.cross(node2.heading) > 0
+      end.group_by(&:first).map(&:last).map do |pairs|
+        pairs.min_by do |node1, node2|
+          node1.heading.dot node2.heading
+        end
+      end.compact.each do |node1, node2|
+        candidates << Split.new(active, candidates, limit, node1.point, 0, node1, node2.edge)
       end
       [ active, candidates ]
     end

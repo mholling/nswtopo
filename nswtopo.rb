@@ -884,7 +884,10 @@ module StraightSkeleton
         while active.any?
           nodes = [ active.first ]
           while node = nodes.last.neighbours[1] and node != nodes.first
-            nodes << node
+            nodes.push node
+          end
+          while node = nodes.first.neighbours[0] and node != nodes.last
+            nodes.unshift node
           end
           yielder << nodes.each(&:remove!)
         end

@@ -180,6 +180,11 @@ class AVLTree
   end
   alias << insert
   
+  def merge(values)
+    values.each { |value| insert value }
+    self
+  end
+  
   def delete(value)
     case @value <=> value
     when +1 then @left.delete value
@@ -841,8 +846,8 @@ module StraightSkeleton
         end
         nodes
       end.flatten.each(&:add).each do |node|
-        node.splits.each    { |candidate| candidates << candidate }
-        node.collapses.each { |candidate| candidates << candidate }
+        candidates.merge node.splits
+        candidates.merge node.collapses
       end.select(&:terminal?).permutation(2).select do |node1, node2|
         node1.point == node2.point
       end.select do |node1, node2|

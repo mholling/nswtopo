@@ -713,11 +713,11 @@ module StraightSkeleton
       @neighbours.one?
     end
     
-    def incoming?
+    def prev
       @neighbours[0]
     end
     
-    def outgoing?
+    def next
       @neighbours[1]
     end
     
@@ -744,7 +744,7 @@ module StraightSkeleton
     end
     
     def edge
-      [ self, @neighbours[1] ] if @neighbours[1]
+      [ self, self.next ] if self.next
     end
     
     def collapses
@@ -851,7 +851,7 @@ module StraightSkeleton
       end.select(&:terminal?).permutation(2).select do |node1, node2|
         node1.point == node2.point
       end.select do |node1, node2|
-        node1.incoming? && node2.outgoing?
+        node1.prev && node2.next
       end.select do |node1, node2|
         node1.heading.cross(node2.heading) > 0
       end.group_by(&:first).map(&:last).map do |pairs|
@@ -883,10 +883,10 @@ module StraightSkeleton
       Enumerator.new do |yielder|
         while active.any?
           nodes = [ active.first ]
-          while node = nodes.last.neighbours[1] and node != nodes.first
+          while node = nodes.last.next and node != nodes.first
             nodes.push node
           end
-          while node = nodes.first.neighbours[0] and node != nodes.last
+          while node = nodes.first.prev and node != nodes.last
             nodes.unshift node
           end
           yielder << nodes.each(&:remove!)
@@ -908,8 +908,8 @@ module StraightSkeleton
     end
     
     def replace!(&block)
-      @neighbours = [ @sources[0].neighbours[0], @sources[1].neighbours[1] ]
-      @neighbours.inject(&:==) ? block.call(@neighbours[0]) : insert! if @neighbours.any?
+      @neighbours = [ @sources[0].prev, @sources[1].next ]
+      @neighbours.inject(&:==) ? block.call(prev) : insert! if @neighbours.any?
       @sources.each(&block)
     end
   end
@@ -937,7 +937,7 @@ module StraightSkeleton
     
     def split(index, &block)
       @neighbours = [ @sources[0].neighbours[index], @split[1-index] ].rotate index
-      @neighbours.inject(&:==) ? block.call(@neighbours[0], @neighbours[0].is_a?(Collapse) ? 1 : 0) : insert! if @neighbours.any?
+      @neighbours.inject(&:==) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert! if @neighbours.any?
     end
     
     def replace!(&block)

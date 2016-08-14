@@ -517,6 +517,14 @@ module VectorSequences
       closed ? pruned : pruned << points.last
     end.reject(&:one?)
   end
+  
+  def dedupe(closed)
+    (closed ? map(&:ring) : map(&:segments)).map do |segments|
+      segments.reject do |segment|
+        segment.inject(&:==)
+      end.map(&:first) + segments.last(closed ? 0 : 1).map(&:last)
+    end
+  end
 end
 
 module Clipping
@@ -826,11 +834,7 @@ module StraightSkeleton
     def self.[](data, closed = true, limit = nil)
       active, candidates = Set.new, AVLTree.new
       pairs = closed ? :ring : :segments
-      data.map(&pairs).map do |segments|
-        segments.reject do |segment|
-          segment.inject(&:==)
-        end.map(&:first) + segments.last(closed ? 0 : 1).map(&:last)
-      end.map.with_index do |points, index|
+      data.dedupe(closed).map.with_index do |points, index|
         next [ ] unless points.many?
         bevel = points.send(pairs).map(&:difference).send(pairs).map do |directions|
           directions.inject(&:cross) < 0 && directions.inject(&:dot) < 0
@@ -1034,7 +1038,7 @@ module StraightSkeleton
       nodes.map do |node|
         node.point.plus node.heading.times((margin - node.travel) * node.secant)
       end
-    end.select(&:many?)
+    end.dedupe(closed).select(&:many?)
   end
   
   def offset(closed, margin)

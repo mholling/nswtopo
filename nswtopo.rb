@@ -259,7 +259,7 @@ class RTree
       end.each do |node|
         node.search(bounds).each { |object| yielder << object }
       end
-      yielder << @object if @nodes.empty? && overlaps?(bounds)
+      yielder << @object if @nodes.empty? && (!bounds || overlaps?(bounds))
     end
   end
 end

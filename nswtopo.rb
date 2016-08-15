@@ -234,21 +234,21 @@ class RTree
     end
   end
   
-  def self.load(objects, bounds = nil, &block)
-    bounds ||= objects.map(&block)
-    if objects.one?
-      RTree.new [], bounds.first, objects.first
+  def self.load(bounds_objects, &block)
+    case
+    when block_given? then load bounds_objects.map(&block).zip(bounds_objects)
+    when bounds_objects.one? then RTree.new [], *bounds_objects.first
     else
-      nodes = objects.zip(bounds).sort_by do |object, bounds|
+      nodes = bounds_objects.sort_by do |bounds, object|
         bounds[0].inject(&:+)
-      end.in_two.map(&:transpose).map do |objects, bounds|
-        objects.zip(bounds).sort_by do |object, bounds|
+      end.in_two.map do |bounds_objects|
+        bounds_objects.sort_by do |bounds, object|
           bounds[1].inject(&:+)
-        end.in_two.map(&:transpose).map do |objects, bounds|
-          load objects, bounds
+        end.in_two.map do |bounds_objects|
+          load bounds_objects
         end
       end.flatten
-      RTree.new nodes, bounds.transpose.map(&:flatten).map(&:minmax)
+      RTree.new nodes, bounds_objects.map(&:first).transpose.map(&:flatten).map(&:minmax)
     end
   end
   

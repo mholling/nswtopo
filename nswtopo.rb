@@ -872,19 +872,20 @@ module StraightSkeleton
     
     def self.[](data, closed = true, limit = nil)
       active, candidates = Set.new, AVLTree.new
-      pairs = closed ? :ring : :segments
       data.dedupe(closed).map.with_index do |points, index|
         next [ ] unless points.many?
-        bevel = points.send(pairs).map(&:difference).send(pairs).map do |directions|
-          directions.inject(&:cross) < 0 && directions.inject(&:dot) < 0
-        end
-        closed ? bevel.rotate!(-1) : bevel.unshift(false).push(false)
-        nodes = points.zip(bevel).inject([]) do |memo, (point, bevel)|
-          bevel ? memo << point << point : memo << point
+        nodes = if closed
+          points
+        else
+          points.segments.map(&:difference).segments.map do |directions|
+            directions.inject(&:cross) < 0 && directions.inject(&:dot) < 0
+          end.unshift(false).push(false).zip(points).inject([]) do |memo, (bevel, point)|
+            bevel ? memo << point << point : memo << point
+          end
         end.map do |point|
           Vertex.new active, candidates, limit, point, index
         end
-        nodes.send(pairs).each do |edge|
+        nodes.send(closed ? :ring : :segments).each do |edge|
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end
         nodes

@@ -82,7 +82,7 @@ labels:
     collate: true
     deviation: 3.0
     separation: 150
-    densify: 10
-    simplify: [ 1.0, 15 ]
-    smooth: [ 20, 90 ]
     buffer: 3.0
+    simplify: [ 1.0, 15 ]
+    densify: 10
+    smooth: [ 20, 90 ]

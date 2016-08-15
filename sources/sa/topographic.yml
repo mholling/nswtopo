@@ -414,9 +414,9 @@ labels:
     letter-spacing: 0.1
     word-spacing: 2.0
     collate: true
-    densify: 10
-    simplify: 2.0
     buffer: 3.0
+    simplify: 2.0
+    densify: 10
     smooth: [ 20, 90 ]
     separation: 80
     deviation: 4.0

@@ -751,8 +751,12 @@ module StraightSkeleton
       @secant ||= 1.0 / headings.compact.first.dot(heading)
     end
     
-    def edge
-      [ self, self.next ] if self.next
+    def active_pairs
+      Enumerator.new do |yielder|
+        @active.each do |node|
+          yielder << [ node, node.next ] if node.next
+        end
+      end
     end
     
     def collapses
@@ -815,10 +819,10 @@ module StraightSkeleton
     
     def splits
       return [ ] unless terminal? || headings.inject(&:cross) < 0
-      @active.map(&:edge).compact.map do |edge|
-        e0, e1 = edge.map(&:point)
+      active_pairs.map do |pair|
+        e0, e1 = pair.map(&:point)
         next if e0 == @point || e1 == @point
-        h0, h1 = edge.map(&:heading)
+        h0, h1 = pair.map(&:heading)
         direction = e1.minus(e0).normalised.perp
         travel = direction.dot(@point.minus e0) / (1 - secant * heading.dot(direction))
         next if travel < 0 || travel.nan?
@@ -827,7 +831,7 @@ module StraightSkeleton
         next if point.minus(e0).dot(direction) < 0
         next if point.minus(e0).cross(h0) < 0
         next if point.minus(e1).cross(h1) > 0
-        Split.new @active, @candidates, @limit, point, travel, self, edge
+        Split.new @active, @candidates, @limit, point, travel, self, pair
       end.compact.sort.take(1)
     end
     
@@ -863,7 +867,7 @@ module StraightSkeleton
           node1.heading.dot node2.heading
         end
       end.compact.each do |node1, node2|
-        candidates << Split.new(active, candidates, limit, node1.point, 0, node1, node2.edge)
+        candidates << Split.new(active, candidates, limit, node1.point, 0, node1, [ node2, node2.next ])
       end
       [ active, candidates ]
     end
@@ -928,11 +932,11 @@ module StraightSkeleton
     
     def viable?
       return false unless @sources.all?(&:active?)
-      @split = @active.map(&:edge).compact.select do |edge|
-        edge[0].edges[1] == @split || edge[1].edges[0] == @split
-      end.find do |edge|
-        e0, e1 = edge.map(&:point)
-        h0, h1 = edge.map(&:heading)
+      @split = active_pairs.select do |pair|
+        pair[0].edges[1] == @split || pair[1].edges[0] == @split
+      end.find do |pair|
+        e0, e1 = pair.map(&:point)
+        h0, h1 = pair.map(&:heading)
         next if point.minus(e0).cross(h0) < 0
         next if point.minus(e1).cross(h1) > 0
         true

@@ -221,6 +221,49 @@ class AVLTree
   end
 end
 
+class RTree
+  def initialize(nodes, bounds, object = nil)
+    @nodes, @bounds, @object = nodes, bounds, object
+  end
+  
+  def overlaps?(bounds)
+    bounds.zip(@bounds).all? do |bound1, bound2|
+      bound1.zip(bound2.rotate).each.with_index.all? do |limits, index|
+        limits.rotate(index).inject(&:<=)
+      end
+    end
+  end
+  
+  def self.load(objects, bounds = nil, &block)
+    bounds ||= objects.map(&block)
+    if objects.one?
+      RTree.new [], bounds.first, objects.first
+    else
+      nodes = objects.zip(bounds).sort_by do |object, bounds|
+        bounds[0].inject(&:+)
+      end.in_two.map(&:transpose).map do |objects, bounds|
+        objects.zip(bounds).sort_by do |object, bounds|
+          bounds[1].inject(&:+)
+        end.in_two.map(&:transpose).map do |objects, bounds|
+          load objects, bounds
+        end
+      end.flatten
+      RTree.new nodes, bounds.transpose.map(&:flatten).map(&:minmax)
+    end
+  end
+  
+  def search(bounds = nil)
+    Enumerator.new do |yielder|
+      @nodes.select do |node|
+        bounds ? node.overlaps?(bounds) : true
+      end.each do |node|
+        node.search(bounds).each { |object| yielder << object }
+      end
+      yielder << @object if @nodes.empty? && overlaps?(bounds)
+    end
+  end
+end
+
 module ArrayHelpers
   def median
     sort[length / 2]
@@ -232,6 +275,10 @@ module ArrayHelpers
   
   def many?
     length > 1
+  end
+  
+  def in_two
+    each_slice(1 + (length - 1) / 2)
   end
 end
 
@@ -751,14 +798,6 @@ module StraightSkeleton
       @secant ||= 1.0 / headings.compact.first.dot(heading)
     end
     
-    def active_pairs
-      Enumerator.new do |yielder|
-        @active.each do |node|
-          yielder << [ node, node.next ] if node.next
-        end
-      end
-    end
-    
     def collapses
       @neighbours.map.with_index do |neighbour, index|
         next unless neighbour
@@ -817,22 +856,19 @@ module StraightSkeleton
       @active << self
     end
     
-    def splits
-      return [ ] unless terminal? || headings.inject(&:cross) < 0
-      active_pairs.map do |pair|
-        e0, e1 = pair.map(&:point)
-        next if e0 == @point || e1 == @point
-        h0, h1 = pair.map(&:heading)
-        direction = e1.minus(e0).normalised.perp
-        travel = direction.dot(@point.minus e0) / (1 - secant * heading.dot(direction))
-        next if travel < 0 || travel.nan?
-        next if @limit && travel > @limit
-        point = heading.times(secant * travel).plus(@point)
-        next if point.minus(e0).dot(direction) < 0
-        next if point.minus(e0).cross(h0) < 0
-        next if point.minus(e1).cross(h1) > 0
-        Split.new @active, @candidates, @limit, point, travel, self, pair
-      end.compact.sort.take(1)
+    def split(pair)
+      e0, e1 = pair.map(&:point)
+      return if e0 == @point || e1 == @point
+      h0, h1 = pair.map(&:heading)
+      direction = e1.minus(e0).normalised.perp
+      travel = direction.dot(@point.minus e0) / (1 - secant * heading.dot(direction))
+      return if travel < 0 || travel.nan?
+      return if @limit && travel > @limit
+      point = heading.times(secant * travel).plus(@point)
+      return if point.minus(e0).dot(direction) < 0
+      return if point.minus(e0).cross(h0) < 0
+      return if point.minus(e1).cross(h1) > 0
+      Split.new @active, @candidates, @limit, point, travel, self, pair
     end
     
     def self.[](data, closed = true, limit = nil)
@@ -854,7 +890,6 @@ module StraightSkeleton
         end
         nodes
       end.flatten.each(&:add).each do |node|
-        candidates.merge node.splits
         candidates.merge node.collapses
       end.select(&:terminal?).permutation(2).select do |node1, node2|
         node1.point == node2.point
@@ -868,6 +903,24 @@ module StraightSkeleton
         end
       end.compact.each do |node1, node2|
         candidates << Split.new(active, candidates, limit, node1.point, 0, node1, [ node2, node2.next ])
+      end
+      pairs = active.select(&:next).map do |node|
+        [ node, node.next ]
+      end
+      edges = RTree.load(pairs) do |pair|
+        pair.map(&:point).transpose.map(&:minmax)
+      end
+      active.select do |node|
+        node.terminal? || node.headings.inject(&:cross) < 0
+      end.each do |node|
+        bounds = node.point.map do |coordinate|
+          [ coordinate - (1.0 + node.secant) * limit, coordinate + (1.0 * node.secant) * limit ]
+        end if limit
+        edges.search(bounds).map do |pair|
+          node.split pair
+        end.compact.sort.take(1).each do |split|
+          candidates << split
+        end
       end
       [ active, candidates ]
     end
@@ -932,7 +985,9 @@ module StraightSkeleton
     
     def viable?
       return false unless @sources.all?(&:active?)
-      @split = active_pairs.select do |pair|
+      @split = @active.select(&:next).map do |node|
+        [ node, node.next ]
+      end.select do |pair|
         pair[0].edges[1] == @split || pair[1].edges[0] == @split
       end.find do |pair|
         e0, e1 = pair.map(&:point)

@@ -889,9 +889,7 @@ module StraightSkeleton
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end
         nodes
-      end.flatten.each(&:add).each do |node|
-        candidates.merge node.collapses
-      end.select(&:terminal?).permutation(2).select do |node1, node2|
+      end.flatten.each(&:add).select(&:terminal?).permutation(2).select do |node1, node2|
         node1.point == node2.point
       end.select do |node1, node2|
         node1.prev && node2.next
@@ -904,23 +902,24 @@ module StraightSkeleton
       end.compact.each do |node1, node2|
         candidates << Split.new(active, candidates, limit, node1.point, 0, node1, [ node2, node2.next ])
       end
+      candidates.merge active.map(&:collapses).flatten
       pairs = active.select(&:next).map do |node|
         [ node, node.next ]
       end
-      edges = RTree.load(pairs) do |pair|
+      pairs = RTree.load(pairs) do |pair|
         pair.map(&:point).transpose.map(&:minmax)
-      end
+      end if limit
       active.select do |node|
         node.terminal? || node.headings.inject(&:cross) < 0
-      end.each do |node|
+      end.map do |node|
         bounds = node.point.map do |coordinate|
           [ coordinate - (1.0 + node.secant) * limit, coordinate + (1.0 * node.secant) * limit ]
         end if limit
-        edges.search(bounds).map do |pair|
+        (limit ? pairs.search(bounds) : pairs).map do |pair|
           node.split pair
-        end.compact.sort.take(1).each do |split|
-          candidates << split
-        end
+        end.compact.sort.take(1)
+      end.each do |splits|
+        candidates.merge splits
       end
       [ active, candidates ]
     end

@@ -777,11 +777,11 @@ module StraightSkeleton
     end
     
     def headings
-      @headings ||= @edges.map.with_index do |edge, index|
+      @headings ||= @edges.map do |edge|
         next unless edge
         points = edge.map(&:point)
         if points.inject(&:equal?)
-          [ edge[index].edges[index], @edges[1-index] ].map do |edge|
+          [ edge[0].edges[0], edge[1].edges[1] ].map do |edge|
             edge.map(&:point).difference.normalised.perp
           end.inject(&:plus).normalised
         else

@@ -3217,8 +3217,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
-      conflicts = Hash.new { |hash, label| hash[label] = Set.new }
-      totals    = Hash.new { |hash, feature| hash[feature] = { } }
+      totals = Hash.new { |hash, feature| hash[feature] = { } }
       
       candidates = @features.map.with_index do |(text, source_name, sublayer, components), feature|
         components.map.with_index do |(dimension, data, attributes), component|
@@ -3346,9 +3345,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end.flatten
       
-      candidates.each do |candidate, *args|
+      candidates.each do |candidate|
         block.call("candidates").add_element "path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => candidate.hull.to_path_data(MM_DECIMAL_DIGITS, ?Z)
       end.clear if map.debug
+      
+      conflicts = Hash.new { |hash, label| hash[label] = Set.new }
       
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices
@@ -3395,15 +3396,22 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      pending, labels = Set.new(candidates), Set.new
-      while pending.any?
-        label = pending.group_by(&:feature).map do |feature, candidates|
+      matrix = Hash[candidates.zip conflicts.values_at(*candidates).map(&:dup)]
+      labels = Set.new
+      
+      while matrix.any?
+        label = matrix.keys.group_by(&:feature).map do |feature, candidates|
           candidates.map do |candidate|
-            [ candidate, [ conflicts[candidate].length, candidates.length ] ]
+            [ candidate, [ matrix[candidate].length, candidates.length ] ]
           end
         end.flatten(1).min_by(&:last).first
-        pending.subtract conflicts[label]
-        pending.delete label
+        matrix[label].add(label).map do |removed|
+          [ removed, matrix.delete(removed) ]
+        end.each do |removed, candidates|
+          candidates.each do |candidate|
+            matrix[candidate] && matrix[candidate].delete(removed)
+          end
+        end
         labels << label
       end
       

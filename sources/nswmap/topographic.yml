@@ -162,7 +162,8 @@ features:
     - alternativelabel
   waterfalls:
     name: Waterfalls_springs
-    definition: ancillaryhydrotype = 6
+    # definition: ancillaryhydrotype = 6
+    where: ancillaryhydrotype = 6
     rotate: symbolrotation
     label: generalname
   mangroves-intertidal:
@@ -173,9 +174,9 @@ features:
   - name: Cliffs_Reefs_Mangroves
     where: classsubtype IN (4,5)
     category: classsubtype
-  - name: Caves_Pinnacles
-    definition: classsubtype IN (4,5)
-    category: classsubtype
+  # - name: Caves_Pinnacles
+  #   definition: classsubtype IN (4,5)
+  #   category: classsubtype
   - source: poi
     name: Points Of Interest
     where:
@@ -207,7 +208,7 @@ features:
     name: Caves_Pinnacles
     category: classsubtype
     label: generalname
-    definition: classsubtype IN (1,2,6)
+    # definition: classsubtype IN (1,2,6)
   road-tunnels:
     source: rfs
     name: RoadSegment

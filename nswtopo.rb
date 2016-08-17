@@ -3397,12 +3397,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
       
       matrix = Hash[candidates.zip conflicts.values_at(*candidates).map(&:dup)]
+      external = Hash[candidates.zip conflicts.values_at(*candidates).map(&:dup)]
+      external.each do |candidate, candidates|
+        candidates.reject! { |other| other.feature == candidate.feature }
+      end
       labels = Set.new
       
       while matrix.any?
         label = matrix.keys.group_by(&:feature).map do |feature, candidates|
           candidates.map do |candidate|
-            [ candidate, [ matrix[candidate].length, candidates.length ] ]
+            [ candidate, [ external[candidate].length, candidates.length ] ]
           end
         end.flatten(1).min_by(&:last).first
         matrix[label].add(label).map do |removed|
@@ -3410,6 +3414,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end.each do |removed, candidates|
           candidates.each do |candidate|
             matrix[candidate] && matrix[candidate].delete(removed)
+            external[candidate].delete(removed)
           end
         end
         labels << label

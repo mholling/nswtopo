@@ -1127,6 +1127,8 @@ end
 module StringHelpers
   def in_two
     return split ?\n if match ?\n
+    slash = split ?/
+    return [ slash[0] + ?/, slash[1] ].map(&:strip) if slash.length == 2
     words = split ?\s
     (1...words.length).map do |index|
       [ words[0 ... index].join(?\s), words[index ... words.length].join(?\s) ]

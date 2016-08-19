@@ -278,7 +278,7 @@ module ArrayHelpers
   end
   
   def in_two
-    each_slice(1 + (length - 1) / 2)
+    each_slice(1 + [ length - 1, 0 ].max / 2)
   end
 end
 

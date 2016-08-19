@@ -3266,10 +3266,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when REXML::Element then data.path_length
             when String then text.glyph_length(font_size, letter_spacing, word_spacing)
             end
-            distances = data.ring.map(&:distance)
-            *cumulative, total = distances.inject([0]) do |memo, distance|
+            distances = (dimension == 1 ? data.segments : data.ring).map(&:distance)
+            cumulative = distances.inject([0]) do |memo, distance|
               memo << memo.last + distance
             end
+            total = dimension == 1 ? cumulative.last : cumulative.pop
             totals[feature][component] = total
             arclengths = data.ring.map(&:midpoint).ring.map(&:distance).rotate(-1)
             angles = data.ring.map(&:difference).map(&:normalised).ring.map do |directions|
@@ -3287,10 +3288,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 while distance < text_length
                   index = indices.last
                   break if dimension == 2 && index == indices[0]
-                  break if dimension == 1 && index == distances.length - 1
+                  break if dimension == 1 && index == data.length - 1
                   distance += distances[index]
                   index += 1
-                  index %= distances.length
+                  index %= data.length
                   indices << index
                 end
                 break if distance < text_length

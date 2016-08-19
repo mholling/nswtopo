@@ -520,6 +520,7 @@ module VectorSequences
   def smooth(closed, limit, cutoff = false)
     smooth_interior = lambda do |*points|
       points.segments.segments.chunk do |segments|
+        next true if segments[0] == segments[1].reverse
         directions = segments.map(&:difference).map(&:normalised)
         angle = Math.atan2(directions.inject(&:cross), directions.inject(&:dot)) * 180.0 / Math::PI
         angle.abs < limit || (cutoff && angle.abs > cutoff)
@@ -874,14 +875,10 @@ module StraightSkeleton
       active, candidates = Set.new, AVLTree.new
       data.dedupe(closed).map.with_index do |points, index|
         next [ ] unless points.many?
-        nodes = if closed
-          points
-        else
-          points.segments.map(&:difference).segments.map do |directions|
-            directions.inject(&:cross) < 0 && directions.inject(&:dot) < 0
-          end.unshift(false).push(false).zip(points).inject([]) do |memo, (bevel, point)|
-            bevel ? memo << point << point : memo << point
-          end
+        nodes = points.segments.map(&:difference).segments.map do |directions|
+          directions.inject(&:cross) < 0 && directions.inject(&:dot) < 0
+        end.unshift(false).push(false).zip(points).inject([]) do |memo, (bevel, point)|
+          bevel ? memo << point << point : memo << point
         end.map do |point|
           Vertex.new active, candidates, limit, point, index
         end

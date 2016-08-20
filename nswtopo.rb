@@ -3312,7 +3312,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               [ baseline, centre, eigenvalue ]
             end.reject do |baseline, centre, eigenvalue|
               eigenvalue > deviation**2
-            end.map do |baseline, centre, priority|
+            end.map do |baseline, centre, eigenvalue|
+              priority = [ eigenvalue, (total - 2 * centre).abs / total.to_f ]
               case orientation
               when "uphill"
               when "downhill" then baseline.reverse!
@@ -3332,7 +3333,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
               LineLabel.new source_name, sublayer, feature, component, priority, hull, attributes, [ text_element, path_element ], centre
-            end
+            end.sort_by(&:priority)
           end.select do |candidate|
             labelling_hull.surrounds?(candidate.hull).all?
           end

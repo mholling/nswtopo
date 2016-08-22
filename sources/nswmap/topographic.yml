@@ -1,4 +1,4 @@
-min-version: '1.1.1'
+min-version: '1.2'
 class: ArcGISVector
 sources:
   lpimap:

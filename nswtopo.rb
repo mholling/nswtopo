@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# Copyright 2011-2015 Matthew Hollingworth
+# Copyright 2011-2016 Matthew Hollingworth
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ require 'set'
 # %w[uri net/http rexml/document rexml/formatters/pretty tmpdir yaml fileutils pathname rbconfig json base64 open-uri].each { |file| require file }
 
 GITHUB_SOURCES = "https://github.com/mholling/nswtopo/raw/master/sources/"
-NSWTOPO_VERSION = "1.1.6"
+NSWTOPO_VERSION = "1.2"
 
 class REXML::Element
   alias_method :unadorned_add_element, :add_element

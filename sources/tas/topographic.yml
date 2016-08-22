@@ -2,14 +2,14 @@ min-version: '1.1'
 class: ArcGISVector
 local-reprojection: true
 sources:
+  open-data:
+    host: services.thelist.tas.gov.au
+    folder: Public
+    service: OpenDataWFS
   topography:
     host: services.thelist.tas.gov.au
     folder: Public
     service: TopographyAndRelief
-  natural-environment:
-    host: services.thelist.tas.gov.au
-    folder: Public
-    service: NaturalEnvironment
   cadastre-administrative:
     host: services.thelist.tas.gov.au
     folder: Public
@@ -29,38 +29,30 @@ features:
     name: Land Use 2009-2010
     where: LU_CODE IN ('5.4.1')
   contours-5m:
-  - name: 5m Contours
+    name: LIST Contours 5m
     category: CONTOUR_TY
-  - name: 5m Contours
-    where: CONTOUR_TY IN ('Index Contour', 'Index Depression Contour') AND COMP_LEN > 1000
-    label-only: true
     label: ELEVATION
   contours-10m:
-  - name: 10m Contours
+    name: LIST Contours 10m
     category: CONTOUR_TY
-  - name: 10m Contours
-    where: CONTOUR_TY IN ('Index Contour', 'Index Depression Contour') AND COMP_LEN > 1000
-    label-only: true
     label: ELEVATION
   contours-20m:
-  - name: 20m Contours
+    name: LIST Contours 10m
+    where: MOD(ELEVATION,20) = 0
     category: CONTOUR_TY
-  - name: 20m Contours
-    where: CONTOUR_TY IN ('Index Contour', 'Index Depression Contour') AND COMP_LEN > 2000
-    label-only: true
     label: ELEVATION
   coastal-flats:
-    name: Coastal Flat and Salt Pan
+    name: LIST Hydrographic Areas
+    where: HYDARTY1 IN ('Flat')
     category: HYDARTY2
   cadastre:
-    source: cadastre-administrative
-    name: Cadastral Parcels
+    name: LIST Cadastral Parcels
     where:
     - CAD_TYPE1 IN ('Private Parcel','Authority Land')
     - TENURE_TY NOT IN ('Marine Crown Land','Tidal Crown Land','Crown Land','Vertical Strata','Horizontal Strata')
     - STRATA_LEV IN ('Not Applicable')
   wetlands:
-  - name: Wetlands
+  - name: LIST Hydrographic Areas
     where: HYDARTY2 IN ('Swamp','Wet area')
     category: HYDARTY2
   - source: placenames
@@ -69,35 +61,41 @@ features:
     label-only: true
     label: FEAT_NAME
   water-tunnels:
-    name: Hydrographic Lines
+    name: LIST Hydrographic Lines
     where:
     - HYDLNTY1 IN ('Artificial Watercourse')
     - HYDLNTY2 IN ('Water pipeline','Siphon','Water tunnel')
     - RELGRND IN ('Under','Unknown')
   watercourses:
-  - name: Hydrographic Lines
+  - name: LIST Hydrographic Lines
     where:
     - HYDLNTY1 IN ('Artificial Watercourse','Watercourse')
     - HYDLNTY2 NOT IN ('Implied','Water pipeline','Penstock','Siphon','Water tunnel')
     - RELGRND NOT IN ('Under')
+    category: 1d
     label: NAME
-  - name: Hydrographic Lines
-    where: HYDLNTY1 IN ('Hydrographic Connector')
+  - name: LIST Hydrographic Areas
+    where:
+    - HYDARTY1 IN ('Artificial Watercourse','Watercourse')
+    - HYDARTY2 NOT IN ('Spillway')
+    - PERENNIAL NOT IN ('Intermittent')
+    category: 2d
     label-only: true
     label: NAME
+  # TODO: ??? complete watercourse labeling?
   waterbodies:
-  - name: Hydrographic Areas
+  - name: LIST Hydrographic Areas
     where:
     - HYDARTY1 IN ('Artificial Watercourse','Watercourse','Water Body','Estuary')
     - HYDARTY2 NOT IN ('Spillway')
     - PERENNIAL NOT IN ('Intermittent')
     category: Perennial
-  - name: Hydrographic Areas
+  - name: LIST Hydrographic Areas
     where:
     - HYDARTY1 IN ('Artificial Watercourse','Watercourse','Water Body')
     - PERENNIAL IN ('Intermittent')
     category: PERENNIAL
-  - name: Hydrographic Areas
+  - name: LIST Hydrographic Areas
     where: HYDARTY1 IN ('Sea')
     per-page: 1
     category: Perennial
@@ -107,48 +105,53 @@ features:
     category: FEAT_TYPE
     label-only: true
     label: FEAT_NAME
-  submerged-trees: Water Bodies - Submerged Trees
+  submerged-trees:
+    name: LIST Hydrographic Areas
+    where: HYDARTY1 IN ('Submerged Tree')
   dams:
-  - name: Hydrographic Lines
+  - name: LIST Hydrographic Lines
     where: HYDLNTY1 IN ('Dam')
     category:
     - 1d
     - HYDLNTY2
-  - name: Hydrographic Areas
+  - name: LIST Hydrographic Areas
     where: HYDARTY1 IN ('Dam') OR HYDARTY2 IN ('Spillway')
     category:
     - 2d
     - HYDARTY2
   waterfalls-rapids:
-  - name: Hydrographic Lines
+  - name: LIST Hydrographic Lines
     where: HYDLNTY1 IN ('Water Fall')
     category: line-waterfall
-  - name: Hydrographic Points
+  - name: LIST Hydrographic Points
     where: HYDPNTTY IN ('Waterfall')
-  - name: Hydrographic Areas
+  - name: LIST Hydrographic Areas
     where: HYDARTY1 IN ('Rapid')
     category: rapid
+    # TODO: can label these rapids with NAME
+    # TODO: include Hydro Points with HYDPNTTY IN ('Rapid')?
   - source: placenames
     name: Placenames
     where: FEAT_TYPE IN ('Waterfall')
     label-only: true
     label: FEAT_NAME
   water-pipelines:
-    name: Hydrographic Lines
+    name: LIST Hydrographic Lines
     where:
     - HYDLNTY1 IN ('Artificial Watercourse')
     - HYDLNTY2 IN ('Water pipeline','Penstock','Siphon')
     - RELGRND IN ('Above','In or on')
   tidal-zones:
-    name: Hydrographic Areas
+    name: LIST Hydrographic Areas
     where:
     - HYDARTY1 IN ('Tidal zone')
     - HYDARTY2 IN ('Rock','Sand','Vegetated mudflat','Unvegetated mudflat')
     category: HYDARTY2
   reefs:
-  - name: Submerged Reef
+  - name: LIST Hydrographic Areas
+    where: HYDARTY1 IN ('Submerged Reef')
     category: HYDARTY1
-  - name: Hydrographic Points
+  - name: LIST Hydrographic Points
     where: HYDPNTTY IN ('Rock','Submerged Rock')
     category: HYDPNTTY
   - source: placenames
@@ -157,62 +160,98 @@ features:
     label-only: true
     label: FEAT_NAME
   walking-tracks:
-    name: Walking Tracks
-    category:
-    - TRANS_TYPE
-    - TRAN_CLASS
+    name: LIST Transport Segments
+    where: TRANS_TYPE IN ('Track')
+    category: TRAN_CLASS
     label: PRI_NAME
+  ferry-routes:
+    name: LIST Transport Segments
+    where:
+    - TRANS_TYPE IN ('Route')
+    - TRAN_CLASS IN ('Ferry')
   road-tunnels:
-    name: All Transport
-    where: TSEG_FEAT LIKE '%Tunnel%'
+    name: LIST Transport Segments
+    where:
+    - TRANS_TYPE IN ('Road')
+    - TSEG_FEAT LIKE '%Tunnel%'
     category: TRAN_CLASS
   railway-tunnels:
-    name: Railways
-    where: TSEG_FEAT LIKE '%Tunnel%'
+    name: LIST Transport Segments
+    where:
+    - TRANS_TYPE IN ('Rail')
+    - TSEG_FEAT LIKE '%Tunnel%'
     category: TRAN_CLASS
   roads:
-    name: All Transport
-    where: TSEG_FEAT NOT LIKE '%Tunnel%'
+    name: LIST Transport Segments
+    where:
+    - TRANS_TYPE IN ('Road')
+    - TSEG_FEAT NOT LIKE '%Tunnel%'
+    - TSEG_FEAT NOT IN ('Transport Connector')
     category:
     - TRAN_CLASS
     - SURFACE_TY
     label: PRI_NAME
   railways:
-    name: Railways
-    where: TSEG_FEAT NOT LIKE '%Tunnel%'
+    name: LIST Transport Segments
+    where:
+    - TRANS_TYPE IN ('Rail')
+    - TSEG_FEAT NOT LIKE '%Tunnel%'
     category: TRAN_CLASS
   road-bridges:
-    name: All Transport
-    where: TSEG_FEAT LIKE '%Bridge%'
+    name: LIST Transport Segments
+    where:
+    - TRANS_TYPE IN ('Road')
+    - TSEG_FEAT LIKE '%Bridge%'
     category:
     - TRAN_CLASS
     - SURFACE_TY
   railway-bridges:
-    name: Railways
-    where: TSEG_FEAT LIKE '%Bridge%'
+    name: LIST Transport Segments
+    where:
+    - TRANS_TYPE IN ('Rail')
+    - TSEG_FEAT LIKE '%Bridge%'
     category: TRAN_CLASS
+  gates-grids:
+    name: LIST Transport Nodes
+    where: TNODE_FEAT IN ('Gate','Stock Grid')
+    category: TNODE_FEAT
+  tanks:
+    name: LIST Hydrographic Points
+    where: HYDPNTTY IN ('Tank')
   buildings:
-  - name: Building Points
+  - name: LIST Building Points
     category: BUILD_TY
-    where: BUILD_TY NOT IN ('Ruin')
-  - name: Building Polygons (Part 1)
-  - name: Building Points
-    label-only: true
+    where: BUILD_TY NOT IN ('Ruin', 'Walking Hut')
+  - name: LIST Building Points
+    category: BUILD_TY
     label: BUILD_NAME
     where: BUILD_TY IN ('Walking Hut')
-  transmission-lines: Transmission Lines
+  - name: LIST Building Polygons 2D
+  railway-stations:
+    name: LIST Transport Nodes
+    where: TNODE_FEAT IN ('Railway Station')
+    category: STATUS
+  transmission-lines:
+    source: topography
+    name: Transmission Lines
   feature-names:
+  - name: LIST Named Feature Extents
+    where: TYPE IN ('MOUNTAINS','RIDGE','VALLEY','ISTHMUS','BEACH')
+    category: TYPE
+    label-only: true
+    label: NAME
   - source: placenames
     name: Placenames
     where:
     - FEAT_GROUP IN ('Natural feature')
     - FEAT_CLASS IN ('Elevation','Land Formation','Land formation','Open land','Vegetation')
+    - FEAT_TYPE NOT IN ('Mountains','Ridge','Valley','Isthmus')
     category: FEAT_TYPE
     label-only: true
     label: FEAT_NAME
   - source: placenames
     name: Placenames
-    where: FEAT_TYPE IN ('Beach','Saltpan','Spring','Stream feature')
+    where: FEAT_TYPE IN ('Saltpan','Spring','Stream feature')
     category: FEAT_TYPE
     label-only: true
     label: FEAT_NAME
@@ -222,6 +261,18 @@ features:
     label-only: true
     label: NAME
     category: populated
+
+# # # TODO: replace with 'LIST Named Feature Extents' and 'LIST Points of Interest'
+#   use 'Points of Interest' for pointlike features
+#   use 'Named Feature Extents' for linelike features
+#   BEACH (lines & points)
+#   HILL/MOUNTAIN/MOUNTAIN PEAK (just points?)
+#   MOUNTAINS/RIDGE (lines & points)
+#   PASS (points)
+#   PLATEAU (points)
+#   ISLAND/Island (???)
+#   ISTHMUS (lines & points)
+#   VALLEY (lines & points)
 
 intervals-contours:
   5: contours-5m
@@ -236,12 +287,12 @@ urban-areas:
 contours-5m:
   stroke: "#805100"
   stroke-width: 0.12
-  [ Index-Contour, Index-Depression-Contour ]:
+  [ Index-Contour, Index-Depression-Contour, Index-Depression-Form-Line, Index-Form-Line ]:
     stroke-width: 0.24
-  Form-Line:
+  [ Auxiliary-Contour, Auxiliary-Dep-Contour, Intermediate-Dep-Form-Line, Intermediate-Form-Line, Index-Depression-Form-Line, Index-Form-Line ]:
     stroke-dasharray: 3 1
   samples:
-    [ Intermediate-Dep-Contour, Index-Depression-Contour ]:
+    [ Intermediate-Dep-Contour, Auxiliary-Dep-Contour, Intermediate-Dep-Form-Line, Index-Depression-Contour, Index-Depression-Form-Line ]:
       interval: 2.0
       line:
         stroke: "#805100"
@@ -252,8 +303,6 @@ contours-10m:
   stroke-width: 0.12
   [ Index-Contour, Index-Depression-Contour ]:
     stroke-width: 0.24
-  Form-Line:
-    stroke-dasharray: 3 1
   samples:
     [ Intermediate-Dep-Contour, Index-Depression-Contour ]:
       interval: 2.0
@@ -266,8 +315,6 @@ contours-20m:
   stroke-width: 0.12
   [ Index-Contour, Index-Depression-Contour ]:
     stroke-width: 0.24
-  Form-Line:
-    stroke-dasharray: 3 1
   samples:
     [ Intermediate-Dep-Contour, Index-Depression-Contour ]:
       interval: 2.0
@@ -493,8 +540,10 @@ walking-tracks:
   stroke: black
   stroke-width: 0.25
   stroke-dasharray: 1.4 0.7
-  Ferry:
-    stroke: "#4985DF"
+ferry-routes:
+  stroke: "#4985DF"
+  stroke-width: 0.25
+  stroke-dasharray: 1.4 0.7
 road-tunnels:
   stroke: "#404040"
   stroke-dasharray: 0.5 0.5
@@ -603,6 +652,30 @@ railway-bridges:
     stroke-width: 0.7
     stroke-dasharray: none
     stroke: white
+gates-grids:
+  symbols:
+    Gate:
+      path:
+        stroke: black
+        stroke-width: 0.1
+        fill: none
+        d: M -0.4 -0.35 L 0.4 0.35 L 0.4 -0.35 L -0.4 0.35 Z
+    Stock-Grid:
+      path:
+        stroke: black
+        stroke-width: 0.1
+        fill: none
+        d: M -0.4 -0.35 L 0.4 -0.35 L 0.4 0.35 L -0.4 0.35 Z M -0.4 0.0 L 0.4 0.0
+tanks:
+  stroke: black
+  stroke-width: 0.1
+  fill: white
+  symbol:
+    circle:
+      stroke: black
+      fill: white
+      stroke-width: 0.1
+      r: 0.3
 buildings:
   fill: "#606060"
   stroke: none
@@ -624,6 +697,13 @@ buildings:
         r: 0.5
         fill: white
         stroke: none
+railway-stations:
+  symbol:
+    circle:
+      stroke: black
+      fill: red
+      stroke-width: 0.15
+      r: 0.4
 transmission-lines:
   dupe: dots
   stroke: black
@@ -641,7 +721,13 @@ labels:
   fill: black
   font-style: italic
   font-family: Arial, Helvetica, sans-serif
+  outline:
+    stroke: white
+    fill: none
+    stroke-width: 0.25
+    stroke-opacity: 0.75
   [ contours-5m, contours-10m, contours-20m ]:
+    minimum-length: 40
     fill: "#805100"
     font-size: 1.4
     letter-spacing: 0.05
@@ -652,6 +738,12 @@ labels:
     separation: 40
     separation-all: 15
     separation-along: 100
+  [ contours-5m Intermediate-Contour, contours-5m Intermediate-Dep-Contour, contours-5m Intermediate-Dep-Form-Line, contours-5m Intermediate-Form-Line, contours-5m Auxiliary-Contour, contours-5m Auxiliary-Dep-Contour ]:
+    remove: true
+  [ contours-10m Intermediate-Contour, contours-10m Intermediate-Dep-Contour, contours-10m Auxiliary-Contour, contours-10m Auxiliary-Dep-Contour ]:
+    remove: true
+  [ contours-20m Intermediate-Contour, contours-20m Intermediate-Dep-Contour, contours-20m Auxiliary-Contour, contours-20m Auxiliary-Dep-Contour ]:
+    remove: true
   wetlands:
     position: [ over, right, above, below, left ]
     margin: 0.7
@@ -666,12 +758,21 @@ labels:
     letter-spacing: 0.1
     word-spacing: 2.0
     font-size: 1.5
+    separation: 80
+    deviation: 4.0
+  watercourses 1d:
     buffer: 3.0
     simplify: 2.0
     densify: 10
     smooth: [ 20, 90 ]
-    separation: 80
-    deviation: 4.0
+  watercourses 2d:
+    remove-holes: true
+    minimum-area: 20
+    offset: 3.0
+    simplify: 2.0
+    densify: 10
+    smooth: [ 20, 40 ]
+    deviation: 3.0
   waterbodies:
     position: [ over, right, above, below, left ]
     margin: 0.7
@@ -730,10 +831,26 @@ labels:
   feature-names:
     font-family: Calibri, Arial, Helvetica, sans-serif
     font-style: normal
-    position: [ over, right, above, below, left ]
     font-size: 1.8
-    margin: 0.7
     letter-spacing: 0.1
+    position: [ over, right, above, below, left ]
+    margin: 0.7
+  [ feature-names MOUNTAINS, feature-names RIDGE, feature-names VALLEY, feature-names ISTHMUS, feature-names BEACH ]:
+    separation: 100
+    reduce: [ centres, 0.25 ]
+    buffer: ~
+    simplify: 1
+    densify: 5
+    smooth: [ 10, 40 ]
+    deviation: 5.0
+    position: over
+  feature-names BEACH:
+    buffer: 2.0
+    deviation: 20
+  [ feature-names MOUNTAINS line, feature-names RIDGE line, feature-names VALLEY line, feature-names ISTHMUS line, feature-names BEACH line ]:
+    word-spacing: 3
+    letter-spacing: 0.5
+    letter-spacing: 0.5
   place-names:
     position: [ over, right, above, below, left ]
     font-size: 1.6
@@ -743,8 +860,3 @@ labels:
     font-size: 1.6
   place-names populated:
     font-size: 1.8
-  outline:
-    stroke: white
-    fill: none
-    stroke-width: 0.25
-    stroke-opacity: 0.75

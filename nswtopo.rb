@@ -532,7 +532,7 @@ module VectorSequences
         smooth_interior.call segment_pairs.first.first.first, *smoothed, segment_pairs.last.last.last
       end.flatten(1)
     end
-    map do |points|
+    dedupe(closed).map do |points|
       next points unless points.many?
       closed ? smooth_interior.call(points.last, *points, points.first) : [ points.first, *smooth_interior.call(*points), points.last ]
     end

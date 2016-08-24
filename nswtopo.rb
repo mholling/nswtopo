@@ -2182,16 +2182,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             geometry = feature["geometry"]
             dimension = case geometry["type"]
             when "Polygon", "MultiPolygon" then 2
-            when "LineString" then 1
+            when "LineString", "MultiLineString" then 1
             when "Point", "MultiPoint" then 0
             else raise BadLayerError.new("cannot process features of type #{geometry['type']}")
             end
             data = case geometry["type"]
-            when "Polygon"      then geometry["coordinates"]
-            when "MultiPolygon" then geometry["coordinates"].flatten(1)
-            when "LineString"   then [ geometry["coordinates"] ]
-            when "Point"        then [ geometry["coordinates"] ]
-            when "MultiPoint"   then geometry["coordinates"]
+            when "Polygon"         then geometry["coordinates"]
+            when "MultiPolygon"    then geometry["coordinates"].flatten(1)
+            when "LineString"      then [ geometry["coordinates"] ]
+            when "MultiLineString" then geometry["coordinates"]
+            when "Point"           then [ geometry["coordinates"] ]
+            when "MultiPoint"      then geometry["coordinates"]
             else abort("geometry type #{geometry['type']} unimplemented")
             end
             attributes = feature["properties"]

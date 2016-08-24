@@ -32,7 +32,7 @@ require 'set'
 # %w[uri net/http rexml/document rexml/formatters/pretty tmpdir yaml fileutils pathname rbconfig json base64 open-uri].each { |file| require file }
 
 GITHUB_SOURCES = "https://github.com/mholling/nswtopo/raw/master/sources/"
-NSWTOPO_VERSION = "1.2"
+NSWTOPO_VERSION = "1.2.1"
 
 class REXML::Element
   alias_method :unadorned_add_element, :add_element

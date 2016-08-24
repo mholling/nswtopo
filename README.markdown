@@ -523,3 +523,4 @@ Release History
   * 4/3/2016: version 1.1.6: bugfix for some changed NSW map servers
   * 18/6/2016: version 1.1.7: update NSW data sources
 * 22/8/2019: version 1.2: improve labeling quality and speed; update various map sources accordingly
+  * 25/8/2019: version 1.2.1: bugfix for stack overflow

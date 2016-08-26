@@ -52,9 +52,10 @@ A large amount of memory is helpful; you'll really want at least 4Gb or ideally 
 
 Docker Install
 ==============
-[Install Docker](https://docs.docker.com/engine/installation/) for your OS
-Download the [Dockerfile](Dockerfile) to a temporary directory
-From the same directory where the Docerfile is run
+* [Install Docker](https://docs.docker.com/engine/installation/) for your OS
+* Download the [Dockerfile](Dockerfile) to a temporary directory
+
+From the same directory where the Dockerfile is run
 
     docker build -t nswtopo .
 

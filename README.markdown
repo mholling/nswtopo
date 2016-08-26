@@ -10,6 +10,8 @@ Pre-Requisites
 
 The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac but has also been tested on Windows and Linux.
 
+If you prefer, [you can run the script via a docker container](#docker-install) and skip all the installation hassle.
+
 The following open-source packages are required in order to run the script:
 
 * The [Ruby programming language](http://ruby-lang.org). You'll need at least Ruby 1.9.3, or better yet the latest stable release (2.2.1 as oj August 2015).
@@ -48,6 +50,18 @@ You should receive version or usage information for each tool if it is installed
 
 A large amount of memory is helpful; you'll really want at least 4Gb or ideally 8Gb to run the software smoothly. You will also need a decent internet connection. The topographic download won't use a lot of bandwidth, but the aerial imagery could amount to 100Mb or more for a decent-sized map. You'll want an ADSL connection or better.
 
+Docker Install
+==============
+[Install Docker](https://docs.docker.com/engine/installation/) for your OS
+Download the [Dockerfile](Dockerfile) to a temporary directory
+From the same directory where the Docerfile is run
+
+    docker build -t nswtopo .
+
+To run the script use the following command (replace /tmp/data with the path to the directory where your config resides)
+
+    docker run -it -v /tmp/data:/data nswtopo
+    
 Usage
 =====
 

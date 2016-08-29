@@ -1037,8 +1037,8 @@ module StraightSkeleton
     end
     points ||= counts.select do |node, count|
       count == 3
-    end.keys.sort_by(&:travel).reverse.select do |node|
-      node.travel > fraction * travel
+    end.keys.sort_by(&:travel).reverse.reject do |node|
+      node.travel < fraction * travel
     end.map(&:point) if get_points
     return [ points ] unless get_lines
     ends = ends.map do |node1, paths|

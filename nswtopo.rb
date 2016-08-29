@@ -3935,9 +3935,13 @@ controls:
       params.deep_merge! config[name]
     end
     
-    sources["relief"]["masks"] = sources.map do |name, params|
-      [ *params["relief-masks"] ].map { |sublayer| [ name, sublayer ].join SEGMENT }
-    end.inject(&:+) if sources["relief"]
+    sources.select do |name, params|
+      "ReliefSource" == params["class"]
+    end.each do |name, params|
+      params["masks"] = sources.map do |name, params|
+        [ *params["relief-masks"] ].map { |sublayer| [ name, sublayer ].join SEGMENT }
+      end.inject(&:+)
+    end
     
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20

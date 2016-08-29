@@ -2177,7 +2177,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         spat  = %Q[-spat #{xmin} #{ymin} #{xmax} #{ymax}]
         Dir.mktmppath do |temp_dir|
           json_path = temp_dir + "data.json"
-          %x[ogr2ogr #{sql || where} #{srs} #{spat} -f GeoJSON "#{json_path}" "#{shape_path}" #{layer unless sql}]
+          %x[ogr2ogr #{sql || where} #{srs} #{spat} -f GeoJSON "#{json_path}" "#{shape_path}" #{layer unless sql} -mapFieldType Date=Integer]
           JSON.parse(json_path.read).fetch("features").each do |feature|
             geometry = feature["geometry"]
             dimension = case geometry["type"]

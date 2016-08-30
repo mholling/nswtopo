@@ -3098,7 +3098,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class LabelSource < Source
     include VectorRenderer
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all deviation min-radius max-angle format collate categories]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all deviation min-radius max-angle format collate categories optional]
     TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE  = 1.8
     DEFAULT_MARGIN     = 1
@@ -3426,6 +3426,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         candidates.reject do |candidate|
           candidate.feature == label.feature
         end
+      end.reject do |candidate|
+        candidate.attributes["optional"]
       end.group_by(&:feature).each do |feature, candidates|
         label = candidates.min_by do |candidate|
           [ (conflicts[candidate] & labels).length, candidate.priority ]

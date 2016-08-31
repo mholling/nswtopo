@@ -851,6 +851,7 @@ module StraightSkeleton
           directions.inject(&:cross) < 0 && directions.inject(&:dot) < 0
         end.unshift(false).push(false).zip(points).inject([]) do |memo, (bevel, point)|
           # TODO: can we add more bevel points here to make a smoother corner?
+          # can we also bevel all corners (e.g. in 10-degree increments)?
           bevel ? memo << point << point : memo << point
         end.map do |point|
           Vertex.new active, candidates, limit, point, index
@@ -3382,6 +3383,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when PointLabel
             conflicts[candidate1] << candidate2
           when LineLabel
+            # TODO: this could be done more efficiently by walking two indices along the line
             next unless buffer
             next unless (candidate2.centre - candidate1.centre) % totals[feature][component] < buffer
             conflicts[candidate1] << candidate2

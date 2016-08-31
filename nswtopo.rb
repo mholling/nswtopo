@@ -3084,13 +3084,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class LabelSource < Source
     include VectorRenderer
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all deviation min-radius max-angle format collate categories optional]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all deviation min-radius max-angle format collate categories optional sample]
     TRANSFORMS = %w[reduce offset buffer smooth remove-holes minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE  = 1.8
     DEFAULT_MARGIN     = 1
     DEFAULT_DEVIATION  = 5
     DEFAULT_MIN_RADIUS = 2
     DEFAULT_MAX_ANGLE  = 25
+    DEFAULT_SAMPLE     = 5
     
     def initialize(*args)
       super(*args)
@@ -3242,22 +3243,31 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               PointLabel.new source_name, sublayer, feature, component, priority, hull, attributes, text_elements
             end
           when 1, 2
+            closed = dimension == 2
             orientation = attributes["orientation"]
             deviation   = attributes["deviation"]  || DEFAULT_DEVIATION
             min_radius  = attributes["min-radius"] || DEFAULT_MIN_RADIUS
             max_angle   = (attributes["max-angle"] || DEFAULT_MAX_ANGLE) * Math::PI / 180
+            sample      = attributes["sample"]     || DEFAULT_SAMPLE
             text_length = case text
             when REXML::Element then data.path_length
             when String then text.glyph_length(font_size, letter_spacing, word_spacing)
             end
-            distances = (dimension == 1 ? data.segments : data.ring).map(&:distance)
+            points = (closed ? data.ring : data.segments).inject([]) do |memo, segment|
+              steps = (segment.distance / sample).ceil
+              memo += steps.times.map do |step|
+                segment.along(step.to_f / steps)
+              end
+            end
+            points << data.last unless closed
+            distances = (closed ? points.ring : points.segments).map(&:distance)
             cumulative = distances.inject([0]) do |memo, distance|
               memo << memo.last + distance
             end
-            total = dimension == 1 ? cumulative.last : cumulative.pop
+            total = closed ? cumulative.pop : cumulative.last
             totals[feature][component] = total
-            arclengths = data.ring.map(&:midpoint).ring.map(&:distance).rotate(-1)
-            angles = data.ring.map(&:difference).map(&:normalised).ring.map do |directions|
+            arclengths = points.ring.map(&:midpoint).ring.map(&:distance).rotate(-1)
+            angles = points.ring.map(&:difference).map(&:normalised).ring.map do |directions|
               Math.atan2 directions.inject(&:cross), directions.inject(&:dot)
             end.rotate(-1)
             too_sharp = angles.map do |angle|
@@ -3271,27 +3281,26 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               loop do
                 while distance < text_length
                   index = indices.last
-                  break if dimension == 2 && index == indices[0]
-                  break if dimension == 1 && index == data.length - 1
+                  break if index == (closed ? indices[0] : points.length - 1)
                   distance += distances[index]
                   index += 1
-                  index %= data.length
+                  index %= points.length
                   indices << index
                 end
                 break if distance < text_length
                 while distance >= text_length
                   yielder << indices.dup unless distance >= text_length + distances[indices.first]
-                  break if dimension == 2 && indices[1] == 0
+                  break if closed && indices[1] == 0
                   distance -= distances[indices.shift]
                 end
                 break if distance >= text_length
-              end if data.many?
+              end if points.many?
             end.reject do |indices|
               indices[1...-1].any? { |index| too_tight[index] || too_sharp[index] }
             end.map do |indices|
               start, stop = cumulative.values_at(*indices)
               centre = (start + 0.5 * (stop - start) % total) % total
-              baseline = data.values_at(*indices).crop(text_length)
+              baseline = points.values_at(*indices).crop(text_length)
               eigenvalue, eigenvector = baseline.principal_components.first
               [ baseline, centre, eigenvalue ]
             end.reject do |baseline, centre, eigenvalue|

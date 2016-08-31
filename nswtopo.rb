@@ -871,22 +871,29 @@ module StraightSkeleton
       Split.new @active, @candidates, @limit, point, travel, self, pair
     end
     
-    def self.[](data, closed = true, limit = nil)
+    def self.[](data, closed = true, limit = nil, splits = true)
       active, candidates = Set.new, AVLTree.new
-      data.dedupe(closed).map.with_index do |points, index|
+      nodes = data.dedupe(closed).map.with_index do |points, index|
         next [ ] unless points.many?
-        nodes = points.segments.map(&:difference).segments.map do |directions|
+        points.segments.map(&:difference).segments.map do |directions|
           directions.inject(&:cross) < 0 && directions.inject(&:dot) < 0
         end.unshift(false).push(false).zip(points).inject([]) do |memo, (bevel, point)|
+          # TODO: can we add more bevel points here to make a smoother corner?
           bevel ? memo << point << point : memo << point
         end.map do |point|
           Vertex.new active, candidates, limit, point, index
         end
-        nodes.send(closed ? :ring : :segments).each do |edge|
+      end
+      nodes.map(&closed ? :ring : :segments).each do |edges|
+        edges.each do |edge|
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end
-        nodes
-      end.flatten.each(&:add).select(&:terminal?).permutation(2).select do |node1, node2|
+      end
+      nodes.flatten.each(&:add).each do |node|
+        candidates.merge node.collapses
+      end
+      return [ active, candidates ] unless splits
+      active.select(&:terminal?).permutation(2).select do |node1, node2|
         node1.point == node2.point
       end.select do |node1, node2|
         node1.prev && node2.next
@@ -899,7 +906,6 @@ module StraightSkeleton
       end.compact.each do |node1, node2|
         candidates << Split.new(active, candidates, limit, node1.point, 0, node1, [ node2, node2.next ])
       end
-      candidates.merge active.map(&:collapses).flatten
       pairs = active.select(&:next).map do |node|
         [ node, node.next ]
       end
@@ -932,8 +938,8 @@ module StraightSkeleton
       end
     end
     
-    def self.progress(closed, data, travel)
-      active, candidates = Vertex[data, closed, travel]
+    def self.progress(closed, data, travel, splits)
+      active, candidates = Vertex[data, closed, travel, splits]
       while candidates.any?
         candidates.pop.process
       end
@@ -1088,20 +1094,27 @@ module StraightSkeleton
     get_points ? [ lines, points ] : [ lines ]
   end
   
-  def inset(closed, margin)
-    Vertex.progress(closed, self, margin).map do |nodes|
+  def inset(closed, margin, splits = true)
+    return self if margin.zero?
+    Vertex.progress(closed, self, margin, splits).map do |nodes|
       nodes.map do |node|
         node.point.plus node.heading.times((margin - node.travel) * node.secant)
       end
     end.dedupe(closed).select(&:many?)
   end
   
-  def offset(closed, margin)
-    margin > 0 ? map(&:reverse).inset(closed, margin).map(&:reverse) : inset(closed, -margin)
+  def offset(closed, margin, overshoot = 4)
+    out, back = (1 + overshoot) * margin, overshoot * margin
+    if margin > 0
+      map(&:reverse).inset(closed, out).map(&:reverse).inset(closed, back, false)
+    else
+      inset(closed, -out).map(&:reverse).inset(closed, -back, false).map(&:reverse)
+    end
   end
   
-  def buffer(closed, margin)
-    (self + map(&:reverse)).inset(closed, margin.abs)
+  def buffer(closed, margin, overshoot = 4)
+    out, back = (1 + overshoot) * margin, overshoot * margin
+    (self + map(&:reverse)).inset(closed, out).map(&:reverse).inset(closed, back, false)
   end
 end
 
@@ -1640,6 +1653,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class Source
     SVG_PRESENTATION_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
+    # TODO: add line spacing?
     
     def initialize(name, params)
       @name = name
@@ -3231,6 +3245,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end if map.debug
           case dimension
           when 0
+            # TODO: can we prioritise by position in component list as well (in the case of skeleton centres)?
             margin = attributes["margin"] || DEFAULT_MARGIN
             lines = text.in_two
             width = lines.map do |line|

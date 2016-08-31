@@ -1189,8 +1189,6 @@ labels:
     letter-spacing: 0.1
     word-spacing: 2.0
     buffer: 3.0
-    simplify: 2.0
-    densify: 10
     smooth: [ 20, 90 ]
     separation: 80
     deviation: 4.0
@@ -1213,8 +1211,6 @@ labels:
     deviation: 3.0
     separation: 150
     buffer: 3.0
-    simplify: [ 1.0, 15 ]
-    densify: 10
     smooth: [ 20, 90 ]
   water-areas:
     position: [ over, right, above, below, left ]
@@ -1269,16 +1265,12 @@ labels:
     deviation: 3.0
     separation: 150
     buffer: 3.0
-    simplify: [ 1.0, 15 ]
-    densify: 10
     smooth: [ 20, 90 ]
   roads:
     font-size: 1.4
     letter-spacing: 0.1
     collate: true
     buffer: 2.0
-    simplify: 2.0
-    densify: 5.0
     smooth: [ 15, 60 ]
     separation: 100
     deviation: 3.0
@@ -1327,8 +1319,6 @@ labels:
     separation: 100
     deviation: 5.0
     buffer: ~
-    simplify: 2.0
-    densify: 5.0
   [ feature-names RangeLike, feature-names DuneLike, feature-names GeneralLocality ]:
     smooth: 15
   [ feature-names Beach, feature-names ValleyLike ]:

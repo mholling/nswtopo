@@ -538,34 +538,6 @@ module VectorSequences
     end
   end
   
-  def densify(closed, distance)
-    map do |points|
-      (closed ? points.ring : points.segments).inject([]) do |memo, segment|
-        steps = (segment.distance / distance).ceil
-        memo += steps.times.map do |step|
-          segment.along(step.to_f / steps)
-        end
-      end.tap do |result|
-        result << points.last unless closed
-      end
-    end
-  end
-  
-  def simplify(closed, max_area, cutoff = false)
-    map do |points|
-      pruned, area = points.take(1), 0
-      points.send(closed ? :ring : :segments).segments.each do |segments|
-        directions = segments.map(&:difference).map(&:normalised)
-        angle = Math.atan2(directions.inject(&:cross), directions.inject(&:dot)) * 180.0 / Math::PI
-        area -= segments[0][0].cross pruned[-1]
-        area += segments[0][0].cross segments[0][1]
-        area += segments[0][1].cross pruned[-1]
-        pruned << segments[0][1] and area = 0 if area.abs > max_area || (cutoff && angle.abs > cutoff)
-      end
-      closed ? pruned : pruned << points.last
-    end.reject(&:one?)
-  end
-  
   def dedupe(closed)
     (closed ? map(&:ring) : map(&:segments)).map do |segments|
       segments.reject do |segment|
@@ -3113,7 +3085,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class LabelSource < Source
     include VectorRenderer
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all deviation min-radius max-angle format collate categories optional]
-    TRANSFORMS = %w[reduce offset buffer densify simplify smooth remove-holes minimum-area minimum-length remove]
+    TRANSFORMS = %w[reduce offset buffer smooth remove-holes minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE  = 1.8
     DEFAULT_MARGIN     = 1
     DEFAULT_DEVIATION  = 5
@@ -3185,10 +3157,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when "smooth"
               dimensioned_attributes[dimension]["max-angle"] = args[0] = (args[0] == true ? DEFAULT_MAX_ANGLE : args[0])
               [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0 && args[0]
-            when "densify"
-              [ dimension ].zip [ data.densify(dimension == 2, *args) ] if dimension > 0 && args[0]
-            when "simplify"
-              [ dimension ].zip [ data.simplify(dimension == 2, *args) ] if dimension > 0 && args[0]
             when "remove"
               [ ] if args.any? do |value|
                 case value

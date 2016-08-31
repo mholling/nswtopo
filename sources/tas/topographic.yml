@@ -762,15 +762,11 @@ labels:
     deviation: 4.0
   watercourses 1d:
     buffer: 3.0
-    simplify: 2.0
-    densify: 10
     smooth: [ 20, 90 ]
   watercourses 2d:
     remove-holes: true
     minimum-area: 20
     offset: 3.0
-    simplify: 2.0
-    densify: 10
     smooth: [ 20, 40 ]
     deviation: 3.0
   waterbodies:
@@ -799,8 +795,6 @@ labels:
     letter-spacing: 0.1
     collate: true
     buffer: 1.7
-    simplify: 2.0
-    densify: 5.0
     smooth: [ 15, 60 ]
     separation: 100
     deviation: 3.0
@@ -810,8 +804,6 @@ labels:
     letter-spacing: 0.1
     collate: true
     buffer: 2.0
-    simplify: 2.0
-    densify: 5.0
     smooth: [ 15, 60 ]
     separation: 100
     deviation: 3.0
@@ -839,8 +831,6 @@ labels:
     separation: 100
     reduce: [ centres, 0.25 ]
     buffer: ~
-    simplify: 1
-    densify: 5
     smooth: [ 10, 40 ]
     deviation: 5.0
     position: over

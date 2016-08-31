@@ -66,8 +66,6 @@ labels:
   boundaries:
     minimum-area: 800
     offset: -5.0
-    simplify: [ 1.0, 15 ]
-    densify: 10.0
     smooth: [ 15, 30 ]
     deviation: 5.0
     separation: 150

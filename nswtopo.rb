@@ -900,7 +900,7 @@ module StraightSkeleton
         node.terminal? || node.headings.inject(&:cross) < 0
       end.map do |node|
         bounds = node.point.map do |coordinate|
-          [ coordinate - (1.0 + node.secant) * limit, coordinate + (1.0 * node.secant) * limit ]
+          [ coordinate - (1.0 + node.secant) * limit, coordinate + (1.0 + node.secant) * limit ]
         end if limit
         (limit ? pairs.search(bounds) : pairs).map do |pair|
           node.split pair

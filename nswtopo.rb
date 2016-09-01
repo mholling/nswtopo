@@ -738,6 +738,7 @@ end
 
 module StraightSkeleton
   MAX_ANGLE = 10 * Math::PI / 180
+  DEFAULT_OVERSHOOT = 1
   
   module Node
     attr_reader :point, :travel, :neighbours, :edges, :whence, :original
@@ -1094,18 +1095,16 @@ module StraightSkeleton
     end.dedupe(closed).select(&:many?)
   end
   
-  def offset(closed, margin, overshoot = 4)
-    out, back = (1 + overshoot) * margin, overshoot * margin
+  def offset(closed, margin, overshoot = DEFAULT_OVERSHOOT * margin)
     if margin > 0
-      map(&:reverse).inset(closed, out).map(&:reverse).inset(closed, back, false)
+      map(&:reverse).inset(closed, margin + overshoot).map(&:reverse).inset(closed, overshoot, false)
     else
-      inset(closed, -out).map(&:reverse).inset(closed, -back, false).map(&:reverse)
+      inset(closed, -(margin + overshoot)).map(&:reverse).inset(closed, -overshoot, false).map(&:reverse)
     end
   end
   
-  def buffer(closed, margin, overshoot = 4)
-    out, back = (1 + overshoot) * margin, overshoot * margin
-    (self + map(&:reverse)).inset(closed, out).map(&:reverse).inset(closed, back, false)
+  def buffer(closed, margin, overshoot = DEFAULT_OVERSHOOT * margin)
+    (self + map(&:reverse)).inset(closed, margin + overshoot).map(&:reverse).inset(closed, overshoot, false)
   end
 end
 

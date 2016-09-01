@@ -280,6 +280,17 @@ module ArrayHelpers
   def in_two
     each_slice(1 + [ length - 1, 0 ].max / 2)
   end
+  
+  def nearby_pairs(closed = false, &block)
+    Enumerator.new do |yielder|
+      each.with_index do |element1, index|
+        (closed ? rotate(index) : drop(index)).drop(1).each do |element2|
+          break unless block.call [ element1, element2 ]
+          yielder << [ element1, element2 ]
+        end
+      end
+    end
+  end
 end
 
 module Vector
@@ -3327,7 +3338,25 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
               LineLabel.new source_name, sublayer, feature, component, priority, hull, attributes, [ text_element, path_element ], centre
-            end.sort_by(&:priority)
+            end.map do |candidate|
+              [ candidate, [] ]
+            end.to_h.tap do |matrix|
+              matrix.keys.nearby_pairs(closed) do |pair|
+                diff = pair.map(&:centre).inject(&:-)
+                2 * (closed ? [ diff % total, -diff % total ].min : diff.abs) < sample
+              end.each do |pair|
+                matrix[pair[0]] << pair[1]
+                matrix[pair[1]] << pair[0]
+              end
+            end.sort_by do |candidate, nearby|
+              candidate.priority
+            end.to_h.tap do |matrix|
+              matrix.each do |candidate, nearby|
+                nearby.each do |candidate|
+                  matrix.delete candidate
+                end
+              end
+            end.keys
           end.select do |candidate|
             labelling_hull.surrounds?(candidate.hull).all?
           end

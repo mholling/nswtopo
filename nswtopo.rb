@@ -737,6 +737,8 @@ module SVGPath
 end
 
 module StraightSkeleton
+  MAX_ANGLE = 10 * Math::PI / 180
+  
   module Node
     attr_reader :point, :travel, :neighbours, :edges, :whence, :original
     
@@ -758,20 +760,6 @@ module StraightSkeleton
     
     def next
       @neighbours[1]
-    end
-    
-    def headings
-      @headings ||= @edges.map do |edge|
-        next unless edge
-        points = edge.map(&:point)
-        if points.inject(&:equal?)
-          [ edge[0].edges[0], edge[1].edges[1] ].map do |edge|
-            edge.map(&:point).difference.normalised.perp
-          end.inject(&:plus).normalised
-        else
-          points.difference.normalised.perp
-        end
-      end
     end
     
     def heading
@@ -804,6 +792,12 @@ module StraightSkeleton
       [ @travel, hash ] <=> [ other.travel, other.hash ]
     end
     
+    def headings
+      edges.map.with_index do |edge, index|
+        edge && edge[index].headings[1-index]
+      end
+    end
+    
     def insert!
       @edges = @neighbours.map.with_index do |neighbour, index|
         next unless neighbour
@@ -827,9 +821,14 @@ module StraightSkeleton
   
   class Vertex
     include Node
+    attr_reader :headings
     
-    def initialize(active, candidates, limit, point, index)
-      @original, @neighbours, @active, @candidates, @limit, @whence, @point, @travel = self, [ nil, nil ], active, candidates, limit, Set[index], point, 0
+    def initialize(active, candidates, limit, point, index, headings)
+      @original, @neighbours, @active, @candidates, @limit, @whence, @point, @headings, @travel = self, [ nil, nil ], active, candidates, limit, Set[index], point, headings, 0
+    end
+    
+    def reflex?
+      headings.inject(&:cross) < 0
     end
     
     def add
@@ -858,15 +857,23 @@ module StraightSkeleton
       active, candidates = Set.new, AVLTree.new
       nodes = data.dedupe(closed).map.with_index do |points, index|
         next [ ] unless points.many?
-        points.segments.map(&:difference).segments.map do |directions|
-          directions.inject(&:cross) < 0 && directions.inject(&:dot) < 0
-        end.unshift(false).push(false).zip(points).inject([]) do |memo, (bevel, point)|
-          # TODO: can we add more bevel points here to make a smoother corner?
-          # can we also bevel all corners (e.g. in 10-degree increments)?
-          bevel ? memo << point << point : memo << point
-        end.map do |point|
-          Vertex.new active, candidates, limit, point, index
+        headings = if closed
+          points.ring.map(&:difference).map(&:normalised).map(&:perp).ring.rotate(-1)
+        else
+          points.segments.map(&:difference).map(&:normalised).map(&:perp).unshift(nil).push(nil).segments
         end
+        points.zip(headings).map do |point, headings|
+          angle = headings.all? && Math::atan2(headings.inject(&:cross), headings.inject(&:dot))
+          next Vertex.new(active, candidates, limit, point, index, headings) unless angle && angle < 0
+          vertices = (angle.abs / MAX_ANGLE).ceil
+          vertices.times.map do |n|
+            angle * n / vertices
+          end.map do |angle|
+            headings.first.rotate_by(angle)
+          end.push(headings.last).segments.map do |headings|
+            Vertex.new active, candidates, limit, point, index, headings
+          end
+        end.flatten
       end
       nodes.map(&closed ? :ring : :segments).each do |edges|
         edges.each do |edge|
@@ -897,7 +904,7 @@ module StraightSkeleton
         pair.map(&:point).transpose.map(&:minmax)
       end if limit
       active.select do |node|
-        node.terminal? || node.headings.inject(&:cross) < 0
+        node.terminal? || node.reflex?
       end.map do |node|
         bounds = node.point.map do |coordinate|
           [ coordinate - (1.0 + node.secant) * limit, coordinate + (1.0 + node.secant) * limit ]

@@ -528,27 +528,6 @@ module VectorSequence
 end
 
 module VectorSequences
-  def smooth(closed, limit, cutoff = false)
-    smooth_interior = lambda do |*points|
-      points.segments.segments.chunk do |segments|
-        next true if segments[0] == segments[1].reverse
-        directions = segments.map(&:difference).map(&:normalised)
-        angle = Math.atan2(directions.inject(&:cross), directions.inject(&:dot)) * 180.0 / Math::PI
-        angle.abs < limit || (cutoff && angle.abs > cutoff)
-      end.map do |no_smoothing, segment_pairs|
-        next segment_pairs.map(&:first).map(&:last) if no_smoothing
-        smoothed = segment_pairs.map do |segments|
-          [ segments[0].along(0.75), segments[1].along(0.25) ]
-        end.flatten(1)
-        smooth_interior.call segment_pairs.first.first.first, *smoothed, segment_pairs.last.last.last
-      end.flatten(1)
-    end
-    dedupe(closed).map do |points|
-      next points unless points.many?
-      closed ? smooth_interior.call(points.last, *points, points.first) : [ points.first, *smooth_interior.call(*points), points.last ]
-    end
-  end
-  
   def dedupe(closed)
     (closed ? map(&:ring) : map(&:segments)).map do |segments|
       segments.reject do |segment|
@@ -1105,6 +1084,10 @@ module StraightSkeleton
   
   def buffer(closed, margin, overshoot = DEFAULT_OVERSHOOT * margin)
     (self + map(&:reverse)).inset(closed, margin + overshoot).map(&:reverse).inset(closed, overshoot, false)
+  end
+  
+  def smooth(closed, margin)
+    inset(closed, margin).map(&:reverse).inset(closed, margin, false).inset(closed, margin).map(&:reverse).inset(closed, margin, false)
   end
 end
 
@@ -3174,7 +3157,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when "buffer"
               [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0 && args[0]
             when "smooth"
-              dimensioned_attributes[dimension]["max-angle"] = args[0] = (args[0] == true ? DEFAULT_MAX_ANGLE : args[0])
               [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0 && args[0]
             when "remove"
               [ ] if args.any? do |value|

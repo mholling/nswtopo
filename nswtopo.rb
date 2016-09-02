@@ -891,8 +891,8 @@ module StraightSkeleton
         end if limit
         (limit ? pairs.search(bounds) : pairs).map do |pair|
           node.split pair
-        end.compact.sort.take(1)
-      end.each do |splits|
+        end.compact.min
+      end.compact.tap do |splits|
         candidates.merge splits
       end
       [ active, candidates ]

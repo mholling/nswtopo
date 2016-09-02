@@ -773,7 +773,7 @@ module StraightSkeleton
     end
     
     def headings
-      edges.map.with_index do |edge, index|
+      @headings ||= edges.map.with_index do |edge, index|
         edge && edge[index].headings[1-index]
       end
     end

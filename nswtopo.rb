@@ -886,8 +886,8 @@ module StraightSkeleton
       active.select do |node|
         node.terminal? || node.reflex?
       end.map do |node|
-        bounds = node.point.map do |coordinate|
-          [ coordinate - (1.0 + node.secant) * limit, coordinate + (1.0 + node.secant) * limit ]
+        bounds = node.heading.times(node.secant * limit).plus(node.point).zip(node.point).map do |centre, coord|
+          [ coord, centre - limit, centre + limit ].minmax
         end if limit
         (limit ? pairs.search(bounds) : pairs).map do |pair|
           node.split pair

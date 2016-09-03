@@ -227,6 +227,7 @@ class RTree
   end
   
   def overlaps?(bounds)
+    return true unless bounds
     bounds.zip(@bounds).all? do |bound1, bound2|
       bound1.zip(bound2.rotate).each.with_index.all? do |limits, index|
         limits.rotate(index).inject(&:<=)
@@ -252,14 +253,17 @@ class RTree
     end
   end
   
-  def search(bounds = nil)
+  def search(bounds, searched)
     Enumerator.new do |yielder|
-      @nodes.select do |node|
-        bounds ? node.overlaps?(bounds) : true
-      end.each do |node|
-        node.search(bounds).each { |object| yielder << object }
+      unless searched.include? self
+        if overlaps? bounds
+          @nodes.each do |node|
+            node.search(bounds, searched).each { |object| yielder << object }
+          end
+          yielder << @object if @nodes.empty?
+        end
+        searched << self
       end
-      yielder << @object if @nodes.empty? && (!bounds || overlaps?(bounds))
     end
   end
 end
@@ -759,7 +763,7 @@ module StraightSkeleton
         distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
         next if distance < 0 || distance.nan?
         travel = @travel + distance / secant
-        next if @limit && travel > @limit
+        next if @limit && travel >= @limit
         Collapse.new @active, @candidates, @limit, heading.times(distance).plus(@point), travel, [ neighbour, self ].rotate(index)
       end.compact.sort.take(1)
     end
@@ -818,14 +822,14 @@ module StraightSkeleton
       @active << self
     end
     
-    def split(pair)
+    def split(pair, limit = @limit)
       e0, e1 = pair.map(&:point)
       return if e0 == @point || e1 == @point
       h0, h1 = pair.map(&:heading)
       direction = e1.minus(e0).normalised.perp
       travel = direction.dot(@point.minus e0) / (1 - secant * heading.dot(direction))
       return if travel < 0 || travel.nan?
-      return if @limit && travel > @limit
+      return if limit && travel >= limit
       point = heading.times(secant * travel).plus(@point)
       return if point.minus(e0).dot(direction) < 0
       return if point.minus(e0).cross(h0) < 0
@@ -882,16 +886,21 @@ module StraightSkeleton
       end
       pairs = RTree.load(pairs) do |pair|
         pair.map(&:point).transpose.map(&:minmax)
-      end if limit
+      end
       active.select do |node|
         node.terminal? || node.reflex?
       end.map do |node|
-        bounds = node.heading.times(node.secant * limit).plus(node.point).zip(node.point).map do |centre, coord|
-          [ coord, centre - limit, centre + limit ].minmax
-        end if limit
-        (limit ? pairs.search(bounds) : pairs).map do |pair|
-          node.split pair
-        end.compact.min
+        candidate, travel, searched = nil, limit, Set.new
+        loop do
+          bounds = node.heading.times(node.secant * travel).plus(node.point).zip(node.point).map do |centre, coord|
+            [ coord, centre - travel, centre + travel ].minmax
+          end if travel
+          break candidate unless pair = pairs.search(bounds, searched).find do |pair|
+            node.split pair, travel
+          end
+          candidate = node.split pair
+          travel = candidate.travel
+        end
       end.compact.tap do |splits|
         candidates.merge splits
       end

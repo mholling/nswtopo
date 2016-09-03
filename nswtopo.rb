@@ -720,7 +720,7 @@ module SVGPath
 end
 
 module StraightSkeleton
-  MAX_ANGLE = 10 * Math::PI / 180
+  MAX_ANGLE = 15 * Math::PI / 180
   
   module Node
     attr_reader :point, :travel, :neighbours, :edges, :whence, :original

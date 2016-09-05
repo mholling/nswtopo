@@ -3241,17 +3241,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           when 1, 2
             closed = dimension == 2
             pairs = closed ? :ring : :segments
-            orientation = attributes["orientation"]
-            max_turn    = (attributes["max-turn"]  || DEFAULT_MAX_TURN) * Math::PI / 180
-            min_radius  = attributes["min-radius"] || 0
-            max_angle   = (attributes["max-angle"] || DEFAULT_MAX_ANGLE) * Math::PI / 180
-            sample      = attributes["sample"]     || DEFAULT_SAMPLE
+            orientation = attributes.fetch("orientation", nil)
+            max_turn    = attributes.fetch("max-turn", DEFAULT_MAX_TURN) * Math::PI / 180
+            min_radius  = attributes.fetch("min-radius", 0)
+            max_angle   = attributes.fetch("max-angle", DEFAULT_MAX_ANGLE) * Math::PI / 180
+            sample      = attributes.fetch("sample", DEFAULT_SAMPLE)
             text_length = case text
             when REXML::Element then data.path_length
             when String then text.glyph_length(font_size, letter_spacing, word_spacing)
             end
             points = data.send(pairs).inject([]) do |memo, segment|
-              steps = (segment.distance / sample).ceil
+              steps = REXML::Element === text ? 1 : (segment.distance / sample).ceil
               memo += steps.times.map do |step|
                 segment.along(step.to_f / steps)
               end

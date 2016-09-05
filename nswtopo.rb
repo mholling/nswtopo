@@ -1085,6 +1085,8 @@ module StraightSkeleton
   
   def smooth(closed, margin)
     inset(closed, margin).map(&:reverse).inset(closed, margin, false).inset(closed, margin).map(&:reverse).inset(closed, margin, false)
+  rescue ArgumentError
+    self
   end
 end
 

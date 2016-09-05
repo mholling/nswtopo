@@ -490,21 +490,6 @@ module VectorSequence
     candidates.min_by { |centre, dimensions, rotation| dimensions.inject(:*) }
   end
   
-  def principal_components
-    centre = transpose.map(&:mean)
-    deviations = map { |point| point.minus centre }.transpose
-    a00, a01, a11 = [ [0, 0], [0, 1], [1, 1] ].map do |axes|
-      deviations.values_at(*axes).transpose.map { |d1, d2| d1 * d2 }.inject(&:+)
-    end
-    eigenvalues = [ -1, +1 ].map do |sign|
-      0.5 * (a00 + a11 + sign * Math::sqrt(a00**2 + 4 * a01**2 - 2 * a00 * a11 + a11**2))
-    end
-    eigenvectors = eigenvalues.reverse.map do |eigenvalue|
-      [ a00 + a01 - eigenvalue, a11 + a01 - eigenvalue ]
-    end
-    eigenvalues.zip eigenvectors
-  end
-  
   def path_length
     segments.map(&:difference).map(&:norm).inject(0, &:+)
   end
@@ -3097,14 +3082,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   
   class LabelSource < Source
     include VectorRenderer
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all deviation min-radius max-angle format collate categories optional sample]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample]
     TRANSFORMS = %w[reduce offset buffer smooth remove-holes minimum-area minimum-length remove]
-    DEFAULT_FONT_SIZE  = 1.8
-    DEFAULT_MARGIN     = 1
-    DEFAULT_DEVIATION  = 5
-    DEFAULT_MIN_RADIUS = 2
-    DEFAULT_MAX_ANGLE  = 25
-    DEFAULT_SAMPLE     = 5
+    DEFAULT_FONT_SIZE = 1.8
+    DEFAULT_MARGIN    = 1
+    DEFAULT_MAX_TURN  = 60
+    DEFAULT_MAX_ANGLE = 25
+    DEFAULT_SAMPLE    = 5
     
     def initialize(*args)
       super(*args)
@@ -3256,69 +3240,79 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end
           when 1, 2
             closed = dimension == 2
+            pairs = closed ? :ring : :segments
             orientation = attributes["orientation"]
-            deviation   = attributes["deviation"]  || DEFAULT_DEVIATION
-            min_radius  = attributes["min-radius"] || DEFAULT_MIN_RADIUS
+            max_turn    = (attributes["max-turn"]  || DEFAULT_MAX_TURN) * Math::PI / 180
+            min_radius  = attributes["min-radius"] || 0
             max_angle   = (attributes["max-angle"] || DEFAULT_MAX_ANGLE) * Math::PI / 180
             sample      = attributes["sample"]     || DEFAULT_SAMPLE
             text_length = case text
             when REXML::Element then data.path_length
             when String then text.glyph_length(font_size, letter_spacing, word_spacing)
             end
-            points = (closed ? data.ring : data.segments).inject([]) do |memo, segment|
+            points = data.send(pairs).inject([]) do |memo, segment|
               steps = (segment.distance / sample).ceil
               memo += steps.times.map do |step|
                 segment.along(step.to_f / steps)
               end
             end
             points << data.last unless closed
-            distances = (closed ? points.ring : points.segments).map(&:distance)
+            segments = points.send(pairs)
+            vectors = segments.map(&:difference)
+            distances = vectors.map(&:norm)
             cumulative = distances.inject([0]) do |memo, distance|
               memo << memo.last + distance
             end
-            total = closed ? cumulative.pop : cumulative.last
-            totals[feature][component] = total
-            arclengths = points.ring.map(&:midpoint).ring.map(&:distance).rotate(-1)
-            angles = points.ring.map(&:difference).map(&:normalised).ring.map do |directions|
+            totals[feature][component] = total = closed ? cumulative.pop : cumulative.last
+            angles = vectors.map(&:normalised).send(pairs).map do |directions|
               Math.atan2 directions.inject(&:cross), directions.inject(&:dot)
-            end.rotate(-1)
-            too_sharp = angles.map do |angle|
-              angle.abs > max_angle
             end
-            too_tight = angles.zip(arclengths).map do |angle, arclength|
-              arclength < min_radius * angle.abs
+            closed ? angles.rotate!(-1) : angles.unshift(0).push(0)
+            curvatures = segments.send(pairs).map do |(p0, p1), (_, p2)|
+              sides = [ [ p0, p1 ], [ p1, p2 ], [ p2, p0 ] ].map(&:distance)
+              semiperimeter = 0.5 * sides.inject(&:+)
+              diffs = sides.map { |side| semiperimeter - side }
+              area_squared = [ semiperimeter * diffs.inject(&:*), 0 ].max
+              4 * Math::sqrt(area_squared) / sides.inject(&:*)
             end
+            closed ? curvatures.rotate!(-1) : curvatures.unshift(0).push(0)
+            dont_use = angles.zip(curvatures).map do |angle, curvature|
+              angle.abs > max_angle || min_radius * curvature > 1
+            end
+            squared_angles = angles.map { |angle| angle * angle }
             Enumerator.new do |yielder|
-              indices, distance = [ 0, 1 ], distances[0]
+              indices, distance, bad_indices, angle_integral = [ 0 ], 0, [ ], [ ]
               loop do
                 while distance < text_length
-                  index = indices.last
-                  break if index == (closed ? indices[0] : points.length - 1)
-                  distance += distances[index]
-                  index += 1
-                  index %= points.length
-                  indices << index
-                end
-                break if distance < text_length
+                  break true if closed ? indices.many? && indices.last == indices.first : indices.last == points.length - 1
+                  unless indices.one?
+                    bad_indices << dont_use[indices.last]
+                    angle_integral << (angle_integral.last || 0) + angles[indices.last]
+                  end
+                  distance += distances[indices.last]
+                  indices << (indices.last + 1) % points.length
+                end && break
                 while distance >= text_length
-                  yielder << indices.dup unless distance >= text_length + distances[indices.first]
-                  break if closed && indices[1] == 0
-                  distance -= distances[indices.shift]
-                end
-                break if distance >= text_length
+                  case
+                  when indices.length == 2 then yielder << indices.dup
+                  when distance - distances[indices.first] >= text_length
+                  when bad_indices.any?
+                  when angle_integral.max - angle_integral.min > max_turn
+                  else yielder << indices.dup
+                  end
+                  angle_integral.shift
+                  bad_indices.shift
+                  distance -= distances[indices.first]
+                  indices.shift
+                  break true if indices.first == (closed ? 0 : points.length - 1)
+                end && break
               end if points.many?
-            end.reject do |indices|
-              indices[1...-1].any? { |index| too_tight[index] || too_sharp[index] }
             end.map do |indices|
               start, stop = cumulative.values_at(*indices)
               centre = (start + 0.5 * (stop - start) % total) % total
+              total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
+              priority = [ total_squared_curvature, (total - 2 * centre).abs / total.to_f ]
               baseline = points.values_at(*indices).crop(text_length)
-              eigenvalue, eigenvector = baseline.principal_components.first
-              [ baseline, centre, eigenvalue ]
-            end.reject do |baseline, centre, eigenvalue|
-              eigenvalue > deviation**2
-            end.map do |baseline, centre, eigenvalue|
-              priority = [ eigenvalue, (total - 2 * centre).abs / total.to_f ]
               case orientation
               when "uphill"
               when "downhill" then baseline.reverse!

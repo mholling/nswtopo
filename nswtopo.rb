@@ -3099,6 +3099,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     def add(source, map)
       source_name = source.name
       source_params = params[source_name] || {}
+      sublayers = Set.new
       source.labels(map).each do |feature|
         dimension = feature["dimension"]
         transforms, attributes, *dimensioned_attributes = [ nil, nil, "point", "line", "line" ].map do |category|
@@ -3121,6 +3122,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
         end
         sublayer = feature["sublayer"]
+        yield sublayer unless sublayers.include? sublayer
+        sublayers << sublayer
         _, _, _, components = @features.find do |other_text, other_source_name, other_sublayer, _|
           other_source_name == source_name && other_text == text && other_sublayer == sublayer
         end if attributes["collate"]
@@ -4043,7 +4046,12 @@ controls:
             xml.elements.each("/svg/g[#{predicate}]/*", &:remove)
             xml.elements.each("/svg/defs/[#{predicate}]", &:remove)
             if source == label_source
-              sources.each { |source| label_source.add(source, map) }
+              sources.each do |source|
+                label_source.add(source, map) do |sublayer|
+                  puts "  #{[ source.name, *sublayer ].join SEGMENT}"
+                end
+              end
+              puts "Choosing label positions"
               label_source.render_svg(map) do |sublayer|
                 id = [ label_source.name, *sublayer ].join(SEGMENT)
                 xml.elements["/svg/g[@id='#{id}']"] || xml.elements["/svg"].add_element("g", "id" => id, "style" => "opacity:1")

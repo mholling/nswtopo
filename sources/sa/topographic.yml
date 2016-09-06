@@ -400,7 +400,9 @@ labels:
     letter-spacing: 0.05
     orientation: downhill
     collate: true
-    deviation: 0.075
+    min-radius: 5
+    max-turn: 20
+    sample: 10
     minimum-length: 30
     separation: 40
     separation-all: 15
@@ -414,15 +416,16 @@ labels:
     letter-spacing: 0.1
     word-spacing: 2.0
     collate: true
-    buffer: 3.0
-    smooth: [ 20, 90 ]
+    buffer: [ 2.5, 5 ]
+    max-turn: 90
     separation: 80
-    deviation: 4.0
   [ watercourses 6, watercourses 7 ]:
     font-size: 1.9
+    buffer: [ 3.5, 7 ]
     separation: 120
   [ watercourses 4, watercourses 5 ]:
     font-size: 1.7
+    buffer: [ 3, 6 ]
     separation: 120
   [ watercourses 2, watercourses 3 ]:
     font-size: 1.5
@@ -434,7 +437,9 @@ labels:
     letter-spacing: 0.05
     orientation: uphill
     collate: true
-    deviation: 0.075
+    min-radius: 5
+    max-turn: 20
+    sample: 10
     separation: 40
     separation-all: 15
     separation-along: 100

@@ -1108,7 +1108,9 @@ labels:
     letter-spacing: 0.05
     orientation: uphill
     collate: true
-    deviation: 0.075
+    min-radius: 5
+    max-turn: 20
+    sample: 10
     minimum-length: 30
     separation: 40
     separation-all: 15
@@ -1136,15 +1138,16 @@ labels:
     fill: "#1667DF"
     letter-spacing: 0.1
     word-spacing: 2.0
-    buffer: 3.0
-    smooth: [ 20, 90 ]
+    buffer: [ 2.5, 5 ]
+    max-turn: 90
     separation: 80
-    deviation: 4.0
   [ watercourses 1, watercourses 2 ]:
     font-size: 1.9
+    buffer: [ 3.5, 7 ]
     separation: 120
   [ watercourses 3, watercourses 4 ]:
     font-size: 1.7
+    buffer: [ 3, 6 ]
     separation: 120
   [ watercourses 5, watercourses 6, watercourses 7 ]:
     font-size: 1.5
@@ -1199,9 +1202,9 @@ labels:
     letter-spacing: 0.1
     collate: true
     buffer: 2.0
-    smooth: [ 15, 60 ]
+    max-turn: 60
     separation: 100
-    deviation: 3.0
+    optional: true
   [ roads Path, roads Track-Vehicular ]:
     font-size: 1.4
     buffer: 1.7
@@ -1245,13 +1248,10 @@ labels:
     word-spacing: 3
     letter-spacing: 0.5
     separation: 100
-    deviation: 5.0
-    buffer: ~
   [ feature-names RangeLike, feature-names DuneLike, feature-names GeneralLocality ]:
-    smooth: 15
+    smooth: 4
   [ feature-names Beach, feature-names ValleyLike ]:
     buffer: 2.5
-    smooth: 15
   [ feature-names RangeLike, feature-names ValleyLike, feature-names DuneLike ]:
     font-size: 2.2
     fill: "#404040"

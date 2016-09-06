@@ -733,7 +733,9 @@ labels:
     letter-spacing: 0.05
     orientation: uphill
     collate: true
-    deviation: 0.075
+    min-radius: 5
+    max-turn: 20
+    sample: 10
     minimum-length: 30
     separation: 40
     separation-all: 15
@@ -758,17 +760,11 @@ labels:
     letter-spacing: 0.1
     word-spacing: 2.0
     font-size: 1.5
-    separation: 80
-    deviation: 4.0
-  watercourses 1d:
-    buffer: 3.0
-    smooth: [ 20, 90 ]
-  watercourses 2d:
     remove-holes: true
     minimum-area: 20
-    offset: 3.0
-    smooth: [ 20, 40 ]
-    deviation: 3.0
+    buffer: 2.5
+    max-turn: 90
+    separation: 80
   waterbodies:
     position: [ over, right, above, below, left ]
     margin: 0.7
@@ -795,18 +791,13 @@ labels:
     letter-spacing: 0.1
     collate: true
     buffer: 1.7
-    smooth: [ 15, 60 ]
     separation: 100
-    deviation: 3.0
-    font-size: 1.4
   roads:
     font-size: 1.4
     letter-spacing: 0.1
     collate: true
     buffer: 2.0
-    smooth: [ 15, 60 ]
     separation: 100
-    deviation: 3.0
   roads Vehicular-Track:
     font-size: 1.4
     buffer: 1.7
@@ -815,6 +806,11 @@ labels:
   [ roads National-State-Highway, roads Arterial-Road ]:
     font-size: 1.8
     word-spacing: 1.0
+  [ roads Local-Road, roads Mall ]:
+    buffer: 1.8
+    optional: true
+  [ roads Access-Road, roads Arcade ]:
+    remove: true
   buildings:
     font-family: Cambria, Times, serif
     position: [ right, above, below, left, aboveright, belowright, aboveleft, belowleft ]
@@ -830,13 +826,10 @@ labels:
   [ feature-names MOUNTAINS, feature-names RIDGE, feature-names VALLEY, feature-names ISTHMUS, feature-names BEACH ]:
     separation: 100
     reduce: [ centres, 0.25 ]
-    buffer: ~
-    smooth: [ 10, 40 ]
-    deviation: 5.0
+    smooth: 5
     position: over
   feature-names BEACH:
     buffer: 2.0
-    deviation: 20
   [ feature-names MOUNTAINS line, feature-names RIDGE line, feature-names VALLEY line, feature-names ISTHMUS line, feature-names BEACH line ]:
     word-spacing: 3
     letter-spacing: 0.5

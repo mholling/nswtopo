@@ -812,7 +812,7 @@ module StraightSkeleton
       e0, e1 = pair.map(&:point)
       return if e0 == @point || e1 == @point
       h0, h1 = pair.map(&:heading)
-      direction = e1.minus(e0).normalised.perp
+      direction = pair[0].headings[1]
       travel = direction.dot(@point.minus e0) / (1 - secant * heading.dot(direction))
       return if travel < 0 || travel.nan?
       return if limit && travel >= limit

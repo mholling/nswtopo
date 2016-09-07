@@ -944,12 +944,12 @@ module StraightSkeleton
     include InteriorNode
     
     def initialize(active, candidates, point, travel, source, split)
-      @original, @active, @candidates, @point, @travel, @sources, @split = self, active, candidates, point, travel, [ source ], split
+      @original, @active, @candidates, @point, @travel, @source, @split = self, active, candidates, point, travel, source, split
       @whence = [ source, *@split ].map(&:whence).inject(&:|)
     end
     
     def viable?
-      return false unless @sources.all?(&:active?)
+      return false unless @source.active?
       @split = @active.select(&:next).map do |node|
         [ node, node.next ]
       end.select do |pair|
@@ -963,15 +963,15 @@ module StraightSkeleton
       end
     end
     
-    def split(limit, index, &block)
-      @neighbours = [ @sources[0].neighbours[index], @split[1-index] ].rotate index
-      @neighbours.inject(&:==) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert!(limit) if @neighbours.any?
+    def split!(limit, index, &block)
+      @neighbours = [ @source.neighbours[index], @split[1-index] ].rotate index
+      @neighbours.inject(&:equal?) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert!(limit) if @neighbours.any?
     end
     
     def replace!(limit, &block)
-      dup.split(limit, 0, &block)
-      dup.split(limit, 1, &block)
-      @sources.each(&block)
+      dup.split!(limit, 0, &block)
+      dup.split!(limit, 1, &block)
+      block.call @source
     end
   end
   

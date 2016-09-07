@@ -810,16 +810,16 @@ module StraightSkeleton
     include InteriorNode
     
     def initialize(active, candidates, point, travel, source, split)
-      @original, @active, @candidates, @point, @travel, @source, @split = self, active, candidates, point, travel, source, split
-      @whence = [ source, *@split ].map(&:whence).inject(&:|)
+      @original, @active, @candidates, @point, @travel, @source, @edge_heading = self, active, candidates, point, travel, source, split.headings[1]
+      @whence = source.whence | split.whence
     end
     
     def viable?
       return false unless @source.active?
-      @split = @active.select(&:next).map do |node|
+      @edge = @active.select do |node|
+        node.headings[1].equal? @edge_heading
+      end.map do |node|
         [ node, node.next ]
-      end.select do |pair|
-        pair[0].headings[1].equal? @split[0].headings[1]
       end.find do |pair|
         e0, e1 = pair.map(&:point)
         h0, h1 = pair.map(&:heading)
@@ -830,7 +830,7 @@ module StraightSkeleton
     end
     
     def split!(limit, index, &block)
-      @neighbours = [ @source.neighbours[index], @split[1-index] ].rotate index
+      @neighbours = [ @source.neighbours[index], @edge[1-index] ].rotate index
       @neighbours.inject(&:equal?) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert!(limit) if @neighbours.any?
     end
     
@@ -869,7 +869,7 @@ module StraightSkeleton
       return if point.minus(e0).dot(direction) < 0
       return if point.minus(e0).cross(h0) < 0
       return if point.minus(e1).cross(h1) > 0
-      Split.new @active, @candidates, point, travel, self, pair
+      Split.new @active, @candidates, point, travel, self, pair[0]
     end
     
     def self.[](data, closed = true, limit = nil, splits = true)
@@ -916,7 +916,7 @@ module StraightSkeleton
           node1.heading.dot node2.heading
         end
       end.compact.each do |node1, node2|
-        candidates << Split.new(active, candidates, node1.point, 0, node1, [ node2, node2.next ])
+        candidates << Split.new(active, candidates, node1.point, 0, node1, node2)
       end
       pairs = active.select(&:next).map do |node|
         [ node, node.next ]

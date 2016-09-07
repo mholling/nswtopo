@@ -787,6 +787,60 @@ module StraightSkeleton
     end
   end
   
+  class Collapse
+    include InteriorNode
+    
+    def initialize(active, candidates, point, travel, sources)
+      @original, @active, @candidates, @point, @travel, @sources = self, active, candidates, point, travel, sources
+      @whence = @sources.map(&:whence).inject(&:|)
+    end
+    
+    def viable?
+      @sources.all?(&:active?)
+    end
+    
+    def replace!(limit, &block)
+      @neighbours = [ @sources[0].prev, @sources[1].next ]
+      @neighbours.inject(&:==) ? block.call(prev) : insert!(limit) if @neighbours.any?
+      @sources.each(&block)
+    end
+  end
+  
+  class Split
+    include InteriorNode
+    
+    def initialize(active, candidates, point, travel, source, split)
+      @original, @active, @candidates, @point, @travel, @source, @split = self, active, candidates, point, travel, source, split
+      @whence = [ source, *@split ].map(&:whence).inject(&:|)
+    end
+    
+    def viable?
+      return false unless @source.active?
+      @split = @active.select(&:next).map do |node|
+        [ node, node.next ]
+      end.select do |pair|
+        pair[0].headings[1].equal? @split[0].headings[1]
+      end.find do |pair|
+        e0, e1 = pair.map(&:point)
+        h0, h1 = pair.map(&:heading)
+        next if point.minus(e0).cross(h0) < 0
+        next if point.minus(e1).cross(h1) > 0
+        true
+      end
+    end
+    
+    def split!(limit, index, &block)
+      @neighbours = [ @source.neighbours[index], @split[1-index] ].rotate index
+      @neighbours.inject(&:equal?) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert!(limit) if @neighbours.any?
+    end
+    
+    def replace!(limit, &block)
+      dup.split!(limit, 0, &block)
+      dup.split!(limit, 1, &block)
+      block.call @source
+    end
+  end
+  
   class Vertex
     include Node
     attr_reader :headings
@@ -918,60 +972,6 @@ module StraightSkeleton
           yielder << nodes.each(&:remove!)
         end
       end
-    end
-  end
-  
-  class Collapse
-    include InteriorNode
-    
-    def initialize(active, candidates, point, travel, sources)
-      @original, @active, @candidates, @point, @travel, @sources = self, active, candidates, point, travel, sources
-      @whence = @sources.map(&:whence).inject(&:|)
-    end
-    
-    def viable?
-      @sources.all?(&:active?)
-    end
-    
-    def replace!(limit, &block)
-      @neighbours = [ @sources[0].prev, @sources[1].next ]
-      @neighbours.inject(&:==) ? block.call(prev) : insert!(limit) if @neighbours.any?
-      @sources.each(&block)
-    end
-  end
-  
-  class Split
-    include InteriorNode
-    
-    def initialize(active, candidates, point, travel, source, split)
-      @original, @active, @candidates, @point, @travel, @source, @split = self, active, candidates, point, travel, source, split
-      @whence = [ source, *@split ].map(&:whence).inject(&:|)
-    end
-    
-    def viable?
-      return false unless @source.active?
-      @split = @active.select(&:next).map do |node|
-        [ node, node.next ]
-      end.select do |pair|
-        pair[0].headings[1].equal? @split[0].headings[1]
-      end.find do |pair|
-        e0, e1 = pair.map(&:point)
-        h0, h1 = pair.map(&:heading)
-        next if point.minus(e0).cross(h0) < 0
-        next if point.minus(e1).cross(h1) > 0
-        true
-      end
-    end
-    
-    def split!(limit, index, &block)
-      @neighbours = [ @source.neighbours[index], @split[1-index] ].rotate index
-      @neighbours.inject(&:equal?) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert!(limit) if @neighbours.any?
-    end
-    
-    def replace!(limit, &block)
-      dup.split!(limit, 0, &block)
-      dup.split!(limit, 1, &block)
-      block.call @source
     end
   end
   

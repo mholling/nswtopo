@@ -708,7 +708,7 @@ module StraightSkeleton
   MAX_ANGLE = 15 * Math::PI / 180
   
   module Node
-    attr_reader :point, :travel, :neighbours, :edges, :whence, :original
+    attr_reader :point, :travel, :neighbours, :whence, :original
     
     def remove!
       @active.delete self
@@ -761,16 +761,14 @@ module StraightSkeleton
     end
     
     def headings
-      @headings ||= edges.map.with_index do |edge, index|
-        edge && edge[index].headings[1-index]
+      @headings ||= @neighbours.map.with_index do |neighbour, index|
+        neighbour && neighbour.headings[1-index]
       end
     end
     
     def insert!(limit)
-      @edges = @neighbours.map.with_index do |neighbour, index|
-        next unless neighbour
-        neighbour.neighbours[1-index] = self
-        neighbour.edges[1-index]
+      @neighbours.each.with_index do |neighbour, index|
+        neighbour && neighbour.neighbours[1-index] = self
       end
       @active << self
       [ self, *@neighbours ].compact.map do |node|
@@ -802,9 +800,6 @@ module StraightSkeleton
     end
     
     def add
-      @edges = @neighbours.map.with_index do |neighbour, index|
-        [ neighbour, self ].rotate(index) if neighbour
-      end
       @active << self
     end
     
@@ -958,7 +953,7 @@ module StraightSkeleton
       @split = @active.select(&:next).map do |node|
         [ node, node.next ]
       end.select do |pair|
-        pair[0].edges[1] == @split || pair[1].edges[0] == @split
+        pair[0].headings[1].equal? @split[0].headings[1]
       end.find do |pair|
         e0, e1 = pair.map(&:point)
         h0, h1 = pair.map(&:heading)

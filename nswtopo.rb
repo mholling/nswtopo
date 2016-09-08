@@ -705,7 +705,7 @@ module SVGPath
 end
 
 module StraightSkeleton
-  MAX_ANGLE = 15 * Math::PI / 180
+  ROUNDING_ANGLE = 15 * Math::PI / 180
   
   module Node
     attr_reader :point, :travel, :neighbours, :whence, :original
@@ -884,7 +884,7 @@ module StraightSkeleton
         points.zip(headings).map do |point, headings|
           angle = headings.all? && Math::atan2(headings.inject(&:cross), headings.inject(&:dot))
           next Vertex.new(active, candidates, point, index, headings) unless angle && angle < 0
-          vertices = (angle.abs / MAX_ANGLE).ceil
+          vertices = (angle.abs / ROUNDING_ANGLE).ceil
           vertices.times.map do |n|
             angle * n / vertices
           end.map do |angle|

@@ -927,7 +927,7 @@ module StraightSkeleton
             node1.heading.dot node2.heading
           end
         end.compact.each do |node1, node2|
-          @candidates << Split.new(@active, @candidates, node1.point, 0, node1, node2)
+          @candidates << Split.new(@active, @candidates, node1.point, 0, node1, [ node2, node2.next ])
         end
         pairs = @active.select(&:next).map do |node|
           [ node, node.next ]

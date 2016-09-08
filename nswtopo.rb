@@ -708,7 +708,7 @@ module StraightSkeleton
   ROUNDING_ANGLE = 15 * Math::PI / 180
   
   module Node
-    attr_reader :point, :travel, :neighbours, :edges, :whence, :original
+    attr_reader :point, :travel, :neighbours, :headings, :whence, :original
     
     def remove!
       @active.delete self
@@ -760,17 +760,10 @@ module StraightSkeleton
       [ @travel, hash ] <=> [ other.travel, other.hash ]
     end
     
-    def headings
-      @headings ||= edges.map.with_index do |edge, index|
-        edge && edge[index].headings[1-index]
-      end
-    end
-    
     def insert!(limit)
-      @edges = @neighbours.map.with_index do |neighbour, index|
-        next unless neighbour
-        neighbour.neighbours[1-index] = self
-        neighbour.edges[1-index]
+      @headings = @neighbours.map.with_index do |neighbour, index|
+        neighbour.neighbours[1-index] = self if neighbour
+        neighbour.headings[1-index] if neighbour
       end
       @active << self
       [ self, *@neighbours ].compact.map do |node|
@@ -812,14 +805,14 @@ module StraightSkeleton
     include InteriorNode
     
     def initialize(active, candidates, point, travel, source, split)
-      @original, @active, @candidates, @point, @travel, @source, @split = self, active, candidates, point, travel, source, split
-      @whence = [ source, *split ].map(&:whence).inject(&:|)
+      @original, @active, @candidates, @point, @travel, @source, @split_heading = self, active, candidates, point, travel, source, split.headings[1]
+      @whence = source.whence | split.whence
     end
     
     def viable?
       return false unless @source.active?
       @edge = @active.select do |node|
-        node.edges[1] == @split
+        node.headings[1].equal? @split_heading
       end.map do |node|
         [ node, node.next ]
       end.find do |pair|
@@ -845,7 +838,6 @@ module StraightSkeleton
   
   class Vertex
     include Node
-    attr_reader :headings
     
     def initialize(active, candidates, point, index, headings)
       @original, @neighbours, @active, @candidates, @whence, @point, @headings, @travel = self, [ nil, nil ], active, candidates, Set[index], point, headings, 0
@@ -856,9 +848,6 @@ module StraightSkeleton
     end
     
     def add
-      @edges = @neighbours.map.with_index do |neighbour, index|
-        [ neighbour, self ].rotate(index) if neighbour
-      end
       @active << self
     end
     
@@ -874,7 +863,7 @@ module StraightSkeleton
       return if point.minus(e0).dot(direction) < 0
       return if point.minus(e0).cross(h0) < 0
       return if point.minus(e1).cross(h1) > 0
-      Split.new @active, @candidates, point, travel, self, pair
+      Split.new @active, @candidates, point, travel, self, pair[0]
     end
   end
   
@@ -891,12 +880,12 @@ module StraightSkeleton
         points.zip(headings).map do |point, headings|
           angle = headings.all? && Math::atan2(headings.inject(&:cross), headings.inject(&:dot))
           next Vertex.new(@active, @candidates, point, index, headings) unless angle && angle < 0
-          vertices = (angle.abs / ROUNDING_ANGLE).ceil
-          vertices.times.map do |n|
-            angle * n / vertices
+          extras = (angle.abs / ROUNDING_ANGLE).floor
+          extras.times.map do |n|
+            angle * (n + 1) / (extras + 1)
           end.map do |angle|
-            headings.first.rotate_by(angle)
-          end.push(headings.last).segments.map do |headings|
+            headings[0].rotate_by(angle)
+          end.unshift(headings.first).push(headings.last).segments.map do |headings|
             Vertex.new @active, @candidates, point, index, headings
           end
         end.flatten
@@ -927,7 +916,7 @@ module StraightSkeleton
             node1.heading.dot node2.heading
           end
         end.compact.each do |node1, node2|
-          @candidates << Split.new(@active, @candidates, node1.point, 0, node1, [ node2, node2.next ])
+          @candidates << Split.new(@active, @candidates, node1.point, 0, node1, node2)
         end
         pairs = @active.select(&:next).map do |node|
           [ node, node.next ]

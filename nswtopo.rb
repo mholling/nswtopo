@@ -1066,16 +1066,21 @@ module StraightSkeleton
     end.dedupe(closed).select(&:many?)
   end
   
-  def offset(closed, margin, overshoot = margin)
-    if margin > 0
-      map(&:reverse).inset(closed, margin + overshoot).map(&:reverse).inset(closed, overshoot, false)
-    else
-      inset(closed, -(margin + overshoot)).map(&:reverse).inset(closed, -overshoot, false).map(&:reverse)
-    end
+  def outset(closed, margin, splits = true)
+    return self if margin.zero?
+    map(&:reverse).inset(closed, margin, splits).map(&:reverse)
   end
+  alias offset outset
   
   def buffer(closed, margin, overshoot = margin)
-    (self + map(&:reverse)).inset(closed, margin + overshoot).map(&:reverse).inset(closed, overshoot, false)
+    case
+    when !closed
+      (self + map(&:reverse)).inset(closed, margin + overshoot).outset(closed, overshoot, false)
+    when margin > 0
+      outset(closed, margin + overshoot).inset(closed, overshoot, false)
+    else
+      inset(closed, -(margin + overshoot)).outset(closed, -overshoot, false)
+    end
   end
   
   def smooth(closed, margin)

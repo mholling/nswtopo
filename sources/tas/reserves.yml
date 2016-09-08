@@ -33,7 +33,7 @@ labels:
     stroke-opacity: 0.5
   boundaries:
     minimum-area: 800
-    offset: [ -6.5, 0 ]
+    buffer: [ -6.5, 0 ]
     separation: 150
     font-size: 2.5
     letter-spacing: 0.3

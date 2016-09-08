@@ -3323,7 +3323,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when "downhill" then baseline.reverse!
               else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
               end
-              hull = [ baseline ].buffer(false, 0.5 * font_size).flatten(1).convex_hull
+              hull = [ baseline ].buffer(false, 0.5 * font_size, 0).flatten(1).convex_hull
               baseline << baseline[-1].minus(baseline[-2]).normalised.times(text_length * 0.25).plus(baseline[-1])
               path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT
               path_element = REXML::Element.new("path")

@@ -784,7 +784,7 @@ module StraightSkeleton
       return unless viable?
       replace!(limit) do |node, index = 0|
         node.remove!
-        yield [ node, self ].rotate(index) if block_given?
+        yield [ node, self ].rotate(index).map(&:original) if block_given?
       end
     end
   end
@@ -876,9 +876,11 @@ module StraightSkeleton
       return if point.minus(e1).cross(h1) > 0
       Split.new @active, @candidates, point, travel, self, pair
     end
-    
-    def self.[](data, closed = true, limit = nil, splits = true)
-      active, candidates = Set.new, AVLTree.new
+  end
+  
+  class Nodes
+    def initialize(data, closed)
+      @active, @candidates = Set.new, AVLTree.new
       nodes = data.dedupe(closed).map.with_index do |points, index|
         next [ ] unless points.many?
         headings = if closed
@@ -888,14 +890,14 @@ module StraightSkeleton
         end
         points.zip(headings).map do |point, headings|
           angle = headings.all? && Math::atan2(headings.inject(&:cross), headings.inject(&:dot))
-          next Vertex.new(active, candidates, point, index, headings) unless angle && angle < 0
+          next Vertex.new(@active, @candidates, point, index, headings) unless angle && angle < 0
           vertices = (angle.abs / ROUNDING_ANGLE).ceil
           vertices.times.map do |n|
             angle * n / vertices
           end.map do |angle|
             headings.first.rotate_by(angle)
           end.push(headings.last).segments.map do |headings|
-            Vertex.new active, candidates, point, index, headings
+            Vertex.new @active, @candidates, point, index, headings
           end
         end.flatten
       end
@@ -904,86 +906,81 @@ module StraightSkeleton
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end
       end
-      nodes.flatten.each(&:add).map do |node|
+      nodes.flatten.each(&:add)
+    end
+    
+    def progress(limit = nil, splits = true, &block)
+      @active.map do |node|
         node.collapse limit
       end.compact.each do |collapse|
-        candidates << collapse
+        @candidates << collapse
       end
-      return [ active, candidates ] unless splits
-      active.select(&:terminal?).permutation(2).select do |node1, node2|
-        node1.point == node2.point
-      end.select do |node1, node2|
-        node1.prev && node2.next
-      end.select do |node1, node2|
-        node1.heading.cross(node2.heading) > 0
-      end.group_by(&:first).map(&:last).map do |pairs|
-        pairs.min_by do |node1, node2|
-          node1.heading.dot node2.heading
-        end
-      end.compact.each do |node1, node2|
-        candidates << Split.new(active, candidates, node1.point, 0, node1, [ node2, node2.next ])
-      end
-      pairs = active.select(&:next).map do |node|
-        [ node, node.next ]
-      end
-      pairs = RTree.load(pairs) do |pair|
-        pair.map(&:point).transpose.map(&:minmax)
-      end
-      active.select do |node|
-        node.terminal? || node.reflex?
-      end.map do |node|
-        candidate, travel, searched = nil, limit, Set.new
-        loop do
-          bounds = node.heading.times(node.secant * travel).plus(node.point).zip(node.point).map do |centre, coord|
-            [ coord, centre - travel, centre + travel ].minmax
-          end if travel
-          break candidate unless pair = pairs.search(bounds, searched).find do |pair|
-            node.split pair, travel
+      if splits
+        @active.select(&:terminal?).permutation(2).select do |node1, node2|
+          node1.point == node2.point
+        end.select do |node1, node2|
+          node1.prev && node2.next
+        end.select do |node1, node2|
+          node1.heading.cross(node2.heading) > 0
+        end.group_by(&:first).map(&:last).map do |pairs|
+          pairs.min_by do |node1, node2|
+            node1.heading.dot node2.heading
           end
-          candidate = node.split pair
-          travel = candidate.travel
+        end.compact.each do |node1, node2|
+          @candidates << Split.new(@active, @candidates, node1.point, 0, node1, node2)
         end
-      end.compact.tap do |splits|
-        candidates.merge splits
-      end
-      [ active, candidates ]
-    end
-    
-    def self.skeleton(data)
-      active, candidates = Vertex[data]
-      Enumerator.new do |yielder|
-        while candidate = candidates.pop
-          candidate.process do |nodes|
-            yielder << nodes.map(&:original)
+        pairs = @active.select(&:next).map do |node|
+          [ node, node.next ]
+        end
+        pairs = RTree.load(pairs) do |pair|
+          pair.map(&:point).transpose.map(&:minmax)
+        end
+        @active.select do |node|
+          node.terminal? || node.reflex?
+        end.map do |node|
+          candidate, travel, searched = nil, limit, Set.new
+          loop do
+            bounds = node.heading.times(node.secant * travel).plus(node.point).zip(node.point).map do |centre, coord|
+              [ coord, centre - travel, centre + travel ].minmax
+            end if travel
+            break candidate unless pair = pairs.search(bounds, searched).find do |pair|
+              node.split pair, travel
+            end
+            candidate = node.split pair
+            travel = candidate.travel
           end
+        end.compact.tap do |splits|
+          @candidates.merge splits
         end
       end
-    end
-    
-    def self.progress(closed, data, travel, splits)
-      active, candidates = Vertex[data, closed, travel, splits]
-      while candidates.any?
-        candidates.pop.process(travel)
+      while candidate = @candidates.pop
+        candidate.process(limit, &block)
       end
       Enumerator.new do |yielder|
-        while active.any?
-          nodes = [ active.first ]
+        while @active.any?
+          nodes = [ @active.first ]
           while node = nodes.last.next and node != nodes.first
             nodes.push node
           end
           while node = nodes.first.prev and node != nodes.last
             nodes.unshift node
           end
-          yielder << nodes.each(&:remove!)
+          nodes.each(&:remove!).map do |node|
+            node.point.plus node.heading.times((limit - node.travel) * node.secant)
+          end.tap do |points|
+            yielder << points
+          end
         end
       end
     end
   end
   
   def straight_skeleton
-    Vertex.skeleton(self).map do |nodes|
-      nodes.map(&:point)
+    result = [ ]
+    Nodes.new(self, true).progress do |nodes|
+      result << nodes.map(&:point)
     end
+    result
   end
   
   def centrelines_centrepoints(get_lines, get_points, fraction = 0.5)
@@ -992,7 +989,7 @@ module StraightSkeleton
     ends   = Hash.new { |ends,   node|   ends[node] = [ ] }
     splits = Hash.new { |splits, node| splits[node] = [ ] }
     counts, travel = Hash.new(0), 0
-    Vertex.skeleton(self).each do |node0, node1|
+    Nodes.new(self, true).progress do |node0, node1|
       counts[node1] += 1
       travel = [ travel, node1.travel ].max
       case [ node0.class, node1.class ]
@@ -1064,11 +1061,7 @@ module StraightSkeleton
   
   def inset(closed, margin, splits = true)
     return self if margin.zero?
-    Vertex.progress(closed, self, margin, splits).map do |nodes|
-      nodes.map do |node|
-        node.point.plus node.heading.times((margin - node.travel) * node.secant)
-      end
-    end.dedupe(closed).select(&:many?)
+    Nodes.new(self, closed).progress(margin, splits).to_a.dedupe(closed).select(&:many?)
   end
   
   def outset(closed, margin, splits = true)

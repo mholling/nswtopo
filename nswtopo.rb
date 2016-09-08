@@ -708,7 +708,7 @@ module StraightSkeleton
   ROUNDING_ANGLE = 15 * Math::PI / 180
   
   module Node
-    attr_reader :point, :travel, :neighbours, :whence, :original
+    attr_reader :point, :travel, :neighbours, :edges, :whence, :original
     
     def remove!
       @active.delete self
@@ -761,14 +761,16 @@ module StraightSkeleton
     end
     
     def headings
-      @headings ||= @neighbours.map.with_index do |neighbour, index|
-        neighbour && neighbour.headings[1-index]
+      @headings ||= edges.map.with_index do |edge, index|
+        edge && edge[index].headings[1-index]
       end
     end
     
     def insert!(limit)
-      @neighbours.each.with_index do |neighbour, index|
-        neighbour && neighbour.neighbours[1-index] = self
+      @edges = @neighbours.map.with_index do |neighbour, index|
+        next unless neighbour
+        neighbour.neighbours[1-index] = self
+        neighbour.edges[1-index]
       end
       @active << self
       [ self, *@neighbours ].compact.map do |node|
@@ -810,14 +812,14 @@ module StraightSkeleton
     include InteriorNode
     
     def initialize(active, candidates, point, travel, source, split)
-      @original, @active, @candidates, @point, @travel, @source, @edge_heading = self, active, candidates, point, travel, source, split.headings[1]
-      @whence = source.whence | split.whence
+      @original, @active, @candidates, @point, @travel, @source, @split = self, active, candidates, point, travel, source, split
+      @whence = [ source, *split ].map(&:whence).inject(&:|)
     end
     
     def viable?
       return false unless @source.active?
       @edge = @active.select do |node|
-        node.headings[1].equal? @edge_heading
+        node.edges[1] == @split
       end.map do |node|
         [ node, node.next ]
       end.find do |pair|
@@ -854,6 +856,9 @@ module StraightSkeleton
     end
     
     def add
+      @edges = @neighbours.map.with_index do |neighbour, index|
+        [ neighbour, self ].rotate(index) if neighbour
+      end
       @active << self
     end
     
@@ -869,7 +874,7 @@ module StraightSkeleton
       return if point.minus(e0).dot(direction) < 0
       return if point.minus(e0).cross(h0) < 0
       return if point.minus(e1).cross(h1) > 0
-      Split.new @active, @candidates, point, travel, self, pair[0]
+      Split.new @active, @candidates, point, travel, self, pair
     end
     
     def self.[](data, closed = true, limit = nil, splits = true)
@@ -916,7 +921,7 @@ module StraightSkeleton
           node1.heading.dot node2.heading
         end
       end.compact.each do |node1, node2|
-        candidates << Split.new(active, candidates, node1.point, 0, node1, node2)
+        candidates << Split.new(active, candidates, node1.point, 0, node1, [ node2, node2.next ])
       end
       pairs = active.select(&:next).map do |node|
         [ node, node.next ]

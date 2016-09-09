@@ -709,6 +709,7 @@ module StraightSkeleton
   
   module Node
     attr_reader :point, :travel, :neighbours, :headings, :whence, :original
+    attr_writer :collapsed
     
     def remove!
       @active.delete self
@@ -750,6 +751,10 @@ module StraightSkeleton
         next if limit && travel >= limit
         Collapse.new @active, @candidates, heading.times(distance).plus(@point), travel, [ neighbour, self ].rotate(index)
       end.compact.min
+    end
+    
+    def current
+      active? ? self : @collapsed ? @collapsed.current : nil
     end
   end
   
@@ -797,22 +802,25 @@ module StraightSkeleton
     def replace!(limit, &block)
       @neighbours = [ @sources[0].prev, @sources[1].next ]
       @neighbours.inject(&:==) ? block.call(prev) : insert!(limit) if @neighbours.any?
-      @sources.each(&block)
+      @sources.each do |source|
+        block.call source
+        source.collapsed = self
+      end
     end
   end
   
   class Split
     include InteriorNode
     
-    def initialize(active, candidates, point, travel, source, split)
-      @original, @active, @candidates, @point, @travel, @source, @split_heading = self, active, candidates, point, travel, source, split.headings[1]
-      @whence = source.whence | split.whence
+    def initialize(active, candidates, point, travel, source, node)
+      @original, @active, @candidates, @point, @travel, @source, @node = self, active, candidates, point, travel, source, node
+      @whence = source.whence | node.whence
     end
     
     def viable?
       return false unless @source.active?
-      @edge = @active.select do |node|
-        node.headings[1].equal? @split_heading
+      @edge = @node.splits.map(&:current).compact.select do |node|
+        node.headings[1].equal? @node.headings[1]
       end.map do |node|
         [ node, node.next ]
       end.find do |pair|
@@ -827,6 +835,7 @@ module StraightSkeleton
     def split!(limit, index, &block)
       @neighbours = [ @source.neighbours[index], @edge[1-index] ].rotate index
       @neighbours.inject(&:equal?) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert!(limit) if @neighbours.any?
+      @node.splits << self if index == 0
     end
     
     def replace!(limit, &block)
@@ -838,6 +847,7 @@ module StraightSkeleton
   
   class Vertex
     include Node
+    attr_reader :splits
     
     def initialize(active, candidates, point, index, headings)
       @original, @neighbours, @active, @candidates, @whence, @point, @headings, @travel = self, [ nil, nil ], active, candidates, Set[index], point, headings, 0
@@ -848,6 +858,7 @@ module StraightSkeleton
     end
     
     def add
+      @splits = Set[self]
       @active << self
     end
     

@@ -3194,8 +3194,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end if source.respond_to? :labels
     end
     
-    PointLabel = Struct.new :source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :elements
-    LineLabel  = Struct.new :source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :elements, :centre
+    Label = Struct.new(:source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :elements, :centre) do
+      def point?
+        centre.nil?
+      end
+    end
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
@@ -3239,7 +3242,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
-              PointLabel.new source_name, sublayer, feature, component, priority, hull, attributes, text_elements
+              Label.new source_name, sublayer, feature, component, priority, hull, attributes, text_elements
             end
           when 1, 2
             closed = dimension == 2
@@ -3334,7 +3337,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
-              LineLabel.new source_name, sublayer, feature, component, priority, hull, attributes, [ text_element, path_element ], centre
+              Label.new source_name, sublayer, feature, component, priority, hull, attributes, [ text_element, path_element ], centre
             end.map do |candidate|
               [ candidate, [] ]
             end.to_h.tap do |matrix|
@@ -3358,11 +3361,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             labelling_hull.surrounds?(candidate.hull).all?
           end
         end.flatten.tap do |candidates|
-          candidates.reject! do |candidate|
-            candidate.is_a? PointLabel
-          end unless candidates.all? do |candidate|
-            candidate.is_a? PointLabel
-          end
+          candidates.reject!(&:point?) unless candidates.all?(&:point?)
         end
       end.flatten
       
@@ -3405,10 +3404,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         [ candidate.feature, candidate.component, candidate.attributes["separation-along"] ]
       end.each do |(feature, component, buffer), candidates|
         candidates.permutation(2).each do |candidate1, candidate2|
-          case candidate1
-          when PointLabel
+          if candidate1.point?
             conflicts[candidate1] << candidate2
-          when LineLabel
+          else
             # TODO: this could be done more efficiently by walking two indices along the line
             next unless buffer
             next unless (candidate2.centre - candidate1.centre) % totals[feature][component] < buffer
@@ -3462,7 +3460,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       
       5.times do
         labels = labels.inject(labels.dup) do |labels, label|
-          next labels unless label.is_a? PointLabel
+          next labels unless label.point?
           labels.delete label
           labels << candidates.select do |candidate|
             candidate.feature == label.feature && candidate.component == label.component

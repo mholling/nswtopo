@@ -3417,7 +3417,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       while matrix.any?
         label = matrix.keys.group_by(&:feature).map do |feature, candidates|
           candidates.map do |candidate|
-            [ candidate, [ external[candidate].length, candidates.length ] ]
+            [ candidate, [ external[candidate].length, candidates.length, candidate.attributes["optional"] ? 1 : 0 ] ]
           end
         end.flatten(1).min_by(&:last).first
         matrix[label].add(label).map do |removed|

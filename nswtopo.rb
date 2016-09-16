@@ -3198,6 +3198,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       def point?
         centre.nil?
       end
+      
+      def conflicts
+        @conflicts ||= Set.new
+      end
     end
     
     def draw(map, &block)
@@ -3369,13 +3373,11 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         block.call("candidates").add_element "path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => candidate.hull.to_path_data(MM_DECIMAL_DIGITS, ?Z)
       end.clear if map.debug
       
-      conflicts = Hash.new { |hash, label| hash[label] = Set.new }
-      
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices
       end.each do |candidate1, candidate2|
-        conflicts[candidate1] << candidate2
-        conflicts[candidate2] << candidate1
+        candidate1.conflicts << candidate2
+        candidate2.conflicts << candidate1
       end
       
       candidates.group_by do |candidate|
@@ -3384,8 +3386,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         candidates.map(&:hull).overlaps(buffer).map do |indices|
           candidates.values_at *indices
         end.each do |candidate1, candidate2|
-          conflicts[candidate1] << candidate2
-          conflicts[candidate2] << candidate1
+          candidate1.conflicts << candidate2
+          candidate2.conflicts << candidate1
         end if buffer
       end
       
@@ -3395,32 +3397,34 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         candidates.map(&:hull).overlaps(buffer).map do |indices|
           candidates.values_at *indices
         end.each do |candidate1, candidate2|
-          conflicts[candidate1] << candidate2
-          conflicts[candidate2] << candidate1
+          candidate1.conflicts << candidate2
+          candidate2.conflicts << candidate1
         end if buffer
       end
       
+      # TODO: generating intra-component conflicts can now be done back in the label-generating phase...
       candidates.group_by do |candidate|
         [ candidate.feature, candidate.component, candidate.attributes["separation-along"] ]
       end.each do |(feature, component, buffer), candidates|
         candidates.permutation(2).each do |candidate1, candidate2|
           if candidate1.point?
-            conflicts[candidate1] << candidate2
+            candidate1.conflicts << candidate2
+            # candidate2.conflicts << candidate1 # TODO: ???
           else
-            # TODO: this could be done more efficiently by walking two indices along the line
             next unless buffer
             next unless (candidate2.centre - candidate1.centre) % totals[feature][component] < buffer
-            conflicts[candidate1] << candidate2
-            conflicts[candidate2] << candidate1
+            candidate1.conflicts << candidate2
+            candidate2.conflicts << candidate1
           end
         end
       end
       
-      matrix = Hash[candidates.zip conflicts.values_at(*candidates).map(&:dup)]
-      external = Hash[candidates.zip conflicts.values_at(*candidates).map(&:dup)]
-      external.each do |candidate, candidates|
-        candidates.reject! { |other| other.feature == candidate.feature }
-      end
+      matrix = candidates.map do |candidate|
+        [ candidate, candidate.conflicts.dup ]
+      end.to_h
+      external = candidates.map do |candidate|
+        [ candidate, candidate.conflicts.reject { |other| other.feature == candidate.feature }.to_set ]
+      end.to_h
       labels = Set.new
       
       while matrix.any?
@@ -3448,10 +3452,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         candidate.attributes["optional"]
       end.group_by(&:feature).each do |feature, candidates|
         label = candidates.min_by do |candidate|
-          [ (conflicts[candidate] & labels).length, candidate.priority ]
+          [ (candidate.conflicts & labels).length, candidate.priority ]
         end
         labels.reject! do |other|
-          conflicts[label].include?(other) && labels.any? do |extra|
+          label.conflicts.include?(other) && labels.any? do |extra|
             extra != other && extra.feature == other.feature
           end
         end
@@ -3465,7 +3469,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           labels << candidates.select do |candidate|
             candidate.feature == label.feature && candidate.component == label.component
           end.min_by do |candidate|
-            [ (labels & conflicts[candidate] - [ label ]).count, candidate.priority ]
+            [ (labels & candidate.conflicts - Set[label]).count, candidate.priority ]
           end
         end
       end

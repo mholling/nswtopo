@@ -133,7 +133,7 @@ class AVLTree
   end
   
   def ancestors(node)
-    node.empty? ? [] : case @value <=> node.value
+    node.empty? ? [] : case [ @value, @value.object_id ] <=> [ node.value, node.value.object_id ]
     when +1 then [ *@left.ancestors(node), self ]
     when  0 then [ ]
     when -1 then [ *@right.ancestors(node), self ]
@@ -170,7 +170,7 @@ class AVLTree
     if empty?
       @value, @left, @right = value, AVLTree.new, AVLTree.new
     else
-      case @value <=> value
+      case [ @value, @value.object_id ] <=> [ value, value.object_id ]
       when +1 then @left.insert value
       when  0 then @value = value
       when -1 then @right.insert value
@@ -186,7 +186,7 @@ class AVLTree
   end
   
   def delete(value)
-    case @value <=> value
+    case [ @value, @value.object_id ] <=> [ value, value.object_id ]
     when +1 then @left.delete value
     when 0
       @value.tap do
@@ -762,7 +762,7 @@ module StraightSkeleton
     include Node
     
     def <=>(other)
-      [ @travel, hash ] <=> [ other.travel, other.hash ]
+      @travel <=> other.travel
     end
     
     def insert!(limit)

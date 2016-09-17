@@ -3366,6 +3366,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end.flatten.tap do |candidates|
           candidates.reject!(&:point?) unless candidates.all?(&:point?)
+        end.sort_by(&:priority).each.with_index do |candidate, index|
+          candidate.priority = index
         end
       end.flatten
       

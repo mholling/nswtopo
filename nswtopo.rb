@@ -3202,6 +3202,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       def conflicts
         @conflicts ||= Set.new
       end
+      
+      attr_accessor :ordinal
+      def <=>(other)
+        self.ordinal <=> other.ordinal
+      end
+      
+      alias hash object_id
+      alias eql? equal?
     end
     
     def draw(map, &block)
@@ -3421,47 +3429,55 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
       
-      matrix = candidates.map do |candidate|
+      conflicts = candidates.map do |candidate|
         [ candidate, candidate.conflicts.dup ]
       end.to_h
-      external = candidates.map do |candidate|
-        [ candidate, candidate.conflicts.reject { |other| other.feature == candidate.feature }.to_set ]
-      end.to_h
-      labels = Set.new
+      labels, remaining, changed = Set.new, AVLTree.new, candidates
+      grouped = candidates.to_set.classify(&:feature)
+      counts = Hash.new { |hash, feature| hash[feature] = 0 }
       
-      while matrix.any?
-        label = matrix.keys.group_by(&:feature).map do |feature, candidates|
-          candidates.map do |candidate|
-            [ candidate, [ external[candidate].length, candidates.length, candidate.attributes["optional"] ? 1 : 0 ] ]
+      loop do
+        changed.each do |candidate|
+          conflict_count = conflicts[candidate].count do |other|
+            other.feature != candidate.feature
           end
-        end.flatten(1).min_by(&:last).first
-        matrix[label].add(label).map do |removed|
-          [ removed, matrix.delete(removed) ]
-        end.each do |removed, candidates|
-          candidates.each do |candidate|
-            matrix[candidate] && matrix[candidate].delete(removed)
-            external[candidate].delete(removed)
-          end
+          labelled = counts[candidate.feature].zero? ? 0 : 1
+          optional = candidate.attributes["optional"] ? 1 : 0
+          ordinal = [ conflict_count, labelled, optional, candidate.priority ]
+          next if candidate.ordinal == ordinal
+          remaining.delete candidate
+          candidate.ordinal = ordinal
+          remaining.insert candidate
         end
+        break unless label = remaining.first
         labels << label
+        counts[label.feature] += 1
+        removals = Set[label] | conflicts[label]
+        removals.each do |candidate|
+          grouped[candidate.feature].delete candidate
+          remaining.delete candidate
+        end
+        changed = conflicts.values_at(*removals).inject(Set[], &:|).subtract(removals).each do |candidate|
+          conflicts[candidate].subtract removals
+        end
+        changed.merge grouped[label.feature] if counts[label.feature] == 1
       end
       
-      labels.inject(candidates) do |candidates, label|
-        candidates.reject do |candidate|
-          candidate.feature == label.feature
-        end
-      end.reject do |candidate|
+      candidates.reject do |candidate|
         candidate.attributes["optional"]
-      end.group_by(&:feature).each do |feature, candidates|
+      end.group_by(&:feature).select do |feature, candidates|
+        counts[feature].zero?
+      end.each do |feature, candidates|
         label = candidates.min_by do |candidate|
           [ (candidate.conflicts & labels).length, candidate.priority ]
         end
-        labels.reject! do |other|
-          label.conflicts.include?(other) && labels.any? do |extra|
-            extra != other && extra.feature == other.feature
-          end
+        label.conflicts.intersection(labels).each do |other|
+          next unless counts[other.feature] > 1
+          labels.delete other
+          counts[other.feature] -= 1
         end
         labels << label
+        counts[feature] += 1
       end
       
       5.times do

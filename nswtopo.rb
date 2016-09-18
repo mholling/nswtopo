@@ -3480,13 +3480,14 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         counts[feature] += 1
       end
       
+      grouped = candidates.group_by do |candidate|
+        [ candidate.feature, candidate.component ]
+      end
       5.times do
         labels = labels.inject(labels.dup) do |labels, label|
           next labels unless label.point?
           labels.delete label
-          labels << candidates.select do |candidate|
-            candidate.feature == label.feature && candidate.component == label.component
-          end.min_by do |candidate|
+          labels << grouped[[ label.feature, label.component ]].min_by do |candidate|
             [ (labels & candidate.conflicts - Set[label]).count, candidate.priority ]
           end
         end

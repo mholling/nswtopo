@@ -3194,9 +3194,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end if source.respond_to? :labels
     end
     
-    Label = Struct.new(:source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :elements, :centre) do
+    Label = Struct.new(:source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :elements, :along) do
       def point?
-        centre.nil?
+        along.nil?
       end
       
       def conflicts
@@ -3214,7 +3214,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
-      totals = Hash.new { |hash, feature| hash[feature] = { } }
       
       candidates = @features.map.with_index do |(text, source_name, sublayer, components), feature|
         components.map.with_index do |(dimension, data, attributes), component|
@@ -3254,7 +3253,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
+              next unless labelling_hull.surrounds?(hull).all?
               Label.new source_name, sublayer, feature, component, priority, hull, attributes, text_elements
+            end.compact.tap do |candidates|
+              candidates.combination(2).each do |candidate1, candidate2|
+                candidate1.conflicts << candidate2
+                candidate2.conflicts << candidate1
+              end
             end
           when 1, 2
             closed = dimension == 2
@@ -3264,6 +3269,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             min_radius  = attributes.fetch("min-radius", 0)
             max_angle   = attributes.fetch("max-angle", DEFAULT_MAX_ANGLE) * Math::PI / 180
             sample      = attributes.fetch("sample", DEFAULT_SAMPLE)
+            separation  = attributes.fetch("separation-along", nil)
             text_length = case text
             when REXML::Element then data.path_length
             when String then text.glyph_length(font_size, letter_spacing, word_spacing)
@@ -3281,7 +3287,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             cumulative = distances.inject([0]) do |memo, distance|
               memo << memo.last + distance
             end
-            totals[feature][component] = total = closed ? cumulative.pop : cumulative.last
+            total = closed ? cumulative.pop : cumulative.last
             angles = vectors.map(&:normalised).send(pairs).map do |directions|
               Math.atan2 directions.inject(&:cross), directions.inject(&:dot)
             end
@@ -3327,9 +3333,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end if points.many?
             end.map do |indices|
               start, stop = cumulative.values_at(*indices)
-              centre = (start + 0.5 * (stop - start) % total) % total
+              along = (start + 0.5 * (stop - start) % total) % total
               total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
-              priority = [ total_squared_curvature, (total - 2 * centre).abs / total.to_f ]
+              priority = [ total_squared_curvature, (total - 2 * along).abs / total.to_f ]
               baseline = points.values_at(*indices).crop(text_length)
               case orientation
               when "uphill"
@@ -3337,6 +3343,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
               end
               hull = [ baseline, baseline.reverse ].inset(false, 0.5 * font_size, false).flatten(1).convex_hull
+              next unless labelling_hull.surrounds?(hull).all?
               baseline << baseline[-1].minus(baseline[-2]).normalised.times(text_length * 0.25).plus(baseline[-1])
               path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT
               path_element = REXML::Element.new("path")
@@ -3349,12 +3356,12 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
-              Label.new source_name, sublayer, feature, component, priority, hull, attributes, [ text_element, path_element ], centre
-            end.map do |candidate|
+              Label.new source_name, sublayer, feature, component, priority, hull, attributes, [ text_element, path_element ], along
+            end.compact.map do |candidate|
               [ candidate, [] ]
             end.to_h.tap do |matrix|
               matrix.keys.nearby_pairs(closed) do |pair|
-                diff = pair.map(&:centre).inject(&:-)
+                diff = pair.map(&:along).inject(&:-)
                 2 * (closed ? [ diff % total, -diff % total ].min : diff.abs) < sample
               end.each do |pair|
                 matrix[pair[0]] << pair[1]
@@ -3368,9 +3375,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                   matrix.delete candidate
                 end
               end
-            end.keys
-          end.select do |candidate|
-            labelling_hull.surrounds?(candidate.hull).all?
+            end.keys.tap do |candidates|
+              candidates.combination(2).each do |candidate1, candidate2|
+                next unless (candidate2.along - candidate1.along) % total < separation
+                candidate1.conflicts << candidate2
+                candidate2.conflicts << candidate1
+              end if separation
+            end
           end
         end.flatten.tap do |candidates|
           candidates.reject!(&:point?) unless candidates.all?(&:point?)
@@ -3410,23 +3421,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           candidate1.conflicts << candidate2
           candidate2.conflicts << candidate1
         end if buffer
-      end
-      
-      # TODO: generating intra-component conflicts can now be done back in the label-generating phase...
-      candidates.group_by do |candidate|
-        [ candidate.feature, candidate.component, candidate.attributes["separation-along"] ]
-      end.each do |(feature, component, buffer), candidates|
-        candidates.permutation(2).each do |candidate1, candidate2|
-          if candidate1.point?
-            candidate1.conflicts << candidate2
-            # candidate2.conflicts << candidate1 # TODO: ???
-          else
-            next unless buffer
-            next unless (candidate2.centre - candidate1.centre) % totals[feature][component] < buffer
-            candidate1.conflicts << candidate2
-            candidate2.conflicts << candidate1
-          end
-        end
       end
       
       conflicts = candidates.map do |candidate|

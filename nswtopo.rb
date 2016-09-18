@@ -3376,10 +3376,15 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
             end.keys.tap do |candidates|
-              candidates.combination(2).each do |candidate1, candidate2|
-                next unless (candidate2.along - candidate1.along) % total < separation
-                candidate1.conflicts << candidate2
-                candidate2.conflicts << candidate1
+              candidates.sort_by(&:along).inject do |(*candidates), candidate2|
+                while candidates.any?
+                  break if (candidate2.along - candidates.first.along) % total < separation
+                  candidates.shift
+                end
+                candidates.each do |candidate1|
+                  candidate1.conflicts << candidate2
+                  candidate2.conflicts << candidate1
+                end.push(candidate2)
               end if separation
             end
           end

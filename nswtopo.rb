@@ -732,7 +732,10 @@ module StraightSkeleton
     end
     
     def heading
-      @heading ||= headings.compact.inject(&:plus).normalised
+      @heading ||= headings.compact.inject do |heading1, heading2|
+        sum = heading1.plus heading2
+        sum.all?(&:zero?) ? heading1.perp : sum.normalised
+      end
     end
     
     def secant
@@ -890,6 +893,7 @@ module StraightSkeleton
         end
         points.zip(headings).map do |point, headings|
           angle = headings.all? && Math::atan2(headings.inject(&:cross), headings.inject(&:dot))
+          angle = -Math::PI if angle == Math::PI
           next Vertex.new(@active, @candidates, point, index, headings) unless angle && angle < 0
           extras = (angle.abs / rounding_angle).floor
           extras.times.map do |n|

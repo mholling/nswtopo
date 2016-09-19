@@ -705,7 +705,7 @@ module SVGPath
 end
 
 module StraightSkeleton
-  ROUNDING_ANGLE = 15 * Math::PI / 180
+  DEFAULT_ROUNDING_ANGLE = 15 * Math::PI / 180
   
   module Node
     attr_reader :point, :travel, :neighbours, :headings, :whence, :original
@@ -879,7 +879,7 @@ module StraightSkeleton
   end
   
   class Nodes
-    def initialize(data, closed)
+    def initialize(data, closed, rounding_angle = DEFAULT_ROUNDING_ANGLE)
       @active, @candidates = Set.new, AVLTree.new
       nodes = data.dedupe(closed).map.with_index do |points, index|
         next [ ] unless points.many?
@@ -891,7 +891,7 @@ module StraightSkeleton
         points.zip(headings).map do |point, headings|
           angle = headings.all? && Math::atan2(headings.inject(&:cross), headings.inject(&:dot))
           next Vertex.new(@active, @candidates, point, index, headings) unless angle && angle < 0
-          extras = (angle.abs / ROUNDING_ANGLE).floor
+          extras = (angle.abs / rounding_angle).floor
           extras.times.map do |n|
             angle * (n + 1) / (extras + 1)
           end.map do |angle|
@@ -1059,14 +1059,14 @@ module StraightSkeleton
     get_points ? [ lines, points ] : [ lines ]
   end
   
-  def inset(closed, margin, splits = true)
+  def inset(closed, margin, splits = true, rounding_angle = DEFAULT_ROUNDING_ANGLE)
     return self if margin.zero?
-    Nodes.new(self, closed).progress(margin, splits).to_a.dedupe(closed).select(&:many?)
+    Nodes.new(self, closed, rounding_angle).progress(margin, splits).to_a.dedupe(closed).select(&:many?)
   end
   
-  def outset(closed, margin, splits = true)
+  def outset(closed, margin, splits = true, rounding_angle = DEFAULT_ROUNDING_ANGLE)
     return self if margin.zero?
-    map(&:reverse).inset(closed, margin, splits).map(&:reverse)
+    map(&:reverse).inset(closed, margin, splits, rounding_angle).map(&:reverse)
   end
   alias offset outset
   

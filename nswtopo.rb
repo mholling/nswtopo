@@ -3346,7 +3346,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when "downhill" then baseline.reverse!
               else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
               end
-              hull = [ baseline, baseline.reverse ].inset(false, 0.5 * font_size, false).flatten(1).convex_hull
+              hull = [ baseline.convex_hull ].outset(true, 0.5 * font_size, false, 0.5 * Math::PI).flatten(1)
               next unless labelling_hull.surrounds?(hull).all?
               baseline << baseline[-1].minus(baseline[-2]).normalised.times(text_length * 0.25).plus(baseline[-1])
               path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT

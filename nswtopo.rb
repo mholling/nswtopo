@@ -3173,7 +3173,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when "remove-holes"
               next [ [ dimension, data ] ] unless dimension == 2
               pruned = data.reject do |points|
-                points.signed_area < 0
+                area = points.signed_area
+                area < 0 && (true == args[0] || area.abs < args[0].abs)
               end
               [ [ dimension, pruned ] ]
             when "minimum-area"

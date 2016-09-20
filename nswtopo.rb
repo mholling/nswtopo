@@ -3383,7 +3383,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.keys.tap do |candidates|
               candidates.sort_by(&:along).inject do |(*candidates), candidate2|
                 while candidates.any?
-                  break if (candidate2.along - candidates.first.along) % total < separation
+                  break if (candidate2.along - candidates.first.along) % total < separation + text_length
                   candidates.shift
                 end
                 candidates.each do |candidate1|

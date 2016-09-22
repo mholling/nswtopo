@@ -2568,7 +2568,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             when 0
               angle = feature["angle"]
               map.coords_to_mm(feature["data"]).round(MM_DECIMAL_DIGITS).each do |x, y|
-                transform = "translate(#{x} #{y}) rotate(#{(angle || 0) - map.rotation})"
+                transform = "translate(#{x} #{y}) rotate(#{angle || -map.rotation})"
                 category_group.add_element "use", "transform" => transform
               end
             when 1, 2

@@ -26,12 +26,6 @@ sources:
     instance: arcgis
     folder: actmapi
     service: basic
-  guras:
-    host: atlas.nsw.gov.au
-    instance: arcgis1
-    cookie: http://atlas.nsw.gov.au/
-    folder: sixmaps
-    service: _Guras
   poi:
     host: maps.six.nsw.gov.au
     folder: sixmaps
@@ -269,9 +263,6 @@ features:
     category: functionhierarchy
     label-only: true
     label: roadnamestring
-  - fallback: true
-    source: guras
-    name: Road Name Extent
   - fallback: true
     source: lpimaplocal
     name: LS_RoadNameExtent_Labels

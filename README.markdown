@@ -1,4 +1,4 @@
-Summary (Version 1.2.1)
+Summary (Version 1.3)
 =======================
 
 This software allows you to download and compile high-resolution vector topographic maps from the NSW geospatial data servers, covering much of NSW and the ACT. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. Other map formats including raster, KMZ and GeoTIFF can also be produced.
@@ -522,5 +522,6 @@ Release History
   * 5/2/2016: version 1.1.5: add template for NSW map sheets; update ACT server details; read gx:Track elements in KML files
   * 4/3/2016: version 1.1.6: bugfix for some changed NSW map servers
   * 18/6/2016: version 1.1.7: update NSW data sources
-* 22/8/2019: version 1.2: improve labeling quality and speed; update various map sources accordingly
-  * 25/8/2019: version 1.2.1: bugfix for stack overflow
+* 22/8/2016: version 1.2: improve labeling quality and speed; update various map sources accordingly
+  * 25/8/2016: version 1.2.1: bugfix for stack overflow
+* 23/9/2016: version 1.3: improvements to labelling algorithm; remove old NSW server references

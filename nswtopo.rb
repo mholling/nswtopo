@@ -524,6 +524,13 @@ module VectorSequences
       end.map(&:first) + segments.last(closed ? 0 : 1).map(&:last)
     end
   end
+  
+  def remove_holes(max_area = true)
+    reject do |points|
+      area = points.signed_area
+      area < 0 && (true == max_area || area.abs < max_area.abs)
+    end
+  end
 end
 
 module Clipping
@@ -3172,12 +3179,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 end
               end
             when "remove-holes"
-              next [ [ dimension, data ] ] unless dimension == 2
-              pruned = data.reject do |points|
-                area = points.signed_area
-                area < 0 && (true == args[0] || area.abs < args[0].abs)
-              end
-              [ [ dimension, pruned ] ]
+              [ dimension ].zip [ data.remove_holes(*args) ] if dimension == 2 && args[0]
             when "minimum-area"
               next [ [ dimension, data ] ] unless dimension == 2
               pruned = data.reject do |points|

@@ -1072,7 +1072,6 @@ module StraightSkeleton
     return self if margin.zero?
     map(&:reverse).inset(closed, margin, splits, rounding_angle).map(&:reverse)
   end
-  alias offset outset
   
   def buffer(closed, margin, overshoot = margin)
     case
@@ -3087,7 +3086,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class LabelSource < Source
     include VectorRenderer
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample]
-    TRANSFORMS = %w[reduce offset buffer smooth remove-holes minimum-area minimum-length remove]
+    TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE = 1.8
     DEFAULT_MARGIN    = 1
     DEFAULT_MAX_TURN  = 60
@@ -3155,8 +3154,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               when "centres"
                 [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args)
               end if dimension == 2
-            when "offset"
-              [ dimension ].zip [ data.offset(dimension == 2, *args) ] if dimension > 0 && args[0]
+            when "outset"
+              [ dimension ].zip [ data.outset(dimension == 2, *args) ] if dimension > 0 && args[0]
+            when "inset"
+              [ dimension ].zip [ data.inset(dimension == 2, *args) ] if dimension > 0 && args[0]
             when "buffer"
               [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0 && args[0]
             when "smooth"
@@ -3873,7 +3874,7 @@ grid:
       stroke-opacity: 0.75
     font-family: "'Arial Narrow', sans-serif"
     font-size: 2.75
-    offset: 2.0
+    outset: 2.0
     stroke: none
     fill: black
 declination:

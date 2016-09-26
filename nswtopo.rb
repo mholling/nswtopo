@@ -902,7 +902,7 @@ module StraightSkeleton
           angle = headings.all? && Math::atan2(headings.inject(&:cross), headings.inject(&:dot))
           angle = -Math::PI if angle == Math::PI
           next Vertex.new(@active, @candidates, point, index, headings) unless angle && angle < 0
-          extras = (angle.abs / rounding_angle).floor
+          extras = rounding_angle ? (angle.abs / rounding_angle).floor : 0
           extras.times.map do |n|
             angle * (n + 1) / (extras + 1)
           end.map do |angle|

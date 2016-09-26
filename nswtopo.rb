@@ -1091,6 +1091,10 @@ module StraightSkeleton
     end
   end
   
+  def close_gaps(max_gap, max_area = true)
+    outset(true, 0.5 * max_gap).remove_holes(max_area).inset(true, 0.5 * max_gap)
+  end
+  
   def smooth(closed, margin)
     inset(closed, margin).outset(closed, 2 * margin).inset(closed, margin, false)
   rescue ArgumentError
@@ -3093,7 +3097,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
   class LabelSource < Source
     include VectorRenderer
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample]
-    TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes minimum-area minimum-length remove]
+    TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes close-gaps minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE = 1.8
     DEFAULT_MARGIN    = 1
     DEFAULT_MAX_TURN  = 60
@@ -3180,6 +3184,8 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
             when "remove-holes"
               [ dimension ].zip [ data.remove_holes(*args) ] if dimension == 2 && args[0]
+            when "close-gaps"
+              [ dimension ].zip [ data.close_gaps(*args) ] if dimension == 2 && args[0]
             when "minimum-area"
               next [ [ dimension, data ] ] unless dimension == 2
               pruned = data.reject do |points|

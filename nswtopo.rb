@@ -227,6 +227,7 @@ class RTree
   end
   
   def overlaps?(bounds)
+    return false if @bounds.empty?
     return true unless bounds
     bounds.zip(@bounds).all? do |bound1, bound2|
       bound1.zip(bound2.rotate).each.with_index.all? do |limits, index|

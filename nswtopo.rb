@@ -657,6 +657,10 @@ module Overlap
     end
   end
   
+  def overlap?(buffer = 0)
+    !separated_by?(buffer)
+  end
+  
   def overlaps(buffer = 0)
     return [] if empty?
     axis = flatten(1).transpose.map { |values| values.max - values.min }.map.with_index.max.last
@@ -2531,6 +2535,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end if options["rotate"]
               features << { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
                 feature["label-only"] = options["label-only"] if options["label-only"]
+                feature["fence"] = options["fence"] if options["fence"]
                 feature["angle"] = angle if angle
                 [ *options["label"] ].map do |key|
                   attributes.fetch(key, key)
@@ -2613,12 +2618,26 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def labels(map)
       layers.inject([]) do |memo, (sublayer, features)|
-        memo + features.select do |feature|
+        memo += features.select do |feature|
           feature.key?("labels")
         end.map(&:dup).each do |feature|
           feature["categories"].unshift sublayer
           feature["sublayer"] = sublayer
         end
+      end
+    end
+    
+    def fences
+      layers.inject([]) do |memo, (sublayer, features)|
+        memo += features.select do |feature|
+          feature["fence"]
+        end.map do |feature|
+          case feature["dimension"]
+          when 0 then [ ] # TODO: allow point features to act as fences?
+          when 1 then feature["data"].map(&:segments).flatten(1)
+          when 2 then feature["data"].map(&:ring).flatten(1)
+          end
+        end.flatten(1)
       end
     end
   end
@@ -3118,7 +3137,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def initialize(*args)
       super(*args)
-      @features = [];
+      @features, @fences = [], []
       @params["font-size"] = DEFAULT_FONT_SIZE
     end
     
@@ -3218,11 +3237,19 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           end
         end
       end if source.respond_to? :labels
+      
+      source.fences.each do |fence|
+        @fences << map.coords_to_mm(fence)
+      end if source.respond_to? :fences
     end
     
     Label = Struct.new(:source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :elements, :along) do
       def point?
         along.nil?
+      end
+      
+      def optional?
+        attributes["optional"]
       end
       
       def conflicts
@@ -3240,6 +3267,9 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     
     def draw(map, &block)
       labelling_hull = map.mm_corners(-2)
+      fences = RTree.load(@fences) do |fence|
+        fence.transpose.map(&:minmax)
+      end
       
       candidates = @features.map.with_index do |(text, source_name, sublayer, components), feature|
         components.map.with_index do |(dimension, data, attributes), component|
@@ -3261,7 +3291,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             end.max
             height = lines.length * font_size
             transform = "translate(#{data.join ?\s}) rotate(#{-map.rotation})"
-            [ *attributes["position"] || "over" ].map.with_index do |position, priority|
+            [ *attributes["position"] || "over" ].map.with_index do |position, index|
               dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
               f = dx * dy == 0 ? 1 : 0.707
@@ -3280,6 +3310,10 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
               next unless labelling_hull.surrounds?(hull).all?
+              fence = fences.search(hull.transpose.map(&:minmax)).any? do |fence|
+                [ hull, fence ].overlap?
+              end
+              priority = [ fence ? 1 : 0, index ]
               Label.new source_name, sublayer, feature, component, priority, hull, attributes, text_elements
             end.compact.tap do |candidates|
               candidates.combination(2).each do |candidate1, candidate2|
@@ -3361,8 +3395,16 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               start, stop = cumulative.values_at(*indices)
               along = (start + 0.5 * (stop - start) % total) % total
               total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
-              priority = [ total_squared_curvature, (total - 2 * along).abs / total.to_f ]
               baseline = points.values_at(*indices).crop(text_length)
+              bounds = baseline.transpose.map(&:minmax).map do |min, max|
+                [ min - 0.5 * font_size, max + 0.5 * font_size ]
+              end
+              fence = fences.search(bounds).any? do |fence|
+                baseline.segments.any? do |segment|
+                  [ segment, fence ].overlap?(0.5 * font_size)
+                end
+              end
+              priority = [ fence ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f ]
               case orientation
               when "uphill"
               when "downhill" then baseline.reverse!
@@ -3370,7 +3412,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
               end
               hull = [ baseline.convex_hull ].outset(true, 0.5 * font_size, false, 0.5 * Math::PI).flatten(1)
               next unless labelling_hull.surrounds?(hull).all?
-              baseline << baseline[-1].minus(baseline[-2]).normalised.times(text_length * 0.25).plus(baseline[-1])
+              baseline << baseline.last(2).difference.normalised.times(text_length * 0.25).plus(baseline.last)
               path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT
               path_element = REXML::Element.new("path")
               path_element.add_attributes "id" => path_id, "d" => baseline.to_path_data(MM_DECIMAL_DIGITS), "pathLength" => baseline.path_length.round(MM_DECIMAL_DIGITS)
@@ -3467,7 +3509,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
             other.feature != candidate.feature
           end
           labelled = counts[candidate.feature].zero? ? 0 : 1
-          optional = candidate.attributes["optional"] ? 1 : 0
+          optional = candidate.optional? ? 1 : 0
           ordinal = [ conflict_count, labelled, optional, candidate.priority ]
           next if candidate.ordinal == ordinal
           remaining.delete candidate
@@ -3488,9 +3530,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         changed.merge grouped[label.feature] if counts[label.feature] == 1
       end
       
-      candidates.reject do |candidate|
-        candidate.attributes["optional"]
-      end.group_by(&:feature).select do |feature, candidates|
+      candidates.reject(&:optional?).group_by(&:feature).select do |feature, candidates|
         counts[feature].zero?
       end.each do |feature, candidates|
         label = candidates.min_by do |candidate|
@@ -4070,7 +4110,7 @@ controls:
       tmp_svg_path = temp_dir + svg_name
       tmp_svg_path.open("w") do |file|
         if updates.any? do |source|
-          source.respond_to? :labels
+          source.respond_to?(:labels) || source.respond_to?(:fences)
         end || removals.any? do |name|
           xml.elements["/svg/g[@id='labels#{SEGMENT}#{name}']"]
         end then

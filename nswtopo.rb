@@ -2548,6 +2548,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         puts
         { sublayer => features }
       end.inject(&:merge).tap do |layers|
+        @layers = layers
         Dir.mktmppath do |temp_dir|
           json_path = temp_dir + "#{name}.json"
           json_path.open("w") { |file| file << layers.to_json }
@@ -2556,11 +2557,17 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       end
     end
     
+    def layers
+      @layers ||= begin
+        raise BadLayerError.new("source file not found at #{path}") unless path.exist?
+        JSON.parse(path.read).reject do |sublayer, features|
+          params["exclude"].include? sublayer
+        end
+      end
+    end
+    
     def draw(map)
-      raise BadLayerError.new("source file not found at #{path}") unless path.exist?
-      JSON.parse(path.read).reject do |sublayer, features|
-        params["exclude"].include? sublayer
-      end.map do |sublayer, features|
+      layers.map do |sublayer, features|
         [ sublayer, features.reject { |feature| feature["label-only"] } ]
       end.reject do |sublayer, features|
         features.empty?
@@ -2605,10 +2612,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
     
     def labels(map)
-      raise BadLayerError.new("source file not found at #{path}") unless path.exist?
-      JSON.parse(path.read).reject do |sublayer, features|
-        params["exclude"].include? sublayer
-      end.inject([]) do |memo, (sublayer, features)|
+      layers.inject([]) do |memo, (sublayer, features)|
         memo + features.select do |feature|
           feature.key?("labels")
         end.map(&:dup).each do |feature|

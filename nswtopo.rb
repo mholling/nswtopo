@@ -254,7 +254,7 @@ class RTree
     end
   end
   
-  def search(bounds, searched)
+  def search(bounds, searched = Set.new)
     Enumerator.new do |yielder|
       unless searched.include? self
         if overlaps? bounds

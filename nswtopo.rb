@@ -2630,6 +2630,13 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
     end
   end
   
+  class ShapefileSource < FeatureSource
+    def initialize(*args)
+      super(*args)
+      params["sources"].each { |name, source| source["protocol"] = "shapefile" }
+    end
+  end
+  
   class ReliefSource < Source
     include RasterRenderer
     

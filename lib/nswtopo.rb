@@ -19,7 +19,6 @@ require_relative 'helpers/string'
 require_relative 'helpers/rexml'
 require_relative 'helpers/svg_path'
 require_relative 'helpers/glyph_length'
-require_relative 'helpers/http'
 require_relative 'avl_tree'
 require_relative 'geometry/vector'
 require_relative 'geometry/segment'
@@ -29,17 +28,18 @@ require_relative 'geometry/clipping'
 require_relative 'geometry/overlap'
 require_relative 'geometry/r_tree'
 require_relative 'geometry/straight_skeleton'
+require_relative 'nswtopo/http'
 require_relative 'nswtopo/gps'
 require_relative 'nswtopo/projection'
 require_relative 'nswtopo/world_file'
 require_relative 'nswtopo/map'
-require_relative 'nswtopo/source'
-require_relative 'nswtopo/no_create'
 require_relative 'nswtopo/raster_renderer'
 require_relative 'nswtopo/canvas_source'
 require_relative 'nswtopo/import_source'
 require_relative 'nswtopo/vegetation_source'
 require_relative 'nswtopo/relief_source'
+require_relative 'nswtopo/tiled_map_server'
+require_relative 'nswtopo/arcgis_raster'
 require_relative 'nswtopo/vector_renderer'
 require_relative 'nswtopo/arcgis'
 require_relative 'nswtopo/wfs'
@@ -291,8 +291,8 @@ controls:
       NSWTopo.const_get(params.delete "class").new(name, params)
     end
     
-    sources.reject(&:exist?).recover(InternetError, ServerError, BadLayerError).each do |source|
-      source.create(map)
+    sources.recover(InternetError, ServerError, BadLayerError).each do |source|
+      source.create(map) if source.respond_to?(:create)
     end
     
     return if config["no-output"]
@@ -307,7 +307,7 @@ controls:
     end
     
     updates = sources.reject do |source|
-      source.path ? FileUtils.uptodate?(svg_path, [ *source.path ]) : xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"]
+      source.respond_to?(:path) ? FileUtils.uptodate?(svg_path, [ *source.path ]) : xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"]
     end
     
     Dir.mktmppath do |temp_dir|
@@ -372,8 +372,6 @@ controls:
                 end
               end
             end
-            puts "Styling: #{source.name}"
-            source.rerender(xml, map)
           rescue BadLayerError => e
             puts "Failed to render #{source.name}: #{e.message}"
           end

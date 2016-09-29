@@ -1,5 +1,5 @@
 module NSWTopo
-  class ImportSource < Source
+  class ImportSource
     include RasterRenderer
     
     def resolution_for(map)

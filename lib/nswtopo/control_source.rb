@@ -1,15 +1,16 @@
 module NSWTopo
-  class ControlSource < Source
+  class ControlSource
     include VectorRenderer
-    include NoCreate
+    attr_reader :path
     
-    def initialize(*args)
-      super(*args)
+    def initialize(name, params)
+      @name, @params = name, params
       @path = Pathname.new(params["path"]).expand_path
       params["labels"]["margin"] ||= params["diameter"] * 0.707
     end
     
     def types_waypoints
+      raise BadLayerError.new("#{name} file not found at #{path}") unless path.exist?
       gps_waypoints = GPS.new(path).waypoints
       [ [ /\d{2,3}/, :controls  ],
         [ /HH/,      :hashhouse ],

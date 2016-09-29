@@ -1,5 +1,5 @@
 module NSWTopo
-  class VegetationSource < Source
+  class VegetationSource
     include RasterRenderer
     
     def get_raster(map, dimensions, resolution, temp_dir)

@@ -1,10 +1,9 @@
 module NSWTopo
-  class GridSource < Source
+  class GridSource
     include VectorRenderer
-    include NoCreate
     
-    def initialize(*args)
-      super(*args)
+    def initialize(name, params)
+      @name, @params = name, params
       params["labels"]["orientation"] = "uphill"
     end
     

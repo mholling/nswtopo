@@ -1,14 +1,15 @@
 module NSWTopo
-  class OverlaySource < Source
+  class OverlaySource
     include VectorRenderer
-    include NoCreate
+    attr_reader :path
     
-    def initialize(*args)
-      super(*args)
+    def initialize(name, params)
+      @name, @params = name, params
       @path = Pathname.new(params["path"]).expand_path
     end
     
     def draw(map, &block)
+      raise BadLayerError.new("#{name} file not found at #{path}") unless path.exist?
       gps = GPS.new(path)
       [ [ :tracks, { "fill" => "none" }, nil ],
         [ :areas, { "fill-rule" => "nonzero" }, ?Z ]

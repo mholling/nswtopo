@@ -1,11 +1,12 @@
 module NSWTopo
-  class FeatureSource < Source
+  class FeatureSource
     include VectorRenderer
+    attr_reader :path
     
-    def initialize(*args)
-      super(*args)
-      @path = Pathname.pwd + "#{name}.json"
+    def initialize(name, params)
+      @name, @params = name, params
       @sublayers = params["features"].keys
+      @path = Pathname.pwd + "#{name}.json"
     end
     
     def shapefile_features(map, source, options)
@@ -280,6 +281,8 @@ module NSWTopo
     end
     
     def create(map)
+      return if path.exist?
+      
       puts "Downloading: #{name}"
       feature_hull = map.coord_corners(1.0)
       

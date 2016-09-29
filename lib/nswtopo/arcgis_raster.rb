@@ -1,5 +1,5 @@
 module NSWTopo
-  class ArcGISRaster < Source
+  class ArcGISRaster
     include RasterRenderer
     UNDERSCORES = /[\s\(\)]/
     attr_reader :service, :headers

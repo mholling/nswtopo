@@ -1,7 +1,9 @@
 module NSWTopo
   module RasterRenderer
-    def initialize(*args)
-      super(*args)
+    attr_reader :name, :params, :path
+    
+    def initialize(name, params)
+      @name, @params = name, params
       ext = params["ext"] || "png"
       @path = Pathname.pwd + "#{name}.#{ext}"
     end
@@ -11,6 +13,7 @@ module NSWTopo
     end
     
     def create(map)
+      return if path.exist?
       resolution = resolution_for map
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       pixels = dimensions.inject(:*) > 500000 ? " (%.1fMpx)" % (0.000001 * dimensions.inject(:*)) : nil
@@ -58,6 +61,9 @@ module NSWTopo
         else
           layer
         end.add_element("image", "transform" => transform, "width" => dimensions[0], "height" => dimensions[1], "image-rendering" => "optimizeQuality", "xlink:href" => href)
+        
+        opacity = params["opacity"] || 1
+        layer.add_attributes "style" => "opacity:#{opacity}"
       end
     end
   end

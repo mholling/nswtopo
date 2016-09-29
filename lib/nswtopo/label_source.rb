@@ -1,6 +1,7 @@
 module NSWTopo
-  class LabelSource < Source
+  class LabelSource
     include VectorRenderer
+    
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample]
     TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes close-gaps minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE = 1.8
@@ -9,9 +10,8 @@ module NSWTopo
     DEFAULT_MAX_ANGLE = 25
     DEFAULT_SAMPLE    = 5
     
-    def initialize(*args)
-      super(*args)
-      @features, @fences = [], []
+    def initialize(name, params)
+      @name, @params, @features, @fences = name, params, [], []
       @params["font-size"] = DEFAULT_FONT_SIZE
     end
     

@@ -1,6 +1,10 @@
 module NSWTopo
-  class DeclinationSource < Source
+  class DeclinationSource
     include VectorRenderer
+    
+    def initialize(name, params)
+      @name, @params = name, params
+    end
     
     def draw(map, &block)
       arrows = params["arrows"]

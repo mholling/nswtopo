@@ -1,5 +1,5 @@
 module NSWTopo
-  class ReliefSource < Source
+  class ReliefSource
     include RasterRenderer
     
     def initialize(name, params)

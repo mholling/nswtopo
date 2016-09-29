@@ -51,7 +51,7 @@ A large amount of memory is helpful; you'll really want at least 4Gb or ideally 
 Usage
 =====
 
-The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. You only need to download the script itself, `nswtopo.rb`. Download by clicking the 'ZIP' button, or simply copying and pasting the script out of your browser. More experienced users can install the [git](http://git-scm.com/) command and clone the entire repository with `git clone https://github.com/mholling/nswtopo.git`; update to the latest code at any time with `git pull` from within the `nswtopo` directory.
+The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. Download by clicking the 'ZIP' button. For more experienced or frequent users, I suggest installing the [git](http://git-scm.com/) command and cloning the entire repository with `git clone https://github.com/mholling/nswtopo.git`; update to the latest code at any time with `git pull` from within the `nswtopo` directory.
 
 You will first need to create a directory for the map you are building. Running the script will result in a various image and data files being downloaded, so a directory is needed to contain them.
 
@@ -106,7 +106,7 @@ or,
 
 ## Running the Script
 
-Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your Ruby binary). For advanced users, add the script location to your path so you can run it anywhere.
+Once you have created your configuration file, run the script in the directory to create your map. The script can be run as `ruby /path/to/nswtopo/bin/nswtopo` (where `/path/to/nswtopo` is the location where you downloaded or cloned the program). On Mac and Linux system, I recommend adding `/path/to/nswtopo/bin` to your executables path variable. (How to do this will vary by operating system, [Mac OS](https://www.google.com/search?q=max+add+path) or [Linux](https://www.google.com/search?q=linux+add+path).) You should then be able run it simply as the command `nswtopo`.
 
 When the script starts it will list the scale of your map (e.g. 1:25000), its rotation, physical size and on-the-ground extent. The script will then proceed to download topographic data. Depending on your connection and the size of your map, many minutes may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) It is best not to interrupt the program while the topographic data is downloading, as you will have to start over.
 
@@ -114,7 +114,7 @@ You can ctrl-c at any point to stop the script. Files which have already downloa
 
 After all files have been downloaded, the script will then compile them into a final map image in `.svg` format. The map image is easily viewed in a modern web browser such as Chrome or Firefox, or edited in a vector imaging tool like Inkscape or Illustrator.
 
-Labelling of the map is performed locally. Depending on the size and complexity of the map, this can potentially take many minutes; have patience. (Very occasionally, a map can take an hour or more to label. I would like to improve labelling performance in the future, however it is a hard problem to solve well.)
+Labelling of the map is performed locally. Depending on the size and complexity of the map, this can potentially take many minutes; have patience.
 
 You will likely want to tinker with the configuration file to change the appearance of your final map. To rebuild your map after changing the configuration, you can simply delete `map.svg` (or whatever name you've configured) and run the script again. The map will be recreated from the intermediate files which have been downloaded. You can also add or remove layers without deleting the map; more on this later.
 

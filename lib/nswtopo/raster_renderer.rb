@@ -20,7 +20,7 @@ module NSWTopo
       end
     end
     
-    def render_svg(map)
+    def render_svg(xml, map)
       resolution = resolution_for map
       transform = "scale(#{1000.0 * resolution / map.scale})"
       opacity = params["opacity"] || 1
@@ -38,10 +38,9 @@ module NSWTopo
         path.basename
       end
       
-      layer = yield
-      if layer
+      if layer = yield
         if params["masks"]
-          defs = layer.elements["//svg/defs"]
+          defs = xml.elements["//svg/defs"]
           filter_id, mask_id = "#{name}#{SEGMENT}filter", "#{name}#{SEGMENT}mask"
           defs.elements.each("[@id='#{filter_id}' or @id='#{mask_id}']", &:remove)
           defs.add_element("filter", "id" => filter_id) do |filter|

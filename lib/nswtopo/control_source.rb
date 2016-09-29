@@ -25,14 +25,14 @@ module NSWTopo
       raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
     end
     
-    def draw(map)
+    def draw(map, &block)
       radius = 0.5 * params["diameter"]
       spot_diameter = params["spot-diameter"]
       
-      group = yield
-      types_waypoints.each do |type, waypoints|
-        group.add_element("g", "class" => type) do |group|
-          waypoints.map do |waypoint, label|
+      types_waypoints.map do |type, waypoints|
+        REXML::Element.new("g").tap do |group|
+          group.add_attributes("class" => type)
+          waypoints.each do |waypoint, label|
             point = map.coords_to_mm(map.reproject_from_wgs84(waypoint)).round(MM_DECIMAL_DIGITS)
             transform = "translate(#{point.join ?\s}) rotate(#{-map.rotation})"
             case type
@@ -61,7 +61,7 @@ module NSWTopo
             end
           end
         end
-      end if group
+      end.each(&block)
     end
     
     def labels(map)

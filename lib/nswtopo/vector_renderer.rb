@@ -1,6 +1,6 @@
 module NSWTopo
   module VectorRenderer
-    def render_svg(map)
+    def render_svg(xml, map)
       unless map.rotation.zero?
         w, h = map.bounds.map { |bound| 1000.0 * (bound.max - bound.min) / map.scale }
         t = Math::tan(map.rotation * Math::PI / 180.0)
@@ -15,10 +15,12 @@ module NSWTopo
         transform = "translate(#{x} #{-y}) rotate(#{map.rotation})"
       end
       
-      draw(map) do |sublayer|
-        yield(sublayer).tap do |group|
+      groups = { }
+      draw(map) do |element, sublayer, defs|
+        group = groups[sublayer] ||= yield(sublayer).tap do |group|
           group.add_attributes("transform" => transform) if group && transform
         end
+        (defs ? xml.elements["//svg/defs"] : group).add_element(element) if group
       end
     end
   end

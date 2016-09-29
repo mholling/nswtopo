@@ -126,6 +126,10 @@ module NSWTopo
         attributes["optional"]
       end
       
+      def categories
+        attributes["categories"]
+      end
+      
       def conflicts
         @conflicts ||= Set.new
       end
@@ -151,9 +155,9 @@ module NSWTopo
           letter_spacing = attributes["letter-spacing"] || 0
           word_spacing   = attributes["word-spacing"]   || 0
           case dimension
-          when 0 then block.call("points").add_element "circle", "r" => 0.3, "stroke" => "none", "fill" => "blue", "cx" => data[0], "cy" => data[1]
-          when 1 then block.call("lines").add_element "path", "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => data.to_path_data(MM_DECIMAL_DIGITS)
-          when 2 then block.call("areas").add_element "path", "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => data.to_path_data(MM_DECIMAL_DIGITS, ?Z)
+          when 0 then yield REXML::Element.new("circle").tap { |circle| circle.add_attributes "r" => 0.3, "stroke" => "none", "fill" => "blue", "cx" => data[0], "cy" => data[1] }, "points"
+          when 1 then yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => data.to_path_data(MM_DECIMAL_DIGITS) }, "lines"
+          when 2 then yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => data.to_path_data(MM_DECIMAL_DIGITS, ?Z) }, "areas"
           end if map.debug
           case dimension
           when 0
@@ -338,7 +342,7 @@ module NSWTopo
       end.flatten
       
       candidates.each do |candidate|
-        block.call("candidates").add_element "path", "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => candidate.hull.to_path_data(MM_DECIMAL_DIGITS, ?Z)
+        yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => candidate.hull.to_path_data(MM_DECIMAL_DIGITS, ?Z) }, "candidates"
       end.clear if map.debug
       
       candidates.map(&:hull).overlaps.map do |indices|
@@ -433,16 +437,18 @@ module NSWTopo
       end
       
       return if labels.none?
-      sublayer_names = labels.map(&:source_name).flatten.uniq
-      layers = Hash[sublayer_names.zip sublayer_names.map(&block)]
-      defs = layers.values.first.elements["//svg/defs"]
-      labels.each do |label|
-        categories = label.attributes["categories"]
-        group = layers[label.source_name].elements["./g[@class='#{categories}')]"] || layers[label.source_name].add_element("g", "class" => categories)
-        label.elements.each do |element|
-          case element.name
-          when "text", "textPath" then group.elements << element
-          when "path" then defs.elements << element
+      
+      labels.group_by(&:source_name).sort_by(&:first).each do |sublayer, labels|
+        labels.group_by(&:categories).each do |categories, labels|
+          REXML::Element.new("g").tap do |group|
+            group.add_attributes "class" => categories
+            labels.map(&:elements).flatten.each do |element|
+              case element.name
+              when "text", "textPath" then group.elements << element
+              when "path" then yield element, sublayer, true
+              end
+            end
+            yield group, sublayer
           end
         end
       end

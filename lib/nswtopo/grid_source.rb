@@ -26,8 +26,7 @@ module NSWTopo
       end
     end
     
-    def draw(map)
-      group = yield
+    def draw(map, &block)
       grids(map).map do |zone, utm, grid|
         wgs84_grid = grid.map do |lines|
           utm.reproject_to_wgs84 lines
@@ -43,12 +42,13 @@ module NSWTopo
       end.transpose.map do |lines|
         lines.inject([], &:+)
       end.zip(%w[eastings northings boundary]).each do |lines, category|
-        group.add_element("g", "class" => category) do |group|
+        REXML::Element.new("g").tap do |group|
+          group.add_attributes("class" => category)
           lines.each do |line|
             group.add_element "path", "d" => line.to_path_data(MM_DECIMAL_DIGITS)
           end
-        end if lines.any?
-      end if group
+        end.tap(&block) if lines.any?
+      end
     end
     
     def labels(map)

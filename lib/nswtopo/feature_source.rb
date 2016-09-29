@@ -416,23 +416,20 @@ module NSWTopo
         [ sublayer, features.reject { |feature| feature["label-only"] } ]
       end.reject do |sublayer, features|
         features.empty?
-      end.map do |sublayer, features|
-        [ yield(sublayer), sublayer, features ]
-      end.select(&:first).each do |group, sublayer, features|
+      end.each do |sublayer, features|
         puts "  #{sublayer}"
-        id = group.attributes["id"]
         features.group_by do |feature|
           feature["categories"].reject(&:empty?).join(?\s)
-        end.each do |categories, features|
-          category_group = group.add_element("g", "class" => categories)
-          category_group.add_attribute "id", [ id, *categories.split(?\s) ].join(SEGMENT) unless categories.empty?
+        end.map do |categories, features|
+          group = REXML::Element.new("g")
+          group.add_attributes "class" => categories, "id" => [ name, *sublayer, *categories.split(?\s) ].join(SEGMENT) unless categories.empty?
           features.each do |feature|
             case feature["dimension"]
             when 0
               angle = feature["angle"]
               map.coords_to_mm(feature["data"]).round(MM_DECIMAL_DIGITS).each do |x, y|
                 transform = "translate(#{x} #{y}) rotate(#{angle || -map.rotation})"
-                category_group.add_element "use", "transform" => transform
+                group.add_element "use", "transform" => transform
               end
             when 1, 2
               close, fill_options = case feature["dimension"]
@@ -448,10 +445,11 @@ module NSWTopo
                 else              points.to_path_data(MM_DECIMAL_DIGITS, *close)
                 end
               end.tap do |subpaths|
-                category_group.add_element "path", fill_options.merge("d" => subpaths.join(?\s)) if subpaths.any?
+                group.add_element "path", fill_options.merge("d" => subpaths.join(?\s)) if subpaths.any?
               end
             end
           end
+          yield group, sublayer
         end
       end
     end

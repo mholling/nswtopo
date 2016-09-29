@@ -343,12 +343,12 @@ controls:
                 end
               end
               puts "Choosing label positions"
-              label_source.render_svg(map) do |sublayer|
+              label_source.render_svg(xml, map) do |sublayer|
                 id = [ label_source.name, *sublayer ].join(SEGMENT)
                 xml.elements["/svg/g[@id='#{id}']"] || xml.elements["/svg"].add_element("g", "id" => id, "style" => "opacity:1")
               end
             elsif xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"]
-              source.render_svg(map) do |sublayer|
+              source.render_svg(xml, map) do |sublayer|
                 id = [ source.name, *sublayer ].join(SEGMENT)
                 xml.elements["/svg/g[@id='#{id}']"].tap do |group|
                   source.params["exclude"] << sublayer unless group
@@ -364,7 +364,7 @@ controls:
                   sibling.attributes["id"] == name || sibling.attributes["id"].start_with?("#{name}#{SEGMENT}")
                 end
               end.compact.first
-              source.render_svg(map) do |sublayer|
+              source.render_svg(xml, map) do |sublayer|
                 id = [ source.name, *sublayer ].join(SEGMENT)
                 REXML::Element.new("g").tap do |group|
                   group.add_attributes "id" => id, "style" => "opacity:1"

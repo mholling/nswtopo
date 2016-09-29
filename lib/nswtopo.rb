@@ -13,7 +13,6 @@ require 'set'
 
 require_relative 'helpers/hash'
 require_relative 'helpers/array'
-require_relative 'helpers/enumerable'
 require_relative 'helpers/dir'
 require_relative 'helpers/string'
 require_relative 'helpers/rexml'
@@ -291,8 +290,12 @@ controls:
       NSWTopo.const_get(params.delete "class").new(name, params)
     end
     
-    sources.recover(InternetError, ServerError, BadLayerError).each do |source|
-      source.create(map) if source.respond_to?(:create)
+    sources.each do |source|
+      begin
+        source.create(map) if source.respond_to?(:create)
+      rescue InternetError, ServerError, BadLayerError => e
+        $stderr.puts "Error: #{e.message}" and next
+      end
     end
     
     return if config["no-output"]

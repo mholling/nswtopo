@@ -11,7 +11,7 @@ module NSWTopo
     DEFAULT_SAMPLE    = 5
     
     def initialize(name, params)
-      @name, @params, @features, @fences = name, params, [], []
+      @name, @params, @features = name, params, []
       @params["font-size"] = DEFAULT_FONT_SIZE
     end
     
@@ -113,9 +113,7 @@ module NSWTopo
         end
       end if source.respond_to? :labels
       
-      source.fences.each do |fence|
-        @fences << map.coords_to_mm(fence)
-      end if source.respond_to? :fences
+      fences.concat source.fences if source.respond_to? :fences
     end
     
     Label = Struct.new(:source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :elements, :along) do

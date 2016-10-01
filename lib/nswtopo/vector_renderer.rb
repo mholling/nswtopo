@@ -3,6 +3,10 @@ module NSWTopo
     SVG_PRESENTATION_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
     attr_reader :name, :params
     
+    def fences
+      @fences ||= []
+    end
+    
     def render_svg(xml, map)
       defs = xml.elements["svg/defs"]
       unless map.rotation.zero?
@@ -140,6 +144,14 @@ module NSWTopo
                   container.add_element "use", "transform" => "translate(#{translate}) rotate(#{angle.round 2})", "xlink:href" => "##{symbol_id}"
                 end if dimension == 1
               end
+            when "fence"
+              features.each do |dimension, feature, *|
+                # TODO: record stroke-width for the fence here
+                case dimension
+                when 1 then fences.concat feature.map(&:segments).flatten(1)
+                when 2 then fences.concat feature.map(&:ring).flatten(1)
+                end
+              end if args
             when *SVG_PRESENTATION_ATTRIBUTES
               container.add_attribute command, args
             end

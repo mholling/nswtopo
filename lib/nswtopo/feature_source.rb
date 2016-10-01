@@ -377,7 +377,6 @@ module NSWTopo
               end if options["rotate"]
               features << { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
                 feature["label-only"] = options["label-only"] if options["label-only"]
-                feature["fence"] = options["fence"] if options["fence"]
                 feature["angle"] = angle if angle
                 [ *options["label"] ].map do |key|
                   attributes.fetch(key, key)
@@ -436,20 +435,6 @@ module NSWTopo
           dimension, data, labels, categories = feature.values_at *%w[dimension data labels categories]
           [ dimension, data, labels, [ sublayer, *categories ], sublayer ]
         end
-      end.flatten(1)
-    end
-    
-    def fences
-      layers.map do |sublayer, features|
-        features.select do |feature|
-          feature["fence"]
-        end.map do |feature|
-          case feature["dimension"]
-          when 0 then [ ] # TODO: allow point features to act as fences?
-          when 1 then feature["data"].map(&:segments).flatten(1)
-          when 2 then feature["data"].map(&:ring).flatten(1)
-          end
-        end.flatten(1)
       end.flatten(1)
     end
   end

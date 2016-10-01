@@ -316,7 +316,7 @@ controls:
     
     Dir.mktmppath do |temp_dir|
       if updates.any? do |source|
-        source.respond_to?(:labels) || source.respond_to?(:fences)
+        source.respond_to? :labels
       end || removals.any? do |name|
         xml.elements["/svg/g[@id='labels#{SEGMENT}#{name}']"]
       end then

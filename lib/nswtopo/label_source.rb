@@ -16,98 +16,99 @@ module NSWTopo
     end
     
     def add(source, map)
-      source_name = source.name
-      source_params = params[source_name] || {}
+      source_params = params[source.name] || {}
       sublayers = Set.new
-      source.labels(map).each do |feature|
-        dimension = feature["dimension"]
-        transforms, attributes, *dimensioned_attributes = [ nil, nil, "point", "line", "line" ].map do |category|
-          [ *feature["categories"], *category ].map(&:to_s).reject(&:empty?).join(?\s)
-        end.zip([ TRANSFORMS, ATTRIBUTES, ATTRIBUTES, ATTRIBUTES, ATTRIBUTES ]).map do |categories, keys|
+      source.labels(map).group_by do |dimension, data, labels, categories, sublayer|
+        [ dimension, [ *categories ].map(&:to_s).reject(&:empty?).map(&:to_category).to_set ]
+      end.each do |(dimension, categories), features|
+        transforms, attributes, dimensioned_attributes = [ nil, nil, dimension == 0 ? "point" : "line" ].map do |extra_category|
+          categories | Set[*extra_category]
+        end.zip([ TRANSFORMS, ATTRIBUTES, ATTRIBUTES ]).map do |categories, keys|
           source_params.select do |key, value|
             value.is_a?(Hash)
           end.select do |key, value|
-            [ *key ].any? { |substring| categories.start_with? substring }
+            [ *key ].any? { |string| string.to_s.split.map(&:to_category).to_set <= categories }
           end.values.push("categories" => categories).inject(source_params, &:merge).select do |key, value|
             keys.include? key
           end
         end
-        text = case
-        when feature["labels"].is_a?(REXML::Element)
-          feature["labels"]
-        when attributes["format"]
-          attributes["format"] % feature["labels"]
-        else
-          [ *feature["labels"] ].map(&:to_s).reject(&:empty?).join(?\s)
-        end
-        sublayer = feature["sublayer"]
-        yield sublayer unless sublayers.include? sublayer
-        sublayers << sublayer
-        _, _, _, components = @features.find do |other_text, other_source_name, other_sublayer, _|
-          other_source_name == source_name && other_text == text && other_sublayer == sublayer
-        end if attributes["collate"]
-        unless components
-          components = [ ]
-          @features << [ text, source_name, sublayer, components ]
-        end
-        data = case dimension
-        when 0
-          map.coords_to_mm feature["data"]
-        when 1, 2
-          feature["data"].map do |coords|
-            map.coords_to_mm coords
+        features.each do |_, data, labels, _, sublayer|
+          text = case
+          when labels.is_a?(REXML::Element)
+            labels
+          when attributes["format"]
+            attributes["format"] % labels
+          else
+            [ *labels ].map(&:to_s).reject(&:empty?).join(?\s)
           end
-        end
-        transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (*args))|
-          dimensioned_data.map do |dimension, data|
-            case transform
-            when "reduce"
-              case args.shift
-              when "centrelines"
-                [ 1 ].zip data.centrelines_centrepoints(true, false, *args)
-              when "centrepoints"
-                [ 0 ].zip data.centrelines_centrepoints(false, true, *args)
-              when "centres"
-                [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args)
-              end if dimension == 2
-            when "outset"
-              [ dimension ].zip [ data.outset(dimension == 2, *args) ] if dimension > 0 && args[0]
-            when "inset"
-              [ dimension ].zip [ data.inset(dimension == 2, *args) ] if dimension > 0 && args[0]
-            when "buffer"
-              [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0 && args[0]
-            when "smooth"
-              [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0 && args[0]
-            when "remove"
-              [ ] if args.any? do |value|
-                case value
-                when true    then true
-                when String  then text == value
-                when Regexp  then text =~ value
-                when Numeric then text == value.to_s
+          yield sublayer unless sublayers.include? sublayer
+          sublayers << sublayer
+          _, _, _, components = @features.find do |other_text, other_source_name, other_sublayer, _|
+            other_source_name == source.name && other_text == text && other_sublayer == sublayer
+          end if attributes["collate"]
+          unless components
+            components = [ ]
+            @features << [ text, source.name, sublayer, components ]
+          end
+          data = case dimension
+          when 0
+            map.coords_to_mm data
+          when 1, 2
+            data.map do |coords|
+              map.coords_to_mm coords
+            end
+          end
+          transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (*args))|
+            dimensioned_data.map do |dimension, data|
+              case transform
+              when "reduce"
+                case args.shift
+                when "centrelines"
+                  [ 1 ].zip data.centrelines_centrepoints(true, false, *args)
+                when "centrepoints"
+                  [ 0 ].zip data.centrelines_centrepoints(false, true, *args)
+                when "centres"
+                  [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args)
+                end if dimension == 2
+              when "outset"
+                [ dimension ].zip [ data.outset(dimension == 2, *args) ] if dimension > 0 && args[0]
+              when "inset"
+                [ dimension ].zip [ data.inset(dimension == 2, *args) ] if dimension > 0 && args[0]
+              when "buffer"
+                [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0 && args[0]
+              when "smooth"
+                [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0 && args[0]
+              when "remove"
+                [ ] if args.any? do |value|
+                  case value
+                  when true    then true
+                  when String  then text == value
+                  when Regexp  then text =~ value
+                  when Numeric then text == value.to_s
+                  end
                 end
-              end
-            when "remove-holes"
-              [ dimension ].zip [ data.remove_holes(*args) ] if dimension == 2 && args[0]
-            when "close-gaps"
-              [ dimension ].zip [ data.close_gaps(*args) ] if dimension == 2 && args[0]
-            when "minimum-area"
-              next [ [ dimension, data ] ] unless dimension == 2
-              pruned = data.reject do |points|
-                points.signed_area.abs < args[0]
-              end
-              [ [ dimension, pruned ] ]
-            when "minimum-length"
-              next [ [ dimension, data ] ] unless dimension == 1
-              pruned = data.reject do |points|
-                points.segments.map(&:distance).inject(0.0, &:+) < args[0]
-              end
-              [ [ dimension, pruned ] ]
-            end || [ [ dimension, data ] ]
-          end.flatten(1)
-        end.each do |dimension, data|
-          data.each do |point_or_points|
-            components << [ dimension, point_or_points, dimensioned_attributes[dimension] ]
+              when "remove-holes"
+                [ dimension ].zip [ data.remove_holes(*args) ] if dimension == 2 && args[0]
+              when "close-gaps"
+                [ dimension ].zip [ data.close_gaps(*args) ] if dimension == 2 && args[0]
+              when "minimum-area"
+                next [ [ dimension, data ] ] unless dimension == 2
+                pruned = data.reject do |points|
+                  points.signed_area.abs < args[0]
+                end
+                [ [ dimension, pruned ] ]
+              when "minimum-length"
+                next [ [ dimension, data ] ] unless dimension == 1
+                pruned = data.reject do |points|
+                  points.segments.map(&:distance).inject(0.0, &:+) < args[0]
+                end
+                [ [ dimension, pruned ] ]
+              end || [ [ dimension, data ] ]
+            end.flatten(1)
+          end.each do |dimension, data|
+            data.each do |point_or_points|
+              components << [ dimension, point_or_points, dimensioned_attributes ]
+            end
           end
         end
       end if source.respond_to? :labels
@@ -143,7 +144,7 @@ module NSWTopo
       alias eql? equal?
     end
     
-    def draw(map, &block)
+    def features(map)
       labelling_hull = map.mm_corners(-2)
       fences = RTree.load(@fences) do |fence|
         fence.transpose.map(&:minmax)
@@ -156,8 +157,8 @@ module NSWTopo
           word_spacing   = attributes["word-spacing"]   || 0
           case dimension
           when 0 then yield REXML::Element.new("circle").tap { |circle| circle.add_attributes "r" => 0.3, "stroke" => "none", "fill" => "blue", "cx" => data[0], "cy" => data[1] }, "points"
-          when 1 then yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => data.to_path_data(MM_DECIMAL_DIGITS) }, "lines"
-          when 2 then yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => data.to_path_data(MM_DECIMAL_DIGITS, ?Z) }, "areas"
+          when 1 then yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => [ data ].to_path_data(MM_DECIMAL_DIGITS) }, "lines"
+          when 2 then yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => [ data ].to_path_data(MM_DECIMAL_DIGITS, ?Z) }, "areas"
           end if map.debug
           case dimension
           when 0
@@ -293,7 +294,7 @@ module NSWTopo
               baseline << baseline.last(2).difference.normalised.times(text_length * 0.25).plus(baseline.last)
               path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT
               path_element = REXML::Element.new("path")
-              path_element.add_attributes "id" => path_id, "d" => baseline.to_path_data(MM_DECIMAL_DIGITS), "pathLength" => baseline.path_length.round(MM_DECIMAL_DIGITS)
+              path_element.add_attributes "id" => path_id, "d" => [ baseline ].to_path_data(MM_DECIMAL_DIGITS), "pathLength" => baseline.path_length.round(MM_DECIMAL_DIGITS)
               text_element = REXML::Element.new("text")
               case text
               when REXML::Element
@@ -342,7 +343,7 @@ module NSWTopo
       end.flatten
       
       candidates.each do |candidate|
-        yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => candidate.hull.to_path_data(MM_DECIMAL_DIGITS, ?Z) }, "candidates"
+        yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => [ candidate.hull ].to_path_data(MM_DECIMAL_DIGITS, ?Z) }, "candidates"
       end.clear if map.debug
       
       candidates.map(&:hull).overlaps.map do |indices|
@@ -436,21 +437,8 @@ module NSWTopo
         end
       end
       
-      return if labels.none?
-      
-      labels.group_by(&:source_name).sort_by(&:first).each do |sublayer, labels|
-        labels.group_by(&:categories).each do |categories, labels|
-          REXML::Element.new("g").tap do |group|
-            group.add_attributes "class" => categories
-            labels.map(&:elements).flatten.each do |element|
-              case element.name
-              when "text", "textPath" then group.elements << element
-              when "path" then yield element, sublayer, true
-              end
-            end
-            yield group, sublayer
-          end
-        end
+      labels.map do |label|
+        [ nil, label.elements, label.categories, label.source_name ]
       end
     end
   end

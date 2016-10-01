@@ -25,7 +25,7 @@ module NSWTopo
       end
     end
     
-    def draw(map, &block)
+    def features(map)
       grids(map).map do |zone, utm, grid|
         wgs84_grid = grid.map do |lines|
           utm.reproject_to_wgs84 lines
@@ -40,13 +40,8 @@ module NSWTopo
         end
       end.transpose.map do |lines|
         lines.inject([], &:+)
-      end.zip(%w[eastings northings boundary]).each do |lines, category|
-        REXML::Element.new("g").tap do |group|
-          group.add_attributes("class" => category)
-          lines.each do |line|
-            group.add_element "path", "d" => line.to_path_data(MM_DECIMAL_DIGITS)
-          end
-        end.tap(&block) if lines.any?
+      end.zip(%w[eastings northings boundary]).map do |lines, category|
+        [ 1, lines, category ]
       end
     end
     
@@ -91,10 +86,10 @@ module NSWTopo
             fraction = length / segment_length
             fractions = outgoing ? [ 1.0 - fraction, 1.0 ] : [ 0.0, fraction ]
             baseline = fractions.map { |fraction| segment.along fraction }
-            { "dimension" => 1, "data" => [ baseline ], "labels" => text_path, "categories" => eastings ? "eastings" : "northings" }
+            [ 1, [ baseline ], text_path, eastings ? "eastings" : "northings" ]
           end
         end
-      end.flatten
+      end.flatten(2)
     end
     
     def periodic_labels(map)
@@ -117,11 +112,11 @@ module NSWTopo
               segment_length = 1000.0 * segment.distance / map.scale
               fraction = length / segment_length
               baseline = [ segment.along(0.5 * (1 - fraction)), segment.along(0.5 * (1 + fraction)) ]
-              { "dimension" => 1, "data" => [ baseline ], "labels" => text_path, "categories" => index.zero? ? "eastings" : "northings" }
+              [ 1, [ baseline ], text_path, index.zero? ? "eastings" : "northings" ]
             end
           end
         end
-      end.flatten
+      end.flatten(3)
     end
   end
 end

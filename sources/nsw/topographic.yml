@@ -419,8 +419,8 @@ contours-10m:
   AncillaryContour:
     stroke-dasharray: 3 1
     stroke-width: 0.1
-  samples:
-    DepressionContour:
+  DepressionContour:
+    symbolise:
       interval: 2.0
       line:
         stroke: "#805100"
@@ -436,8 +436,8 @@ contours-20m:
   AncillaryContour:
     stroke-dasharray: 3 1
     stroke-width: 0.1
-  samples:
-    DepressionContour:
+  DepressionContour:
+    symbolise:
       interval: 2.0
       line:
         stroke: "#805100"
@@ -449,15 +449,14 @@ cliffs-excavation:
   CliffTop:
     stroke: "#B04BA9"
     stroke-width: 0.2
-  ExcavationFace:
-    stroke: black
-    stroke-width: 0.12
-  samples:  
-    CliffTop:
+    symbolise:
       interval: 1.0
       line:
         y2: 0.5
-    ExcavationFace:
+  ExcavationFace:
+    stroke: black
+    stroke-width: 0.12
+    symbolise:
       interval: 1.2
       line:
         y2: 0.6
@@ -707,7 +706,7 @@ reefs-rocks:
         d: M -0.5 0 L 0.5 0 M -0.25 0.433 L 0.25 -0.433 M -0.25 -0.433 L 0.25 0.433
 rocky-shore:
   stroke: none
-  sample:
+  symbolise:
     - interval: 0.8
     - path:
         stroke: black
@@ -747,7 +746,7 @@ rocky-shore:
         d: M 859 172 L 710 -47 L 555 -33 L 454 223 L 329 26 L 156 268 L 364 517 L 171 616 L 165 815 L 323 800 L 373 1054 L 538 830 L 696 1021 L 862 958 L 810 719 M 694 170 L 521 57 M 361 271 L 209 197 M 472 409 L 309 448 M 466 648 L 167 736 M 760 863 L 588 889 M 437 825 L 349 927
 breakwaters:
   stroke: none
-  sample:
+  symbolise:
     - interval: 0.8
     - path:
         stroke: black

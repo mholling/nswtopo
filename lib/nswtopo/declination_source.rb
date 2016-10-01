@@ -4,15 +4,23 @@ module NSWTopo
     
     def initialize(name, params)
       @name, @params = name, params
+      @name = name
+      @params = YAML.load %q[---
+        symbol:
+          path:
+            d: M 0 0 L 0.4 2 L 0 1.3 L -0.4 2 Z
+            stroke: none
+      ]
+      @params.merge! params
     end
     
-    def draw(map, &block)
+    def features(map)
       arrows = params["arrows"]
       bl, br, tr, tl = map.coord_corners
       width, height = map.extents
       margin = height * Math::tan((map.rotation + map.declination) * Math::PI / 180.0)
       spacing = params["spacing"] / Math::cos((map.rotation + map.declination) * Math::PI / 180.0)
-      [ [ bl, br ], [ tl, tr ] ].map.with_index do |edge, index|
+      lines = [ [ bl, br ], [ tl, tr ] ].map.with_index do |edge, index|
         [ [ 0, 0 - margin ].min, [ width, width - margin ].max ].map do |extension|
           edge.along (extension + margin * index) / width
         end
@@ -22,26 +30,15 @@ module NSWTopo
         end
       end.transpose.map do |line|
         map.coords_to_mm line
-      end.map.with_index do |points, index|
-        step = arrows || points.distance
+      end.clip_lines(map.mm_corners)
+      return [ [ 1, lines, nil, "lines"] ] unless arrows
+      markers = lines.map.with_index do |points, index|
         start = index.even? ? 0.25 : 0.75
-        (points.distance / step - start).ceil.times.map do |n|
-          points.along (start + n) * step / points.distance
-        end.unshift(points.first).push(points.last)
-      end.tap do |lines|
-        lines.clip_lines! map.mm_corners
-      end.map do |points|
-        points.to_path_data MM_DECIMAL_DIGITS
-      end.map do |d|
-        REXML::Element.new("path").tap do |path|
-          path.add_attributes("d" => d, "fill" => "none", "marker-mid" => arrows ? "url(##{name}#{SEGMENT}marker)" : "none")
+        (points.distance / arrows - start).ceil.times.map do |n|
+          points.along (start + n) * arrows / points.distance
         end
-      end.each(&block)
-      REXML::Element.new("marker").tap do |marker|
-        marker.add_attributes("id" => "#{name}#{SEGMENT}marker", "markerWidth" => 20, "markerHeight" => 8, "viewBox" => "-20 -4 20 8", "orient" => "auto")
-        marker.add_element("path", "d" => "M 0 0 L -20 -4 L -13 0 L -20 4 Z", "stroke" => "none", "fill" => params["stroke"] || "black")
-        yield marker, nil, true
-      end if arrows
+      end.flatten(1)
+      [ [ 1, lines, "lines" ], [ 0, markers, "markers", nil, map.declination ] ]
     rescue ServerError => e
       raise BadLayerError.new(e.message)
     end

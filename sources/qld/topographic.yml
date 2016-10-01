@@ -178,8 +178,8 @@ contours-10m:
     stroke-width: 0.1
   [ Connector-Standard, Connector-Discontinuity, Limit-Of-Data ]:
     stroke: none
-  samples:
-    Depression-Contour:
+  Depression-Contour:
+    symbolise:
       interval: 2.0
       line:
         stroke: "#805100"
@@ -197,8 +197,8 @@ contours-20m:
     stroke-width: 0.1
   [ Connector-Standard, Connector-Discontinuity, Limit-Of-Data ]:
     stroke: none
-  samples:
-    Depression-Contour:
+  Depression-Contour:
+    symbolise:
       interval: 2.0
       line:
         stroke: "#805100"
@@ -208,7 +208,7 @@ mines-quarries:
   stroke: black
   stroke-width: 0.12
   fill: none
-  sample:
+  symbolise:
     interval: 1.2
     line:
       y2: 0.6
@@ -307,7 +307,7 @@ coastline:
   stroke-width: 0.1
 breakwaters:
   stroke: none
-  sample:
+  symbolise:
     - interval: 0.8
     - path:
         stroke: black

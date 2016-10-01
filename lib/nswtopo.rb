@@ -146,6 +146,7 @@ declination:
   arrows: 150
   stroke: darkred
   stroke-width: 0.1
+  fill: darkred
 controls:
   class: ControlSource
   diameter: 7.0
@@ -276,10 +277,6 @@ controls:
       end
     end
     
-    label_params = sources.map do |name, params|
-      [ name, params["labels"] ]
-    end.select(&:last)
-    
     sources.find do |name, params|
       params.fetch("min-version", NSWTOPO_VERSION).to_s > NSWTOPO_VERSION
     end.tap do |name, params|
@@ -289,6 +286,10 @@ controls:
     sources = sources.map do |name, params|
       NSWTopo.const_get(params.delete "class").new(name, params)
     end
+    
+    label_params = sources.map do |source|
+      [ source.name, source.params["labels"] ]
+    end.select(&:last) # TODO: this can be done by LabelSource as it adds lables from each source
     
     sources.each do |source|
       begin
@@ -314,49 +315,42 @@ controls:
     end
     
     Dir.mktmppath do |temp_dir|
-      tmp_svg_path = temp_dir + svg_name
-      tmp_svg_path.open("w") do |file|
-        if updates.any? do |source|
-          source.respond_to?(:labels) || source.respond_to?(:fences)
-        end || removals.any? do |name|
-          xml.elements["/svg/g[@id='labels#{SEGMENT}#{name}']"]
-        end then
-          label_source = LabelSource.new "labels", Hash[label_params]
+      if updates.any? do |source|
+        source.respond_to?(:labels) || source.respond_to?(:fences)
+      end || removals.any? do |name|
+        xml.elements["/svg/g[@id='labels#{SEGMENT}#{name}']"]
+      end then
+        label_source = LabelSource.new "labels", Hash[label_params]
+      end
+      
+      config["exclude"].map do |name|
+        predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}') or @id='labels#{SEGMENT}#{name}' or starts-with(@id,'labels#{SEGMENT}#{name}#{SEGMENT}')"
+        xpath = "/svg/g[#{predicate}] | svg/defs/[#{predicate}]"
+        if xml.elements[xpath]
+          puts "Removing: #{name}"
+          xml.elements.each(xpath, &:remove)
         end
-        
-        config["exclude"].map do |name|
-          predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}') or @id='labels#{SEGMENT}#{name}' or starts-with(@id,'labels#{SEGMENT}#{name}#{SEGMENT}')"
-          xpath = "/svg/g[#{predicate}] | svg/defs/[#{predicate}]"
-          if xml.elements[xpath]
-            puts "Removing: #{name}"
-            xml.elements.each(xpath, &:remove)
+      end
+      
+      [ *updates, *label_source ].each do |source|
+        begin
+          if source == label_source
+            puts "Processing label data:"
+            sources.each do |source|
+              label_source.add(source, map) do |sublayer|
+                puts "  #{[ source.name, *sublayer ].join SEGMENT}"
+              end
+            end
           end
-        end
-        
-        [ *updates, *label_source ].each do |source|
-          begin
-            puts "Compositing: #{source.name}"
-            predicate = "@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')"
-            xml.elements.each("/svg/g[#{predicate}]/*", &:remove)
-            xml.elements.each("/svg/defs/[#{predicate}]", &:remove)
-            if source == label_source
-              sources.each do |source|
-                label_source.add(source, map) do |sublayer|
-                  puts "  #{[ source.name, *sublayer ].join SEGMENT}"
-                end
-              end
-              puts "Choosing label positions"
-              label_source.render_svg(xml, map) do |sublayer|
-                id = [ label_source.name, *sublayer ].join(SEGMENT)
-                xml.elements["/svg/g[@id='#{id}']"] || xml.elements["/svg"].add_element("g", "id" => id, "style" => "opacity:1")
-              end
-            elsif xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"]
-              source.render_svg(xml, map) do |sublayer|
-                id = [ source.name, *sublayer ].join(SEGMENT)
-                xml.elements["/svg/g[@id='#{id}']"].tap do |group|
-                  source.params["exclude"] << sublayer unless group
-                end
-              end
+          puts "Compositing: #{source.name}"
+          predicate = "@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')"
+          xml.elements.each("/svg/g[#{predicate}]/*", &:remove)
+          xml.elements.each("/svg/defs/[#{predicate}]", &:remove)
+          preexisting = xml.elements["/svg/g[#{predicate}]"]
+          source.render_svg(xml, map) do |sublayer|
+            id = [ source.name, *sublayer ].join(SEGMENT)
+            if preexisting
+              xml.elements["/svg/g[@id='#{id}']"]
             else
               before, after = sources.map(&:name).inject([[]]) do |memo, name|
                 name == source.name ? memo << [] : memo.last << name
@@ -367,35 +361,35 @@ controls:
                   sibling.attributes["id"] == name || sibling.attributes["id"].start_with?("#{name}#{SEGMENT}")
                 end
               end.compact.first
-              source.render_svg(xml, map) do |sublayer|
-                id = [ source.name, *sublayer ].join(SEGMENT)
-                REXML::Element.new("g").tap do |group|
-                  group.add_attributes "id" => id, "style" => "opacity:1"
-                  neighbour ? xml.elements["/svg"].insert_before(neighbour, group) : xml.elements["/svg"].add_element(group)
-                end
+              REXML::Element.new("g").tap do |group|
+                group.add_attributes "id" => id, "style" => "opacity:1"
+                neighbour ? xml.elements["/svg"].insert_before(neighbour, group) : xml.elements["/svg"].add_element(group)
               end
             end
-          rescue BadLayerError => e
-            puts "Failed to render #{source.name}: #{e.message}"
           end
+        rescue BadLayerError => e
+          puts "Failed to render #{source.name}: #{e.message}"
         end
-        
-        xml.elements.each("/svg/g[*]") { |group| group.add_attribute("inkscape:groupmode", "layer") }
-        
-        if config["check-fonts"]
-          fonts_needed = xml.elements.collect("//[@font-family]") do |element|
-            element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")
-          end.uniq
-          fonts_present = %x[identify -list font].scan(/(family|font):(.*)/i).map(&:last).flatten.map do |family|
-            family.gsub(/[\s\-]/, "")
-          end.uniq
-          fonts_missing = fonts_needed - fonts_present
-          if fonts_missing.any?
-            puts "Your system does not include some fonts used in #{svg_name}. (Inkscape will not render these fonts correctly.)"
-            fonts_missing.sort.each { |family| puts "  #{family}" }
-          end
+      end
+      
+      xml.elements.each("/svg/g[*]") { |group| group.add_attribute("inkscape:groupmode", "layer") }
+      
+      if config["check-fonts"]
+        fonts_needed = xml.elements.collect("//[@font-family]") do |element|
+          element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")
+        end.uniq
+        fonts_present = %x[identify -list font].scan(/(family|font):(.*)/i).map(&:last).flatten.map do |family|
+          family.gsub(/[\s\-]/, "")
+        end.uniq
+        fonts_missing = fonts_needed - fonts_present
+        if fonts_missing.any?
+          puts "Your system does not include some fonts used in #{svg_name}. (Inkscape will not render these fonts correctly.)"
+          fonts_missing.sort.each { |family| puts "  #{family}" }
         end
-        
+      end
+      
+      tmp_svg_path = temp_dir + svg_name
+      tmp_svg_path.open("w") do |file|
         formatter = REXML::Formatters::Pretty.new
         formatter.compact = true
         formatter.write xml, file

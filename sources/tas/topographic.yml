@@ -291,8 +291,8 @@ contours-5m:
     stroke-width: 0.24
   [ Auxiliary-Contour, Auxiliary-Dep-Contour, Intermediate-Dep-Form-Line, Intermediate-Form-Line, Index-Depression-Form-Line, Index-Form-Line ]:
     stroke-dasharray: 3 1
-  samples:
-    [ Intermediate-Dep-Contour, Auxiliary-Dep-Contour, Intermediate-Dep-Form-Line, Index-Depression-Contour, Index-Depression-Form-Line ]:
+  [ Intermediate-Dep-Contour, Auxiliary-Dep-Contour, Intermediate-Dep-Form-Line, Index-Depression-Contour, Index-Depression-Form-Line ]:
+    symbolise:
       interval: 2.0
       line:
         stroke: "#805100"
@@ -303,8 +303,8 @@ contours-10m:
   stroke-width: 0.12
   [ Index-Contour, Index-Depression-Contour ]:
     stroke-width: 0.24
-  samples:
-    [ Intermediate-Dep-Contour, Index-Depression-Contour ]:
+  [ Intermediate-Dep-Contour, Index-Depression-Contour ]:
+    symbolise:
       interval: 2.0
       line:
         stroke: "#805100"
@@ -315,8 +315,8 @@ contours-20m:
   stroke-width: 0.12
   [ Index-Contour, Index-Depression-Contour ]:
     stroke-width: 0.24
-  samples:
-    [ Intermediate-Dep-Contour, Index-Depression-Contour ]:
+  [ Intermediate-Dep-Contour, Index-Depression-Contour ]:
+    symbolise:
       interval: 2.0
       line:
         stroke: "#805100"

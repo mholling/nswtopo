@@ -225,8 +225,8 @@ contours-10m:
   stroke-width: 0.12
   [ contour_index, contour_dep_index ]:
     stroke-width: 0.24
-  samples:
-    [ contour_dep, contour_dep_index ]:
+  [ contour_dep, contour_dep_index ]:
+    symbolise:
       interval: 2.0
       line:
         stroke: "#805100"
@@ -236,7 +236,7 @@ excavation:
   fill: none
   stroke: black
   stroke-width: 0.12
-  sample:
+  symbolise:
     interval: 1.2
     line:
       y2: -0.6

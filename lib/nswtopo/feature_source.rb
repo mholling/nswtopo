@@ -5,7 +5,6 @@ module NSWTopo
     
     def initialize(name, params)
       @name, @params = name, params
-      @sublayers = params["features"].keys
       @path = Pathname.pwd + "#{name}.json"
     end
     
@@ -414,63 +413,35 @@ module NSWTopo
       end
     end
     
-    def draw(map)
+    def features(map)
       layers.map do |sublayer, features|
         [ sublayer, features.reject { |feature| feature["label-only"] } ]
-      end.reject do |sublayer, features|
-        features.empty?
-      end.each do |sublayer, features|
-        puts "  #{sublayer}"
-        features.group_by do |feature|
-          feature["categories"].reject(&:empty?).join(?\s)
-        end.map do |categories, features|
-          group = REXML::Element.new("g")
-          group.add_attributes "class" => categories, "id" => [ name, *sublayer, *categories.split(?\s) ].join(SEGMENT) unless categories.empty?
-          features.each do |feature|
-            case feature["dimension"]
-            when 0
-              angle = feature["angle"]
-              map.coords_to_mm(feature["data"]).round(MM_DECIMAL_DIGITS).each do |x, y|
-                transform = "translate(#{x} #{y}) rotate(#{angle || -map.rotation})"
-                group.add_element "use", "transform" => transform
-              end
-            when 1, 2
-              close, fill_options = case feature["dimension"]
-              when 1 then [ nil, { "fill" => "none" }         ]
-              when 2 then [ ?Z,  { "fill-rule" => "nonzero" } ]
-              end
-              feature["data"].reject(&:empty?).map do |coords|
-                map.coords_to_mm coords
-              end.map do |points|
-                case k = params[sublayer] && params[sublayer]["bezier"]
-                when Numeric then points.to_bezier(k, MM_DECIMAL_DIGITS, *close)
-                when true    then points.to_bezier(1, MM_DECIMAL_DIGITS, *close)
-                else              points.to_path_data(MM_DECIMAL_DIGITS, *close)
-                end
-              end.tap do |subpaths|
-                group.add_element "path", fill_options.merge("d" => subpaths.join(?\s)) if subpaths.any?
-              end
-            end
+      end.map do |sublayer, features|
+        features.map do |feature|
+          dimension, angle = feature.values_at "dimension", "angle"
+          categories = feature["categories"].reject(&:empty?)
+          points_or_lines = feature["data"].map do |coords|
+            map.coords_to_mm coords
           end
-          yield group, sublayer
+          [ dimension, points_or_lines, categories, sublayer, *angle ]
         end
-      end
+      end.flatten(1)
     end
     
     def labels(map)
-      layers.inject([]) do |memo, (sublayer, features)|
-        memo += features.select do |feature|
+      layers.map do |sublayer, features|
+        features.select do |feature|
           feature.key?("labels")
-        end.map(&:dup).each do |feature|
-          feature["categories"].unshift sublayer
-          feature["sublayer"] = sublayer
+        end.map do |feature|
+          dimension, data, labels, categories = feature.values_at *%w[dimension data labels categories]
+          [ dimension, data, labels, [ sublayer, *categories ], sublayer ]
         end
-      end
+      end.flatten(1)
     end
     
     def fences
-      layers.inject([]) do |memo, (sublayer, features)|
-        memo += features.select do |feature|
+      layers.map do |sublayer, features|
+        features.select do |feature|
           feature["fence"]
         end.map do |feature|
           case feature["dimension"]
@@ -479,7 +450,7 @@ module NSWTopo
           when 2 then feature["data"].map(&:ring).flatten(1)
           end
         end.flatten(1)
-      end
+      end.flatten(1)
     end
   end
   

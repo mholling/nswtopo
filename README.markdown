@@ -278,7 +278,7 @@ Specify the colour, width and/or opacity of the overlays as follows:
     tracks:
       stroke: red           # mark tracks in red...
       stroke-width: 0.2     # ...with a width of 0.2mm
-      dash: 4 2             # add a 4mm/2mm dash to the track, if desired
+      stroke-dasharray: 4 2 # add a 4mm/2mm dash to the track, if desired
 
 For waypoints, specify a symbol using a [path](http://www.w3.org/TR/SVG/paths.html#PathElement):
 
@@ -470,12 +470,12 @@ In the following example, we change the colour of contours to black, and give a 
     - nsw/topographic
     - route.kml
     nsw.topographic.contours-10m:
-      stroke: black      # change contour colour to black
+      stroke: black         # change contour colour to black
     route:
-      opacity: 0.5       # set the route overlay to 50% opacity ...
-      stroke: "#0000CC"  # ... with a blue colour ...
-      stroke-width: 1.0  # ... a 1.0 millimetre width ...
-      dash: 4 1          # ... and dashed with 4mm dash and 1mm space.
+      opacity: 0.5          # set the route overlay to 50% opacity ...
+      stroke: "#0000CC"     # ... with a blue colour ...
+      stroke-width: 1.0     # ... a 1.0 millimetre width ...
+      stroke-dasharray: 4 1 # ... and dashed with 4mm dash and 1mm space.
 
 If a topographic layer contains several different colours or feature categories, you may need to override the colours according to category. For example, to change the colour of sealed and unsealed roads:
 

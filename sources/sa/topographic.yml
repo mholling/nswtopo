@@ -165,8 +165,8 @@ contours:
     stroke-width: 0.24
   [ 5002-Contour-standard, 5005-Depression-Contour-standard ]:
     stroke-width: 0.12
-  samples:
-    [ 5005-Depression-Contour-standard, 5030-Index-Depression-Contour ]:
+  [ 5005-Depression-Contour-standard, 5030-Index-Depression-Contour ]:
+    symbolise:
       interval: 2.0
       line:
         stroke: "#805100"

@@ -26,13 +26,13 @@ module NSWTopo
         stroke-width: 0.2
     ]
     
-    def initialize(name, params)
-      @name, @features = name, []
-      @params = YAML.load(PARAMS).merge(params)
+    def initialize
+      @name, @features = "labels", []
+      @params = YAML.load(PARAMS)
     end
     
     def add(source, map)
-      source_params = params[source.name] || {}
+      source_params = params[source.name] = source.params[name]
       sublayers = Set.new
       source.labels(map).group_by do |dimension, data, labels, categories, sublayer|
         [ dimension, [ *categories ].map(&:to_s).reject(&:empty?).map(&:to_category).to_set ]

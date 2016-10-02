@@ -286,10 +286,6 @@ controls:
       NSWTopo.const_get(params.delete "class").new(name, params)
     end
     
-    label_params = sources.map do |source|
-      [ source.name, source.params["labels"] ]
-    end.select(&:last) # TODO: this can be done by LabelSource as it adds lables from each source
-    
     sources.each do |source|
       begin
         source.create(map) if source.respond_to?(:create)
@@ -319,7 +315,7 @@ controls:
       end || removals.any? do |name|
         xml.elements["/svg/g[@id='labels#{SEGMENT}#{name}']"]
       end then
-        label_source = LabelSource.new "labels", Hash[label_params]
+        label_source = LabelSource.new
       end
       
       config["exclude"].map do |name|

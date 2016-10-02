@@ -9,10 +9,26 @@ module NSWTopo
     DEFAULT_MAX_TURN  = 60
     DEFAULT_MAX_ANGLE = 25
     DEFAULT_SAMPLE    = 5
+    PARAMS = %Q[
+      font-size: #{DEFAULT_FONT_SIZE}
+      debug:
+        fill: none
+      debug feature:
+        stroke: blue
+        stroke-width: 0.2
+        symbol:
+          circle:
+            r: 0.3
+            stroke: none
+            fill: blue
+      debug candidate:
+        stroke: red
+        stroke-width: 0.2
+    ]
     
     def initialize(name, params)
-      @name, @params, @features = name, params, []
-      @params["font-size"] = DEFAULT_FONT_SIZE
+      @name, @features = name, []
+      @params = YAML.load(PARAMS).merge(params)
     end
     
     def add(source, map)
@@ -143,7 +159,7 @@ module NSWTopo
     end
     
     def features(map)
-      labelling_hull = map.mm_corners(-2)
+      labelling_hull, debug_features = map.mm_corners(-2), []
       fences = RTree.load(@fences) do |fence, buffer|
         fence.transpose.map(&:minmax).map do |min, max|
           [ min - buffer, max + buffer ]
@@ -155,11 +171,7 @@ module NSWTopo
           font_size      = attributes["font-size"]      || DEFAULT_FONT_SIZE
           letter_spacing = attributes["letter-spacing"] || 0
           word_spacing   = attributes["word-spacing"]   || 0
-          case dimension
-          when 0 then yield REXML::Element.new("circle").tap { |circle| circle.add_attributes "r" => 0.3, "stroke" => "none", "fill" => "blue", "cx" => data[0], "cy" => data[1] }, "points"
-          when 1 then yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => [ data ].to_path_data(MM_DECIMAL_DIGITS) }, "lines"
-          when 2 then yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.2", "stroke" => "blue", "fill" => "none", "d" => [ data ].to_path_data(MM_DECIMAL_DIGITS, ?Z) }, "areas"
-          end if map.debug
+          debug_features << [ dimension, [ data ], %w[debug feature] ] if map.debug
           case dimension
           when 0
             # TODO: can we prioritise by position in component list as well (in the case of skeleton centres)?
@@ -342,9 +354,12 @@ module NSWTopo
         end
       end.flatten
       
-      candidates.each do |candidate|
-        yield REXML::Element.new("path").tap { |path| path.add_attributes "stroke-width" => "0.1", "stroke" => "red", "fill" => "none", "d" => [ candidate.hull ].to_path_data(MM_DECIMAL_DIGITS, ?Z) }, "candidates"
-      end.clear if map.debug
+      if map.debug
+        candidates.each do |candidate|
+          debug_features << [ 2, [ candidate.hull ], %w[debug candidate] ]
+        end
+        return debug_features
+      end
       
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices

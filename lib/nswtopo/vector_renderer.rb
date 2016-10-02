@@ -56,11 +56,12 @@ module NSWTopo
           [ categories, features, container, content ]
         end.each do |categories, features, container, content|
           ids = [ name, *sublayer, *categories ]
-          sublayer_actions.select do |command, args|
+          commands = sublayer_actions.select do |command, args|
             [ command ].flatten.any? do |filter|
               filter.to_s.split.to_set <= categories
             end
-          end.values.inject(sublayer_actions, &:merge).each do |command, args|
+          end.values.inject(sublayer_actions, &:merge)
+          commands.each do |command, args|
             args = args.map(&:to_a).inject([], &:+) if Array === args && args.all? { |arg| Hash === arg }
             case command
             when "opacity"
@@ -69,16 +70,6 @@ module NSWTopo
               else
                 container.add_attribute "opacity", args
               end
-            when "bezier"
-              next unless content && args
-              args = 1 if args == true
-              features.each do |dimension, lines, *|
-                case dimension
-                when 1 then content.add_element "path", "fill" => "none", "d" => lines.to_bezier(args, MM_DECIMAL_DIGITS)
-                when 2 then content.add_element "path", "fill-rule" => "nonzero", "d" => lines.to_bezier(args, MM_DECIMAL_DIGITS, true)
-                end
-              end.clear
-              # TODO: clearing the data might break the 'fences' feature when we implement it
             when "symbol"
               next unless content
               symbol_id = [ *ids, "symbol"].join(SEGMENT)
@@ -136,18 +127,27 @@ module NSWTopo
                   end
                 end if dimension == 1
               end
-            when "fence"
-              next unless content && args
-              features.each do |dimension, feature, *|
-                # TODO: record stroke-width for the fence here
-                case dimension
-                when 1 then fences.concat feature.map(&:segments).flatten(1)
-                when 2 then fences.concat feature.map(&:ring).flatten(1)
-                end
-              end
             when *SVG_PRESENTATION_ATTRIBUTES
               container.add_attribute command, args
             end
+          end
+          if args = commands["fence"]
+            features.each do |dimension, feature, *|
+              # TODO: record stroke-width for the fence here
+              case dimension
+              when 1 then fences.concat feature.map(&:segments).flatten(1)
+              when 2 then fences.concat feature.map(&:ring).flatten(1)
+              end
+            end if content
+          end
+          if args = commands["bezier"]
+            args = 1 if args == true
+            features.each do |dimension, lines, *|
+              case dimension
+              when 1 then content.add_element "path", "fill" => "none", "d" => lines.to_bezier(args, MM_DECIMAL_DIGITS)
+              when 2 then content.add_element "path", "fill-rule" => "nonzero", "d" => lines.to_bezier(args, MM_DECIMAL_DIGITS, true)
+              end
+            end.clear if content
           end
         end.each do |categories, features, container, content|
           features.each do |dimension, feature, _, _, angle|

@@ -144,8 +144,10 @@ module NSWTopo
     
     def features(map)
       labelling_hull = map.mm_corners(-2)
-      fences = RTree.load(@fences) do |fence|
-        fence.transpose.map(&:minmax)
+      fences = RTree.load(@fences) do |fence, buffer|
+        fence.transpose.map(&:minmax).map do |min, max|
+          [ min - buffer, max + buffer ]
+        end
       end
       
       candidates = @features.map.with_index do |(text, source_name, sublayer, components), feature|
@@ -187,8 +189,8 @@ module NSWTopo
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
               next unless labelling_hull.surrounds?(hull).all?
-              fence = fences.search(hull.transpose.map(&:minmax)).any? do |fence|
-                [ hull, fence ].overlap?
+              fence = fences.search(hull.transpose.map(&:minmax)).any? do |fence, buffer|
+                [ hull, fence ].overlap?(buffer)
               end
               priority = [ fence ? 1 : 0, index ]
               Label.new source_name, sublayer, feature, component, priority, hull, attributes, text_elements
@@ -276,9 +278,9 @@ module NSWTopo
               bounds = baseline.transpose.map(&:minmax).map do |min, max|
                 [ min - 0.5 * font_size, max + 0.5 * font_size ]
               end
-              fence = fences.search(bounds).any? do |fence|
+              fence = fences.search(bounds).any? do |fence, buffer|
                 baseline.segments.any? do |segment|
-                  [ segment, fence ].overlap?(0.5 * font_size)
+                  [ segment, fence ].overlap?(buffer + 0.5 * font_size)
                 end
               end
               priority = [ fence ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f ]

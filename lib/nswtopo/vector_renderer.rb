@@ -53,6 +53,7 @@ module NSWTopo
             container = group.add_element "g", "class" => categories.map(&:to_s).join(?\s)
             content = container.add_element "g", "id" => [ *ids, "content" ].join(SEGMENT)
           end
+          container.add_attribute "id", ids.join(SEGMENT) if categories.any?
           [ categories, features, container, content ]
         end.each do |categories, features, container, content|
           ids = [ name, *sublayer, *categories ]

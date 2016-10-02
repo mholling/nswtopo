@@ -6,8 +6,8 @@ module NSWTopo
     
     def self.style
       lambda do |style|
-        style.add_element("ListStyle", "id" => "hideChildren") do |list_style|
-          list_style.add_element("listItemType") { |type| type.text = "checkHideChildren" }
+        style.add_element("ListStyle", "id" => "hideChildren").tap do |list_style|
+          list_style.add_element("listItemType").text = "checkHideChildren"
         end
       end
     end
@@ -15,27 +15,27 @@ module NSWTopo
     def self.lat_lon_box(bounds)
       lambda do |box|
         [ %w[west east south north], bounds.flatten ].transpose.each do |limit, value|
-          box.add_element(limit) { |lim| lim.text = value }
+          box.add_element(limit).text = value
         end
       end
     end
     
     def self.region(bounds, topmost = false)
       lambda do |region|
-        region.add_element("Lod") do |lod|
-          lod.add_element("minLodPixels") { |min| min.text = topmost ? 0 : TILE_SIZE / 2 }
-          lod.add_element("maxLodPixels") { |max| max.text = -1 }
+        region.add_element("Lod").tap do |lod|
+          lod.add_element("minLodPixels").text = topmost ? 0 : TILE_SIZE / 2
+          lod.add_element("maxLodPixels").text = -1
         end
-        region.add_element("LatLonAltBox", &lat_lon_box(bounds))
+        region.add_element("LatLonAltBox").tap(&lat_lon_box(bounds))
       end
     end
     
     def self.network_link(bounds, path)
       lambda do |network|
-        network.add_element("Region", &region(bounds))
-        network.add_element("Link") do |link|
-          link.add_element("href") { |href| href.text = path }
-          link.add_element("viewRefreshMode") { |mode| mode.text = "onRegion" }
+        network.add_element("Region").tap(&region(bounds))
+        network.add_element("Link").tap do |link|
+          link.add_element("href").text = path
+          link.add_element("viewRefreshMode").text = "onRegion"
           link.add_element("viewFormat")
         end
       end
@@ -97,16 +97,14 @@ module NSWTopo
             
             xml = REXML::Document.new
             xml << REXML::XMLDecl.new(1.0, "UTF-8")
-            xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
-              kml.add_element("Document") do |document|
-                document.add_element("Style", &style)
-                document.add_element("Region", &region(tile_bounds, true))
-                document.add_element("GroundOverlay") do |overlay|
-                  overlay.add_element("drawOrder") { |draw_order| draw_order.text = zoom }
-                  overlay.add_element("Icon") do |icon|
-                    icon.add_element("href") { |href| href.text = tile_png_name }
-                  end
-                  overlay.add_element("LatLonBox", &lat_lon_box(tile_bounds))
+            xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
+              kml.add_element("Document").tap do |document|
+                document.add_element("Style").tap(&style)
+                document.add_element("Region").tap(&region(tile_bounds, true))
+                document.add_element("GroundOverlay").tap do |overlay|
+                  overlay.add_element("drawOrder").text = zoom
+                  overlay.add_element("Icon").add_element("href").text = tile_png_name
+                  overlay.add_element("LatLonBox").tap(&lat_lon_box(tile_bounds))
                 end
                 if zoom < max_zoom
                   indices.map do |index|
@@ -114,7 +112,7 @@ module NSWTopo
                   end.inject(:product).select do |subindices|
                     pyramid[zoom + 1][subindices]
                   end.each do |subindices|
-                    document.add_element("NetworkLink", &network_link(pyramid[zoom + 1][subindices], "../../#{[ zoom+1, *subindices ].join ?/}.kml"))
+                    document.add_element("NetworkLink").tap(&network_link(pyramid[zoom + 1][subindices], "../../#{[ zoom+1, *subindices ].join ?/}.kml"))
                   end
                 end
               end
@@ -135,18 +133,18 @@ module NSWTopo
         
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new(1.0, "UTF-8")
-        xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1") do |kml|
-          kml.add_element("Document") do |document|
-            document.add_element("LookAt") do |look_at|
+        xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
+          kml.add_element("Document").tap do |document|
+            document.add_element("LookAt").tap do |look_at|
               range_x = map.extents.first / 2.0 / Math::tan(FOV) / Math::cos(TILT)
               range_y = map.extents.last / Math::cos(FOV - TILT) / 2 / (Math::tan(FOV - TILT) + Math::sin(TILT))
               names_values = [ %w[longitude latitude], map.projection.reproject_to_wgs84(map.centre) ].transpose
               names_values << [ "tilt", TILT * 180.0 / Math::PI ] << [ "range", 1.2 * [ range_x, range_y ].max ] << [ "heading", -map.rotation ]
-              names_values.each { |name, value| look_at.add_element(name) { |element| element.text = value } }
+              names_values.each { |name, value| look_at.add_element(name).text = value }
             end
-            document.add_element("Name") { |name| name.text = map.name }
-            document.add_element("Style", &style)
-            document.add_element("NetworkLink", &network_link(pyramid[0][[0,0]], "0/0/0.kml"))
+            document.add_element("Name").text = map.name
+            document.add_element("Style").tap(&style)
+            document.add_element("NetworkLink").tap(&network_link(pyramid[0][[0,0]], "0/0/0.kml"))
           end
         end
         kml_path = kmz_dir + "doc.kml"

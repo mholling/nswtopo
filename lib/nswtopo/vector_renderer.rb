@@ -92,7 +92,7 @@ module NSWTopo
               # TODO: clearing the data might break the 'fences' feature when we implement it
             when "symbol"
               symbol_id = [ *ids, "symbol"].join(SEGMENT)
-              defs.add_element "g", "id" => symbol_id do |symbol|
+              defs.add_element("g", "id" => symbol_id).tap do |symbol|
                 args.each { |element, attributes| symbol.add_element element, attributes }
               end
             when "pattern"
@@ -100,7 +100,7 @@ module NSWTopo
               width  = args.delete(args.find { |key, value| key == "width"  }).last
               height = args.delete(args.find { |key, value| key == "height" }).last
               pattern_id = [ *ids, "pattern"].join(SEGMENT)
-              defs.add_element "pattern", "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})", "width" => width, "height" => height do |pattern|
+              defs.add_element("pattern", "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})", "width" => width, "height" => height).tap do |pattern|
                 args.each { |element, attributes| pattern.add_element element, attributes }
               end
               container.add_attribute "fill", "url(##{pattern_id})"
@@ -109,9 +109,7 @@ module NSWTopo
               interval = args.delete(args.find { |key, value| key == "interval" }).last
               symbol_ids = args.map.with_index do |(element, attributes), index|
                 [ *ids, "symbol", index ].join(SEGMENT).tap do |symbol_id|
-                  defs.add_element "g", "id" => symbol_id do |symbol|
-                    symbol.add_element element, attributes
-                  end
+                  defs.add_element("g", "id" => symbol_id).add_element(element, attributes)
                 end
               end
               features.each do |dimension, feature, *|
@@ -130,7 +128,7 @@ module NSWTopo
               end
             when "inpoint", "outpoint"
               symbol_id = [ *ids, command ].join(SEGMENT)
-              defs.add_element "g", "id" => symbol_id do |symbol|
+              defs.add_element("g", "id" => symbol_id).tap do |symbol|
                 args.each { |element, attributes| symbol.add_element element, attributes }
               end
               features.each do |dimension, feature, *|

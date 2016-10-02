@@ -46,15 +46,11 @@ module NSWTopo
           defs = xml.elements["//svg/defs"]
           filter_id, mask_id = "#{name}#{SEGMENT}filter", "#{name}#{SEGMENT}mask"
           defs.elements.each("[@id='#{filter_id}' or @id='#{mask_id}']", &:remove)
-          defs.add_element("filter", "id" => filter_id) do |filter|
-            filter.add_element "feColorMatrix", "type" => "matrix", "in" => "SourceGraphic", "values" => "0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 -1 1"
-          end
-          defs.add_element("mask", "id" => mask_id) do |mask|
-            mask.add_element("g", "filter" => "url(##{filter_id})") do |g|
-              g.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "none", "stroke" => "none"
-              [ *params["masks"] ].each do |id|
-                g.add_element "use", "xlink:href" => "##{id}"
-              end
+          defs.add_element("filter", "id" => filter_id).add_element "feColorMatrix", "type" => "matrix", "in" => "SourceGraphic", "values" => "0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 -1 1"
+          defs.add_element("mask", "id" => mask_id).add_element("g", "filter" => "url(##{filter_id})").tap do |g|
+            g.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "none", "stroke" => "none"
+            [ *params["masks"] ].each do |id|
+              g.add_element "use", "xlink:href" => "##{id}"
             end
           end
           layer.add_element("g", "mask" => "url(##{mask_id})")

@@ -202,7 +202,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "height" => "#{millimetres[1]}mm",
           "viewBox" => "0 0 #{millimetres[0]} #{millimetres[1]}",
         }
-        xml.add_element("svg", attributes) do |svg|
+        xml.add_element("svg", attributes).tap do |svg|
           svg.add_element("sodipodi:namedview", "borderlayer" => true)
           svg.add_element("defs")
           svg.add_element("rect", "x" => 0, "y" => 0, "width" => millimetres[0], "height" => millimetres[1], "fill" => "white")

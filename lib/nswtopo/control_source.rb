@@ -4,20 +4,23 @@ module NSWTopo
     attr_reader :path
     
     PARAMS = %q[
-      symbols:
-        control:
-          circle:
+      control:
+        symbol:
+        - circle:
             r: 1.0
             fill: none
-        hashhouse:
+      hashhouse:
+        symbol:
           path:
             d: M 0.0 -1.0 L -0.866 0.5 L 0.866 0.5 Z
             fill: none
-        anc:
+      anc:
+        symbol:
           path:
             d: M 0.7071 0.7071 L -0.7071 0.7071 L -0.7071 -0.7071 L 0.7071 -0.7071 Z
             fill: none
-        water:
+      water:
+        symbol:
           path:
             d:
               M 0 0 m -0.63954,0.063887 -0.0040064,0.32652 0.33453,0.034055 0,-0.38261 -0.33052,0.022034 z
@@ -36,8 +39,10 @@ module NSWTopo
       @name = name
       @path = Pathname.new(params["path"]).expand_path
       radius = 0.5 * params["diameter"]
-      # spot_radius = 0.5  *  params["spot-diameter"] if params["spot-diameter"] # TODO
-      @params = YAML.load(PARAMS.gsub(/\-?\d\.\d+/) { |number| "%.5g" % (number.to_f * radius) }).deep_merge(params)
+      @params = YAML.load(PARAMS.gsub(/\-?\d\.\d+/) { |number| "%.5g" % (number.to_f * radius) })
+      spot_radius = 0.5  *  params["spot-diameter"] if params["spot-diameter"]
+      @params["control"]["symbol"] << { "circle" => { "r" => 0.5 * spot_radius, "stroke-width" => spot_radius, "fill" => "none" } } if spot_radius
+      @params.deep_merge! params
     end
     
     def types_waypoints

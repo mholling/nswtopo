@@ -298,10 +298,11 @@ For each type of overlay (area, track or waypoint), multiple styles can be appli
       day2:       # applied to track with name 'day2'
         ...
     waypoints:
-      symbols:
-        fishing:  # applied to waypoints with name 'fishing'
+      fishing:
+        symbol:   # applied to waypoints with name 'fishing'
           ...
-        camping:  # applied to waypoints with name 'camping'
+      camping:
+        symbol:   # applied to waypoints with name 'camping'
           ...
 
 Build or rebuild your map by running the script to add the overlays.

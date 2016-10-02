@@ -29,19 +29,7 @@ module NSWTopo
         next unless group = yield(sublayer)
         puts "  #{sublayer}" if sublayer
         group.add_attributes("transform" => transform) if transform
-        sublayer_actions = [ *params, *params[sublayer] ].map do |command, args|
-          # TODO: change map recipes and then remove these:
-          case command
-          when "symbols"    then args.map { |category, symbol|   [ category, { "symbol"   => symbol   } ] }.to_h
-          when "patterns"   then args.map { |category, pattern|  [ category, { "pattern"  => pattern  } ] }.to_h
-          when "dupes"      then args.map { |category, dupe|     [ category, { "dupe"     => dupe     } ] }.to_h
-          when "inpoints"   then args.map { |category, inpoint|  [ category, { "inpoint"  => inpoint  } ] }.to_h
-          when "outpoints"  then args.map { |category, outpoint| [ category, { "outpoint" => outpoint } ] }.to_h
-          when "endpoints"  then args.map { |category, endpoint| [ category, { "inpoint"  => endpoint, "outpoint" => endpoint } ] }.to_h
-          when "endpoint"   then { "inpoint" => args , "outpoints" => args }
-          else { command => args }
-          end
-        end.inject({}, &:deep_merge)
+        sublayer_actions = params.merge params.fetch(sublayer, {})
         
         features.reject do |dimension, feature, *|
           feature.empty?
@@ -126,20 +114,22 @@ module NSWTopo
                   end
                 end if dimension == 1
               end
-            when "inpoint", "outpoint"
+            when "inpoint", "outpoint", "endpoint"
               symbol_id = [ *ids, command ].join(SEGMENT)
               defs.add_element("g", "id" => symbol_id).tap do |symbol|
                 args.each { |element, attributes| symbol.add_element element, attributes }
               end
               features.each do |dimension, feature, *|
                 feature.each do |line|
-                  segment = case command
-                  when "inpoint"  then line.first(2)
-                  when "outpoint" then line.last(2).rotate
+                  case command
+                  when "inpoint"  then [ line.first(2) ]
+                  when "outpoint" then [ line.last(2).rotate ]
+                  when "endpoint" then [ line.first(2), line.last(2).rotate ]
+                  end.each do |segment|
+                    angle = 180.0 * segment.difference.angle / Math::PI
+                    translate = segment[0].round(MM_DECIMAL_DIGITS).join ?\s
+                    container.add_element "use", "transform" => "translate(#{translate}) rotate(#{angle.round 2})", "xlink:href" => "##{symbol_id}"
                   end
-                  angle = 180.0 * segment.difference.angle / Math::PI
-                  translate = segment[0].round(MM_DECIMAL_DIGITS).join ?\s
-                  container.add_element "use", "transform" => "translate(#{translate}) rotate(#{angle.round 2})", "xlink:href" => "##{symbol_id}"
                 end if dimension == 1
               end
             when "fence"

@@ -61,7 +61,7 @@ module NSWTopo
               filter.to_s.split.to_set <= categories
             end
           end.values.inject(sublayer_actions, &:merge)
-          k = commands["bezier"]
+          bezier = commands["bezier"]
           features.each do |dimension, feature, _, _, angle|
             case dimension
             when 0
@@ -69,12 +69,10 @@ module NSWTopo
               feature.each do |x, y|
                 content.add_element "use", "transform" => "translate(#{x} #{y}) rotate(#{angle || -map.rotation})", "xlink:href" => "##{symbol_id}"
               end
-            when 1
-              d = k ? feature.to_bezier(k, MM_DECIMAL_DIGITS) : feature.to_path_data(MM_DECIMAL_DIGITS)
-              content.add_element "path", "fill" => "none", "d" => d
-            when 2
-              d = k ? feature.to_bezier(k, MM_DECIMAL_DIGITS, true) : feature.to_path_data(MM_DECIMAL_DIGITS, true)
-              content.add_element "path", "fill-rule" => "nonzero", "d" => d
+            when 1 then
+              content.add_element "path", "fill" => "none", "d" => feature.to_path_data(MM_DECIMAL_DIGITS, false, bezier)
+            when 2 then
+              content.add_element "path", "fill-rule" => "nonzero", "d" => feature.to_path_data(MM_DECIMAL_DIGITS, true, bezier)
             when nil
               feature.each do |element|
                 case element.name

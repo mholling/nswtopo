@@ -2,13 +2,14 @@ module NSWTopo
   class LabelSource
     include VectorRenderer
     
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height]
     TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes close-gaps minimum-area minimum-length remove]
-    DEFAULT_FONT_SIZE = 1.8
-    DEFAULT_MARGIN    = 1
-    DEFAULT_MAX_TURN  = 60
-    DEFAULT_MAX_ANGLE = 25
-    DEFAULT_SAMPLE    = 5
+    DEFAULT_FONT_SIZE   = 1.8
+    DEFAULT_MARGIN      = 1
+    DEFAULT_LINE_HEIGHT = '110%'
+    DEFAULT_MAX_TURN    = 60
+    DEFAULT_MAX_ANGLE   = 25
+    DEFAULT_SAMPLE      = 5
     PARAMS = %Q[
       font-size: #{DEFAULT_FONT_SIZE}
       debug:
@@ -168,30 +169,34 @@ module NSWTopo
       
       candidates = @features.map.with_index do |(text, source_name, sublayer, components), feature|
         components.map.with_index do |(dimension, data, attributes), component|
-          font_size      = attributes["font-size"]      || DEFAULT_FONT_SIZE
-          letter_spacing = attributes["letter-spacing"] || 0
-          word_spacing   = attributes["word-spacing"]   || 0
+          font_size      = attributes.fetch("font-size", DEFAULT_FONT_SIZE)
+          letter_spacing = attributes.fetch("letter-spacing", 0)
+          word_spacing   = attributes.fetch("word-spacing", 0)
           debug_features << [ dimension, [ data ], %w[debug feature] ] if map.debug
           case dimension
           when 0
             # TODO: can we prioritise by position in component list as well (in the case of skeleton centres)?
-            margin = attributes["margin"] || DEFAULT_MARGIN
+            margin      = attributes.fetch("margin", DEFAULT_MARGIN)
+            line_height = attributes.fetch("line-height", DEFAULT_LINE_HEIGHT)
+            line_height = 0.01 * $1.to_f if /(.*)%$/ === line_height
             lines = text.in_two
             width = lines.map do |line|
               line.glyph_length(font_size, letter_spacing, word_spacing)
             end.max
-            height = lines.length * font_size
-            transform = "translate(#{data.join ?\s}) rotate(#{-map.rotation})"
+            height = lines.map { font_size }.inject { |total, font_size| total + font_size * line_height }
             [ *attributes["position"] || "over" ].map.with_index do |position, index|
               dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
               f = dx * dy == 0 ? 1 : 0.707
+              x, y = [ dx, dy ].zip(data).map do |d, centre|
+                centre + d * f * margin
+              end
+              transform = "translate(#{x} #{y}) rotate(#{-map.rotation})"
               text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
-              text_elements = lines.map.with_index do |line, count|
-                x = dx * f * margin
-                y = ((lines.one? ? (1 + dy) * 0.5 : count + dy) - 0.15) * font_size + dy * f * margin
+              text_elements = lines.map.with_index do |line, index|
+                y = font_size * (lines.one? ? 0.5 * dy + 0.35 : line_height * (dy + index - 0.5) + 0.35)
                 REXML::Element.new("text").tap do |text|
-                  text.add_attributes "text-anchor" => text_anchor, "transform" => transform, "x" => x, "y" => y
+                  text.add_attributes "text-anchor" => text_anchor, "transform" => transform, "y" => y
                   text.add_text line
                 end
               end

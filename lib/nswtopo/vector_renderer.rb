@@ -70,15 +70,17 @@ module NSWTopo
                 container.add_attribute "opacity", args
               end
             when "bezier"
+              next unless content && args
               args = 1 if args == true
               features.each do |dimension, lines, *|
                 case dimension
                 when 1 then content.add_element "path", "fill" => "none", "d" => lines.to_bezier(args, MM_DECIMAL_DIGITS)
                 when 2 then content.add_element "path", "fill-rule" => "nonzero", "d" => lines.to_bezier(args, MM_DECIMAL_DIGITS, true)
                 end
-              end.clear if content
+              end.clear
               # TODO: clearing the data might break the 'fences' feature when we implement it
             when "symbol"
+              next unless content
               symbol_id = [ *ids, "symbol"].join(SEGMENT)
               defs.add_element("g", "id" => symbol_id).tap do |symbol|
                 args.each { |element, attributes| symbol.add_element element, attributes }
@@ -93,6 +95,7 @@ module NSWTopo
               end
               container.add_attribute "fill", "url(##{pattern_id})"
             when "symbolise"
+              next unless content
               args = args.to_a
               interval = args.delete(args.find { |key, value| key == "interval" }).last
               symbol_ids = args.map.with_index do |(element, attributes), index|
@@ -115,6 +118,7 @@ module NSWTopo
                 end if dimension == 1
               end
             when "inpoint", "outpoint", "endpoint"
+              next unless content
               symbol_id = [ *ids, command ].join(SEGMENT)
               defs.add_element("g", "id" => symbol_id).tap do |symbol|
                 args.each { |element, attributes| symbol.add_element element, attributes }
@@ -133,13 +137,14 @@ module NSWTopo
                 end if dimension == 1
               end
             when "fence"
+              next unless content && args
               features.each do |dimension, feature, *|
                 # TODO: record stroke-width for the fence here
                 case dimension
                 when 1 then fences.concat feature.map(&:segments).flatten(1)
                 when 2 then fences.concat feature.map(&:ring).flatten(1)
                 end
-              end if args
+              end
             when *SVG_PRESENTATION_ATTRIBUTES
               container.add_attribute command, args
             end

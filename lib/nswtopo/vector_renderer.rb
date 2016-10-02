@@ -106,7 +106,7 @@ module NSWTopo
                     end
                     alpha - segment.distance / interval
                   end
-                end if dimension == 1
+                end if dimension && dimension != 0
               end
             when "inpoint", "outpoint", "endpoint"
               next unless content

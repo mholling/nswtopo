@@ -8,6 +8,7 @@ module SVGPath
   end
   
   def to_bezier(k, decimal_digits, closed = false)
+    k = 1 if k == true
     map do |line|
       points = closed ? [ line.last, *line, line.first ] : [ line.first, *line, line.last ]
       midpoints = points.segments.map(&:midpoint)

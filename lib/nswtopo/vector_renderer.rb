@@ -61,6 +61,29 @@ module NSWTopo
               filter.to_s.split.to_set <= categories
             end
           end.values.inject(sublayer_actions, &:merge)
+          k = commands["bezier"]
+          features.each do |dimension, feature, _, _, angle|
+            case dimension
+            when 0
+              symbol_id = [ name, *sublayer, *categories, "symbol"].join(SEGMENT)
+              feature.each do |x, y|
+                content.add_element "use", "transform" => "translate(#{x} #{y}) rotate(#{angle || -map.rotation})", "xlink:href" => "##{symbol_id}"
+              end
+            when 1
+              d = k ? feature.to_bezier(k, MM_DECIMAL_DIGITS) : feature.to_path_data(MM_DECIMAL_DIGITS)
+              content.add_element "path", "fill" => "none", "d" => d
+            when 2
+              d = k ? feature.to_bezier(k, MM_DECIMAL_DIGITS, true) : feature.to_path_data(MM_DECIMAL_DIGITS, true)
+              content.add_element "path", "fill-rule" => "nonzero", "d" => d
+            when nil
+              feature.each do |element|
+                case element.name
+                when "text", "textPath" then content << element
+                when "path" then defs << element
+                end
+              end
+            end
+          end if content
           commands.each do |command, args|
             args = args.map(&:to_a).inject([], &:+) if Array === args && args.all? { |arg| Hash === arg }
             case command
@@ -127,50 +150,21 @@ module NSWTopo
                   end
                 end if dimension == 1
               end
+            when "fence"
+              buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
+              features.each do |dimension, feature, *|
+                case dimension
+                when 1 then feature.map(&:segments).flatten(1)
+                when 2 then feature.map(&:ring).flatten(1)
+                else []
+                end.each do |fence|
+                  fences << [ fence, buffer ]
+                end
+              end if content
             when *SVG_PRESENTATION_ATTRIBUTES
               container.add_attribute command, args
             end
           end
-          if args = commands["fence"]
-            buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
-            features.each do |dimension, feature, *|
-              case dimension
-              when 1 then feature.map(&:segments).flatten(1)
-              when 2 then feature.map(&:ring).flatten(1)
-              else []
-              end.each do |fence|
-                fences << [ fence, buffer ]
-              end
-            end if content
-          end
-          if args = commands["bezier"]
-            args = 1 if args == true
-            features.each do |dimension, lines, *|
-              case dimension
-              when 1 then content.add_element "path", "fill" => "none", "d" => lines.to_bezier(args, MM_DECIMAL_DIGITS)
-              when 2 then content.add_element "path", "fill-rule" => "nonzero", "d" => lines.to_bezier(args, MM_DECIMAL_DIGITS, true)
-              end
-            end.clear if content
-          end
-        end.each do |categories, features, container, content|
-          features.each do |dimension, feature, _, _, angle|
-            case dimension
-            when 0
-              symbol_id = [ name, *sublayer, *categories, "symbol"].join(SEGMENT)
-              feature.each do |x, y|
-                content.add_element "use", "transform" => "translate(#{x} #{y}) rotate(#{angle || -map.rotation})", "xlink:href" => "##{symbol_id}"
-              end
-            when 1 then content.add_element "path", "fill" => "none", "d" => feature.to_path_data(MM_DECIMAL_DIGITS)
-            when 2 then content.add_element "path", "fill-rule" => "nonzero", "d" => feature.to_path_data(MM_DECIMAL_DIGITS, true)
-            when nil
-              feature.each do |element|
-                case element.name
-                when "text", "textPath" then content << element
-                when "path" then defs << element
-                end
-              end
-            end
-          end if content
         end.tap do |categorised|
           sublayer_actions.fetch("order", []).reverse.map(&:split).map(&:to_set).each do |filter|
             categorised.select do |categories, features, container, content|

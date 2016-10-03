@@ -2,8 +2,19 @@ module NSWTopo
   class ReliefSource
     include RasterRenderer
     
+    PARAMS = %q[
+      altitude: 45
+      azimuth: 315
+      exaggeration: 2
+      resolution: 30.0
+      opacity: 0.3
+      highlights: 20
+      median: 30.0
+      bilateral: 5
+    ]
+    
     def initialize(name, params)
-      super(name, params.merge("ext" => "tif"))
+      super name, YAML.load(PARAMS).merge(params).merge("ext" => "tif")
     end
     
     def get_raster(map, dimensions, resolution, temp_dir)

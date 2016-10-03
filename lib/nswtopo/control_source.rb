@@ -4,6 +4,25 @@ module NSWTopo
     attr_reader :path
     
     PARAMS = %q[
+      diameter: 7.0
+      stroke: "#880088"
+      stroke-width: 0.2
+      water:
+        stroke: blue
+      labels:
+        dupe: outline
+        outline:
+          stroke: white
+          fill: none
+          stroke-width: 0.25
+          stroke-opacity: 0.75
+        position: [ aboveright, belowright, aboveleft, belowleft, right, left, above, below ]
+        font-family: sans-serif
+        font-size: 4.9
+        stroke: none
+        fill: "#880088"
+    ]
+    SCALING_PARAMS = %q[
       control:
         symbol:
         - circle:
@@ -37,12 +56,13 @@ module NSWTopo
     
     def initialize(name, params)
       @name = name
-      @path = Pathname.new(params["path"]).expand_path
-      radius = 0.5 * params["diameter"]
-      @params = YAML.load(PARAMS.gsub(/\-?\d\.\d+/) { |number| "%.5g" % (number.to_f * radius) })
-      spot_radius = 0.5  *  params["spot-diameter"] if params["spot-diameter"]
-      @params["control"]["symbol"] << { "circle" => { "r" => 0.5 * spot_radius, "stroke-width" => spot_radius, "fill" => "none" } } if spot_radius
-      @params.deep_merge! params
+      @params = YAML.load(PARAMS).deep_merge(params)
+      radius = 0.5 * @params["diameter"]
+      scaled_params = YAML.load(SCALING_PARAMS.gsub(/\-?\d\.\d+/) { |number| "%.5g" % (number.to_f * radius) })
+      spot_radius = 0.5 * @params["spot-diameter"] if @params["spot-diameter"]
+      scaled_params["control"]["symbol"] << { "circle" => { "r" => 0.5 * spot_radius, "stroke-width" => spot_radius, "fill" => "none" } } if spot_radius
+      @params = scaled_params.deep_merge(@params)
+      @path = Pathname.new(@params["path"]).expand_path
     end
     
     def types_waypoints

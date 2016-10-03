@@ -106,67 +106,6 @@ rotation: 0
       end
     end.inject(default_config, &:deep_merge)
     
-    builtins = YAML.load %q[---
-canvas:
-  class: CanvasSource
-relief:
-  class: ReliefSource
-  altitude: 45
-  azimuth: 315
-  exaggeration: 2
-  resolution: 30.0
-  opacity: 0.3
-  highlights: 20
-  median: 30.0
-  bilateral: 5
-grid:
-  class: GridSource
-  interval: 1000
-  label-spacing: 5
-  stroke: black
-  stroke-width: 0.1
-  boundary:
-    stroke: gray
-  labels:
-    dupe: outline
-    outline:
-      stroke: white
-      fill: none
-      stroke-width: 0.3
-      stroke-opacity: 0.75
-    font-family: "'Arial Narrow', sans-serif"
-    font-size: 2.75
-    outset: 2.0
-    stroke: none
-    fill: black
-declination:
-  class: DeclinationSource
-  spacing: 1000
-  arrows: 150
-  stroke: darkred
-  stroke-width: 0.1
-  fill: darkred
-controls:
-  class: ControlSource
-  diameter: 7.0
-  stroke: "#880088"
-  stroke-width: 0.2
-  water:
-    stroke: blue
-  labels:
-    dupe: outline
-    outline:
-      stroke: white
-      fill: none
-      stroke-width: 0.25
-      stroke-opacity: 0.75
-    position: [ aboveright, belowright, aboveleft, belowleft, right, left, above, below ]
-    font-family: sans-serif
-    font-size: 4.9
-    stroke: none
-    fill: "#880088"
-]
-    
     config["include"] = [ *config["include"] ]
     if config["include"].empty?
       config["include"] << "nsw/topographic"
@@ -194,30 +133,19 @@ controls:
     puts "  rotation: %.1f degrees" % map.rotation
     puts "  extent: %.1fkm x %.1fkm" % map.extents.map { |extent| 0.001 * extent }
     
-    sources = {}
-    
-    [ *config["import"] ].reverse.map do |file_or_hash|
-      [ *file_or_hash ].flatten
-    end.map do |file_or_path, name|
-      [ Pathname.new(file_or_path).expand_path, name ]
-    end.each do |path, name|
-      name ||= path.basename(path.extname).to_s
-      sources.merge! name => { "class" => "ImportSource", "path" => path.to_s }
-    end
-    
-    config["include"].map do |name_or_path_or_hash|
+    sources = config["include"].map do |name_or_path_or_hash|
       [ *name_or_path_or_hash ].flatten
-    end.each do |name_or_path, resolution|
-      path = Pathname.new(name_or_path).expand_path
-      name, params = case
-      when builtins[name_or_path]
-        [ name_or_path, builtins[name_or_path] ]
-      when %w[.kml .gpx].include?(path.extname.downcase) && path.file?
-        params = YAML.load %Q[---
-          class: OverlaySource
-          path: #{path}
-        ]
-        [ path.basename(path.extname).to_s, params ]
+    end.map do |name_or_path, resolution|
+      params = resolution ? { "resolution" => resolution } : { }
+      case name_or_path
+      when "canvas"      then [ "canvas",      CanvasSource,      params ]
+      when "relief"      then [ "relief",      ReliefSource,      params ]
+      when "grid"        then [ "grid",        GridSource,        params ]
+      when "declination" then [ "declination", DeclinationSource, params ]
+      when "controls"    then [ "controls",    ControlSource,     params ]
+      when /\.kml$|\.gpx$/i
+        path = Pathname.new(name_or_path).expand_path
+        [ path.basename(path.extname).to_s, OverlaySource, params.merge("path" => path) ]
       else
         yaml = [ Pathname.pwd, Pathname.new(__dir__).parent + "sources" ].map do |root|
           root + "#{name_or_path}.yml"
@@ -225,13 +153,21 @@ controls:
           memo ||= path.read rescue nil
         end
         abort "Error: couldn't find source for '#{name_or_path}'" unless yaml
-        [ name_or_path.gsub(?/, SEGMENT), YAML.load(yaml) ]
+        params = YAML.load(yaml).merge(params)
+        [ name_or_path.gsub(?/, SEGMENT), NSWTopo.const_get(params.delete "class"), params ]
       end
-      params.merge! "resolution" => resolution if resolution
-      sources.merge! name => params
     end
     
-    sources.each do |name, params|
+    [ *config["import"] ].reverse.map do |file_or_hash|
+      [ *file_or_hash ].flatten
+    end.map do |file_or_path, name|
+      [ Pathname.new(file_or_path).expand_path, name ]
+    end.each do |path, name|
+      name ||= path.basename(path.extname).to_s
+      sources.unshift [ name, ImportSource, "path" => path ]
+    end
+    
+    sources.each do |name, klass, params|
       config.map do |key, value|
         [ key.match(%r{#{name}#{SEGMENT}(.+)}), value ]
       end.select(&:first).map do |match, layer_params|
@@ -241,23 +177,23 @@ controls:
       end
     end
     
-    sources.select do |name, params|
+    sources.select do |name, klass, params|
       config[name]
-    end.each do |name, params|
+    end.each do |name, klass, params|
       params.deep_merge! config[name]
     end
     
-    sources.select do |name, params|
-      "ReliefSource" == params["class"]
-    end.each do |name, params|
-      params["masks"] = sources.map do |name, params|
+    sources.select do |name, klass, params|
+      ReliefSource == klass
+    end.each do |name, klass, params|
+      params["masks"] = sources.map do |name, klass, params|
         [ *params["relief-masks"] ].map { |sublayer| [ name, sublayer ].join SEGMENT }
       end.inject(&:+)
     end
     
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
-      sources.each do |name, params|
+      sources.each do |name, klass, params|
         params["exclude"] = [ *params["exclude"] ]
         [ *params["intervals-contours"] ].select do |candidate, sublayers|
           candidate != interval
@@ -269,21 +205,23 @@ controls:
     
     config["exclude"] = [ *config["exclude"] ].map { |name| name.gsub ?/, SEGMENT }
     config["exclude"].each do |source_or_layer_name|
-      sources.delete source_or_layer_name
-      sources.each do |name, params|
+      sources.reject! do |name, klass, params|
+        name == source_or_layer_name
+      end
+      sources.each do |name, klass, params|
         match = source_or_layer_name.match(%r{^#{name}#{SEGMENT}(.+)})
         params["exclude"] << match[1] if match
       end
     end
     
-    sources.find do |name, params|
+    sources.find do |name, klass, params|
       params.fetch("min-version", NSWTOPO_VERSION).to_s > NSWTOPO_VERSION
-    end.tap do |name, params|
+    end.tap do |name, klass, params|
       abort "Error: map source '#{name}' requires a newer version of this software; please upgrade." if name
     end
     
-    sources = sources.map do |name, params|
-      NSWTopo.const_get(params.delete "class").new(name, params)
+    sources.map! do |name, klass, params|
+      klass.new(name, params)
     end
     
     sources.each do |source|

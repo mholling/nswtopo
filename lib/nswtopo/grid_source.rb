@@ -2,9 +2,30 @@ module NSWTopo
   class GridSource
     include VectorRenderer
     
+    PARAMS = %q[
+      interval: 1000
+      label-spacing: 5
+      stroke: black
+      stroke-width: 0.1
+      boundary:
+        stroke: gray
+      labels:
+        dupe: outline
+        outline:
+          stroke: white
+          fill: none
+          stroke-width: 0.3
+          stroke-opacity: 0.75
+        font-family: "'Arial Narrow', sans-serif"
+        font-size: 2.75
+        outset: 2.0
+        stroke: none
+        fill: black
+        orientation: uphill
+    ]
+    
     def initialize(name, params)
-      @name, @params = name, params
-      params["labels"]["orientation"] = "uphill"
+      @name, @params = name, YAML.load(PARAMS).deep_merge(params)
     end
     
     def grids(map)

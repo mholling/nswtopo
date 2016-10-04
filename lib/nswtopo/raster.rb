@@ -1,18 +1,18 @@
 module NSWTopo
   module Raster
     def self.build(config, map, ppi, svg_path, temp_dir, png_path)
-      dimensions = map.dimensions_at(ppi)
+      width, height = dimensions = map.dimensions_at(ppi)
       rasterise = config["rasterise"]
       case rasterise
       when /inkscape/i
-        %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-png="#{png_path}" --export-width=#{dimensions.first} --export-height=#{dimensions.last} --export-background="#FFFFFF" #{DISCARD_STDERR}]
+        %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-png="#{png_path}" --export-width=#{width} --export-height=#{height} --export-background="#FFFFFF" #{DISCARD_STDERR}]
       when /batik/
-        args = %Q[-d "#{png_path}" -bg 255.255.255.255 -m image/png -w #{dimensions.first} -h #{dimensions.last} "#{svg_path}"]
+        args = %Q[-d "#{png_path}" -bg 255.255.255.255 -m image/png -w #{width} -h #{height} "#{svg_path}"]
         jar_path = Pathname.new(rasterise).expand_path + "batik-rasterizer.jar"
         java = config["java"] || "java"
         %x[#{java} -jar "#{jar_path}" #{args}]
       when /rsvg-convert/
-        %x["#{rasterise}" --background-color white --format png --output "#{png_path}" --width #{dimensions.first} --height #{dimensions.last} "#{svg_path}"]
+        %x["#{rasterise}" --background-color white --format png --output "#{png_path}" --width #{width} --height #{height} "#{svg_path}"]
       when "qlmanage"
         square_svg_path = temp_dir + "square.svg"
         square_png_path = temp_dir + "square.svg.png"
@@ -23,7 +23,7 @@ module NSWTopo
         xml.elements["/svg"].attributes["viewBox"] = "0 0 #{millimetres.max} #{millimetres.max}"
         File.write square_svg_path, xml
         %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
-        %x[convert "#{square_png_path}" -crop #{dimensions.join ?x}+0+0 +repage "#{png_path}"]
+        %x[convert "#{square_png_path}" -crop #{width}x#{height}+0+0 +repage "#{png_path}"]
       when /phantomjs/i
         js_path   = temp_dir + "rasterise.js"
         page_path = temp_dir + "rasterise.svg"

@@ -32,10 +32,12 @@ module NSWTopo
         %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
         %x[convert "#{square_png_path}" -crop #{width}x#{height}+0+0 +repage "#{png_path}"]
       when /phantomjs|slimerjs/i
+        dpi = config["phantom-dpi"] || 96.0
+        zoom = ppi.to_f / dpi
         js_path = temp_dir + "rasterise.js"
         script = %Q[
           var page = require('webpage').create();
-          page.zoomFactor = #{ppi / 96.0};
+          page.zoomFactor = #{zoom};
           page.open('#{svg_path}', function() {
         ]
         [ (0...height).step(5000), (0...width).step(5000) ].map(&:to_a).inject(&:product).map.with_index do |(top, left), index|

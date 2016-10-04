@@ -260,6 +260,14 @@ module NSWTopo
               angle.abs > max_angle || min_radius * curvature > 1
             end
             squared_angles = angles.map { |angle| angle * angle }
+            overlaps = Hash.new do |hash, segment|
+              bounds = segment.transpose.map(&:minmax).map do |min, max|
+                [ min - 0.5 * font_size, max + 0.5 * font_size ]
+              end
+              hash[segment] = fences.search(bounds).any? do |fence, buffer|
+                [ segment, fence ].overlap?(buffer + 0.5 * font_size)
+              end
+            end
             Enumerator.new do |yielder|
               indices, distance, bad_indices, angle_integral = [ 0 ], 0, [ ], [ ]
               loop do
@@ -292,13 +300,8 @@ module NSWTopo
               along = (start + 0.5 * (stop - start) % total) % total
               total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
               baseline = points.values_at(*indices).crop(text_length)
-              bounds = baseline.transpose.map(&:minmax).map do |min, max|
-                [ min - 0.5 * font_size, max + 0.5 * font_size ]
-              end
-              fence = fences.search(bounds).any? do |fence, buffer|
-                baseline.segments.any? do |segment|
-                  [ segment, fence ].overlap?(buffer + 0.5 * font_size)
-                end
+              fence = baseline.segments.any? do |segment|
+                overlaps[segment]
               end
               priority = [ fence ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f ]
               case orientation

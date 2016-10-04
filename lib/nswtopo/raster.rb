@@ -31,64 +31,33 @@ module NSWTopo
         File.write square_svg_path, xml
         %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
         %x[convert "#{square_png_path}" -crop #{width}x#{height}+0+0 +repage "#{png_path}"]
-      when /phantomjs/i
-        js_path   = temp_dir + "rasterise.js"
-        page_path = temp_dir + "rasterise.svg"
-        out_path  = temp_dir + "rasterise.png"
-        File.write js_path, %Q[
-          var page = require('webpage').create();
-          page.viewportSize = { width: 1, height: 1 };
-          page.open('#{page_path}', function(status) {
-              page.render('#{out_path}');
-              phantom.exit();
-          });
-        ]
-        make_one_inch_svg page_path
-        %x["#{rasterise}" "#{js_path}"]
-        zoom = ppi / %x[identify -format "%w" "#{out_path}"].to_f
-        xml = REXML::Document.new(svg_path.read)
-        svg = xml.elements["/svg"]
-        %w[width height].each do |name|
-          attribute = svg.attributes[name]
-          svg.attributes[name] = attribute.sub /\d+(\.\d+)?/, (attribute.to_f * zoom).to_s
-        end
-        xml.elements.each("//image[@xlink:href]") do |image|
-          next if image.attributes["xlink:href"] =~ /^data:/
-          image.attributes["xlink:href"] = Pathname.pwd + image.attributes["xlink:href"]
-        end
-        page_path.open("w") { |file| xml.write file }
-        %x["#{rasterise}" "#{js_path}"]
-        # TODO: crop to exact size since PhantomJS 2.0+ can be one pixel out
-        FileUtils.cp out_path, png_path
-      when /slimerjs/i
+      when /phantomjs|slimerjs/i
         js_path = temp_dir + "rasterise.js"
-        zoom = ppi / (WINDOWS ? 72.0 : 96.0)
         script = %Q[
           var page = require('webpage').create();
-          page.zoomFactor = #{zoom};
+          page.zoomFactor = #{ppi / 96.0};
           page.open('#{svg_path}', function() {
         ]
-        (0...height).step(5000).map do |top|
-          (0...width).step(5000).map do |left|
-            [ top, left, [ height - top, 5000 ].min, [ width - left, 5000 ].min, temp_dir + "tile.#{top}.#{left}.png" ]
-          end
-        end.flatten(1).each do |top, left, height, width, tile_path|
+        [ (0...height).step(5000), (0...width).step(5000) ].map(&:to_a).inject(&:product).map.with_index do |(top, left), index|
+          [ top, left, temp_dir + "tile.#{index}.png" ]
+        end.each do |top, left, tile_path|
           script += %Q[
-            page.clipRect = { top: #{top}, left: #{left}, width: #{width}, height: #{height} };
+            page.clipRect = { top: #{top}, left: #{left}, width: #{[ width - left, 5000 ].min}, height: #{[ height - top, 5000 ].min} };
             page.render('#{tile_path}');
           ]
         end.tap do
           script += %Q[
-              slimer.exit();
+              phantom.exit();
             });
           ]
           js_path.write script
           %x["#{rasterise}" "#{js_path}"]
-        end.map do |top, left, height, width, tile_path|
+        end.map do |top, left, tile_path|
           %Q[#{OP} "#{tile_path}" +repage -repage +#{left}+#{top} #{CP}]
         end.tap do |tiles|
           %x[convert #{tiles.join ?\s} -compose Copy -layers mosaic "#{png_path}"]
         end
+      # TODO: add option for headless Chromium when it becomes available
       when /wkhtmltoimage/i
         test_path = temp_dir + "test.svg"
         out_path  = temp_dir + "test.png"

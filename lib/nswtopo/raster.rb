@@ -1,5 +1,12 @@
 module NSWTopo
   module Raster
+    def self.make_one_inch_svg(path)
+      svg = REXML::Document.new
+      svg << REXML::XMLDecl.new(1.0, "utf-8")
+      svg.add_element "svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg", "width"  => "1in", "height" => "1in"
+      path.open("w") { |file| svg.write file }
+    end
+    
     def self.build(config, map, ppi, svg_path, temp_dir, png_path)
       width, height = dimensions = map.dimensions_at(ppi)
       rasterise = config["rasterise"]
@@ -36,17 +43,14 @@ module NSWTopo
               phantom.exit();
           });
         ]
-        test = REXML::Document.new
-        test << REXML::XMLDecl.new(1.0, "utf-8")
-        test.add_element("svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg", "width"  => "1in", "height" => "1in")
-        page_path.open("w") { |file| test.write file }
+        make_one_inch_svg page_path
         %x["#{rasterise}" "#{js_path}"]
-        screen_ppi = %x[identify -format "%w" "#{out_path}"].to_f
+        zoom = ppi / %x[identify -format "%w" "#{out_path}"].to_f
         xml = REXML::Document.new(svg_path.read)
         svg = xml.elements["/svg"]
         %w[width height].each do |name|
           attribute = svg.attributes[name]
-          svg.attributes[name] = attribute.sub /\d+(\.\d+)?/, (attribute.to_f * ppi / screen_ppi).to_s
+          svg.attributes[name] = attribute.sub /\d+(\.\d+)?/, (attribute.to_f * zoom).to_s
         end
         xml.elements.each("//image[@xlink:href]") do |image|
           next if image.attributes["xlink:href"] =~ /^data:/
@@ -54,10 +58,17 @@ module NSWTopo
         end
         page_path.open("w") { |file| xml.write file }
         %x["#{rasterise}" "#{js_path}"]
-        # TODO: crop to exact size
+        # TODO: crop to exact size since PhantomJS 2.0+ can be one pixel out
         FileUtils.cp out_path, png_path
+      when /wkhtmltoimage/i
+        test_path = temp_dir + "test.svg"
+        out_path  = temp_dir + "test.png"
+        make_one_inch_svg test_path
+        %x["#{rasterise}" -q "#{test_path}" "#{out_path}"]
+        zoom = ppi / %x[identify -format "%h" "#{out_path}"].to_f
+        %x["#{rasterise}" -q --width #{width} --height #{height} --zoom #{zoom} "#{svg_path}" "#{png_path}"]
       else
-        abort("Error: specify either phantomjs, inkscape or qlmanage as your rasterise method (see README).")
+        abort("Error: specify either phantomjs, wkhtmltoimage, inkscape or qlmanage as your rasterise method (see README).")
       end
       case
       when config["dither"] && config["gimp"]

@@ -60,6 +60,35 @@ module NSWTopo
         %x["#{rasterise}" "#{js_path}"]
         # TODO: crop to exact size since PhantomJS 2.0+ can be one pixel out
         FileUtils.cp out_path, png_path
+      when /slimerjs/i
+        js_path = temp_dir + "rasterise.js"
+        zoom = ppi / (WINDOWS ? 72.0 : 96.0)
+        script = %Q[
+          var page = require('webpage').create();
+          page.zoomFactor = #{zoom};
+          page.open('#{svg_path}', function() {
+        ]
+        (0...height).step(5000).map do |top|
+          (0...width).step(5000).map do |left|
+            [ top, left, [ height - top, 5000 ].min, [ width - left, 5000 ].min, temp_dir + "tile.#{top}.#{left}.png" ]
+          end
+        end.flatten(1).each do |top, left, height, width, tile_path|
+          script += %Q[
+            page.clipRect = { top: #{top}, left: #{left}, width: #{width}, height: #{height} };
+            page.render('#{tile_path}');
+          ]
+        end.tap do
+          script += %Q[
+              slimer.exit();
+            });
+          ]
+          js_path.write script
+          %x["#{rasterise}" "#{js_path}"]
+        end.map do |top, left, height, width, tile_path|
+          %Q[#{OP} "#{tile_path}" +repage -repage +#{left}+#{top} #{CP}]
+        end.tap do |tiles|
+          %x[convert #{tiles.join ?\s} -compose Copy -layers mosaic "#{png_path}"]
+        end
       when /wkhtmltoimage/i
         test_path = temp_dir + "test.svg"
         out_path  = temp_dir + "test.png"

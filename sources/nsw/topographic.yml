@@ -594,6 +594,7 @@ water-areas:
   Perennial:
     dupe: outline
   [ Perennial, SeaLike ]:
+    fence: true
     fill: "#B3E6E4"
     stroke: none
   outline Perennial:
@@ -877,6 +878,7 @@ floodways:
   [ SubArterialRoad, DistributorRoad ]:
     stroke-width: 1.0
 roads:
+  fence: true
   order:
   - UnknownSurface Pathway
   - UnsealedSurface Pathway
@@ -914,6 +916,7 @@ roads:
   ThroughWater:
     stroke: "#4985DF"
 railways:
+  fence: true
   dupe: hatching
   stroke: black
   stroke-width: 0.2

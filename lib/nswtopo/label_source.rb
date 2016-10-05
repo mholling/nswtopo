@@ -38,9 +38,9 @@ module NSWTopo
       source.labels(map).group_by do |dimension, data, labels, categories, sublayer|
         [ dimension, [ *categories ].map(&:to_s).reject(&:empty?).map(&:to_category).to_set ]
       end.each do |(dimension, categories), features|
-        transforms, attributes, dimensioned_attributes = [ nil, nil, dimension == 0 ? "point" : "line" ].map do |extra_category|
+        transforms, attributes, *dimensioned_attributes = [ nil, nil, "point", "line", "line" ].map do |extra_category|
           categories | Set[*extra_category]
-        end.zip([ TRANSFORMS, ATTRIBUTES, ATTRIBUTES ]).map do |categories, keys|
+        end.zip([ TRANSFORMS, ATTRIBUTES, ATTRIBUTES, ATTRIBUTES, ATTRIBUTES ]).map do |categories, keys|
           source_params.select do |key, value|
             value.is_a?(Hash)
           end.select do |key, value|
@@ -124,7 +124,7 @@ module NSWTopo
             end.flatten(1)
           end.each do |dimension, data|
             data.each do |point_or_points|
-              components << [ dimension, point_or_points, dimensioned_attributes ]
+              components << [ dimension, point_or_points, dimensioned_attributes[dimension] ]
             end
           end
         end

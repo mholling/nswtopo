@@ -19,10 +19,9 @@ sources:
     folder: Public
     service: PlacenamePoints
   geoscience-australia:
-    host: www.ga.gov.au
+    host: services.ga.gov.au
     instance: gis
-    folder: topography
-    service: Australian_Topography_WM
+    service: Topographic_Base_Map
 features:
   urban-areas:
     source: cadastre-administrative
@@ -257,7 +256,7 @@ features:
     label: FEAT_NAME
   place-names:
     source: geoscience-australia
-    name: Populated Places
+    name: Populated_Places_8
     label-only: true
     label: NAME
     category: populated

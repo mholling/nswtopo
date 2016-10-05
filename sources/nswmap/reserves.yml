@@ -6,10 +6,9 @@ sources:
     folder: sixmaps
     service: Boundaries
   geoscience-australia:
-    host: www.ga.gov.au
+    host: services.ga.gov.au
     instance: gis
-    folder: topography
-    service: Dynamic_National_Map_Reserves
+    service: NM_Reserves
   lpimap:
     host: maps.six.nsw.gov.au
     folder: sixmaps

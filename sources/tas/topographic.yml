@@ -20,7 +20,7 @@ sources:
     service: PlacenamePoints
   geoscience-australia:
     host: services.ga.gov.au
-    instance: gis
+    instance: site_7
     service: Topographic_Base_Map
 features:
   urban-areas:

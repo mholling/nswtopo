@@ -7,7 +7,7 @@ sources:
     service: Boundaries
   geoscience-australia:
     host: services.ga.gov.au
-    instance: gis
+    instance: site_7
     service: NM_Reserves
   lpimap:
     host: maps.six.nsw.gov.au

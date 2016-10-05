@@ -118,7 +118,7 @@ module NSWTopo
               end
               features.each do |dimension, feature, *|
                 feature.each do |line|
-                  line.segments.inject(0.5) do |alpha, segment|
+                  (dimension == 1 ? line.segments : line.ring).inject(0.5) do |alpha, segment|
                     angle = 180.0 * segment.difference.angle / Math::PI
                     while alpha * interval < segment.distance
                       segment[0] = segment.along(alpha * interval / segment.distance)

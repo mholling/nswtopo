@@ -5,7 +5,7 @@ This software allows you to download and compile high-resolution vector topograp
 
 This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
 
-**Notice for users of earlier versions:** The _nswtopo_ software is no longer contained in a single file, meaning it must be kept in its own directory. I recommend installing the software using [git](http://git-scm.com/) and running it as `ruby /path/to/nswtopo/bin/nswtopo` (or by adding `/path/to/nswtopo/bin/` to your path). See the [usage](#usage) section. Also, a minimum Ruby version of 2.0.0 is now required.
+**Notice for users of earlier versions:** The _nswtopo_ software is no longer contained in a single file, meaning it must be kept in its own directory. I recommend installing the software using [git](http://git-scm.com/) and running it as `ruby /path/to/nswtopo/bin/nswtopo` (or by adding `/path/to/nswtopo/bin/` to your path). See the [usage](#usage) section. Also, a minimum Ruby version of 2.1 is now required.
 
 Pre-Requisites
 ==============
@@ -14,7 +14,7 @@ The software is run as a script, so you will need some familiarity with the comm
 
 The following open-source packages are required in order to run the script:
 
-* The [Ruby programming language](http://ruby-lang.org). You'll need at least Ruby 2.0.0, or better yet the latest stable release (2.3.1 as of October).
+* The [Ruby programming language](http://ruby-lang.org). You'll need at least Ruby 2.1, or better yet the latest stable release (2.3.1 as of October 2016).
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. Version 1.9.x (January 2012) or later is needed.
 * [Inkscape](http://inkscape.org/) (a vector graphics editing program), if you wish to make manual edits or additions to your map.
@@ -36,7 +36,7 @@ Finally, a geographic viewing or mapping program such as [Google Earth](http://e
 * _Mac OS X_:
   * ImageMagick and GDAL can obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS; follow [these instructions](http://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install gdal` and `sudo port install imagemagick +q8`
   * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software:frameworks#gdal_complete) for GDAL, and the instructions [here](http://www.imagemagick.org/script/binary-releases.php#macosx) for ImageMagick. (This may or may not be quicker/easier than installing XCode and MacPorts!)
-  * Type `ruby -v` in a terminal window to see whether a version 2.0.0 or greater Ruby already exists. If not, you can install Ruby a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/). (If you are using MacPorts, `sudo port install ruby22 +nosuffix` should also work.)
+  * Type `ruby -v` in a terminal window to see whether a version 2.1 or greater Ruby already exists. If not, you can install Ruby a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/). (If you are using MacPorts, `sudo port install ruby22 +nosuffix` should also work.)
   * Download and install Inkscape [here](http://inkscape.org/download/), or install it using MacPorts: `sudo port install inkscape`
 * _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, Inkscape and zip packages using your distro's package manager (Pacman, RPM, Aptitude, etc).
 

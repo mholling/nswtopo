@@ -197,7 +197,6 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
           "xmlns:ev" => "http://www.w3.org/2001/xml-events",
           "xmlns:sodipodi" => "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd",
           "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape",
-          "xml:space" => "preserve",
           "width"  => "#{millimetres[0]}mm",
           "height" => "#{millimetres[1]}mm",
           "viewBox" => "0 0 #{millimetres[0]} #{millimetres[1]}",

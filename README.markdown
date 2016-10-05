@@ -1,9 +1,11 @@
-Summary (Version 1.3)
+Summary (Version 1.4)
 =======================
 
-This software allows you to download and compile high-resolution vector topographic maps from the NSW geospatial data servers, covering much of NSW and the ACT. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. Other map formats including raster, KMZ and GeoTIFF can also be produced.
+This software allows you to download and compile high-resolution vector topographic maps from the NSW and TAS geospatial data servers, covering the states of NSW, ACT and Tasmania. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. Other map formats including raster, KMZ and GeoTIFF can also be produced.
 
 This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
+
+**Notice for users of earlier versions:** The _nswtopo_ software is no longer contained in a single file, meaning it must be kept in its own directory. I recommend installing the software using [git](http://git-scm.com/) and running it as `ruby /path/to/nswtopo/bin/nswtopo` (or by adding `/path/to/nswtopo/bin/` to your path). See the [usage](#usage) section. Also, a minimum Ruby version of 2.0.0 is now required.
 
 Pre-Requisites
 ==============
@@ -526,3 +528,4 @@ Release History
 * 22/8/2016: version 1.2: improve labeling quality and speed; update various map sources accordingly
   * 25/8/2016: version 1.2.1: bugfix for stack overflow
 * 23/9/2016: version 1.3: improvements to labelling algorithm; remove old NSW server references
+* 5/10/2016: version 1.4: further labelling improvements; break out code into multiple files

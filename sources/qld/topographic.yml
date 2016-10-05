@@ -1,4 +1,4 @@
-min-version: '1.3'
+min-version: '1.4'
 class: ArcGISVector
 sources:
   qtopo:

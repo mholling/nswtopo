@@ -52,7 +52,7 @@ require_relative 'nswtopo/kmz'
 require_relative 'nswtopo/psd'
 require_relative 'nswtopo/pdf'
 
-NSWTOPO_VERSION = "1.3"
+NSWTOPO_VERSION = "1.4"
 
 module NSWTopo
   SEGMENT = ?.

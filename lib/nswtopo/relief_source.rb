@@ -74,12 +74,14 @@ module NSWTopo
         %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
         %x[gdalwarp -t_srs "#{map.projection}" -r bilinear -srcnodata 0 -dstalpha "#{relief_path}" "#{tif_path}"]
         filters = []
-        (params["median"].to_f / resolution).round.tap do |pixels|
-          filters << "-statistic median #{2 * pixels + 1}" if pixels > 0
+        if args = params["median"]
+          pixels = (args.to_f / resolution).round
+          filters << "-statistic median #{2 * pixels + 1}"
         end
-        params["bilateral"].to_f.round.tap do |threshold|
-          sigma = (500.0 / resolution).round
-          filters << "-selective-blur 0x#{sigma}+#{threshold}%" if threshold > 0
+        if args = params["bilateral"]
+          threshold, sigma = *args
+          sigma ||= (100.0 / resolution).round
+          filters << "-selective-blur 0x#{sigma}+#{threshold}%"
         end
         %x[mogrify -channel RGBA -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
       end

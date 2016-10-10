@@ -128,9 +128,9 @@ module NSWTopo
             relief * (aspect < 0 ? 1 : 2 * Math::sin((aspect - azimuth) * Math::PI / 180)**2) / sources
           end
         end.inject do |sums, values|
-          sums.zip(values).map { |sum, value| sum + value }
+          sums.zip(values).map { |sum, value| sum == 0 ? sum : sum + value }
         end.map do |value|
-          [ 255, [ 1, value.to_i ].max ].min
+          [ 255, value.to_i ].min
         end.each_slice(ncols).map do |row|
           row.join ?\s
         end.tap do |lines|

@@ -73,7 +73,7 @@ module NSWTopo
           when 1, 2
             data.map do |coords|
               map.coords_to_mm coords
-            end
+            end.dedupe(dimension == 2)
           end
           transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (*args))|
             dimensioned_data.map do |dimension, data|

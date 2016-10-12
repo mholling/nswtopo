@@ -86,6 +86,10 @@ module NSWTopo
           commands.each do |command, args|
             args = args.map(&:to_a).inject([], &:+) if Array === args && args.all? { |arg| Hash === arg }
             case command
+            when "blur"
+              filter_id = [ *ids, "blur" ].join(SEGMENT)
+              container.add_attribute "filter", "url(##{filter_id})"
+              defs.add_element("filter", "id" => filter_id).add_element "feGaussianBlur", "stdDeviation" => args, "in" => "SourceGraphic"
             when "opacity"
               if sublayer_actions["opacity"] == args
                 group.add_attribute "style", "opacity:#{args}"

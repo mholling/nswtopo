@@ -20,10 +20,10 @@ module NSWTopo
       density = 0.01 * map.scale / resolution
       map.write_world_file tfw_path, resolution
       %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 -units PixelsPerCentimeter -density #{density} "#{tif_path}"]
-      %x[gdal_translate -expand rgba #{import_path} #{source_path}]
-      %x[gdal_translate #{import_path} #{source_path}] unless $?.success?
+      %x[gdal_translate -expand rgba "#{import_path}" "#{source_path}"]
+      %x[gdal_translate "#{import_path}" "#{source_path}"] unless $?.success?
       raise BadLayerError.new("couldn't use georeferenced file at #{import_path}") unless $?.success?
-      %x[gdalwarp -t_srs "#{map.projection}" -r bilinear #{source_path} #{tif_path}]
+      %x[gdalwarp -t_srs "#{map.projection}" -r bilinear "#{source_path}" "#{tif_path}"]
       temp_dir.join(path.basename).tap do |raster_path|
         %x[convert "#{tif_path}" -quiet "#{raster_path}"]
       end

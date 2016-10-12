@@ -148,14 +148,14 @@ module NSWTopo
       filters = []
       if args = params["median"]
         pixels = (args.to_f / resolution).round
-        filters << "-statistic median #{2 * pixels + 1}"
+        filters << "-channel RGBA -statistic median #{2 * pixels + 1}"
       end
       if args = params["bilateral"]
         threshold, sigma = *args
         sigma ||= (100.0 / resolution).round
-        filters << "-selective-blur 0x#{sigma}+#{threshold}%"
+        filters << "-channel RGB -selective-blur 0x#{sigma}+#{threshold}%"
       end
-      %x[mogrify -channel RGBA -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
+      %x[mogrify -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
       
       tif_path
     end

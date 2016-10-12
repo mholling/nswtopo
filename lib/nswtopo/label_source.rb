@@ -161,7 +161,7 @@ module NSWTopo
     
     def features(map)
       labelling_hull, debug_features = map.mm_corners(-2), []
-      fences = RTree.load(@fences) do |fence, buffer|
+      fence_index = RTree.load(fences) do |fence, buffer|
         fence.transpose.map(&:minmax).map do |min, max|
           [ min - buffer, max + buffer ]
         end
@@ -206,7 +206,7 @@ module NSWTopo
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
               next unless labelling_hull.surrounds?(hull).all?
-              fence = fences.search(hull.transpose.map(&:minmax)).any? do |fence, buffer|
+              fence = fence_index.search(hull.transpose.map(&:minmax)).any? do |fence, buffer|
                 [ hull, fence ].overlap?(buffer)
               end
               priority = [ fence ? 1 : 0, index ]
@@ -264,7 +264,7 @@ module NSWTopo
               bounds = segment.transpose.map(&:minmax).map do |min, max|
                 [ min - 0.5 * font_size, max + 0.5 * font_size ]
               end
-              hash[segment] = fences.search(bounds).any? do |fence, buffer|
+              hash[segment] = fence_index.search(bounds).any? do |fence, buffer|
                 [ segment, fence ].overlap?(buffer + 0.5 * font_size)
               end
             end

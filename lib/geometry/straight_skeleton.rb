@@ -165,7 +165,7 @@ module StraightSkeleton
       h0, h1 = pair.map(&:heading)
       direction = pair[0].headings[1]
       travel = direction.dot(@point.minus e0) / (1 - secant * heading.dot(direction))
-      return if travel < 0 || travel.nan?
+      return if travel < 0 || travel.nan? || travel.infinite?
       return if limit && travel >= limit
       point = heading.times(secant * travel).plus(@point)
       return if point.minus(e0).dot(direction) < 0

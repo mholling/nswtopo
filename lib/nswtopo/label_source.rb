@@ -95,15 +95,6 @@ module NSWTopo
                 [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0 && args[0]
               when "smooth"
                 [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0 && args[0]
-              when "remove"
-                [ ] if args.any? do |value|
-                  case value
-                  when true    then true
-                  when String  then text == value
-                  when Regexp  then text =~ value
-                  when Numeric then text == value.to_s
-                  end
-                end
               when "remove-holes"
                 [ dimension ].zip [ data.remove_holes(*args) ] if dimension == 2 && args[0]
               when "close-gaps"
@@ -120,6 +111,15 @@ module NSWTopo
                   points.segments.map(&:distance).inject(0.0, &:+) < args[0]
                 end
                 [ [ dimension, pruned ] ]
+              when "remove"
+                [ ] if args.any? do |value|
+                  case value
+                  when true    then true
+                  when String  then text == value
+                  when Regexp  then text =~ value
+                  when Numeric then text == value.to_s
+                  end
+                end
               end || [ [ dimension, data ] ]
             end.flatten(1)
           end.each do |dimension, data|

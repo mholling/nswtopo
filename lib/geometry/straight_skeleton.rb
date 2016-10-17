@@ -382,8 +382,16 @@ module StraightSkeleton
     outset(true, 0.5 * max_gap).remove_holes(max_area).inset(true, 0.5 * max_gap)
   end
   
+  def smooth_in(closed, margin)
+    inset(closed, margin, false).outset(closed, margin, false)
+  end
+  
+  def smooth_out(closed, margin)
+    outset(closed, margin, false).inset(closed, margin, false)
+  end
+  
   def smooth(closed, margin)
-    inset(closed, margin).outset(closed, 2 * margin).inset(closed, margin, false)
+    inset(closed, margin, false).outset(closed, 2 * margin, false).inset(closed, margin, false)
   rescue ArgumentError
     self
   end

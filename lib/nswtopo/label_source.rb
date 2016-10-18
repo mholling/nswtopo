@@ -75,48 +75,50 @@ module NSWTopo
               map.coords_to_mm coords
             end.dedupe(dimension == 2)
           end
-          transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (*args))|
+          transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (arg, *args))|
+            next dimensioned_data unless arg
             dimensioned_data.map do |dimension, data|
+              closed = dimension == 2
               case transform
               when "reduce"
-                case args.shift
+                case arg
                 when "centrelines"
                   [ 1 ].zip data.centrelines_centrepoints(true, false, *args)
                 when "centrepoints"
                   [ 0 ].zip data.centrelines_centrepoints(false, true, *args)
                 when "centres"
                   [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args)
-                end if dimension == 2
+                end if closed
               when "outset"
-                [ dimension ].zip [ data.outset(dimension == 2, *args) ] if dimension > 0 && args[0]
+                [ dimension ].zip [ data.outset(closed, arg) ] if dimension > 0
               when "inset"
-                [ dimension ].zip [ data.inset(dimension == 2, *args) ] if dimension > 0 && args[0]
+                [ dimension ].zip [ data.inset(closed, arg) ] if dimension > 0
               when "buffer"
-                [ dimension ].zip [ data.buffer(dimension == 2, *args) ] if dimension > 0 && args[0]
+                [ dimension ].zip [ data.buffer(closed, arg, *args) ] if dimension > 0
               when "smooth-in"
-                [ dimension ].zip [ data.smooth_in(dimension == 2, *args) ] if dimension > 0 && args[0]
+                [ dimension ].zip [ data.smooth_in(closed, arg) ] if dimension > 0
               when "smooth-out"
-                [ dimension ].zip [ data.smooth_out(dimension == 2, *args) ] if dimension > 0 && args[0]
+                [ dimension ].zip [ data.smooth_out(closed, arg) ] if dimension > 0
               when "smooth"
-                [ dimension ].zip [ data.smooth(dimension == 2, *args) ] if dimension > 0 && args[0]
+                [ dimension ].zip [ data.smooth(closed, arg) ] if dimension > 0
               when "remove-holes"
-                [ dimension ].zip [ data.remove_holes(*args) ] if dimension == 2 && args[0]
+                [ dimension ].zip [ data.remove_holes(arg) ] if closed
               when "close-gaps"
-                [ dimension ].zip [ data.close_gaps(*args) ] if dimension == 2 && args[0]
+                [ dimension ].zip [ data.close_gaps(arg, *args) ] if closed
               when "minimum-area"
-                next [ [ dimension, data ] ] unless dimension == 2
+                next [ [ dimension, data ] ] unless closed
                 pruned = data.reject do |points|
-                  points.signed_area.abs < args[0]
+                  points.signed_area.abs < arg
                 end
                 [ [ dimension, pruned ] ]
               when "minimum-length"
                 next [ [ dimension, data ] ] unless dimension == 1
                 pruned = data.reject do |points|
-                  points.segments.map(&:distance).inject(0.0, &:+) < args[0]
+                  points.segments.map(&:distance).inject(0.0, &:+) < arg
                 end
                 [ [ dimension, pruned ] ]
               when "remove"
-                [ ] if args.any? do |value|
+                [ ] if [ arg, *args ].any? do |value|
                   case value
                   when true    then true
                   when String  then text == value

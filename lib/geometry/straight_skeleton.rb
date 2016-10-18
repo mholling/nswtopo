@@ -1,5 +1,6 @@
 module StraightSkeleton
-  DEFAULT_ROUNDING_ANGLE = 15 * Math::PI / 180
+  ROUNDING_ANGLE_DEGREES = 15
+  ROUNDING_ANGLE = ROUNDING_ANGLE_DEGREES * Math::PI / 180
   
   module Node
     attr_reader :point, :travel, :neighbours, :headings, :whence, :original
@@ -176,7 +177,7 @@ module StraightSkeleton
   end
   
   class Nodes
-    def initialize(data, closed, rounding_angle = DEFAULT_ROUNDING_ANGLE)
+    def initialize(data, closed, max_angle = nil)
       @active, @candidates = Set.new, AVLTree.new
       nodes = data.dedupe(closed).map.with_index do |points, index|
         next [ ] unless points.many?
@@ -189,7 +190,9 @@ module StraightSkeleton
           angle = headings.all? && Math::atan2(headings.inject(&:cross), headings.inject(&:dot))
           angle = -Math::PI if angle == Math::PI
           next Vertex.new(@active, @candidates, point, index, headings) unless angle && angle < 0
-          extras = rounding_angle ? (angle.abs / rounding_angle).floor : 0
+          extras = (angle.abs / ROUNDING_ANGLE).floor
+          extras = 1 if max_angle == false
+          extras = 1 if max_angle && angle < -max_angle
           extras.times.map do |n|
             angle * (n + 1) / (extras + 1)
           end.map do |angle|
@@ -357,14 +360,14 @@ module StraightSkeleton
     get_points ? [ lines, points ] : [ lines ]
   end
   
-  def inset(closed, margin, splits = true, rounding_angle = DEFAULT_ROUNDING_ANGLE)
+  def inset(closed, margin, splits = true, max_angle = nil)
     return self if margin.zero?
-    Nodes.new(self, closed, rounding_angle).progress(margin, splits).to_a.dedupe(closed).select(&:many?)
+    Nodes.new(self, closed, max_angle).progress(margin, splits).to_a.dedupe(closed).select(&:many?)
   end
   
-  def outset(closed, margin, splits = true, rounding_angle = DEFAULT_ROUNDING_ANGLE)
+  def outset(closed, margin, splits = true, max_angle = nil)
     return self if margin.zero?
-    map(&:reverse).inset(closed, margin, splits, rounding_angle).map(&:reverse)
+    map(&:reverse).inset(closed, margin, splits, max_angle).map(&:reverse)
   end
   
   def buffer(closed, margin, overshoot = margin)
@@ -382,16 +385,16 @@ module StraightSkeleton
     outset(true, 0.5 * max_gap).remove_holes(max_area).inset(true, 0.5 * max_gap)
   end
   
-  def smooth_in(closed, margin)
-    inset(closed, margin).outset(closed, margin, false)
+  def smooth_in(closed, margin, max_angle = nil)
+    inset(closed, margin).outset(closed, margin, false, max_angle)
   end
   
-  def smooth_out(closed, margin)
-    outset(closed, margin).inset(closed, margin, false)
+  def smooth_out(closed, margin, max_angle = nil)
+    outset(closed, margin).inset(closed, margin, false, max_angle)
   end
   
-  def smooth(closed, margin)
-    inset(closed, margin).outset(closed, 2 * margin).inset(closed, margin, false)
+  def smooth(closed, margin, max_angle = nil)
+    smooth_in(closed, margin, max_angle).smooth_out(closed, margin, max_angle)
   rescue ArgumentError
     self
   end

@@ -191,7 +191,7 @@ module StraightSkeleton
           angle = -Math::PI if angle == Math::PI
           next Vertex.new(@active, @candidates, point, index, headings) unless angle && angle < 0
           extras = (angle.abs / ROUNDING_ANGLE).floor
-          extras = 1 if max_angle == false
+          extras = 2 if max_angle == false
           extras = 1 if max_angle && angle < -max_angle
           extras.times.map do |n|
             angle * (n + 1) / (extras + 1)

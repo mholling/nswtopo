@@ -383,15 +383,15 @@ module StraightSkeleton
   end
   
   def smooth_in(closed, margin)
-    inset(closed, margin, false).outset(closed, margin, false)
+    inset(closed, margin).outset(closed, margin, false)
   end
   
   def smooth_out(closed, margin)
-    outset(closed, margin, false).inset(closed, margin, false)
+    outset(closed, margin).inset(closed, margin, false)
   end
   
   def smooth(closed, margin)
-    inset(closed, margin, false).outset(closed, 2 * margin, false).inset(closed, margin, false)
+    inset(closed, margin).outset(closed, 2 * margin).inset(closed, margin, false)
   rescue ArgumentError
     self
   end

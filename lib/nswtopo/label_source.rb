@@ -8,7 +8,7 @@ module NSWTopo
     DEFAULT_MARGIN      = 1
     DEFAULT_LINE_HEIGHT = '110%'
     DEFAULT_MAX_TURN    = 60
-    DEFAULT_MAX_ANGLE   = StraightSkeleton::ROUNDING_ANGLE_DEGREES
+    DEFAULT_MAX_ANGLE   = StraightSkeleton::DEFAULT_ROUNDING_ANGLE
     DEFAULT_SAMPLE      = 5
     PARAMS = %Q[
       font-size: #{DEFAULT_FONT_SIZE}
@@ -49,7 +49,7 @@ module NSWTopo
             keys.include? key
           end
         end
-        max_turn = attributes.fetch("max-turn", DEFAULT_MAX_TURN) * Math::PI / 180
+        max_turn = attributes.fetch("max-turn", DEFAULT_MAX_TURN)
         features.each do |_, data, labels, _, sublayer|
           text = case
           when labels.is_a?(REXML::Element)
@@ -316,7 +316,7 @@ module NSWTopo
               when "downhill" then baseline.reverse!
               else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
               end
-              hull = [ baseline.convex_hull ].outset(true, 0.5 * font_size, false, false).flatten(1)
+              hull = [ baseline.convex_hull ].outset(true, 0.5 * font_size, "splits" => false, "rounding-angle" => 90).flatten(1)
               next unless labelling_hull.surrounds?(hull).all?
               baseline << baseline.last(2).difference.normalised.times(text_length * 0.25).plus(baseline.last)
               path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT

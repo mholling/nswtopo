@@ -1,6 +1,5 @@
 module StraightSkeleton
-  ROUNDING_ANGLE_DEGREES = 15
-  ROUNDING_ANGLE = ROUNDING_ANGLE_DEGREES * Math::PI / 180
+  DEFAULT_ROUNDING_ANGLE = 15
   
   module Node
     attr_reader :point, :travel, :neighbours, :headings, :whence, :original
@@ -177,8 +176,10 @@ module StraightSkeleton
   end
   
   class Nodes
-    def initialize(data, closed, max_angle = nil)
+    def initialize(data, closed, options = {})
       @active, @candidates = Set.new, AVLTree.new
+      rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
+      cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
       nodes = data.dedupe(closed).map.with_index do |points, index|
         next [ ] unless points.many?
         headings = if closed
@@ -190,9 +191,8 @@ module StraightSkeleton
           angle = headings.all? && Math::atan2(headings.inject(&:cross), headings.inject(&:dot))
           angle = -Math::PI if angle == Math::PI
           next Vertex.new(@active, @candidates, point, index, headings) unless angle && angle < 0
-          extras = (angle.abs / ROUNDING_ANGLE).floor
-          extras = 2 if max_angle == false
-          extras = 1 if max_angle && angle < -max_angle
+          extras = (angle.abs / rounding_angle).floor
+          extras = 1 if cutoff && angle < -cutoff
           extras.times.map do |n|
             angle * (n + 1) / (extras + 1)
           end.map do |angle|
@@ -210,13 +210,13 @@ module StraightSkeleton
       nodes.flatten.each(&:add)
     end
     
-    def progress(limit = nil, splits = true, &block)
+    def progress(limit = nil, options = {}, &block)
       @active.map do |node|
         node.collapse limit
       end.compact.each do |collapse|
         @candidates << collapse
       end
-      if splits
+      if options.fetch("splits", true)
         @active.select(&:terminal?).permutation(2).select do |node1, node2|
           node1.point == node2.point
         end.select do |node1, node2|
@@ -360,24 +360,24 @@ module StraightSkeleton
     get_points ? [ lines, points ] : [ lines ]
   end
   
-  def inset(closed, margin, splits = true, max_angle = nil)
+  def inset(closed, margin, options = {})
     return self if margin.zero?
-    Nodes.new(self, closed, max_angle).progress(margin, splits).to_a.dedupe(closed).select(&:many?)
+    Nodes.new(self, closed, options).progress(margin, options).to_a.dedupe(closed).select(&:many?)
   end
   
-  def outset(closed, margin, splits = true, max_angle = nil)
+  def outset(closed, margin, options = {})
     return self if margin.zero?
-    map(&:reverse).inset(closed, margin, splits, max_angle).map(&:reverse)
+    map(&:reverse).inset(closed, margin, options).map(&:reverse)
   end
   
   def buffer(closed, margin, overshoot = margin)
     case
     when !closed
-      (self + map(&:reverse)).inset(closed, margin + overshoot).outset(closed, overshoot, false)
+      (self + map(&:reverse)).inset(closed, margin + overshoot).outset(closed, overshoot, "splits" => false)
     when margin > 0
-      outset(closed, margin + overshoot).inset(closed, overshoot, false)
+      outset(closed, margin + overshoot).inset(closed, overshoot, "splits" => false)
     else
-      inset(closed, -(margin + overshoot)).outset(closed, -overshoot, false)
+      inset(closed, -(margin + overshoot)).outset(closed, -overshoot, "splits" => false)
     end
   end
   
@@ -385,16 +385,16 @@ module StraightSkeleton
     outset(true, 0.5 * max_gap).remove_holes(max_area).inset(true, 0.5 * max_gap)
   end
   
-  def smooth_in(closed, margin, max_angle = nil)
-    inset(closed, margin).outset(closed, margin, false, max_angle)
+  def smooth_in(closed, margin, cutoff = nil)
+    inset(closed, margin).outset(closed, margin, "splits" => false, "cutoff" => cutoff)
   end
   
-  def smooth_out(closed, margin, max_angle = nil)
-    outset(closed, margin).inset(closed, margin, false, max_angle)
+  def smooth_out(closed, margin, cutoff = nil)
+    outset(closed, margin).inset(closed, margin, "splits" => false, "cutoff" => cutoff)
   end
   
-  def smooth(closed, margin, max_angle = nil)
-    smooth_in(closed, margin, max_angle).smooth_out(closed, margin, max_angle)
+  def smooth(closed, margin, cutoff = nil)
+    smooth_in(closed, margin, cutoff).smooth_out(closed, margin, cutoff)
   rescue ArgumentError
     self
   end

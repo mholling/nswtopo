@@ -239,16 +239,15 @@ module StraightSkeleton
         @active.select do |node|
           node.terminal? || node.reflex?
         end.map do |node|
-          candidate, travel, searched = nil, limit, Set.new
+          candidate, closer, travel, searched = nil, nil, limit, Set.new
           loop do
             bounds = node.heading.times(node.secant * travel).plus(node.point).zip(node.point).map do |centre, coord|
               [ coord, centre - travel, centre + travel ].minmax
             end if travel
-            break candidate unless pair = pairs.search(bounds, searched).find do |pair|
-              node.split pair, travel
+            break candidate unless pairs.search(bounds, searched).any? do |pair|
+              closer = node.split pair, travel
             end
-            candidate = node.split pair
-            travel = candidate.travel
+            candidate, travel = closer, closer.travel
           end
         end.compact.tap do |splits|
           @candidates.merge splits

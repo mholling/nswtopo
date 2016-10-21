@@ -1,10 +1,10 @@
 module VectorSequences
-  def dedupe(closed)
+  def sanitise(closed)
     (closed ? map(&:ring) : map(&:segments)).map do |segments|
       segments.reject do |segment|
         segment.inject(&:==)
       end.map(&:first) + segments.last(closed ? 0 : 1).map(&:last)
-    end
+    end.reject(&:empty?).reject(&:one?)
   end
   
   def remove_holes(max_area = true)

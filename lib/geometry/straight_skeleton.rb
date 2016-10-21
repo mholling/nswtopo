@@ -177,11 +177,10 @@ module StraightSkeleton
   
   class Nodes
     def initialize(data, closed, options = {})
-      @active, @candidates = Set.new, AVLTree.new
+      @active, @candidates, @closed = Set.new, AVLTree.new, closed
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
-      nodes = data.dedupe(closed).map.with_index do |points, index|
-        next [ ] unless points.many?
+      nodes = data.sanitise(closed).map.with_index do |points, index|
         headings = if closed
           points.ring.map(&:difference).map(&:normalised).map(&:perp).ring.rotate(-1)
         else
@@ -271,7 +270,7 @@ module StraightSkeleton
             yielder << points
           end
         end
-      end
+      end.to_a.sanitise(@closed)
     end
   end
   
@@ -355,13 +354,13 @@ module StraightSkeleton
       end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
         nodes.map(&:point)
       end
-    end.flatten(1)
+    end.flatten(1).sanitise(false)
     get_points ? [ lines, points ] : [ lines ]
   end
   
   def inset(closed, margin, options = {})
     return self if margin.zero?
-    Nodes.new(self, closed, options).progress(margin, options).to_a.dedupe(closed).select(&:many?)
+    Nodes.new(self, closed, options).progress(margin, options)
   end
   
   def outset(closed, margin, options = {})

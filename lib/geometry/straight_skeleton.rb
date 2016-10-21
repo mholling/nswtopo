@@ -218,22 +218,23 @@ module StraightSkeleton
         @candidates << collapse
       end
       if options.fetch("splits", true)
-        @active.select(&:terminal?).permutation(2).select do |node1, node2|
-          node1.point == node2.point
-        end.select do |node1, node2|
-          node1.prev && node2.next
-        end.select do |node1, node2|
-          node1.heading.cross(node2.heading) > 0
-        end.group_by(&:first).map(&:last).map do |pairs|
-          pairs.min_by do |node1, node2|
-            node1.heading.dot node2.heading
-          end
-        end.compact.each do |node1, node2|
-          @candidates << Split.new(@active, @candidates, node1.point, 0, node1, node2)
-        end
-        @active.reject(&:terminal?).select do |node|
+        repeated_terminals, repeated_nodes = @active.select do |node|
           @repeats.include? node.point
-        end.group_by(&:point).select do |point, nodes|
+        end.partition(&:terminal?)
+        repeated_terminals.group_by(&:point).each do |point, nodes|
+          nodes.permutation(2).select do |node1, node2|
+            node1.prev && node2.next
+          end.select do |node1, node2|
+            node1.heading.cross(node2.heading) > 0
+          end.group_by(&:first).map(&:last).map do |pairs|
+            pairs.min_by do |node1, node2|
+              node1.heading.dot node2.heading
+            end
+          end.compact.each do |node1, node2|
+            @candidates << Split.new(@active, @candidates, point, 0, node1, node2)
+          end
+        end
+        repeated_nodes.group_by(&:point).select do |point, nodes|
           nodes.all?(&:reflex?)
         end.each do |point, nodes|
           nodes.inject([]) do |(*sets, set), node|

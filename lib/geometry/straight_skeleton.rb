@@ -180,7 +180,9 @@ module StraightSkeleton
       @active, @candidates, @closed = Set.new, AVLTree.new, closed
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
-      nodes = data.sanitise(closed).map.with_index do |points, index|
+      nodes = data.sanitise(closed).tap do |lines|
+        @repeats = lines.flatten(1).group_by { |point| point }.reject { |point, points| points.one? }
+      end.map.with_index do |points, index|
         headings = if closed
           points.ring.map(&:difference).map(&:normalised).map(&:perp).ring.rotate(-1)
         else
@@ -229,6 +231,24 @@ module StraightSkeleton
         end.compact.each do |node1, node2|
           @candidates << Split.new(@active, @candidates, node1.point, 0, node1, node2)
         end
+        @active.reject(&:terminal?).select do |node|
+          @repeats.include? node.point
+        end.group_by(&:point).select do |point, nodes|
+          nodes.all?(&:reflex?)
+        end.each do |point, nodes|
+          nodes.inject([]) do |(*sets, set), node|
+            case
+            when !set then                   [ [ node ] ]
+            when set.last.next == node  then [ *sets, [ *set, node ] ]
+            when set.first == node.next then [ *sets, [ node, *set ] ]
+            else                             [ *sets,  set, [ node ] ]
+            end
+          end.sort_by do |set|
+            set.first.heading.angle
+          end.ring.each do |set0, set1|
+            @candidates << Split.new(@active, @candidates, point, 0, set0.first, set1.last)
+          end
+        end if @closed
         pairs = @active.select(&:next).map do |node|
           [ node, node.next ]
         end

@@ -84,10 +84,10 @@ Alternatively, specify the map bounds in UTM by providing the UTM zone (54, 55 o
 
 or, as latitude/longitude bounds:
 
-    latitudes: 
+    latitudes:
     - -35.951221
     - -35.892871
-    longitudes: 
+    longitudes:
     - 149.383789
     - 149.489746
 
@@ -170,14 +170,14 @@ Generic layers depicting shaded relief, UTM grid and magnetic declination are al
 By including the `relief` layer in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layer is automatically generated from the [SRTM](http://en.wikipedia.org/wiki/Shuttle_Radar_Topography_Mission) digital elevation model, available online.
 
 You can specify the azimuthal angle, altitude and terrain exaggeration used to generate the shaded relief layer. (The conventional azimuth angle of 315 is set as default, should probably be left as is.) You can also specify the opacity of the layer to change the aggressiveness of the effect.
-  
+
     relief:
       azimuth: 315            # azimuth angle for shaded relief layers (degrees clockwise from North)
       altitude: 45            # angle of illumination from horizon (45 is standard)
       exaggeration: 1         # vertical exaggeration factor
       opacity: 0.3            # opacity of the shaded relief; determines how subtle the effect is
 
-The shaded relief is derived from smoothed, one-arcsecond SRTM elevation data. (The dataset, `dem_s_1s`, is provided online by Geoscience Australia and it's no longer necessary to obtain the data manually). Shaded relief is embedded directly into the map at a default of 30 metre/pixel resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. This is not an issue unless you also use Inkscape to rasterise your map. (PhantomJS is a better option for this; see below.)
+The shaded relief is derived from smoothed, one-arcsecond SRTM elevation data. (The dataset, `dem_s_aspect`, is provided online by Geoscience Australia and it's no longer necessary to obtain the data manually). Shaded relief is embedded directly into the map at a default of 30 metre/pixel resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. This is not an issue unless you also use Inkscape to rasterise your map. (PhantomJS is a better option for this; see below.)
 
 You can also provide your own elevation data from a _DEM_ (Digital Elevation Model). This allows you to obtain higher-resolution data for a better shaded relief depiction. DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows:
 
@@ -205,7 +205,7 @@ Grid labels are rendered periodically across the map at an interval determined b
 
 ## Declination
 
-This layer marks magnetic north lines on the map, and is useful for rogaining maps. The magnetic declination angle for the map centre is automatically retrieved from an [NOAA online calculator](http://www.ngdc.noaa.gov/geomag-web/#declination). (Override by specifying an `angle: ` value.) Specify spacing and rendering for the magnetic declination lines. 
+This layer marks magnetic north lines on the map, and is useful for rogaining maps. The magnetic declination angle for the map centre is automatically retrieved from an [NOAA online calculator](http://www.ngdc.noaa.gov/geomag-web/#declination). (Override by specifying an `angle: ` value.) Specify spacing and rendering for the magnetic declination lines.
 
     declination:
       spacing: 1000           # perpendicular spacing of magnetic declination lines in metres

@@ -1,7 +1,7 @@
 module NSWTopo
   class ReliefSource
     include RasterRenderer
-    
+
     PARAMS = %q[
       altitude: 45
       azimuth: 315
@@ -12,20 +12,20 @@ module NSWTopo
       median: 30.0
       bilateral: 5
     ]
-    
+
     def initialize(name, params)
       super name, YAML.load(PARAMS).merge(params).merge("ext" => "tif")
     end
-    
+
     def get_raster(map, dimensions, resolution, temp_dir)
       src_path = temp_dir + "dem.txt"
       vrt_path = temp_dir + "dem.vrt"
       dem_path = temp_dir + "dem.tif"
-      
+
       bounds = map.bounds.map do |lower, upper|
         [ lower - 10.0 * resolution, upper + 10.0 * resolution ]
       end
-      
+
       if params["path"]
         [ *params["path"] ].map do |path|
           Pathname.glob path
@@ -33,7 +33,7 @@ module NSWTopo
           raise BadLayerError.new("no dem data files at specified path") if paths.empty?
         end
       else
-        base_uri = URI.parse "http://www.ga.gov.au/gisimg/rest/services/topography/dem_s_1s/ImageServer/"
+        base_uri = URI.parse "http://www.ga.gov.au/gisimg/rest/services/topography/dem_s_aspect/ImageServer/"
         wgs84_bounds = map.projection.transform_bounds_to Projection.wgs84, bounds
         base_query = { "f" => "json", "geometry" => wgs84_bounds.map(&:sort).transpose.flatten.join(?,) }
         query = base_query.merge("returnIdsOnly" => true, "where" => "category = 1").to_query
@@ -54,15 +54,15 @@ module NSWTopo
         File.write src_path, path_list
       end
       %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
-      
+
       dem_bounds = map.projection.transform_bounds_to Projection.new(vrt_path), bounds
       ulx, lrx, lry, uly = dem_bounds.flatten
       %x[gdal_translate -q -projwin #{ulx} #{uly} #{lrx} #{lry} "#{vrt_path}" "#{dem_path}"]
-      
+
       scale = bounds.zip(dem_bounds).last.map do |bound|
         bound.inject(&:-)
       end.inject(&:/)
-      
+
       temp_dir.join(path.basename).tap do |tif_path|
         relief_path = temp_dir + "#{name}-uncropped.tif"
         tfw_path = temp_dir + "#{name}.tfw"
@@ -84,7 +84,7 @@ module NSWTopo
         %x[mogrify -channel RGBA -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
       end
     end
-    
+
     def embed_image(temp_dir)
       raise BadLayerError.new("hillshade image not found at #{path}") unless path.exist?
       highlights = params["highlights"]

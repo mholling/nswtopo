@@ -291,7 +291,7 @@ module StraightSkeleton
             yielder << points
           end
         end
-      end.to_a.sanitise(@closed)
+      end.to_a.sanitise(@closed) unless block_given?
     end
   end
   

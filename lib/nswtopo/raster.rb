@@ -35,30 +35,16 @@ module NSWTopo
         dpi = config["phantom-dpi"] || 96.0
         zoom = ppi.to_f / dpi
         js_path = temp_dir + "rasterise.js"
-        script = %Q[
+        js_path.write %Q[
           var page = require('webpage').create();
           page.zoomFactor = #{zoom};
           page.open('#{svg_path}', function() {
+            page.clipRect = { top: 0, left: 0, width: #{width}, height: #{height} };
+            page.render('#{png_path}');
+            phantom.exit();
+          });
         ]
-        [ (0...height).step(5000), (0...width).step(5000) ].map(&:to_a).inject(&:product).map.with_index do |(top, left), index|
-          [ top, left, temp_dir + "tile.#{index}.png" ]
-        end.each do |top, left, tile_path|
-          script += %Q[
-            page.clipRect = { top: #{top}, left: #{left}, width: #{[ width - left, 5000 ].min}, height: #{[ height - top, 5000 ].min} };
-            page.render('#{tile_path}');
-          ]
-        end.tap do
-          script += %Q[
-              phantom.exit();
-            });
-          ]
-          js_path.write script
-          %x["#{rasterise}" "#{js_path}"]
-        end.map do |top, left, tile_path|
-          %Q[#{OP} "#{tile_path}" +repage -repage +#{left}+#{top} #{CP}]
-        end.tap do |tiles|
-          %x[convert #{tiles.join ?\s} -compose Copy -layers mosaic "#{png_path}"]
-        end
+        %x["#{rasterise}" "#{js_path}"]
       # TODO: add option for headless Chromium when it becomes available
       when /wkhtmltoimage/i
         test_path = temp_dir + "test.svg"

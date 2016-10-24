@@ -9,7 +9,7 @@ module NSWTopo
     
     def self.build(config, map, ppi, svg_path, temp_dir, png_path)
       width, height = dimensions = map.dimensions_at(ppi)
-      rasterise = config["rasterise"]
+      rasterise, dpi = config["rasterise"]
       case rasterise
       when /inkscape/i
         %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-png="#{png_path}" --export-width=#{width} --export-height=#{height} --export-background="#FFFFFF" #{DISCARD_STDERR}]
@@ -32,8 +32,8 @@ module NSWTopo
         %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
         %x[convert "#{square_png_path}" -crop #{width}x#{height}+0+0 +repage "#{png_path}"]
       when /phantomjs|slimerjs/i
-        dpi = config["phantom-dpi"] || 96.0
-        zoom = ppi.to_f / dpi
+        dpi = (dpi || 96).to_f
+        zoom = ppi / dpi
         js_path = temp_dir + "rasterise.js"
         js_path.write %Q[
           var page = require('webpage').create();

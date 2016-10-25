@@ -32,8 +32,7 @@ module NSWTopo
         %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
         %x[convert "#{square_png_path}" -crop #{width}x#{height}+0+0 +repage "#{png_path}"]
       when /phantomjs|slimerjs/i
-        dpi = (dpi || 96).to_f
-        zoom = ppi / dpi
+        zoom = ppi.to_f / (dpi || 96)
         js_path = temp_dir + "rasterise.js"
         js_path.write %Q[
           var page = require('webpage').create();
@@ -46,6 +45,21 @@ module NSWTopo
         ]
         %x["#{rasterise}" "#{js_path}"]
       # TODO: add option for headless Chromium when it becomes available
+      when /nightmare/
+        zoom = ppi.to_f / (dpi || 96)
+        js_path = temp_dir + "rasterise.js"
+        js_path.write %Q[
+          var Nightmare = require('#{rasterise}');
+          var browser = new Nightmare({ width: #{width}, height: #{height}, useContentSize: true, gotoTimeout: undefined, webPreferences: { zoomFactor: #{zoom} } });
+          browser
+          .goto('file://#{svg_path}')
+          .evaluate(() => { document.querySelector('svg').style.overflow = 'hidden'; })
+          .wait(1000)
+          .screenshot('#{png_path}', { x: 0, y: 0, width: #{width}, height: #{height} })
+          .run(() => { process.exit(); });
+        ]
+        %x[node "#{js_path}"]
+        # puts %x[DEBUG=* node "#{js_path}"]
       when /wkhtmltoimage/i
         test_path = temp_dir + "test.svg"
         out_path  = temp_dir + "test.png"

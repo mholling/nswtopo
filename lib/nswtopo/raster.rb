@@ -1,12 +1,5 @@
 module NSWTopo
   module Raster
-    def self.make_one_inch_svg(path)
-      svg = REXML::Document.new
-      svg << REXML::XMLDecl.new(1.0, "utf-8")
-      svg.add_element "svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg", "width"  => "1in", "height" => "1in"
-      path.open("w") { |file| svg.write file }
-    end
-    
     def self.build(config, map, ppi, svg_path, temp_dir, png_path)
       width, height = dimensions = map.dimensions_at(ppi)
       rasterise, dpi = config["rasterise"]
@@ -61,11 +54,7 @@ module NSWTopo
         %x[node "#{js_path}"]
         # puts %x[DEBUG=* node "#{js_path}"]
       when /wkhtmltoimage/i
-        test_path = temp_dir + "test.svg"
-        out_path  = temp_dir + "test.png"
-        make_one_inch_svg test_path
-        %x["#{rasterise}" -q "#{test_path}" "#{out_path}"]
-        zoom = ppi / %x[identify -format "%h" "#{out_path}"].to_f
+        zoom = ppi.to_f / (dpi || 96)
         %x["#{rasterise}" -q --width #{width} --height #{height} --zoom #{zoom} "#{svg_path}" "#{png_path}"]
       else
         abort("Error: specify either phantomjs, wkhtmltoimage, inkscape or qlmanage as your rasterise method (see README).")

@@ -28,13 +28,13 @@ module NSWTopo
         zoom = ppi.to_f / (dpi || 96)
         js_path = temp_dir + "rasterise.js"
         js_path.write %Q[
-          var page = require('webpage').create();
-          page.zoomFactor = #{zoom};
+          const page = require('webpage').create()
+          page.zoomFactor = #{zoom}
           page.open('#{svg_path}', function() {
-            page.clipRect = { top: 0, left: 0, width: #{width}, height: #{height} };
-            page.render('#{png_path}');
-            phantom.exit();
-          });
+            page.clipRect = { top: 0, left: 0, width: #{width}, height: #{height} }
+            page.render('#{png_path}')
+            phantom.exit()
+          })
         ]
         %x["#{rasterise}" "#{js_path}"]
       when /electron/i

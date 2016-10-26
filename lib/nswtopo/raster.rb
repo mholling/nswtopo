@@ -37,22 +37,26 @@ module NSWTopo
           });
         ]
         %x["#{rasterise}" "#{js_path}"]
-      # TODO: add option for headless Chromium when it becomes available
-      when /nightmare/
+      when /electron/i
         zoom = ppi.to_f / (dpi || 96)
         js_path = temp_dir + "rasterise.js"
         js_path.write %Q[
-          var Nightmare = require('#{rasterise}');
-          var browser = new Nightmare({ width: #{width}, height: #{height}, useContentSize: true, gotoTimeout: undefined, webPreferences: { zoomFactor: #{zoom} } });
-          browser
-          .goto('file://#{svg_path}')
-          .evaluate(() => { document.querySelector('svg').style.overflow = 'hidden'; })
-          .wait(1000)
-          .screenshot('#{png_path}', { x: 0, y: 0, width: #{width}, height: #{height} })
-          .run(() => { process.exit(); });
+          const {app, BrowserWindow} = require('electron')
+          app.on('ready', () => {
+            var browser = new BrowserWindow({ width: #{width}, height: #{height}, useContentSize: true, show: false, webPreferences: { zoomFactor: #{zoom} } })
+            browser.webContents.once('did-finish-load', () => {
+              browser.webContents.insertCSS('svg { overflow: hidden }')
+            })
+            browser.once('ready-to-show', () => {
+              browser.capturePage({ x: 0, y: 0, width: #{width}, height: #{height} }, image => {
+                require('fs').writeFile('#{png_path}', image.toPng(), app.exit)
+              })
+            })
+            browser.loadURL('file://#{svg_path}')
+          })
+          app.dock && app.dock.hide()
         ]
-        %x[node "#{js_path}"]
-        # puts %x[DEBUG=* node "#{js_path}"]
+        %x["#{rasterise}" "#{js_path}"]
       when /wkhtmltoimage/i
         zoom = ppi.to_f / (dpi || 96)
         %x["#{rasterise}" -q --width #{width} --height #{height} --zoom #{zoom} "#{svg_path}" "#{png_path}"]

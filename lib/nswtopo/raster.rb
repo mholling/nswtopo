@@ -25,11 +25,11 @@ module NSWTopo
         square_png_path = temp_dir + "square.svg.png"
         xml = REXML::Document.new(svg_path.read)
         millimetres = map.extents.map { |extent| 1000.0 * extent / map.scale }
-        xml.elements["/svg"].attributes["width"] = "#{millimetres.max}mm"
-        xml.elements["/svg"].attributes["height"] = "#{millimetres.max}mm"
+        xml.elements["/svg"].attributes["width"] = "#{dimensions.max}px"
+        xml.elements["/svg"].attributes["height"] = "#{dimensions.max}px"
         xml.elements["/svg"].attributes["viewBox"] = "0 0 #{millimetres.max} #{millimetres.max}"
         File.write square_svg_path, xml
-        %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}"]
+        %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}" #{DISCARD_STDERR}]
         %x[convert "#{square_png_path}" -crop #{width}x#{height}+0+0 +repage "#{png_path}"]
       when /phantomjs|slimerjs/i
         zoom = ppi.to_f / (dpi || 96)

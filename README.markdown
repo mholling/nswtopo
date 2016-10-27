@@ -379,7 +379,7 @@ If you select `prj` as an output, a corresponding [ESRI world file](http://en.wi
 
 ## Producing Raster Images
 
-There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). To produce a raster map image, install either [Electron](http://electron.atom.io/) (via [Node.js](https://nodejs.org), [PhantomJS](http://phantomjs.org/download.html) or [Inkscape](http://inkscape.org/). (Electron or PhantomJS is recommended for best results.) Then set your configuration file as follows:
+There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). To produce a raster map image, install either [Electron](http://electron.atom.io/) (via [Node.js](https://nodejs.org)), [PhantomJS](http://phantomjs.org/download.html) or [Inkscape](http://inkscape.org/). (Electron or PhantomJS is recommended for best results.) Then set your configuration file as follows:
 
 * To use PhantomJS for rasterising, specify the path of the PhantomJS binary you downloaded. e.g. for Windows:
 

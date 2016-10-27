@@ -66,7 +66,7 @@ module NSWTopo
         zoom = ppi.to_f / (dpi || 96)
         %x["#{rasterise}" -q --width #{width} --height #{height} --zoom #{zoom} "#{svg_path}" "#{png_path}"]
       else
-        abort("Error: specify either phantomjs, wkhtmltoimage, inkscape or qlmanage as your rasterise method (see README).")
+        abort("Error: specify either electron, phantomjs, wkhtmltoimage, inkscape or qlmanage as your rasterise method (see README).")
       end
       case
       when config["dither"] && config["gimp"]

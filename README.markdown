@@ -177,7 +177,7 @@ You can specify the azimuthal angle, altitude and terrain exaggeration used to g
       exaggeration: 1         # vertical exaggeration factor
       opacity: 0.3            # opacity of the shaded relief; determines how subtle the effect is
 
-The shaded relief is derived from smoothed, one-arcsecond SRTM elevation data. (The dataset, `dem_s_1s`, is provided online by Geoscience Australia and it's no longer necessary to obtain the data manually). Shaded relief is embedded directly into the map at a default of 30 metre/pixel resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. This is not an issue unless you also use Inkscape to rasterise your map. (PhantomJS is a better option for this; see below.)
+The shaded relief is derived from smoothed, one-arcsecond SRTM elevation data. (The dataset, `dem_s_1s`, is provided online by Geoscience Australia and it's no longer necessary to obtain the data manually). Shaded relief is embedded directly into the map at a default of 30 metre/pixel resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. This is not an issue unless you also use Inkscape to rasterise your map. (Electron and PhantomJS are better options for this; see below.)
 
 You can also provide your own elevation data from a _DEM_ (Digital Elevation Model). This allows you to obtain higher-resolution data for a better shaded relief depiction. DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows:
 
@@ -379,21 +379,27 @@ If you select `prj` as an output, a corresponding [ESRI world file](http://en.wi
 
 ## Producing Raster Images
 
-There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). To produce a raster map image, install either [PhantomJS](http://phantomjs.org/download.html) or [Inkscape](http://inkscape.org/). (PhantomJS is recommended for best results.) Then set your configuration file as follows:
+There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). To produce a raster map image, install either [Electron](http://electron.atom.io/) (via [Node.js](https://nodejs.org), [PhantomJS](http://phantomjs.org/download.html) or [Inkscape](http://inkscape.org/). (Electron or PhantomJS is recommended for best results.) Then set your configuration file as follows:
 
 * To use PhantomJS for rasterising, specify the path of the PhantomJS binary you downloaded. e.g. for Windows:
 
         rasterise: C:/Users/Matthew/phantomjs-1.9.8-windows/phantomjs.exe
 
+* To use Electron for rasterising:
+
+        rasterise: electron
+
 * To use Inkscape for rasterising:
 
         rasterise: inkscape
 
-  If your command line does not recognise the `inkscape` command, you may need to specify the full path. e.g. for Mac:
+If your command line does not recognise the `inkscape` or `electron` command, you may need to specify the full path. e.g. for Mac:
 
         rasterise: /Applications/Inkscape.app/Contents/Resources/bin/inkscape
 
-  (Or the corresponding `C:/Program Files/Inkscape/inkscape.exe` path in Windows.)
+(Or the corresponding `C:/Program Files/Inkscape/inkscape.exe` path in Windows.)
+
+If your map uses shaded relief, it will not render correctly in PhantomJS version 2.0 and above; in this case version 1.9.8 is recommended (although it may crash if your map is too large). Electron is the quickest and most accurate rendering option, however installation (via Node.js and npm) may be less straightforward for the unititiated.
 
 Suggested Workflow for Rogaining Maps
 =====================================

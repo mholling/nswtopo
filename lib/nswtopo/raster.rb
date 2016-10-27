@@ -39,19 +39,24 @@ module NSWTopo
         %x["#{rasterise}" "#{js_path}"]
       when /electron/i
         zoom = ppi.to_f / (dpi || 96)
+        preload_path = temp_dir + "preload.js"
+        preload_path.write %Q[
+          const {ipcRenderer} = require('electron')
+          var start;
+          function wait(time) {
+            if (!start) start = time
+            time && time - start > 15000 ? ipcRenderer.send('really-ready') : window.requestAnimationFrame(wait)
+          }
+          ipcRenderer.on('wait', () => wait())
+        ]
         js_path = temp_dir + "rasterise.js"
         js_path.write %Q[
-          const {app, BrowserWindow} = require('electron')
+          const {app, BrowserWindow, ipcMain} = require('electron'), {writeFile} = require('fs')
           app.on('ready', () => {
-            var browser = new BrowserWindow({ width: #{width}, height: #{height}, useContentSize: true, show: false, webPreferences: { zoomFactor: #{zoom} } })
-            browser.webContents.once('did-finish-load', () => {
-              browser.webContents.insertCSS('svg { overflow: hidden }')
-            })
-            browser.once('ready-to-show', () => {
-              browser.capturePage({ x: 0, y: 0, width: #{width}, height: #{height} }, image => {
-                require('fs').writeFile('#{png_path}', image.toPng(), app.exit)
-              })
-            })
+            const browser = new BrowserWindow({ width: #{width}, height: #{height}, useContentSize: true, show: false, webPreferences: { zoomFactor: #{zoom}, preload: '#{preload_path}' } })
+            browser.webContents.once('did-finish-load', () => browser.webContents.insertCSS('svg { overflow: hidden }'))
+            browser.once('ready-to-show', () => browser.webContents.send('wait'))
+            ipcMain.once('really-ready', () => browser.capturePage(image => writeFile('#{png_path}', image.toPng(), app.exit)))
             browser.loadURL('file://#{svg_path}')
           })
           app.dock && app.dock.hide()

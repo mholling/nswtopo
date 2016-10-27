@@ -17,8 +17,13 @@
 
 require_relative "../lib/nswtopo.rb"
 
-Signal.trap("INT") do
-  abort "\nHalting execution. Run the script again to resume."
+start = Time.now
+begin
+  NSWTopo.run
+rescue Interrupt
+  abort "\r\033[KHalting execution. Run the script again to resume."
+ensure
+  duration = Time.now - start
+  minutes, seconds = (duration / 60).floor, (duration % 60).ceil
+  puts "Program completed in %s." % [ ("#{minutes} minute#{?s unless 1 == minutes}" unless 0 == minutes), ("#{seconds} second#{?s unless 1 == seconds}" unless 0 == seconds) ].compact.join(", ")
 end
-
-NSWTopo.run

@@ -67,7 +67,6 @@ rotation: 0
   NoVectorPDF = Class.new(Exception)
   
   def self.run
-    time = Time.now
     default_config = YAML.load(CONFIG)
     
     %w[bounds.kml bounds.gpx].map do |filename|
@@ -376,10 +375,6 @@ rotation: 0
         end
       end
     end unless outstanding.empty?
-    time = Time.now - time
-    minutes = (time / 60).floor
-    seconds = (time % 60).ceil
-    puts "Map completed in %s." % [ ("#{minutes} minute#{?s unless 1 == minutes}" unless 0 == minutes), ("#{seconds} second#{?s unless 1 == seconds}" unless 0 == seconds) ].compact.join(", ")
   end
 end
 

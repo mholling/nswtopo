@@ -224,99 +224,102 @@ rotation: 0
     
     svg_name = "#{map.name}.svg"
     svg_path = Pathname.pwd + svg_name
-    xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
     
-    removals = config["exclude"].select do |name|
-      predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}')"
-      xml.elements["/svg/g[#{predicate}] | svg/defs/[#{predicate}]"]
-    end
-    
-    updates = sources.reject do |source|
-      source.respond_to?(:path) ? FileUtils.uptodate?(svg_path, [ *source.path ]) : xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"]
-    end
-    
-    Dir.mktmppath do |temp_dir|
-      if updates.any? do |source|
-        source.respond_to? :labels
-      end || removals.any? do |name|
-        xml.elements["/svg/g[@id='labels#{SEGMENT}#{name}']"]
-      end then
-        label_source = LabelSource.new
+    unless config["no-update"]
+      xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
+      
+      removals = config["exclude"].select do |name|
+        predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}')"
+        xml.elements["/svg/g[#{predicate}] | svg/defs/[#{predicate}]"]
       end
       
-      config["exclude"].map do |name|
-        predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}') or @id='labels#{SEGMENT}#{name}' or starts-with(@id,'labels#{SEGMENT}#{name}#{SEGMENT}')"
-        xpath = "/svg/g[#{predicate}] | svg/defs/[#{predicate}]"
-        if xml.elements[xpath]
-          puts "Removing: #{name}"
-          xml.elements.each(xpath, &:remove)
+      updates = sources.reject do |source|
+        source.respond_to?(:path) ? FileUtils.uptodate?(svg_path, [ *source.path ]) : xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"]
+      end
+      
+      Dir.mktmppath do |temp_dir|
+        if updates.any? do |source|
+          source.respond_to? :labels
+        end || removals.any? do |name|
+          xml.elements["/svg/g[@id='labels#{SEGMENT}#{name}']"]
+        end then
+          label_source = LabelSource.new
         end
-      end
-      
-      [ *updates, *label_source ].each do |source|
-        begin
-          if source == label_source
-            puts "Processing label data:"
-            sources.each do |source|
-              label_source.add(source, map) do |sublayer|
-                puts "  #{[ source.name, *sublayer ].join SEGMENT}"
-              end
-            end
+        
+        config["exclude"].map do |name|
+          predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}') or @id='labels#{SEGMENT}#{name}' or starts-with(@id,'labels#{SEGMENT}#{name}#{SEGMENT}')"
+          xpath = "/svg/g[#{predicate}] | svg/defs/[#{predicate}]"
+          if xml.elements[xpath]
+            puts "Removing: #{name}"
+            xml.elements.each(xpath, &:remove)
           end
-          puts "Compositing: #{source.name}"
-          predicate = "@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')"
-          xml.elements.each("/svg/g[#{predicate}]/*", &:remove)
-          xml.elements.each("/svg/defs/[#{predicate}]", &:remove)
-          preexisting = xml.elements["/svg/g[#{predicate}]"]
-          source.render_svg(xml, map) do |sublayer|
-            id = [ source.name, *sublayer ].join(SEGMENT)
-            if preexisting
-              xml.elements["/svg/g[@id='#{id}']"]
-            else
-              before, after = sources.map(&:name).inject([[]]) do |memo, name|
-                name == source.name ? memo << [] : memo.last << name
-                memo
-              end
-              neighbour = xml.elements.collect("/svg/g[@id]") do |sibling|
-                sibling if [ *after ].any? do |name|
-                  sibling.attributes["id"] == name || sibling.attributes["id"].start_with?("#{name}#{SEGMENT}")
+        end
+        
+        [ *updates, *label_source ].each do |source|
+          begin
+            if source == label_source
+              puts "Processing label data:"
+              sources.each do |source|
+                label_source.add(source, map) do |sublayer|
+                  puts "  #{[ source.name, *sublayer ].join SEGMENT}"
                 end
-              end.compact.first
-              REXML::Element.new("g").tap do |group|
-                group.add_attributes "id" => id, "style" => "opacity:1"
-                neighbour ? xml.elements["/svg"].insert_before(neighbour, group) : xml.elements["/svg"].add_element(group)
               end
             end
+            puts "Compositing: #{source.name}"
+            predicate = "@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')"
+            xml.elements.each("/svg/g[#{predicate}]/*", &:remove)
+            xml.elements.each("/svg/defs/[#{predicate}]", &:remove)
+            preexisting = xml.elements["/svg/g[#{predicate}]"]
+            source.render_svg(xml, map) do |sublayer|
+              id = [ source.name, *sublayer ].join(SEGMENT)
+              if preexisting
+                xml.elements["/svg/g[@id='#{id}']"]
+              else
+                before, after = sources.map(&:name).inject([[]]) do |memo, name|
+                  name == source.name ? memo << [] : memo.last << name
+                  memo
+                end
+                neighbour = xml.elements.collect("/svg/g[@id]") do |sibling|
+                  sibling if [ *after ].any? do |name|
+                    sibling.attributes["id"] == name || sibling.attributes["id"].start_with?("#{name}#{SEGMENT}")
+                  end
+                end.compact.first
+                REXML::Element.new("g").tap do |group|
+                  group.add_attributes "id" => id, "style" => "opacity:1"
+                  neighbour ? xml.elements["/svg"].insert_before(neighbour, group) : xml.elements["/svg"].add_element(group)
+                end
+              end
+            end
+          rescue BadLayerError => e
+            puts "Failed to render #{source.name}: #{e.message}"
           end
-        rescue BadLayerError => e
-          puts "Failed to render #{source.name}: #{e.message}"
         end
-      end
-      
-      xml.elements.each("/svg/g[*]") { |group| group.add_attribute("inkscape:groupmode", "layer") }
-      
-      if config["check-fonts"]
-        fonts_needed = xml.elements.collect("//[@font-family]") do |element|
-          element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")
-        end.uniq
-        fonts_present = %x[identify -list font].scan(/(family|font):(.*)/i).map(&:last).flatten.map do |family|
-          family.gsub(/[\s\-]/, "")
-        end.uniq
-        fonts_missing = fonts_needed - fonts_present
-        if fonts_missing.any?
-          puts "Your system does not include some fonts used in #{svg_name}. (Inkscape will not render these fonts correctly.)"
-          fonts_missing.sort.each { |family| puts "  #{family}" }
+        
+        xml.elements.each("/svg/g[*]") { |group| group.add_attribute("inkscape:groupmode", "layer") }
+        
+        if config["check-fonts"]
+          fonts_needed = xml.elements.collect("//[@font-family]") do |element|
+            element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")
+          end.uniq
+          fonts_present = %x[identify -list font].scan(/(family|font):(.*)/i).map(&:last).flatten.map do |family|
+            family.gsub(/[\s\-]/, "")
+          end.uniq
+          fonts_missing = fonts_needed - fonts_present
+          if fonts_missing.any?
+            puts "Your system does not include some fonts used in #{svg_name}. (Inkscape will not render these fonts correctly.)"
+            fonts_missing.sort.each { |family| puts "  #{family}" }
+          end
         end
-      end
-      
-      tmp_svg_path = temp_dir + svg_name
-      tmp_svg_path.open("w") do |file|
-        formatter = REXML::Formatters::Pretty.new
-        formatter.compact = true
-        formatter.write xml, file
-      end
-      FileUtils.cp tmp_svg_path, svg_path
-    end if updates.any? || removals.any?
+        
+        tmp_svg_path = temp_dir + svg_name
+        tmp_svg_path.open("w") do |file|
+          formatter = REXML::Formatters::Pretty.new
+          formatter.compact = true
+          formatter.write xml, file
+        end
+        FileUtils.cp tmp_svg_path, svg_path
+      end if updates.any? || removals.any?
+    end
     
     formats = [ *config["formats"] ].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["prj"] = %w[wkt_all proj4 wkt wkt_simple wkt_noct wkt_esri mapinfo xml].delete(formats["prj"]) || "proj4" if formats.include? "prj"
@@ -383,3 +386,4 @@ end
 # TODO: switch to Open3 for shelling out?
 # TODO: remove linked images from PDF output?
 # TODO: check georeferencing of aerial-google, aerial-nokia
+# TODO: refactor NSWTopo##run

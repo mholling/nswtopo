@@ -176,8 +176,11 @@ You can specify the azimuthal angle, altitude and terrain exaggeration used to g
       altitude: 45            # angle of illumination from horizon (45 is standard)
       exaggeration: 1         # vertical exaggeration factor
       opacity: 0.3            # opacity of the shaded relief; determines how subtle the effect is
+      sources: 1              # number of light sources to use (3 can work well)
 
 The shaded relief is derived from smoothed, one-arcsecond SRTM elevation data. (The dataset, `dem_s_1s`, is provided online by Geoscience Australia and it's no longer necessary to obtain the data manually). Shaded relief is embedded directly into the map at a default of 30 metre/pixel resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. This is not an issue unless you also use Inkscape to rasterise your map. (Electron and PhantomJS are better options for this; see below.)
+
+**Status (November 2016):** The `dem_s_1s` data service is currently unavailable; I'm looking for a replacement. In the meantime, I suggest downloading a 30-metre DEM as described below.
 
 You can also provide your own elevation data from a _DEM_ (Digital Elevation Model). This allows you to obtain higher-resolution data for a better shaded relief depiction. DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows:
 
@@ -535,3 +538,4 @@ Release History
   * 25/8/2016: version 1.2.1: bugfix for stack overflow
 * 23/9/2016: version 1.3: improvements to labelling algorithm; remove old NSW server references
 * 5/10/2016: version 1.4: further labelling improvements; break out code into multiple files
+  * 2/11/2016: version 1.4.1: add Electron as rasterising option; add multi-point shaded relief option; miscellaneous small fixes and refactoring

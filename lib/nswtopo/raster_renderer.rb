@@ -50,7 +50,9 @@ module NSWTopo
           defs.add_element("mask", "id" => mask_id).add_element("g", "filter" => "url(##{filter_id})").tap do |g|
             g.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "none", "stroke" => "none"
             [ *params["masks"] ].each do |id|
-              g.add_element "use", "xlink:href" => "##{id}"
+              next unless element = xml.elements["//g[@id='#{id}']"]
+              transforms = REXML::XPath.each(xml, "//g[@id='#{id}']/ancestor::g[@transform]/@transform").map(&:value)
+              g.add_element "use", "xlink:href" => "##{id}", "transform" => (transforms.join(?\s) if transforms.any?)
             end
           end
           layer.add_element("g", "mask" => "url(##{mask_id})")

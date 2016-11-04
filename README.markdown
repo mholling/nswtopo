@@ -539,3 +539,4 @@ Release History
 * 23/9/2016: version 1.3: improvements to labelling algorithm; remove old NSW server references
 * 5/10/2016: version 1.4: further labelling improvements; break out code into multiple files
   * 2/11/2016: version 1.4.1: add Electron as rasterising option; add multi-point shaded relief option; miscellaneous small fixes and refactoring
+  * 4/11/2016: HEAD: fix bug in rotated maps where shaded relief mask was not rotated

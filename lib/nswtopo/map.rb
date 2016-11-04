@@ -60,7 +60,10 @@ module NSWTopo
           end.transpose
           @centre.rotate_by_degrees!(rotation)
         end
-        @extents.map! { |extent| extent + 2 * config["margin"] * 0.001 * @scale } if config["margin"]
+        margins = [ *config["margin"], *config["margin"] ].take(2)
+        @extents = @extents.zip(margins).map do |extent, margin|
+          extent + 2 * margin * 0.001 * @scale
+        end if margins.any?
       end
 
       enlarged_extents = [ @extents[0] * Math::cos(@rotation * Math::PI / 180.0) + @extents[1] * Math::sin(@rotation * Math::PI / 180.0).abs, @extents[0] * Math::sin(@rotation * Math::PI / 180.0).abs + @extents[1] * Math::cos(@rotation * Math::PI / 180.0) ]

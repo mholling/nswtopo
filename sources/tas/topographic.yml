@@ -21,7 +21,7 @@ sources:
   geoscience-australia:
     host: services.ga.gov.au
     instance: site_7
-    service: Topographic_Base_Map
+    service: Topographic_Base_Map_WM
 features:
   urban-areas:
     source: cadastre-administrative

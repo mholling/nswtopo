@@ -261,18 +261,6 @@ features:
     label: NAME
     category: populated
 
-# # # TODO: replace with 'LIST Named Feature Extents' and 'LIST Points of Interest'
-#   use 'Points of Interest' for pointlike features
-#   use 'Named Feature Extents' for linelike features
-#   BEACH (lines & points)
-#   HILL/MOUNTAIN/MOUNTAIN PEAK (just points?)
-#   MOUNTAINS/RIDGE (lines & points)
-#   PASS (points)
-#   PLATEAU (points)
-#   ISLAND/Island (???)
-#   ISTHMUS (lines & points)
-#   VALLEY (lines & points)
-
 intervals-contours:
   5: contours-5m
   10: contours-10m
@@ -826,16 +814,15 @@ labels:
     letter-spacing: 0.1
     position: [ over, right, above, below, left ]
     margin: 0.7
-  [ feature-names MOUNTAINS, feature-names RIDGE, feature-names VALLEY, feature-names ISTHMUS, feature-names BEACH ]:
     separation: 100
+  [ feature-names MOUNTAINS, feature-names RIDGE, feature-names VALLEY, feature-names ISTHMUS ]:
     reduce: [ centres, 0.25 ]
     smooth: 5
     position: over
   feature-names BEACH:
     buffer: 2.0
-  [ feature-names MOUNTAINS line, feature-names RIDGE line, feature-names VALLEY line, feature-names ISTHMUS line, feature-names BEACH line ]:
+  [ feature-names MOUNTAINS line, feature-names RIDGE line, feature-names VALLEY line, feature-names ISTHMUS line, feature-names BEACH ]:
     word-spacing: 3
-    letter-spacing: 0.5
     letter-spacing: 0.5
   place-names:
     position: [ over, right, above, below, left ]

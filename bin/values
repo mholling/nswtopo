@@ -28,6 +28,21 @@ def show_hierarchy(values, nn = values.transpose.length, n = nn)
 end
 
 def show_arcgis(url, *args, dynamic)
+  unless args.any?
+    open "#{url}?f=json" do |json|
+      response = JSON.parse(json.read)
+      fields = url =~ /\d+$/
+      puts "%s (%s)" % response.values_at("name", "geometryType") if fields
+      response[fields ? "fields" : "layers"].each do |item|
+        case
+        when fields then puts "  %25s (type: %s, alias: %s)" % item.values_at("name", "type", "alias")
+        when item["subLayerIds"]
+        else puts "%4d: %s" % item.values_at("id", "name")
+        end
+      end
+    end
+    return
+  end
   query = {
     "f" => "json",
     "where" => "1=0) OR (1=1",

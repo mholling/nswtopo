@@ -59,6 +59,10 @@ module NSWTopo
           else
             [ *labels ].map(&:to_s).reject(&:empty?).join(?\s)
           end
+          [ *attributes["strip"] ].each do |strip|
+            text.gsub! strip, ''
+          end
+          text.strip! if String === text
           yield sublayer unless sublayers.include? sublayer
           sublayers << sublayer
           _, _, _, components = @features.find do |other_text, other_source_name, other_sublayer, _|

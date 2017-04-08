@@ -28,7 +28,7 @@ def show_hierarchy(values, nn = values.transpose.length, n = nn)
 end
 
 def show_arcgis(url, *args, dynamic)
-  open "#{url}?f=json" do |json|
+  open "#{url}?f=json", "Referer" => url do |json|
     response = JSON.parse(json.read)
     case url
     when /\d+$/ # inspect layer

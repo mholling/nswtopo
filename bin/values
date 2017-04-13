@@ -7,6 +7,10 @@ require 'json'
 require 'net/http'
 require 'uri'
 require 'cgi'
+require 'pathname'
+require 'tempfile'
+
+SQL_PATH = Pathname.new Tempfile.new('sql')
 
 class Hash
   def to_query
@@ -125,24 +129,20 @@ end
 
 def show_shapefile(dir, layer, attribute, *attributes, values, where, stats)
   where_clause = %Q[where #{where}] if where
-  json = %x[ogr2ogr -f GeoJSON -sql "select distinct #{attribute} from #{layer} #{where_clause} order by #{attribute}" /vsistdout "#{dir}"]
+  SQL_PATH.write %Q[select distinct #{attribute} from "#{layer}" #{where_clause} order by #{attribute}]
+  json = %x[ogr2ogr -f GeoJSON -sql @"#{SQL_PATH}" /vsistdout "#{dir}"]
   JSON.parse(json)["features"].map do |feature|
     feature["properties"][attribute]
   end.each do |value|
     predicate = [ *where, value.nil? ? "(#{attribute} IS NULL)" : "(#{attribute} = '#{value}')" ].join(" AND ")
-    count = "%8s: " % %x[ogrinfo -so -sql "select #{attribute} from #{layer} where #{predicate} order by #{attribute}" "#{dir}"].match(/^Feature Count: (\d+)$/)[1] if stats
+    if stats
+      SQL_PATH.write %Q[select #{attribute} from "#{layer}" where #{predicate} order by #{attribute}]
+      count = "%8s: " % %x[ogrinfo -so -sql @"#{SQL_PATH}" "#{dir}"].match(/^Feature Count: (\d+)$/)[1]
+    end
     puts "%s%s%s" % [ count, ?\s * values.length * 2, value.nil? ? '(NULL)' : value]
     show_shapefile dir, layer, *attributes, [ value, *values ], predicate, stats if attributes.any?
   end
 end
-
-# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/TopographyAndRelief/MapServer"
-# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/CadastreAndAdministrative/MapServer"
-# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/SearchService/MapServer"
-# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/PlacenamePoints/MapServer"
-# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/NaturalEnvironment/MapServer"
-# url = "http://services.thelist.tas.gov.au/arcgis/rest/services/Public/SearchService/MapServer"
-# url = "http://qtopo.dnrm.qld.gov.au/sl_proxy/proxy.ashx?http://sirgis7:6080/arcgis/rest/services/QTopo/QTopo_WebM/MapServer"
 
 dynamic = ARGV.delete "dynamic"
 stats   = ARGV.delete "stats"

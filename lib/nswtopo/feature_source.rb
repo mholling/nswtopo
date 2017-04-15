@@ -22,7 +22,7 @@ module NSWTopo
           json_path = temp_dir + "data.json"
           %x[ogr2ogr #{sql || where} #{srs} #{spat} -f GeoJSON "#{json_path}" "#{shape_path}" #{layer unless sql} -mapFieldType Date=Integer,DateTime=Integer -dim XY]
           JSON.parse(json_path.read).fetch("features").each do |feature|
-            geometry = feature["geometry"]
+            next unless geometry = feature["geometry"]
             dimension = case geometry["type"]
             when "Polygon", "MultiPolygon" then 2
             when "LineString", "MultiLineString" then 1

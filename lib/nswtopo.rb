@@ -323,12 +323,14 @@ rotation: 0
     formats = [ *config["formats"] ].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["prj"] = %w[wkt_all proj4 wkt wkt_simple wkt_noct wkt_esri mapinfo xml].delete(formats["prj"]) || "proj4" if formats.include? "prj"
     formats["png"] ||= nil if formats.include? "map"
-    (formats.keys & %w[png tif gif jpg kmz psd]).each do |format|
+    (formats.keys & %w[png tif gif jpg kmz mbtiles psd]).each do |format|
       formats[format] ||= config["ppi"]
-      formats["#{format[0]}#{format[2]}w"] = formats[format] if formats.include? "prj"
     end
+    (formats.keys & %w[png tif gif jpg]).each do |format|
+      formats["#{format[0]}#{format[2]}w"] = formats[format]
+    end if formats.include? "prj"
     
-    outstanding = (formats.keys & %w[png tif gif jpg kmz psd pdf pgw tfw gfw jgw map prj]).reject do |format|
+    outstanding = (formats.keys & %w[png tif gif jpg kmz mbtiles psd pdf pgw tfw gfw jgw map prj]).reject do |format|
       FileUtils.uptodate? "#{map.name}.#{format}", [ svg_path ]
     end
     
@@ -336,11 +338,13 @@ rotation: 0
       outstanding.group_by do |format|
         formats[format]
       end.each do |ppi, group|
-        raster_path = temp_dir + "#{map.name}.#{ppi}.png"
-        if (group & %w[png tif gif jpg kmz psd]).any? || (ppi && group.include?("pdf"))
+        png_path = temp_dir + "#{map.name}.#{ppi}.png"
+        pgw_path = temp_dir + "#{map.name}.#{ppi}.pgw"
+        if (group & %w[png tif gif jpg kmz mbtiles psd]).any? || (ppi && group.include?("pdf"))
           dimensions = map.dimensions_at(ppi)
           puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
-          Raster.build config, map, ppi, svg_path, temp_dir, raster_path
+          Raster.build config, map, ppi, svg_path, temp_dir, png_path
+          map.write_world_file pgw_path, map.resolution_at(ppi)
         end
         group.each do |format|
           begin
@@ -348,19 +352,24 @@ rotation: 0
             output_path = temp_dir + "#{map.name}.#{format}"
             case format
             when "png"
-              FileUtils.cp raster_path, output_path
+              FileUtils.cp png_path, output_path
             when "tif"
-              tfw_path = Pathname.new("#{raster_path}w")
-              map.write_world_file tfw_path, map.resolution_at(ppi)
-              %x[gdal_translate -a_srs "#{map.projection}" -co "PROFILE=GeoTIFF" -co "COMPRESS=DEFLATE" -co "ZLEVEL=9" -co "TILED=YES" -mo "TIFFTAG_RESOLUTIONUNIT=2" -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" -mo "TIFFTAG_SOFTWARE=nswtopo" -mo "TIFFTAG_DOCUMENTNAME=#{map.name}" "#{raster_path}" "#{output_path}"]
+              %x[gdal_translate -a_srs "#{map.projection}" -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co ZLEVEL=9 -co TILED=YES -mo TIFFTAG_RESOLUTIONUNIT=2 -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" -mo TIFFTAG_SOFTWARE=nswtopo -mo "TIFFTAG_DOCUMENTNAME=#{map.name}" "#{png_path}" "#{output_path}"]
             when "gif", "jpg"
-              %x[convert "#{raster_path}" "#{output_path}"]
+              %x[convert "#{png_path}" "#{output_path}"]
             when "kmz"
-              KMZ.build map, ppi, raster_path, output_path
+              KMZ.build map, ppi, png_path, output_path
+            when "mbtiles"
+              epsg_path = temp_dir + "#{map.name}.#{ppi}.epsg.tif"
+              %x[gdalwarp -s_srs "#{map.projection}" -t_srs EPSG:3857 "#{png_path}" "#{epsg_path}"]
+              %x[gdal_translate -of MBTiles -co "NAME=#{map.name}" -co TYPE=baselayer -co ZOOM_LEVEL_STRATEGY=UPPER "#{epsg_path}" "#{output_path}"]
+              side = %x[convert "#{epsg_path}" -quiet -ping -format '%w,%h' info:].split(?,).map(&:to_i).max
+              levels = 1.upto(Math::log2(side).ceil - 7).map { |n| 2 ** n }
+              %x[gdaladdo -r cubic "#{output_path}" #{levels.join ?\s}] if levels.any?
             when "psd"
-              PSD.build config, map, ppi, svg_path, raster_path, temp_dir, output_path
+              PSD.build config, map, ppi, svg_path, png_path, temp_dir, output_path
             when "pdf"
-              ppi ? %x[convert "#{raster_path}" "#{output_path}"] : PDF.build(config, map, svg_path, temp_dir, output_path)
+              ppi ? %x[convert "#{png_path}" "#{output_path}"] : PDF.build(config, map, svg_path, temp_dir, output_path)
             when "pgw", "tfw", "gfw", "jgw"
               map.write_world_file output_path, map.resolution_at(ppi)
             when "map"

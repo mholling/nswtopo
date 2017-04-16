@@ -13,7 +13,6 @@ module NSWTopo
         INSERT INTO metadata VALUES ("bounds", "#{map.wgs84_bounds.flatten.values_at(0,2,1,3).join ?,}");
         CREATE TABLE tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB);
       ]
-      commands = []
       cosine = Math::cos(map.wgs84_bounds.last.mean * Math::PI / 180)
       bounds = map.transform_bounds_to(Projection.new "EPSG:3857")
       png_path = temp_dir + "#{map.name}.mbtiles.png"
@@ -35,17 +34,12 @@ module NSWTopo
         WorldFile.write topleft, resolution, 0, tfw_path
         %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorAlpha -depth 8 "#{tif_path}"]
         %x[gdalwarp -s_srs "#{map.projection}" -t_srs EPSG:3857 -r lanczos -dstalpha "#{png_path}" "#{tif_path}"]
-        indices.map(&:each).map(&:with_index).map(&:to_a).inject(&:product).each do |(col, x), (row, y)|
-          tile_path = temp_dir + "#{map.name}.mbtiles.#{zoom}.#{col}.#{row}.png"
-          # TODO: check for transparent tile (e.g. for rotated map) and don't include the tile if so
-          commands << %Q[convert "#{tif_path}" -quiet +repage -gravity SouthWest -crop #{TILE_SIZE}x#{TILE_SIZE}+#{x * TILE_SIZE}+#{y * TILE_SIZE} "#{tile_path}"]
-          sql << %Q[INSERT INTO tiles VALUES (#{zoom}, #{col}, #{row}, readfile("#{tile_path}"));\n]
+        tile_path = temp_dir.join("#{map.name}.mbtiles.#{zoom}.%09d.png").to_s
+        %x[convert "#{tif_path}" -quiet +repage -crop #{TILE_SIZE}x#{TILE_SIZE} "#{tile_path}"]
+        indices[1].to_a.reverse.product(indices[0].to_a).each.with_index do |(row, col), index|
+          sql << %Q[INSERT INTO tiles VALUES (#{zoom}, #{col}, #{row}, readfile("#{tile_path % index}"));\n]
         end
         break if indices.map(&:count).all? { |count| count < 3 }
-      end.tap { puts }
-      commands.each.with_index do |command, index|
-        $stdout << "\r  Tiling: #{index} of #{commands.length}"
-        system command
       end.tap { puts }
       temp_dir.join("mbtiles.sql").tap do |sql_path|
         sql_path.write sql

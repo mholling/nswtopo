@@ -2,6 +2,7 @@ module NSWTopo
   module Raster
     def self.build(config, map, ppi, svg_path, temp_dir, png_path)
       width, height = dimensions = map.dimensions_at(ppi)
+      yield dimensions if block_given?
       rasterise, dpi = config["rasterise"]
       case rasterise
       when /inkscape/i
@@ -90,6 +91,7 @@ module NSWTopo
       else
         %x[mogrify -units PixelsPerInch -density #{ppi} -background white -alpha Remove "#{png_path}"]
       end
+      map.write_world_file Pathname.new("#{png_path}w"), map.resolution_at(ppi)
     end
   end
 end

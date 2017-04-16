@@ -17,15 +17,13 @@ module NSWTopo
       cosine = Math::cos(map.wgs84_bounds.last.mean * Math::PI / 180)
       bounds = map.transform_bounds_to(Projection.new "EPSG:3857")
       png_path = temp_dir + "#{map.name}.mbtiles.png"
-      pgw_path = temp_dir + "#{map.name}.mbtiles.pgw"
       (ppi <= 25 ? ppi : Math::log2(RESOLUTION * ppi * cosine / METERS_PER_INCH / map.scale).ceil).downto(0).map do |zoom|
         [ zoom, RESOLUTION / (2 ** zoom) ]
       end.tap do |(zoom, resolution), *|
         ppi = METERS_PER_INCH * map.scale / resolution / cosine
-        dimensions = map.dimensions_at ppi
-        puts "  Generating raster: %ix%i (%.1fMpx)" % [ *dimensions, 0.000001 * dimensions.inject(:*) ]
-        Raster.build config, map, ppi, svg_path, temp_dir, png_path
-        map.write_world_file pgw_path, map.resolution_at(ppi)
+        Raster.build config, map, ppi, svg_path, temp_dir, png_path do |dimensions|
+          puts "  Generating raster: %ix%i (%.1fMpx)" % [ *dimensions, 0.000001 * dimensions.inject(:*) ]
+        end
       end.each.with_index do |(zoom, resolution), index|
         $stdout << "\r  Reprojecting for zoom level %s" % (zoom + index).downto(zoom).to_a.join(', ')
         tif_path, tfw_path = %w[tif tfw].map { |ext| temp_dir + "#{map.name}.mbtiles.#{zoom}.#{ext}" }

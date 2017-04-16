@@ -340,13 +340,9 @@ rotation: 0
         [ formats[format], format == "mbtiles" ]
       end.each do |(ppi, mbtiles), group|
         png_path = temp_dir + "#{map.name}.#{ppi}.png"
-        pgw_path = temp_dir + "#{map.name}.#{ppi}.pgw"
-        if (group & %w[png tif gif jpg kmz psd]).any? || (ppi && group.include?("pdf"))
-          dimensions = map.dimensions_at(ppi)
+        Raster.build config, map, ppi, svg_path, temp_dir, png_path do |dimensions|
           puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
-          Raster.build config, map, ppi, svg_path, temp_dir, png_path
-          map.write_world_file pgw_path, map.resolution_at(ppi)
-        end
+        end if (group & %w[png tif gif jpg kmz psd]).any? || (ppi && group.include?("pdf"))
         group.each do |format|
           begin
             puts "Generating #{map.name}.#{format}"

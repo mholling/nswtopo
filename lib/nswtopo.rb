@@ -10,6 +10,8 @@ require 'rbconfig'
 require 'json'
 require 'base64'
 require 'set'
+require 'etc'
+require 'timeout'
 
 require_relative 'helpers'
 require_relative 'avl_tree'

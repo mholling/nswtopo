@@ -34,7 +34,7 @@ module NSWTopo
         end.transpose
         WorldFile.write topleft, resolution, 0, tfw_path
         %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorAlpha -depth 8 "#{tif_path}"]
-        %x[gdalwarp -s_srs "#{map.projection}" -t_srs EPSG:3857 -r bilinear -dstalpha "#{png_path}" "#{tif_path}"]
+        %x[gdalwarp -s_srs "#{map.projection}" -t_srs EPSG:3857 -r lanczos -dstalpha "#{png_path}" "#{tif_path}"]
         indices.map(&:each).map(&:with_index).map(&:to_a).inject(&:product).each do |(col, x), (row, y)|
           tile_path = temp_dir + "#{map.name}.mbtiles.#{zoom}.#{col}.#{row}.png"
           # TODO: check for transparent tile (e.g. for rotated map) and don't include the tile if so

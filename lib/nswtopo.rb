@@ -39,6 +39,7 @@ require_relative 'nswtopo/raster'
 require_relative 'nswtopo/kmz'
 require_relative 'nswtopo/psd'
 require_relative 'nswtopo/pdf'
+require_relative 'nswtopo/mbtiles'
 
 NSWTOPO_VERSION = "1.4.1"
 
@@ -336,11 +337,11 @@ rotation: 0
     
     Dir.mktmppath do |temp_dir|
       outstanding.group_by do |format|
-        formats[format]
-      end.each do |ppi, group|
+        [ formats[format], format == "mbtiles" ]
+      end.each do |(ppi, mbtiles), group|
         png_path = temp_dir + "#{map.name}.#{ppi}.png"
         pgw_path = temp_dir + "#{map.name}.#{ppi}.pgw"
-        if (group & %w[png tif gif jpg kmz mbtiles psd]).any? || (ppi && group.include?("pdf"))
+        if (group & %w[png tif gif jpg kmz psd]).any? || (ppi && group.include?("pdf"))
           dimensions = map.dimensions_at(ppi)
           puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
           Raster.build config, map, ppi, svg_path, temp_dir, png_path
@@ -360,12 +361,7 @@ rotation: 0
             when "kmz"
               KMZ.build map, ppi, png_path, output_path
             when "mbtiles"
-              epsg_path = temp_dir + "#{map.name}.#{ppi}.epsg.tif"
-              %x[gdalwarp -s_srs "#{map.projection}" -t_srs EPSG:3857 "#{png_path}" "#{epsg_path}"]
-              %x[gdal_translate -of MBTiles -co "NAME=#{map.name}" -co TYPE=baselayer -co ZOOM_LEVEL_STRATEGY=UPPER "#{epsg_path}" "#{output_path}"]
-              side = %x[convert "#{epsg_path}" -quiet -ping -format '%w,%h' info:].split(?,).map(&:to_i).max
-              levels = 1.upto(Math::log2(side).ceil - 7).map { |n| 2 ** n }
-              %x[gdaladdo -r cubic "#{output_path}" #{levels.join ?\s}] if levels.any?
+              MBTiles.build config, map, ppi, svg_path, temp_dir, output_path
             when "psd"
               PSD.build config, map, ppi, svg_path, png_path, temp_dir, output_path
             when "pdf"

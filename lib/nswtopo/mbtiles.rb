@@ -28,7 +28,7 @@ module NSWTopo
         break levels if indices.map(&:count).all? { |count| count < 3 }
         levels
       end.tap do |(resolution, *), *|
-        ppi = METERS_PER_INCH * map.scale / resolution / cosine
+        ppi = (METERS_PER_INCH * map.scale / resolution / cosine).ceil
         Raster.build config, map, ppi, svg_path, temp_dir, png_path do |dimensions|
           puts "  Generating raster: %ix%i (%.1fMpx)" % [ *dimensions, 0.000001 * dimensions.inject(:*) ]
         end

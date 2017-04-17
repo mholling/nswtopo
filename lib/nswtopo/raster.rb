@@ -1,9 +1,12 @@
 module NSWTopo
   module Raster
+    TILE_SIZE = 2000
+    
     def self.build(config, map, ppi, svg_path, temp_dir, png_path)
       width, height = dimensions = map.dimensions_at(ppi)
       yield dimensions if block_given?
       rasterise, dpi = config["rasterise"]
+      zoom = ppi.to_f / (dpi || 96)
       case rasterise
       when /inkscape/i
         %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-png="#{png_path}" --export-width=#{width} --export-height=#{height} --export-background="#FFFFFF" #{DISCARD_STDERR}]
@@ -26,7 +29,6 @@ module NSWTopo
         %x[qlmanage -t -s #{dimensions.max} -o "#{temp_dir}" "#{square_svg_path}" #{DISCARD_STDERR}]
         %x[convert "#{square_png_path}" -crop #{width}x#{height}+0+0 +repage "#{png_path}"]
       when /phantomjs|slimerjs/i
-        zoom = ppi.to_f / (dpi || 96)
         js_path = temp_dir + "rasterise.js"
         js_path.write %Q[
           const page = require('webpage').create()
@@ -39,32 +41,39 @@ module NSWTopo
         ]
         %x["#{rasterise}" "#{js_path}"]
       when /electron/i
-        zoom = ppi.to_f / (dpi || 96)
-        preload_path = temp_dir + "preload.js"
-        preload_path.write %Q[
-          const {ipcRenderer} = require('electron')
-          var start;
-          function wait(time) {
-            if (!start) start = time
-            time && time - start > 15000 ? ipcRenderer.send('really-ready') : window.requestAnimationFrame(wait)
-          }
-          ipcRenderer.on('wait', () => wait())
-        ]
-        js_path = temp_dir + "rasterise.js"
+        src_path, js_path, tile_path = temp_dir + "#{map.name}.zoomed.svg", temp_dir + "rasterise.js", temp_dir + "tile"
+        xml = svg_path.read
+        %w[width height].each do |name|
+          xml.sub! /(<svg[^>]*#{name}\s*=\s*['"])([\d\.e\+\-]+)/i do |match|
+            "#{$1}#{$2.to_f * zoom}"
+          end
+        end
+        src_path.write xml
         js_path.write %Q[
           const {app, BrowserWindow, ipcMain} = require('electron'), {writeFile} = require('fs')
+          var tiles = [];
+          for (var x = 0; x < #{dimensions[0]}; x += #{TILE_SIZE})
+            for (var y = 0; y < #{dimensions[1]}; y += #{TILE_SIZE})
+              tiles.push({ rect: { x: x, y: y, width: Math.min(#{dimensions[0]}-x, #{TILE_SIZE}), height: Math.min(#{dimensions[1]}-y, #{TILE_SIZE}) }, path: '#{tile_path}.'+x+'.'+y+'.png' })
           app.on('ready', () => {
-            const browser = new BrowserWindow({ width: #{width}, height: #{height}, useContentSize: true, show: false, webPreferences: { zoomFactor: #{zoom}, preload: '#{preload_path}' } })
-            browser.webContents.once('did-finish-load', () => browser.webContents.insertCSS('svg { overflow: hidden }'))
-            browser.once('ready-to-show', () => browser.webContents.send('wait'))
-            ipcMain.once('really-ready', () => browser.capturePage(image => writeFile('#{png_path}', image.toPng(), app.exit)))
-            browser.loadURL('file://#{svg_path}')
+            const browser = new BrowserWindow({ width: #{width + 100}, height: #{height + 100}, useContentSize: true, show: false })
+            function get_tile() {
+              var tile = tiles.shift();
+              browser.capturePage(tile.rect, image => writeFile(tile.path, image.toPng(), tiles.length ? get_tile : app.exit))
+            }
+            browser.once('ready-to-show', get_tile)
+            browser.loadURL('file://#{src_path}')
           })
           app.dock && app.dock.hide()
         ]
         %x["#{rasterise}" "#{js_path}"]
+        sequence = dimensions.map do |dimension|
+          0.step(dimension - 1, TILE_SIZE).to_a
+        end.inject(&:product).map do |x, y|
+          %Q[#{OP} "#{tile_path}.#{x}.#{y}.png" -repage +#{x}+#{y} #{CP}]
+        end.join ?\s
+        %x[convert #{sequence} -compose Copy -layers mosaic -units PixelsPerInch -density #{ppi} -alpha Remove "#{png_path}"]
       when /wkhtmltoimage/i
-        zoom = ppi.to_f / (dpi || 96)
         %x["#{rasterise}" -q --width #{width} --height #{height} --zoom #{zoom} "#{svg_path}" "#{png_path}"]
       else
         abort("Error: specify either electron, phantomjs, wkhtmltoimage, inkscape or qlmanage as your rasterise method (see README).")

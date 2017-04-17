@@ -345,6 +345,7 @@ Once your master map file has been created in SVG format, you can create other o
     - jpg
     - tif
     - kmz
+    - mbtiles
     - pdf
     - map
     - prj
@@ -354,6 +355,7 @@ These file extensions produce the following file formats:
 * `png`, `gif` and `jpg` are common raster image formats. PNG is recommended. JPG is not recommended, as it not suited to line art and produces ugly artefacts.
 * `tif` yields a TIFF image, a raster format commonly required by print shops. Additional [GeoTIFF](http://en.wikipedia.org/wiki/GeoTIFF) metadata is also included in the image, allowing it to be used in any GIS software which supports GeoTIFF.
 * `kmz` is a map format used with [Google Earth](http://earth.google.com) and for publishing interactive maps on the web. (This would be useful for publishing a rogaine map with NavLight data.)
+* `mbtiles` is a tiled map format commonly used for online maps and mobile mapping apps.
 * `pdf` is the well-known document format. Map data will be preserved in vector form within the PDF.
 * `map` specifies the [OziExplorer](http://www.oziexplorer.com/) map file format (using the PNG image as the companion raster).
 * `prj` produces a simple text file containing the map's projection as a [PROJ.4](http://trac.osgeo.org/proj/) string.
@@ -365,6 +367,11 @@ The raster image formats (PNG, GIF, JPG, TIFF and KMZ) will render at 300 pixels
     formats:
     - tif: 600
     - kmz: 200
+
+For the `mbtiles` format, a maximum zoom level (normally 15 or 16) can be specified:
+
+    formats:
+    - mbtiles: 16
 
 You can also specify an output resolution for the PDF format, in which case the PDF will render as an embedded raster image (instead of vector data):
 

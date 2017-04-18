@@ -37,11 +37,11 @@ require_relative 'nswtopo/declination_source'
 require_relative 'nswtopo/control_source'
 require_relative 'nswtopo/grid_source'
 require_relative 'nswtopo/label_source'
+require_relative 'nswtopo/dither'
 require_relative 'nswtopo/raster'
 require_relative 'nswtopo/kmz'
 require_relative 'nswtopo/psd'
 require_relative 'nswtopo/pdf'
-require_relative 'nswtopo/dither'
 require_relative 'nswtopo/mbtiles'
 
 NSWTOPO_VERSION = "1.4.1"

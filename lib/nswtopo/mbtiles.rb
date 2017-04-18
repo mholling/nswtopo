@@ -29,7 +29,7 @@ module NSWTopo
         levels
       end.tap do |(resolution, *), *|
         ppi = (METERS_PER_INCH * map.scale / resolution / cosine).ceil
-        Raster.build config, map, ppi, svg_path, temp_dir, png_path do |dimensions|
+        Raster.build config.merge("dither" => false), map, ppi, svg_path, temp_dir, png_path do |dimensions|
           puts "  Generating raster: %ix%i (%.1fMpx)" % [ *dimensions, 0.000001 * dimensions.inject(:*) ]
         end
       end.tap do |levels|

@@ -19,6 +19,12 @@ module InParallel
     end while processes.any?
     rewind
   end
+  
+  def in_parallel_groups(&block)
+    group_by.with_index do |item, index|
+      index % CORES
+    end.values.each.in_parallel(&block)
+  end
 end
 
 Enumerator.send :include, InParallel

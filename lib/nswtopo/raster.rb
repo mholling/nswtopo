@@ -1,5 +1,6 @@
 module NSWTopo
   module Raster
+    extend Dither
     TILE_SIZE = 2000
     
     def self.build(config, map, ppi, svg_path, temp_dir, png_path)
@@ -78,28 +79,8 @@ module NSWTopo
       else
         abort("Error: specify either electron, phantomjs, wkhtmltoimage, inkscape or qlmanage as your rasterise method (see README).")
       end
-      case
-      when config["dither"] && config["gimp"]
-        script_path = temp_dir + "dither.scm"
-        File.write script_path, %Q[
-          (let*
-            (
-              (image (car (gimp-file-load RUN-NONINTERACTIVE "#{png_path}" "#{png_path}")))
-              (drawable (car (gimp-image-get-active-layer image)))
-            )
-            (gimp-image-convert-indexed image FSLOWBLEED-DITHER MAKE-PALETTE 256 FALSE FALSE "")
-            (gimp-file-save RUN-NONINTERACTIVE image drawable "#{png_path}" "#{png_path}")
-            (gimp-quit TRUE)
-          )
-        ]
-        %x[mogrify -background white -alpha Remove "#{png_path}"]
-        %x[cat "#{script_path}" | "#{config['gimp']}" -c -d -f -i -b -]
-        %x[mogrify -units PixelsPerInch -density #{ppi} "#{png_path}"]
-      when config["dither"]
-        %x[mogrify -units PixelsPerInch -density #{ppi} -background white -alpha Remove -type Palette -dither Riemersma -define PNG:exclude-chunk=bkgd "#{png_path}"]
-      else
-        %x[mogrify -units PixelsPerInch -density #{ppi} -background white -alpha Remove "#{png_path}"]
-      end
+      %x[mogrify -units PixelsPerInch -density #{ppi} -background white -alpha Remove -define PNG:exclude-chunk=bkgd "#{png_path}"]
+      dither config["dither"], png_path
       map.write_world_file Pathname.new("#{png_path}w"), map.resolution_at(ppi)
     end
   end

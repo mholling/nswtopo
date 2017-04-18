@@ -41,6 +41,7 @@ require_relative 'nswtopo/raster'
 require_relative 'nswtopo/kmz'
 require_relative 'nswtopo/psd'
 require_relative 'nswtopo/pdf'
+require_relative 'nswtopo/dither'
 require_relative 'nswtopo/mbtiles'
 
 NSWTOPO_VERSION = "1.4.1"

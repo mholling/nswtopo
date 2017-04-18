@@ -373,6 +373,10 @@ For the `mbtiles` format, a maximum zoom level (normally 15 or 16) can be specif
     formats:
     - mbtiles: 16
 
+For significanly smaller `mbtiles` file size, I recommend installing the `pngquant` utility and specifying tile dithering as follows:
+
+    dither: /path/to/pngquant
+
 You can also specify an output resolution for the PDF format, in which case the PDF will render as an embedded raster image (instead of vector data):
 
     formats:

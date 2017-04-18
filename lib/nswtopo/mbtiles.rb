@@ -1,5 +1,6 @@
 module NSWTopo
   module MBTiles
+    extend Dither
     RESOLUTION, ORIGIN, TILE_SIZE = 2 * 78271.516, -20037508.34, 256
     METERS_PER_INCH = 0.0254
     def self.build(config, map, ppi, svg_path, temp_dir, mbt_path)
@@ -40,10 +41,14 @@ module NSWTopo
         %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorAlpha -depth 8 "#{tif_path}"]
         %x[gdalwarp -s_srs "#{map.projection}" -t_srs EPSG:3857 -r lanczos -dstalpha "#{png_path}" "#{tif_path}"]
         %x[convert "#{tif_path}" -quiet +repage -crop #{TILE_SIZE}x#{TILE_SIZE} "#{tile_path}"]
-      end.each do |resolution, indices, dimensions, topleft, tile_path, zoom|
-        indices[1].to_a.reverse.product(indices[0].to_a).each.with_index do |(row, col), index|
-          sql << %Q[INSERT INTO tiles VALUES (#{zoom}, #{col}, #{row}, readfile("#{tile_path % index}"));\n]
+      end.map do |resolution, indices, dimensions, topleft, tile_path, zoom|
+        indices[1].to_a.reverse.product(indices[0].to_a).map.with_index do |(row, col), index|
+          [ tile_path % index, zoom, col, row ]
         end
+      end.flatten(1).each do |tile_path, zoom, col, row|
+        sql << %Q[INSERT INTO tiles VALUES (#{zoom}, #{col}, #{row}, readfile("#{tile_path}"));\n]
+      end.map(&:first).each.in_parallel_groups do |png_paths|
+        dither config["dither"], *png_paths
       end
       temp_dir.join("mbtiles.sql").tap do |sql_path|
         sql_path.write sql

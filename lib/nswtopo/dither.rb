@@ -17,9 +17,8 @@ module NSWTopo
             )
             (list "#{png_paths.join '" "'}")
           )
-          (gimp-quit TRUE)
         ]
-        %x["#{binary}" -c -d -f -i -b '#{script}' #{DISCARD_STDERR}]
+        %x["#{binary}" -c -d -f -i -b '#{script}' -b '(gimp-quit TRUE)' #{DISCARD_STDERR}]
       when /pngquant/i
         %x["#{binary}" --quiet --force --ext .png "#{png_paths.join '" "'}"]
       when true

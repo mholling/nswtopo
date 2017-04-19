@@ -60,7 +60,7 @@ module NSWTopo
         js_path.write %Q[
           const {app, BrowserWindow, ipcMain} = require('electron'), {writeFile} = require('fs')
           app.dock && app.dock.hide()
-          var tiles = #{tiles.inspect}
+          var tiles = #{tiles.to_json}
           app.on('ready', () => {
             const browser = new BrowserWindow({ width: #{TILE_SIZE}, height: #{TILE_SIZE}, useContentSize: true, show: false, webPreferences: { preload: '#{preload_path}' } })
             next = () => tiles.length ? browser.webContents.send('goto', tiles.shift()) : app.exit()

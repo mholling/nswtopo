@@ -45,10 +45,9 @@ module NSWTopo
         src_path, js_path, preload_path, tile_path = temp_dir + "#{map.name}.zoomed.svg", temp_dir + "rasterise.js", temp_dir + "preload.js", temp_dir + "tile"
         xml = svg_path.read
         %w[width height].each do |name|
-          xml.sub! /(<svg[^>]*#{name}\s*=\s*['"])([\d\.e\+\-]+)/i do |match|
-            "#{$1}#{$2.to_f * zoom}"
-          end
+          xml.sub!(/(<svg[^>]*#{name}\s*=\s*['"])([\d\.e\+\-]+)/i) { "#{$1}#{$2.to_f * zoom}" }
         end
+        xml.sub!(/(<svg[^>]*)>/i) { "#{$1} style='overflow: hidden'>" }
         src_path.write xml
         preload_path.write %Q[
           const {ipcRenderer} = require('electron')
@@ -64,7 +63,6 @@ module NSWTopo
           var tiles = #{tiles.inspect}
           app.on('ready', () => {
             const browser = new BrowserWindow({ width: #{TILE_SIZE}, height: #{TILE_SIZE}, useContentSize: true, show: false, webPreferences: { preload: '#{preload_path}' } })
-            browser.webContents.once('did-finish-load', () => browser.webContents.insertCSS('svg { overflow: hidden }'))
             next = () => tiles.length ? browser.webContents.send('goto', tiles.shift()) : app.exit()
             browser.once('ready-to-show', next)
             ipcMain.on('here', (event, tile) => browser.capturePage((image) => writeFile('#{tile_path}.'+tile[0]+'.'+tile[1]+'.png', image.toPng(), next)))

@@ -312,15 +312,15 @@ module NSWTopo
         end
       end.map do |key, value|
         case value
-        when Fixnum then [ key, { "id" => value } ]    # key is a sublayer name, value is a service layer name
-        when String then [ key, { "name" => value } ]  # key is a sublayer name, value is a service layer ID
-        when Hash   then [ key, value ]                # key is a sublayer name, value is layer options
+        when Integer then [ key, { "id" => value } ]   # key is a sublayer name, value is a service layer name
+        when String  then [ key, { "name" => value } ] # key is a sublayer name, value is a service layer ID
+        when Hash    then [ key, value ]               # key is a sublayer name, value is layer options
         when nil
           case key
           when String then [ key, { "name" => key } ]  # key is a service layer name
           when Hash                                    # key is a service layer name with definition
             [ key.first.first, { "name" => key.first.first, "definition" => key.first.last } ]
-          when Fixnum                                  # key is a service layer ID
+          when Integer                                 # key is a service layer ID
             [ sources.values.first["service"]["layers"].find { |layer| layer["id"] == key }.fetch("name"), { "id" => key } ]
           end
         end

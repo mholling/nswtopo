@@ -44,9 +44,8 @@ module NSWTopo
       when /electron/i
         src_path, js_path, preload_path, tile_path = temp_dir + "#{map.name}.zoomed.svg", temp_dir + "rasterise.js", temp_dir + "preload.js", temp_dir + "tile"
         xml = svg_path.read
-        %w[width height].each do |name|
-          xml.sub!(/(<svg[^>]*#{name}\s*=\s*['"])([\d\.e\+\-]+)/i) { "#{$1}#{$2.to_f * zoom}" }
-        end
+        xml.sub!(/(<svg[^>]*width\s*=\s*['"])([\d\.e\+\-]+)/i) { "#{$1}#{$2.to_f * zoom}" }
+        xml.sub!(/(<svg[^>]*height\s*=\s*['"])([\d\.e\+\-]+)/i) { "#{$1}#{$2.to_f * zoom}" }
         xml.sub!(/(<svg[^>]*)>/i) { "#{$1} style='overflow: hidden'>" }
         src_path.write xml
         preload_path.write %Q[

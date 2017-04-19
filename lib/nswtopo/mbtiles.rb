@@ -28,10 +28,10 @@ module NSWTopo
         levels << [ resolution, indices, dimensions, topleft, tile_path, zoom ]
         break levels if indices.map(&:count).all? { |count| count < 3 }
         levels
-      end.tap do |(resolution, *), *|
+      end.tap do |(resolution, *, zoom), *|
         ppi = (METERS_PER_INCH * map.scale / resolution / cosine).ceil
         Raster.build config.merge("dither" => false), map, ppi, svg_path, temp_dir, png_path do |dimensions|
-          puts "  Generating raster: %ix%i (%.1fMpx)" % [ *dimensions, 0.000001 * dimensions.inject(:*) ]
+          puts "  Generating raster: %ix%i (%.1fMpx) @ zoom level %i" % [ *dimensions, 0.000001 * dimensions.inject(:*), zoom ]
         end
       end.tap do |levels|
         puts "  Tiling for zoom levels %s" % levels.map(&:last).minmax.uniq.join(?-)

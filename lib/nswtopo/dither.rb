@@ -22,7 +22,7 @@ module NSWTopo
       when /pngquant/i
         %x["#{binary}" --quiet --force --ext .png "#{png_paths.join '" "'}"]
       when true
-        %x[mogrify -type Palette -dither Riemersma "#{png_paths.join '" "'}"]
+        %x[mogrify -type PaletteBilevelAlpha -dither Riemersma "#{png_paths.join '" "'}"]
       when String
         abort "Unrecognised dither option: #{binary}"
       end if png_paths.any?

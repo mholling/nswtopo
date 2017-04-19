@@ -42,7 +42,7 @@ module NSWTopo
         ]
         %x["#{rasterise}" "#{js_path}"]
       when /electron/i
-        src_path, js_path, tile_path = temp_dir + "#{map.name}.zoomed.svg", temp_dir + "rasterise.js", temp_dir + "tile"
+        src_path, js_path, preload_path, tile_path = temp_dir + "#{map.name}.zoomed.svg", temp_dir + "rasterise.js", temp_dir + "preload.js", temp_dir + "tile"
         xml = svg_path.read
         %w[width height].each do |name|
           xml.sub! /(<svg[^>]*#{name}\s*=\s*['"])([\d\.e\+\-]+)/i do |match|
@@ -50,36 +50,40 @@ module NSWTopo
           end
         end
         src_path.write xml
+        preload_path.write %Q[
+          const {ipcRenderer} = require('electron')
+          ipcRenderer.on('goto', (event, tile) => {
+            window.scrollTo(tile[0], tile[1])
+            setTimeout(() => ipcRenderer.send('here', [ window.scrollX, window.scrollY ]), 1000)
+          })
+        ]
+        tiles = dimensions.map { |dimension| 0.step(dimension-1, TILE_SIZE).to_a }.inject(&:product)
         js_path.write %Q[
           const {app, BrowserWindow, ipcMain} = require('electron'), {writeFile} = require('fs')
-          var tiles = [];
-          for (var x = 0; x < #{dimensions[0]}; x += #{TILE_SIZE})
-            for (var y = 0; y < #{dimensions[1]}; y += #{TILE_SIZE})
-              tiles.push({ rect: { x: x, y: y, width: Math.min(#{dimensions[0]}-x, #{TILE_SIZE}), height: Math.min(#{dimensions[1]}-y, #{TILE_SIZE}) }, path: '#{tile_path}.'+x+'.'+y+'.png' })
+          app.dock && app.dock.hide()
+          var tiles = #{tiles.inspect}
           app.on('ready', () => {
-            const browser = new BrowserWindow({ width: #{width + 100}, height: #{height + 100}, useContentSize: true, show: false })
-            function get_tile() {
-              var tile = tiles.shift();
-              browser.capturePage(tile.rect, image => writeFile(tile.path, image.toPng(), tiles.length ? get_tile : app.exit))
-            }
-            browser.once('ready-to-show', get_tile)
+            const browser = new BrowserWindow({ width: #{TILE_SIZE}, height: #{TILE_SIZE}, useContentSize: true, show: false, webPreferences: { preload: '#{preload_path}' } })
+            browser.webContents.once('did-finish-load', () => browser.webContents.insertCSS('svg { overflow: hidden }'))
+            next = () => tiles.length ? browser.webContents.send('goto', tiles.shift()) : app.exit()
+            browser.once('ready-to-show', next)
+            ipcMain.on('here', (event, tile) => browser.capturePage((image) => writeFile('#{tile_path}.'+tile[0]+'.'+tile[1]+'.png', image.toPng(), next)))
             browser.loadURL('file://#{src_path}')
           })
-          app.dock && app.dock.hide()
         ]
         %x["#{rasterise}" "#{js_path}"]
-        sequence = dimensions.map do |dimension|
-          0.step(dimension - 1, TILE_SIZE).to_a
-        end.inject(&:product).map do |x, y|
-          %Q[#{OP} "#{tile_path}.#{x}.#{y}.png" -repage +#{x}+#{y} #{CP}]
+        sequence = Pathname.glob("#{tile_path}.*.*.png").map do |tile_path|
+          tile_path.basename.to_s.match(/\.(\d+)\.(\d+)\.png$/) do
+            %Q[#{OP} "#{tile_path}" -repage +#{$1}+#{$2} #{CP}]
+          end
         end.join ?\s
-        %x[convert #{sequence} -compose Copy -layers mosaic -units PixelsPerInch -density #{ppi} -alpha Remove "#{png_path}"]
+        %x[convert #{sequence} -compose Copy -layers mosaic "#{png_path}"]
       when /wkhtmltoimage/i
         %x["#{rasterise}" -q --width #{width} --height #{height} --zoom #{zoom} "#{svg_path}" "#{png_path}"]
       else
         abort("Error: specify either electron, phantomjs, wkhtmltoimage, inkscape or qlmanage as your rasterise method (see README).")
       end
-      %x[mogrify -units PixelsPerInch -density #{ppi} -background white -alpha Remove -define PNG:exclude-chunk=bkgd "#{png_path}"]
+      %x[mogrify +repage -crop #{width}x#{height}+0+0 -units PixelsPerInch -density #{ppi} -background white -alpha Remove -define PNG:exclude-chunk=bkgd "#{png_path}"]
       dither config["dither"], png_path
       map.write_world_file Pathname.new("#{png_path}w"), map.resolution_at(ppi)
     end

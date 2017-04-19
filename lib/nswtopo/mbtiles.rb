@@ -47,8 +47,10 @@ module NSWTopo
         end
       end.flatten(1).each do |tile_path, zoom, col, row|
         sql << %Q[INSERT INTO tiles VALUES (#{zoom}, #{col}, #{row}, readfile("#{tile_path}"));\n]
+      end.tap do |tiles|
+        puts "  Optimising #{tiles.length} tiles"
       end.map(&:first).each.in_parallel_groups do |png_paths|
-        dither config["dither"], *png_paths
+        dither config["dither"] || config["pngquant"] || config["gimp"] || true, *png_paths
       end
       temp_dir.join("mbtiles.sql").tap do |sql_path|
         sql_path.write sql

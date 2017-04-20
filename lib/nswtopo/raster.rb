@@ -50,9 +50,9 @@ module NSWTopo
         src_path.write xml
         preload_path.write %Q[
           const {ipcRenderer} = require('electron')
-          ipcRenderer.on('goto', (event, tile) => {
-            window.scrollTo(tile[0], tile[1])
-            setTimeout(() => ipcRenderer.send('here', [ window.scrollX, window.scrollY ]), 1000)
+          ipcRenderer.on('goto', (event, x, y) => {
+            window.scrollTo(x, y)
+            setTimeout(() => ipcRenderer.send('here', window.scrollX, window.scrollY), 1000)
           })
         ]
         tiles = dimensions.map { |dimension| 0.step(dimension-1, TILE_SIZE).to_a }.inject(&:product)
@@ -62,9 +62,9 @@ module NSWTopo
           var tiles = #{tiles.to_json}
           app.on('ready', () => {
             const browser = new BrowserWindow({ width: #{TILE_SIZE}, height: #{TILE_SIZE}, useContentSize: true, show: false, webPreferences: { preload: '#{preload_path}' } })
-            next = () => tiles.length ? browser.webContents.send('goto', tiles.shift()) : app.exit()
+            const next = () => tiles.length ? browser.webContents.send('goto', ...tiles.shift()) : app.exit()
             browser.once('ready-to-show', next)
-            ipcMain.on('here', (event, tile) => browser.capturePage((image) => writeFile('#{tile_path}.'+tile[0]+'.'+tile[1]+'.png', image.toPng(), next)))
+            ipcMain.on('here', (event, x, y) => browser.capturePage((image) => writeFile('#{tile_path}.'+x+'.'+y+'.png', image.toPng(), next)))
             browser.loadURL('file://#{src_path}')
           })
         ]

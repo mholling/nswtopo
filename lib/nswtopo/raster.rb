@@ -81,7 +81,7 @@ module NSWTopo
         abort("Error: specify either electron, phantomjs, wkhtmltoimage, inkscape or qlmanage as your rasterise method (see README).")
       end
       %x[mogrify +repage -crop #{width}x#{height}+0+0 -units PixelsPerInch -density #{ppi} -background white -alpha Remove -define PNG:exclude-chunk=bkgd "#{png_path}"]
-      dither config["dither"], png_path
+      dither config, png_path if config["dither"]
       map.write_world_file Pathname.new("#{png_path}w"), map.resolution_at(ppi)
     end
   end

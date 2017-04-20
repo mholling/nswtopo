@@ -27,7 +27,7 @@ module NSWTopo
         ref_path.write(%x[convert "#{img_path}" -format "%w,%h" info:], :mode => "a") if index == 1
       end
       Pathname.glob(tiles_dir + "*.png").each.in_parallel_groups do |tile_paths|
-        dither config["dither"] || config["pngquant"] || config["gimp"] || true, *tile_paths
+        dither config, *tile_paths
       end
       
       %x[convert "#{png_path}" -thumbnail 64x64 -gravity center -background white -extent 64x64 -alpha Remove -type TrueColor "#{zip_dir + 'thumb.png'}"]

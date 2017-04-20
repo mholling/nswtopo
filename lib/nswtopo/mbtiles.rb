@@ -50,7 +50,7 @@ module NSWTopo
       end.tap do |tiles|
         puts "  Optimising #{tiles.length} tiles"
       end.map(&:first).each.in_parallel_groups do |png_paths|
-        dither config["dither"] || config["pngquant"] || config["gimp"] || true, *png_paths
+        dither config, *png_paths
       end
       temp_dir.join("mbtiles.sql").tap do |sql_path|
         sql_path.write sql

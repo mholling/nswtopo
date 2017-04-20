@@ -344,7 +344,6 @@ rotation: 0
         [ formats[format], format == "mbtiles" ]
       end.each do |(ppi, mbtiles), group|
         png_path = temp_dir + "#{map.name}.#{ppi}.png"
-        pgw_path = temp_dir + "#{map.name}.#{ppi}.pngw"
         Raster.build config, map, ppi, svg_path, temp_dir, png_path do |dimensions|
           puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
         end if (group & %w[png tif gif jpg kmz zip psd]).any? || (ppi && group.include?("pdf"))
@@ -364,7 +363,7 @@ rotation: 0
             when "mbtiles"
               MBTiles.build config, map, ppi, svg_path, temp_dir, output_path
             when "zip"
-              Avenza.build config, map, png_path, pgw_path, temp_dir, output_path
+              Avenza.build config, map, ppi, png_path, temp_dir, output_path
             when "psd"
               PSD.build config, map, ppi, svg_path, png_path, temp_dir, output_path
             when "pdf"

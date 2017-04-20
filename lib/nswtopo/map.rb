@@ -98,6 +98,14 @@ module NSWTopo
       @extents.map { |extent| (ppi * extent / @scale / 0.0254).floor }
     end
     
+    def top_left
+      [ @centre, @extents.rotate_by_degrees(-@rotation), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
+    end
+    
+    def affine_transform_at(ppi)
+      WorldFile.affine_transform top_left, resolution_at(ppi), @rotation
+    end
+    
     def coord_corners(margin_in_mm = 0)
       metres = margin_in_mm * 0.001 * @scale
       @extents.map do |extent|
@@ -133,8 +141,7 @@ module NSWTopo
     end
     
     def write_world_file(path, resolution)
-      topleft = [ @centre, @extents.rotate_by_degrees(-@rotation), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
-      WorldFile.write topleft, resolution, @rotation, path
+      WorldFile.write top_left, resolution, @rotation, path
     end
     
     def write_oziexplorer_map(path, name, image, ppi)

@@ -43,6 +43,7 @@ require_relative 'nswtopo/kmz'
 require_relative 'nswtopo/psd'
 require_relative 'nswtopo/pdf'
 require_relative 'nswtopo/mbtiles'
+require_relative 'nswtopo/avenza'
 
 NSWTOPO_VERSION = "1.4.1"
 
@@ -327,14 +328,14 @@ rotation: 0
     formats = [ *config["formats"] ].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["prj"] = %w[wkt_all proj4 wkt wkt_simple wkt_noct wkt_esri mapinfo xml].delete(formats["prj"]) || "proj4" if formats.include? "prj"
     formats["png"] ||= nil if formats.include? "map"
-    (formats.keys & %w[png tif gif jpg kmz mbtiles psd]).each do |format|
+    (formats.keys & %w[png tif gif jpg kmz mbtiles zip psd]).each do |format|
       formats[format] ||= config["ppi"]
     end
     (formats.keys & %w[png tif gif jpg]).each do |format|
       formats["#{format[0]}#{format[2]}w"] = formats[format]
     end if formats.include? "prj"
     
-    outstanding = (formats.keys & %w[png tif gif jpg kmz mbtiles psd pdf pgw tfw gfw jgw map prj]).reject do |format|
+    outstanding = (formats.keys & %w[png tif gif jpg kmz mbtiles zip psd pdf pgw tfw gfw jgw map prj]).reject do |format|
       FileUtils.uptodate? "#{map.name}.#{format}", [ svg_path ]
     end
     
@@ -343,9 +344,10 @@ rotation: 0
         [ formats[format], format == "mbtiles" ]
       end.each do |(ppi, mbtiles), group|
         png_path = temp_dir + "#{map.name}.#{ppi}.png"
+        pgw_path = temp_dir + "#{map.name}.#{ppi}.pngw"
         Raster.build config, map, ppi, svg_path, temp_dir, png_path do |dimensions|
           puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
-        end if (group & %w[png tif gif jpg kmz psd]).any? || (ppi && group.include?("pdf"))
+        end if (group & %w[png tif gif jpg kmz zip psd]).any? || (ppi && group.include?("pdf"))
         group.each do |format|
           begin
             puts "Generating #{map.name}.#{format}"
@@ -361,6 +363,8 @@ rotation: 0
               KMZ.build map, ppi, png_path, output_path
             when "mbtiles"
               MBTiles.build config, map, ppi, svg_path, temp_dir, output_path
+            when "zip"
+              Avenza.build config, map, png_path, pgw_path, temp_dir, output_path
             when "psd"
               PSD.build config, map, ppi, svg_path, png_path, temp_dir, output_path
             when "pdf"

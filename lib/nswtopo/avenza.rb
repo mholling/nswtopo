@@ -23,7 +23,7 @@ module NSWTopo
         end
         zip_dir.join("#{map.name}.ref").open("w") do |file|
           file.puts map.projection.wkt_simple
-          file.puts map.affine_transform_at(ppi).flatten.values_at(2,0,1,5,3,4).join(?,)
+          file.puts map.geotransform_at(ppi).flatten.join(?,)
           file << dimensions.join(?,)
         end if index == 1
       end

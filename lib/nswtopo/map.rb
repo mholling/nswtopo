@@ -102,8 +102,8 @@ module NSWTopo
       [ @centre, @extents.rotate_by_degrees(-@rotation), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
     end
     
-    def affine_transform_at(ppi)
-      WorldFile.affine_transform top_left, resolution_at(ppi), @rotation
+    def geotransform_at(ppi)
+      WorldFile.geotransform top_left, resolution_at(ppi), @rotation
     end
     
     def coord_corners(margin_in_mm = 0)

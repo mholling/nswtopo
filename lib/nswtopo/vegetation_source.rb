@@ -3,25 +3,27 @@ module NSWTopo
     include RasterRenderer
     
     def get_raster(map, dimensions, resolution, temp_dir)
-      src_path = temp_dir + "#{name}.txt"
-      vrt_path = temp_dir + "#{name}.vrt"
       tif_path = temp_dir + "#{name}.tif"
       tfw_path = temp_dir + "#{name}.tfw"
       clut_path = temp_dir + "#{name}-clut.png"
       mask_path = temp_dir + "#{name}-mask.png"
       
+      map.write_world_file tfw_path, resolution
+      %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
+      
       [ *params["path"] ].map do |path|
         Pathname.glob path
       end.inject([], &:+).map(&:expand_path).tap do |paths|
         raise BadLayerError.new("no vegetation data file specified") if paths.empty?
-      end.join(?\n).tap do |path_list|
-        File.write src_path, path_list
+      end.group_by do |path|
+        %x[gdalsrsinfo -o proj4 "#{path}"]
+      end.values.each.with_index do |paths, index|
+        src_path = temp_dir + "#{name}.#{index}.txt"
+        vrt_path = temp_dir + "#{name}.#{index}.vrt"
+        src_path.write paths.join(?\n)
+        %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
+        %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]
       end
-      %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
-      
-      map.write_world_file tfw_path, resolution
-      %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
-      %x[gdalwarp -t_srs "#{map.projection}" "#{vrt_path}" "#{tif_path}"]
       
       low, high, factor = { "low" => 0, "high" => 100, "factor" => 0.0 }.merge(params["contrast"] || {}).values_at("low", "high", "factor")
       %x[convert -size 1x256 canvas:black "#{clut_path}"]

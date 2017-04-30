@@ -2,76 +2,103 @@ module NSWTopo
   class ReliefSource
     include RasterRenderer
     
-    DEFAULT_SIGMA = 100
+    # TODO: do we need to densify the contour lines?
+    # TODO: reduce sigma for better performance?
+    # TODO: try gmt triangulation in addition to gdal_grid
+    # TODO: calculate flat-area intensity instead of assuming it's 70%
+    
     PARAMS = %q[
       altitude: 45
       azimuth: 315
-      exaggeration: 2
-      sources: 1
+      exaggeration: 2.5
+      lightsources: 3
       resolution: 30.0
       opacity: 0.3
       highlights: 20
       median: 30.0
       bilateral: 5
+      sigma: 100
     ]
     
     def initialize(name, params)
-      super name, YAML.load(PARAMS).merge(params).merge("ext" => "tif")
+      super name, YAML.load(PARAMS).merge(params)
     end
     
     def get_raster(map, dimensions, resolution, temp_dir)
-      src_path = temp_dir + "dem.txt"
-      vrt_path = temp_dir + "dem.vrt"
       dem_path = temp_dir + "dem.tif"
-      
-      sources, sigma = [ *params["sources"], DEFAULT_SIGMA ]
-      
+      lightsources, sigma = params.values_at *%w[lightsources sigma]
       bounds = map.bounds.map do |lower, upper|
         [ lower - 3 * sigma, upper + 3 * sigma ]
       end
       
-      if params["path"]
-        [ *params["path"] ].map do |path|
+      case
+      when params["path"]
+        src_path = temp_dir + "dem.txt"
+        vrt_path = temp_dir + "dem.vrt"
+        
+        paths = [ *params["path"] ].map do |path|
           Pathname.glob path
         end.inject([], &:+).map(&:expand_path).tap do |paths|
           raise BadLayerError.new("no dem data files at specified path") if paths.empty?
         end
-      else
-        base_uri = URI.parse "http://www.ga.gov.au/gisimg/rest/services/topography/dem_s_1s/ImageServer/"
-        wgs84_bounds = map.projection.transform_bounds_to Projection.wgs84, bounds
-        base_query = { "f" => "json", "geometry" => wgs84_bounds.map(&:sort).transpose.flatten.join(?,) }
-        query = base_query.merge("returnIdsOnly" => true, "where" => "category = 1").to_query
-        raster_ids = ArcGIS.get_json(base_uri + "query?#{query}").fetch("objectIds")
-        query = base_query.merge("rasterIDs" => raster_ids.join(?,), "format" => "TIFF").to_query
-        tile_paths = ArcGIS.get_json(base_uri + "download?#{query}").fetch("rasterFiles").map do |file|
-          file["id"][/[^@]*/]
-        end.select do |url|
-          url[/\.tif$/]
-        end.map do |url|
-          [ URI.parse(URI.escape url), temp_dir + url[/[^\/]*$/] ]
-        end.each do |uri, tile_path|
-          HTTP.get(uri) do |response|
-            tile_path.open("wb") { |file| file << response.body }
+        src_path.write paths.join(?\n)
+        %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
+        
+        dem_projection = Projection.new vrt_path
+        dem_bounds = map.projection.transform_bounds_to dem_projection, bounds
+        scale = bounds.zip(dem_bounds).last.map do |bound|
+          bound.inject(&:-)
+        end.inject(&:/)
+        
+        ulx, lrx, lry, uly = dem_bounds.flatten
+        %x[gdal_translate -q -projwin #{ulx} #{uly} #{lrx} #{lry} "#{vrt_path}" "#{dem_path}"]
+      when params["contours"]
+        attribute = params["attribute"]
+        gdal_version = %x[gdalinfo --version][/\d+(\.\d+(\.\d+)?)?/].split(?.).map(&:to_i)
+        raise BadLayerError.new "no elevation attibute specified" unless attribute
+        raise BadLayerError.new "GDAL version 2.1 or greater required for shaded relief" if ([ 2, 1 ] <=> gdal_version) == 1
+        
+        shp_path = temp_dir + "dem-contours"
+        spat = bounds.flatten.values_at(0,2,1,3).join ?\s
+        outsize = bounds.map do |bound|
+          (bound[1] - bound[0]) / resolution
+        end.map(&:ceil).join(?\s)
+        txe, tye = bounds[0].join(?\s), bounds[1].reverse.join(?\s)
+        
+        ogr2ogr = %Q[ogr2ogr -spat #{spat} -spat_srs "#{map.projection}" -t_srs "#{map.projection}"]
+        %w[contours coastline].map do |layer|
+          next unless dataset = params[layer]
+          case dataset
+          when /^(https?:\/\/.*)\/\d+\/query$/
+            service = HTTP.get(URI.parse "#{$1}?f=json") do |response|
+              JSON.parse response.body
+            end
+            raise BadLayerError.new service["error"]["message"] if service["error"]
+            wkt  = service["spatialReference"]["wkt"]
+            wkid = service["spatialReference"]["latestWkid"] || service["spatialReference"]["wkid"]
+            service_projection = Projection.new wkt ? "ESRI::#{wkt}".gsub(?", '\"') : "epsg:#{wkid == 102100 ? 3857 : wkid}"
+            geometry = map.projection.transform_bounds_to(service_projection, bounds).flatten.values_at(0,2,1,3).join(?,)
+            url = "#{dataset}?where=objectid+%3D+objectid&outfields=*&f=json&geometryType=esriGeometryEnvelope&geometry=#{geometry}"
+            %x[#{ogr2ogr} -nln #{layer}_temp -s_srs "#{service_projection}" "#{shp_path}" "#{url}" #{DISCARD_STDERR}]
+          else
+            %x[#{ogr2ogr} -nln #{layer}_temp "#{shp_path}" "#{dataset}" #{DISCARD_STDERR}]
           end
-        end.map(&:last)
-      end.join(?\n).tap do |path_list|
-        File.write src_path, path_list
+          case layer
+          when "contours"  then %x[ogr2ogr -nln #{layer} -sql "SELECT      #{attribute} FROM #{layer}_temp" "#{shp_path}" "#{shp_path}"]
+          when "coastline" then %x[ogr2ogr -nln #{layer} -sql "SELECT 0 AS #{attribute} FROM #{layer}_temp" "#{shp_path}" "#{shp_path}"]
+          end
+          %Q[-l #{layer} -zfield "#{attribute}"]
+        end.compact.join(?\s).tap do |layers|
+          %x[gdal_grid -a linear:radius=0:nodata=-9999 #{layers} -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
+        end
+        dem_projection, scale = map.projection, 1
+      else
+        raise BadLayerError.new "online elevation data unavailable, please provide contour data or DEM path"
       end
-      %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
-      
-      projection = Projection.new(vrt_path)
-      dem_bounds = map.projection.transform_bounds_to projection, bounds
-      
-      ulx, lrx, lry, uly = dem_bounds.flatten
-      %x[gdal_translate -q -projwin #{ulx} #{uly} #{lrx} #{lry} "#{vrt_path}" "#{dem_path}"]
-      
-      scale = bounds.zip(dem_bounds).last.map do |bound|
-        bound.inject(&:-)
-      end.inject(&:/)
       
       altitude, azimuth, exaggeration = params.values_at("altitude", "azimuth", "exaggeration")
       
-      azimuths = -90.step(90, 90.0 / sources).select.with_index do |offset, index|
+      azimuths = -90.step(90, 90.0 / lightsources).select.with_index do |offset, index|
         index.odd?
       end.map do |offset|
         (azimuth + offset) % 360
@@ -104,6 +131,7 @@ module NSWTopo
         sum = coefs.inject(&:+)
         coefs.map! { |coef| coef / sum }
         
+        vrt_path = temp_dir + "dem-blurred.vrt"
         %x[gdalbuildvrt "#{vrt_path}" "#{dem_path}"]
         vrt = REXML::Document.new(vrt_path.read)
         vrt.elements.each("//ComplexSource|//SimpleSource") do |source|
@@ -123,14 +151,15 @@ module NSWTopo
         aspect, *reliefs = [ aspect_path, *relief_paths ].map(&:each_line).map do |lines|
           lines.drop(header).map(&:split).flatten.map(&:to_f)
         end
+        
         reliefs.zip(azimuths).map do |relief, azimuth|
           relief.zip(aspect).map do |relief, aspect|
-            relief * (aspect < 0 ? 1 : 2 * Math::sin((aspect - azimuth) * Math::PI / 180)**2) / sources
+            relief * (aspect < 0 ? 1 : 2 * Math::sin((aspect - azimuth) * Math::PI / 180)**2)
           end
-        end.inject do |sums, values|
-          sums.zip(values).map { |sum, value| sum == 0 ? sum : sum + value }
+        end.transpose.map do |values|
+          values.inject(&:+) / lightsources
         end.map do |value|
-          [ 255, value.to_i ].min
+          [ 255, value.ceil ].min
         end.each_slice(ncols).map do |row|
           row.join ?\s
         end.tap do |lines|
@@ -138,12 +167,12 @@ module NSWTopo
         end
       end
       
-      tif_path = temp_dir + "output.tif"
-      tfw_path = temp_dir + "output.tfw"
+      tif_path = temp_dir + "relief.tif"
+      tfw_path = temp_dir + "relief.tfw"
       map.write_world_file tfw_path, resolution
       density = 0.01 * map.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
-      %x[gdalwarp -s_srs "#{projection}" -t_srs "#{map.projection}" -r bilinear -dstalpha "#{relief_path}" "#{tif_path}"]
+      %x[gdalwarp -s_srs "#{dem_projection}" -t_srs "#{map.projection}" -srcnodata 0 -r bilinear -dstalpha "#{relief_path}" "#{tif_path}"]
       
       filters = []
       if args = params["median"]
@@ -155,9 +184,10 @@ module NSWTopo
         sigma ||= (100.0 / resolution).round
         filters << "-channel RGB -selective-blur 0x#{sigma}+#{threshold}%"
       end
-      %x[mogrify -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
       
-      tif_path
+      temp_dir.join("relief.output.%s" % params.fetch("ext", "png")).tap do |output_path|
+        %x[convert -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}" "#{output_path}"]
+      end
     end
     
     def embed_image(temp_dir)

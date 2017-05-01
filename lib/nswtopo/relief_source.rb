@@ -5,7 +5,6 @@ module NSWTopo
     # TODO: do we need to densify the contour lines?
     # TODO: reduce sigma for better performance?
     # TODO: try gmt triangulation in addition to gdal_grid
-    # TODO: calculate flat-area intensity instead of assuming it's 70%
     
     PARAMS = %q[
       altitude: 45
@@ -26,7 +25,7 @@ module NSWTopo
     
     def get_raster(map, dimensions, resolution, temp_dir)
       dem_path = temp_dir + "dem.tif"
-      lightsources, sigma = params.values_at *%w[lightsources sigma]
+      altitude, azimuth, exaggeration, highlights, lightsources, sigma = params.values_at *%w[altitude azimuth exaggeration highlights lightsources sigma]
       bounds = map.bounds.map do |lower, upper|
         [ lower - 3 * sigma, upper + 3 * sigma ]
       end
@@ -95,8 +94,6 @@ module NSWTopo
       else
         raise BadLayerError.new "online elevation data unavailable, please provide contour data or DEM path"
       end
-      
-      altitude, azimuth, exaggeration = params.values_at("altitude", "azimuth", "exaggeration")
       
       azimuths = -90.step(90, 90.0 / lightsources).select.with_index do |offset, index|
         index.odd?
@@ -167,8 +164,8 @@ module NSWTopo
         end
       end
       
-      tif_path = temp_dir + "relief.tif"
-      tfw_path = temp_dir + "relief.tfw"
+      tif_path = temp_dir + "relief.combined.tif"
+      tfw_path = temp_dir + "relief.combined.tfw"
       map.write_world_file tfw_path, resolution
       density = 0.01 * map.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
@@ -184,20 +181,24 @@ module NSWTopo
         sigma ||= (100.0 / resolution).round
         filters << "-channel RGB -selective-blur 0x#{sigma}+#{threshold}%"
       end
+      %x[mogrify -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
       
-      temp_dir.join("relief.output.%s" % params.fetch("ext", "png")).tap do |output_path|
-        %x[convert -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}" "#{output_path}"]
+      flat_dem_path, flat_relief_path = temp_dir + "flat.dem.tif", temp_dir + "flat.relief.tif"
+      %x[convert -size 10x10 canvas:black -type Grayscale -depth 8 "#{flat_dem_path}"]
+      %x[gdaldem hillshade -compute_edges -alt #{altitude} "#{flat_dem_path}" "#{flat_relief_path}"]
+      threshold = %x[convert -quiet "#{flat_relief_path}" -format "%[fx:mean]" info:].to_f.round(3)
+      
+      shade = %Q["#{tif_path}" -colorspace Gray -fill white -opaque none -level #{   90*threshold}%,0%                            -alpha Copy -fill black  +opaque black ]
+      sun   = %Q["#{tif_path}" -colorspace Gray -fill black -opaque none -level #{10+90*threshold}%,100% +level 0%,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
+      
+      temp_dir.join(path.basename).tap do |raster_path|
+        %x[convert -quiet #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite -define png:color-type=6 "#{raster_path}"]
       end
     end
     
     def embed_image(temp_dir)
       raise BadLayerError.new("hillshade image not found at #{path}") unless path.exist?
-      highlights = params["highlights"]
-      shade = %Q["#{path}" -colorspace Gray -fill white -opaque none -level 0,65% -negate -alpha Copy -fill black +opaque black]
-      sun = %Q["#{path}" -colorspace Gray -fill black -opaque none -level 80%,100% +level 0,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
-      temp_dir.join("overlay.png").tap do |overlay_path|
-        %x[convert -quiet #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite -define png:color-type=6 "#{overlay_path}"]
-      end
+      path
     end
   end
 end

@@ -42,16 +42,9 @@ module NSWTopo
           raise BadLayerError.new("no dem data files at specified path") if paths.empty?
         end
         src_path.write paths.join(?\n)
+        
         %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
-        
-        dem_projection = Projection.new vrt_path
-        dem_bounds = map.projection.transform_bounds_to dem_projection, bounds
-        scale = bounds.zip(dem_bounds).last.map do |bound|
-          bound.inject(&:-)
-        end.inject(&:/)
-        
-        ulx, lrx, lry, uly = dem_bounds.flatten
-        %x[gdal_translate -q -projwin #{ulx} #{uly} #{lrx} #{lry} "#{vrt_path}" "#{dem_path}"]
+        %x[gdalwarp -t_srs "#{map.projection}" -te #{bounds.flatten.values_at(0,2,1,3).join(?\s)} -tr #{resolution} #{resolution} -r bilinear "#{vrt_path}" "#{dem_path}"]
       when params["contours"]
         attribute = params["attribute"]
         gdal_version = %x[gdalinfo --version][/\d+(\.\d+(\.\d+)?)?/].split(?.).map(&:to_i)
@@ -91,7 +84,6 @@ module NSWTopo
         end.compact.join(?\s).tap do |layers|
           %x[gdal_grid -a linear:radius=0:nodata=-9999 #{layers} -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
         end
-        dem_projection, scale = map.projection, 1
       else
         raise BadLayerError.new "online elevation data unavailable, please provide contour data or DEM path"
       end
@@ -107,7 +99,7 @@ module NSWTopo
       end
       
       relief_paths.zip(azimuths).each do |relief_path, azimuth|
-        %x[gdaldem hillshade -of AAIGrid -compute_edges -s #{scale} -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" #{DISCARD_STDERR}]
+        %x[gdaldem hillshade -of AAIGrid -compute_edges -s 1 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" #{DISCARD_STDERR}]
         raise BadLayerError.new("invalid elevation data") unless $?.success?
       end
       
@@ -116,7 +108,7 @@ module NSWTopo
       else
         dem_params = JSON.parse %x[gdalinfo -json "#{dem_path}"]
         resolutions = dem_params["geoTransform"].values_at(1, 5).map(&:abs)
-        steps = (3 * sigma / scale / resolutions.min).ceil
+        steps = (3 * sigma / resolutions.min).ceil
         coefs = resolutions.map do |resolution|
           (1..steps).inject([ 0 ]) do |values, index|
             [ -index * resolution / sigma, *values, index * resolution / sigma ]
@@ -170,7 +162,7 @@ module NSWTopo
       map.write_world_file tfw_path, resolution
       density = 0.01 * map.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
-      %x[gdalwarp -s_srs "#{dem_projection}" -t_srs "#{map.projection}" -srcnodata 0 -r bilinear -dstalpha "#{relief_path}" "#{tif_path}"]
+      %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -srcnodata 0 -r bilinear -dstalpha "#{relief_path}" "#{tif_path}"]
       
       filters = []
       if args = params["median"]

@@ -156,7 +156,7 @@ A number of different map layers are available for your map, each obtained from 
 
     include:
     - nsw/topographic
-    - relief
+    - nsw/relief
     - grid
 
 Viewing the map in Inkscape allows you to toggle individual layers on and off. This if helpful, for example, if you wish to view the aerial imagery superimposed against the topographic feature layers for comparison.
@@ -167,24 +167,20 @@ Generic layers depicting shaded relief, UTM grid and magnetic declination are al
 
 ## Relief
 
-By including the `relief` layer in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layer is automatically generated from the [SRTM](http://en.wikipedia.org/wiki/Shuttle_Radar_Topography_Mission) digital elevation model, available online.
+By including a layer such as `nsw/relief` in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layers for NSW and TAS are automatically generated from contour data.
 
-You can specify the azimuthal angle, altitude and terrain exaggeration used to generate the shaded relief layer. (The conventional azimuth angle of 315 is set as default, should probably be left as is.) You can also specify the opacity of the layer to change the aggressiveness of the effect.
+You can specify the azimuthal angle, altitude and terrain exaggeration used to generate the shaded relief layer. (The conventional azimuth angle of 315 is set as default, should probably be left as is.) You can also specify the opacity of the layer to change the aggressiveness of the effect. By default, a [multi-directional](https://pubs.usgs.gov/of/1992/of92-422/) hillshade is produced.
   
-    relief:
+    nsw.relief:
       azimuth: 315            # azimuth angle for shaded relief layers (degrees clockwise from North)
       altitude: 45            # angle of illumination from horizon (45 is standard)
       exaggeration: 1         # vertical exaggeration factor
       opacity: 0.3            # opacity of the shaded relief; determines how subtle the effect is
-      sources: 1              # number of light sources to use (3 can work well)
+      sources: 3              # number of light sources to use (change to 1 for conventional hillshade)
 
-The shaded relief is derived from smoothed, one-arcsecond SRTM elevation data. (The dataset, `dem_s_1s`, is provided online by Geoscience Australia and it's no longer necessary to obtain the data manually). Shaded relief is embedded directly into the map at a default of 30 metre/pixel resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. This is not an issue unless you also use Inkscape to rasterise your map. (Electron and PhantomJS are better options for this; see below.)
+Although the contour-generated relief works well in most cases, you can also provide your own elevation data from a _DEM_ (Digital Elevation Model). DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows, and set its resolution appropriately:
 
-**Status (November 2016):** The `dem_s_1s` data service is currently unavailable; I'm looking for a replacement. In the meantime, I suggest downloading a 30-metre DEM as described below.
-
-You can also provide your own elevation data from a _DEM_ (Digital Elevation Model). This allows you to obtain higher-resolution data for a better shaded relief depiction. DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows:
-
-    relief:
+    nsw.relief:
       path: /path/to/my/dem.tif  # path for the GeoTIFF or hdr.adf file
       resolution: 30             # render the relief data at 30 metres/pixel
 

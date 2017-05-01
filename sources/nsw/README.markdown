@@ -23,6 +23,10 @@ Include the `nsw/reserves` layer to add boundaries and labels for NSW national p
 
 The `nsw/survey` layer adds symbols for trig stations which are found on various NSW summits. (n.b. The trig stations found on this layer are not always present on the ground!)
 
+## Relief
+
+Generates a shaded relief overlay derived from contours used in the map.
+
 ## Aerial Imagery
 
 High-resolution aerial imagery is also available from the NSW LPI department. Include it as follows:

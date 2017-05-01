@@ -131,7 +131,6 @@ rotation: 0
       params = resolution ? { "resolution" => resolution } : { }
       case name_or_path
       when "canvas"      then [ "canvas",      CanvasSource,      params ]
-      when "relief"      then [ "relief",      ReliefSource,      params ]
       when "grid"        then [ "grid",        GridSource,        params ]
       when "declination" then [ "declination", DeclinationSource, params ]
       when "controls"    then [ "controls",    ControlSource,     params ]

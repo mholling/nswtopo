@@ -29,15 +29,12 @@ module NSWTopo
       opacity = params["opacity"] || 1
       dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       
-      href = if respond_to?(:embed_image) && params["embed"] != false
-        Dir.mktmppath do |temp_dir|
-          raster_path = embed_image(temp_dir)
-          base64 = Base64.encode64 raster_path.read(:mode => "rb")
-          mimetype = %x[identify -quiet -verbose "#{raster_path}"][/image\/\w+/] || "image/png"
-          "data:#{mimetype};base64,#{base64}"
-        end
+      raise BadLayerError.new("#{name} raster image not found at #{path}") unless path.exist?
+      href = if params["embed"]
+        base64 = Base64.encode64 path.read(:mode => "rb")
+        mimetype = %x[identify -quiet -verbose "#{path}"][/image\/\w+/] || "image/png"
+        "data:#{mimetype};base64,#{base64}"
       else
-        raise BadLayerError.new("#{name} raster image not found at #{path}") unless path.exist?
         path.basename
       end
       

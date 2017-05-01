@@ -7,6 +7,7 @@ module NSWTopo
     # TODO: try gmt triangulation in addition to gdal_grid
     
     PARAMS = %q[
+      embed: true
       altitude: 45
       azimuth: 315
       exaggeration: 2.5
@@ -194,11 +195,6 @@ module NSWTopo
       temp_dir.join(path.basename).tap do |raster_path|
         %x[convert -quiet #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite -define png:color-type=6 "#{raster_path}"]
       end
-    end
-    
-    def embed_image(temp_dir)
-      raise BadLayerError.new("hillshade image not found at #{path}") unless path.exist?
-      path
     end
   end
 end

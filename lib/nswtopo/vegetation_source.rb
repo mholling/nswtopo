@@ -2,6 +2,10 @@ module NSWTopo
   class VegetationSource
     include RasterRenderer
     
+    def initialize(name, params)
+      super name, { "embed" => true }.merge(params)
+    end
+    
     def get_raster(map, dimensions, resolution, temp_dir)
       tif_path = temp_dir + "#{name}.tif"
       tfw_path = temp_dir + "#{name}.tfw"
@@ -40,11 +44,6 @@ module NSWTopo
       temp_dir.join(path.basename).tap do |raster_path|
         %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:"#{nonwoody}" #{OP} "#{mask_path}" -background "#{woody}" -alpha Shape #{CP} -composite "#{raster_path}"]
       end
-    end
-    
-    def embed_image(temp_dir)
-      raise BadLayerError.new("vegetation raster image not found at #{path}") unless path.exist?
-      path
     end
   end
 end

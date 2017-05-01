@@ -184,11 +184,7 @@ module NSWTopo
       end
       %x[mogrify -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
       
-      flat_dem_path, flat_relief_path = temp_dir + "flat.dem.tif", temp_dir + "flat.relief.tif"
-      %x[convert -size 10x10 canvas:black -type Grayscale -depth 8 "#{flat_dem_path}"]
-      %x[gdaldem hillshade -compute_edges -alt #{altitude} "#{flat_dem_path}" "#{flat_relief_path}"]
-      threshold = %x[convert -quiet "#{flat_relief_path}" -format "%[fx:mean]" info:].to_f.round(3)
-      
+      threshold = Math::sin(altitude * Math::PI / 180)
       shade = %Q["#{tif_path}" -colorspace Gray -fill white -opaque none -level #{   90*threshold}%,0%                            -alpha Copy -fill black  +opaque black ]
       sun   = %Q["#{tif_path}" -colorspace Gray -fill black -opaque none -level #{10+90*threshold}%,100% +level 0%,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
       

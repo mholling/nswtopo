@@ -106,10 +106,8 @@ module NSWTopo
       if relief_paths.one?
         relief_path = relief_paths.first
       else
-        dem_params = JSON.parse %x[gdalinfo -json "#{dem_path}"]
-        resolutions = dem_params["geoTransform"].values_at(1, 5).map(&:abs)
-        steps = (3 * sigma / resolutions.min).ceil
-        coefs = resolutions.map do |resolution|
+        steps = (3 * sigma / resolution).ceil
+        coefs = 2.times.map do
           (1..steps).inject([ 0 ]) do |values, index|
             [ -index * resolution / sigma, *values, index * resolution / sigma ]
           end.map do |z|

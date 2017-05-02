@@ -80,9 +80,9 @@ module NSWTopo
           when "contours"  then %x[ogr2ogr -nln #{layer} -sql "SELECT      #{attribute} FROM #{layer}_temp" "#{shp_path}" "#{shp_path}"]
           when "coastline" then %x[ogr2ogr -nln #{layer} -sql "SELECT 0 AS #{attribute} FROM #{layer}_temp" "#{shp_path}" "#{shp_path}"]
           end
-          %Q[-l #{layer} -zfield "#{attribute}"]
+          %Q[-l #{layer}]
         end.compact.join(?\s).tap do |layers|
-          %x[gdal_grid -a linear:radius=0:nodata=-9999 #{layers} -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
+          %x[gdal_grid -a linear:radius=0:nodata=-9999 -zfield #{attribute} #{layers} -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
         end
       else
         raise BadLayerError.new "online elevation data unavailable, please provide contour data or DEM path"

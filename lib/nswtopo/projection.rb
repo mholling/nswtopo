@@ -35,23 +35,19 @@ module NSWTopo
     end
     
     def reproject_to(target, point_or_points)
-      gdaltransform = %Q[gdaltransform -s_srs "#{self}" -t_srs "#{target}"]
-      case point_or_points.first
-      when Array
-        point_or_points.map do |point|
-          "echo #{point.join ?\s}"
-        end.inject([]) do |(*echoes, last), echo|
-          case
-          when last && last.length + echo.length + gdaltransform.length < 2000 then [ *echoes, "#{last} && #{echo}" ]
-          else [ *echoes, *last, echo ]
+      single = Numeric === point_or_points.first
+      points = single ? [ point_or_points ] : point_or_points
+      points.each_slice(500).map do |points|
+        IO.popen %Q[gdaltransform -s_srs "#{self}" -t_srs "#{target}"], "r+" do |pipe|
+          points.each do |point|
+            pipe.puts point.join(?\s)
           end
-        end.map do |echoes|
-          %x[(#{echoes}) | #{gdaltransform}].each_line.map do |line|
+          pipe.close_write
+          pipe.each_line.map do |line|
             line.split(?\s)[0..1].map(&:to_f)
           end
-        end.inject(&:+)
-      else %x[echo #{point_or_points.join ?\s} | #{gdaltransform}].split(?\s)[0..1].map(&:to_f)
-      end
+        end
+      end.flatten(single ? 2 : 1)
     end
     
     def reproject_to_wgs84(point_or_points)

@@ -1,10 +1,7 @@
 module NSWTopo
   class ReliefSource
     include RasterRenderer
-    
-    # TODO: do we need to densify the contour lines?
-    # TODO: reduce sigma for better performance?
-    # TODO: try gmt triangulation in addition to gdal_grid
+    # TODO: speed up DEM smoothing for better performance?
     
     PARAMS = %q[
       embed: true

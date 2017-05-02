@@ -1,6 +1,5 @@
 min-version: '1.4'
 class: ArcGISVector
-local-reprojection: true
 sources:
   open-data:
     host: services.thelist.tas.gov.au

@@ -5,4 +5,5 @@ attribute: ELEVATION
 resolution: 15
 lightsources: 3
 exaggeration: 2.0
+altitude: 35
 opacity: 0.3

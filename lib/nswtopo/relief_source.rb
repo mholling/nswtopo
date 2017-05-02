@@ -58,23 +58,26 @@ module NSWTopo
         end.map(&:ceil).join(?\s)
         txe, tye = bounds[0].join(?\s), bounds[1].reverse.join(?\s)
         
-        ogr2ogr = %Q[ogr2ogr -spat #{spat} -spat_srs "#{map.projection}" -t_srs "#{map.projection}"]
         %w[contours coastline].map do |layer|
           next unless dataset = params[layer]
           case dataset
           when /^(https?:\/\/.*)\/\d+\/query$/
-            service = HTTP.get(URI.parse "#{$1}?f=json") do |response|
-              JSON.parse response.body
-            end
-            raise BadLayerError.new service["error"]["message"] if service["error"]
-            wkt  = service["spatialReference"]["wkt"]
-            wkid = service["spatialReference"]["latestWkid"] || service["spatialReference"]["wkid"]
+            srs, max_record_count = ArcGIS.get_json(URI.parse "#{$1}?f=json").values_at "spatialReference", "maxRecordCount"
+            wkt, wkid = srs["wkt"], srs["latestWkid"] || srs["wkid"]
             service_projection = Projection.new wkt ? "ESRI::#{wkt}".gsub(?", '\"') : "epsg:#{wkid == 102100 ? 3857 : wkid}"
             geometry = map.projection.transform_bounds_to(service_projection, bounds).flatten.values_at(0,2,1,3).join(?,)
-            url = "#{dataset}?where=objectid+%3D+objectid&outfields=*&f=json&geometryType=esriGeometryEnvelope&geometry=#{geometry}"
-            %x[#{ogr2ogr} -nln #{layer}_temp -s_srs "#{service_projection}" "#{shp_path}" "#{url}" #{DISCARD_STDERR}]
+            next unless object_ids = ArcGIS.get_json(URI.parse "#{dataset}?f=json&geometryType=esriGeometryEnvelope&geometry=#{geometry}&returnIdsOnly=true")["objectIds"]
+            features = object_ids.each_slice([ *max_record_count, 500 ].min).map do |object_ids|
+              ArcGIS.get_json(URI.parse "#{dataset}?f=json&outFields=*&objectIds=#{object_ids.join ?,}")
+            end.inject do |results, page|
+              results["features"] += page["features"]
+              results
+            end
+            IO.popen %Q[ogr2ogr -s_srs "#{service_projection}" -t_srs "#{map.projection}" -nln #{layer}_temp "#{shp_path}" /vsistdin/ #{DISCARD_STDERR}], "w+" do |pipe|
+              pipe.write features.to_json
+            end
           else
-            %x[#{ogr2ogr} -nln #{layer}_temp "#{shp_path}" "#{dataset}" #{DISCARD_STDERR}]
+            %x[ogr2ogr -spat #{spat} -spat_srs "#{map.projection}" -t_srs "#{map.projection}" -nln #{layer}_temp "#{shp_path}" "#{dataset}" #{DISCARD_STDERR}]
           end
           case layer
           when "contours"  then %x[ogr2ogr -nln #{layer} -sql "SELECT      #{attribute} FROM #{layer}_temp" "#{shp_path}" "#{shp_path}"]

@@ -37,5 +37,9 @@ module NSWTopo
     end
     
     attr_reader :header, :values
+    
+    def rows
+      @values.each_slice @ncols
+    end
   end
 end

@@ -1,8 +1,6 @@
 module NSWTopo
   class ReliefSource
     include RasterRenderer
-    # TODO: speed up DEM smoothing for better performance?
-    
     PARAMS = %q[
       embed: true
       altitude: 45
@@ -48,7 +46,7 @@ module NSWTopo
         raise BadLayerError.new "no elevation attibute specified" unless attribute
         raise BadLayerError.new "GDAL version 2.1 or greater required for shaded relief" if ([ 2, 1 ] <=> gdal_version) == 1
         
-        shp_path = temp_dir + "dem-contours"
+        shp_path = temp_dir + "dem.contours"
         spat = bounds.flatten.values_at(0,2,1,3).join ?\s
         outsize = bounds.map do |bound|
           (bound[1] - bound[0]) / resolution
@@ -88,52 +86,52 @@ module NSWTopo
         raise BadLayerError.new "online elevation data unavailable, please provide contour data or DEM path"
       end
       
-      azimuths = -90.step(90, 90.0 / lightsources).select.with_index do |offset, index|
+      reliefs = -90.step(90, 90.0 / lightsources).select.with_index do |offset, index|
         index.odd?
       end.map do |offset|
         (azimuth + offset) % 360
-      end
-      
-      relief_paths = azimuths.map do |azimuth|
-        temp_dir + "relief.#{azimuth}.asc"
-      end
-      
-      reliefs = relief_paths.zip(azimuths).map do |relief_path, azimuth|
+      end.map do |azimuth|
+        relief_path = temp_dir + "relief.#{azimuth}.asc"
         %x[gdaldem hillshade -of AAIGrid -compute_edges -s 1 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" #{DISCARD_STDERR}]
         raise BadLayerError.new("invalid elevation data") unless $?.success?
         [ azimuth, AAIGrid.new(relief_path) ]
       end.to_h
       
-      if relief_paths.one?
-        relief_path = relief_paths.first
+      relief_path = temp_dir + "relief.combined.asc"
+      if reliefs.one?
+        reliefs.values.first.write relief_path
       else
-        steps = (3 * sigma / resolution).ceil
-        coefs = 2.times.map do
-          (1..steps).inject([ 0 ]) do |values, index|
-            [ -index * resolution / sigma, *values, index * resolution / sigma ]
-          end.map do |z|
-            Math::exp(-0.5 * z * z)
-          end
-        end.inject(&:product).map do |x, y|
-          x * y
+        steps = (3.0 * sigma / resolution).ceil
+        weights = (1..steps).map do |step|
+          step.to_f * resolution / sigma
+        end.inject(0) do |zeds, z|
+          [ -z, *zeds, z ]
+        end.map do |z|
+          Math::exp(-0.5 * z * z)
         end
-        sum = coefs.inject(&:+)
-        coefs.map! { |coef| coef / sum }
         
-        vrt_path = temp_dir + "dem-blurred.vrt"
-        %x[gdalbuildvrt "#{vrt_path}" "#{dem_path}"]
-        vrt = REXML::Document.new(vrt_path.read)
-        vrt.elements.each("//ComplexSource|//SimpleSource") do |source|
-          source.name = "KernelFilteredSource"
-          kernel = source.add_element("Kernel")
-          kernel.add_element("Size").text = 2 * steps + 1
-          kernel.add_element("Coefs").text = coefs.join(?\s)
+        blur_path = temp_dir + "dem.blurred.asc"
+        %x[gdal_translate -of AAIGrid "#{dem_path}" "#{blur_path}" #{DISCARD_STDERR}]
+        dem = AAIGrid.new blur_path
+        2.times.inject(dem.rows) do |rows|
+          rows.map do |row|
+            row.map.with_index do |value, j|
+              next if j < steps
+              next if j >= row.length - steps
+              next unless value
+              row[j-steps .. j+steps].zip(weights).map do |value, weight|
+                value ? [ value * weight, weight ] : [ 0, 0 ]
+              end.transpose.map do |values|
+                values.inject(&:+)
+              end.inject(&:/)
+            end
+          end.transpose
+        end.flatten.tap do |blurred|
+          AAIGrid.new(dem, blurred).write blur_path
         end
-        vrt_path.write vrt
         
-        relief_path = temp_dir + "relief.combined.asc"
         aspect_path = temp_dir + "aspect.asc"
-        %x[gdaldem aspect -of AAIGrid "#{vrt_path}" "#{aspect_path}" #{DISCARD_STDERR}]
+        %x[gdaldem aspect -of AAIGrid "#{blur_path}" "#{aspect_path}" #{DISCARD_STDERR}]
         aspect = AAIGrid.new aspect_path
         
         reliefs.map do |azimuth, relief|

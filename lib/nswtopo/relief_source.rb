@@ -98,10 +98,11 @@ module NSWTopo
         temp_dir + "relief.#{azimuth}.asc"
       end
       
-      relief_paths.zip(azimuths).each do |relief_path, azimuth|
+      reliefs = relief_paths.zip(azimuths).map do |relief_path, azimuth|
         %x[gdaldem hillshade -of AAIGrid -compute_edges -s 1 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" #{DISCARD_STDERR}]
         raise BadLayerError.new("invalid elevation data") unless $?.success?
-      end
+        [ azimuth, AAIGrid.new(relief_path) ]
+      end.to_h
       
       if relief_paths.one?
         relief_path = relief_paths.first
@@ -133,25 +134,18 @@ module NSWTopo
         relief_path = temp_dir + "relief.combined.asc"
         aspect_path = temp_dir + "aspect.asc"
         %x[gdaldem aspect -of AAIGrid "#{vrt_path}" "#{aspect_path}" #{DISCARD_STDERR}]
+        aspect = AAIGrid.new aspect_path
         
-        ncols, nrows = aspect_path.each_line.take(2).map { |line| line[/\d+/].to_i }
-        header = aspect_path.each_line.count - nrows
-        aspect, *reliefs = [ aspect_path, *relief_paths ].map(&:each_line).map do |lines|
-          lines.drop(header).map(&:split).flatten.map(&:to_f)
-        end
-        
-        reliefs.zip(azimuths).map do |relief, azimuth|
-          relief.zip(aspect).map do |relief, aspect|
-            relief * (aspect < 0 ? 1 : 2 * Math::sin((aspect - azimuth) * Math::PI / 180)**2)
+        reliefs.map do |azimuth, relief|
+          [ relief.values, aspect.values ].transpose.map do |relief, aspect|
+            relief ? aspect ? 2 * relief * Math::sin((aspect - azimuth) * Math::PI / 180)**2 : relief : 0
           end
         end.transpose.map do |values|
           values.inject(&:+) / lightsources
         end.map do |value|
           [ 255, value.ceil ].min
-        end.each_slice(ncols).map do |row|
-          row.join ?\s
-        end.tap do |lines|
-          relief_path.write relief_paths.first.each_line.take(header).concat(lines).join(?\n)
+        end.tap do |values|
+          AAIGrid.new(reliefs.values.first, values).write relief_path
         end
       end
       

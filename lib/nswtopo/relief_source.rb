@@ -101,31 +101,18 @@ module NSWTopo
       if reliefs.one?
         reliefs.values.first.write relief_path
       else
-        steps = (3.0 * sigma / resolution).ceil
-        weights = (1..steps).map do |step|
-          step.to_f * resolution / sigma
-        end.inject(0) do |zeds, z|
-          [ -z, *zeds, z ]
-        end.map do |z|
-          Math::exp(-0.5 * z * z)
-        end
-        
         blur_path = temp_dir + "dem.blurred.asc"
         %x[gdal_translate -of AAIGrid "#{dem_path}" "#{blur_path}" #{DISCARD_STDERR}]
         dem = AAIGrid.new blur_path
-        2.times.inject(dem.rows) do |rows|
-          rows.map do |row|
-            row.map.with_index do |value, j|
-              next if j < steps
-              next if j >= row.length - steps
-              next unless value
-              row[j-steps .. j+steps].zip(weights).map do |value, weight|
-                value ? [ value * weight, weight ] : [ 0, 0 ]
-              end.transpose.map do |values|
-                values.inject(&:+)
-              end.inject(&:/)
-            end
-          end.transpose
+        
+        (sigma.to_f / resolution).ceil.times.inject(dem.rows) do |rows|
+          2.times.inject(rows) do |rows|
+            rows.map do |row|
+              row.each_cons(3).map do |window|
+                window[1] && window.compact.inject(&:+) / window.compact.length
+              end.push(nil).unshift(nil)
+            end.transpose
+          end
         end.flatten.tap do |blurred|
           AAIGrid.new(dem, blurred).write blur_path
         end

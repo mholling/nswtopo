@@ -10,8 +10,8 @@ module NSWTopo
       resolution: 30.0
       opacity: 0.3
       highlights: 20
-      median: 30.0
-      bilateral: 5
+      median: 3
+      bilateral: 4
       sigma: 100
     ]
     
@@ -106,6 +106,7 @@ module NSWTopo
         %x[gdal_translate -of EHdr "#{dem_path}" "#{blur_path}" #{DISCARD_STDERR}]
         dem = ESRIHdr.new blur_path, nodata
         
+        # TODO: should sigma be in pixels instead of metres?
         (sigma.to_f / resolution).ceil.times.inject(dem.rows) do |rows|
           2.times.inject(rows) do |rows|
             rows.map do |row|
@@ -142,17 +143,13 @@ module NSWTopo
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
       %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -srcnodata 0 -r bilinear -dstalpha "#{relief_path}" "#{tif_path}"]
       
-      # TODO: can we run the median filter in the code instead of via IM?
-      # TODO: should sigma be in pixels instead of metres?
-      # TODO: should the filter parameters be independent of resolution?
       filters = []
       if args = params["median"]
-        pixels = (args.to_f / resolution).round
-        filters << "-channel RGBA -statistic median #{2 * pixels + 1}"
+        pixels = (2 * args + 1).to_i
+        filters << "-channel RGBA -statistic median #{pixels}x#{pixels}"
       end
       if args = params["bilateral"]
-        threshold, sigma = *args
-        sigma ||= (100.0 / resolution).round
+        threshold, sigma = *args, (60.0 / resolution).round
         filters << "-channel RGB -selective-blur 0x#{sigma}+#{threshold}%"
       end
       %x[mogrify -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?

@@ -91,19 +91,20 @@ module NSWTopo
       end.map do |offset|
         (azimuth + offset) % 360
       end.map do |azimuth|
-        relief_path = temp_dir + "relief.#{azimuth}.asc"
-        %x[gdaldem hillshade -of AAIGrid -compute_edges -s 1 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" #{DISCARD_STDERR}]
+        relief_path = temp_dir + "relief.#{azimuth}.bil"
+        %x[gdaldem hillshade -of EHdr -compute_edges -s 1 -alt #{altitude} -z #{exaggeration} -az #{azimuth} "#{dem_path}" "#{relief_path}" #{DISCARD_STDERR}]
         raise BadLayerError.new("invalid elevation data") unless $?.success?
-        [ azimuth, AAIGrid.new(relief_path) ]
+        [ azimuth, ESRIHdr.new(relief_path, 0) ]
       end.to_h
       
-      relief_path = temp_dir + "relief.combined.asc"
+      relief_path = temp_dir + "relief.combined.bil"
       if reliefs.one?
         reliefs.values.first.write relief_path
       else
-        blur_path = temp_dir + "dem.blurred.asc"
-        %x[gdal_translate -of AAIGrid "#{dem_path}" "#{blur_path}" #{DISCARD_STDERR}]
-        dem = AAIGrid.new blur_path
+        blur_path = temp_dir + "dem.blurred.bil"
+        nodata = JSON.parse(%x[gdalinfo -json "#{dem_path}"])["bands"][0]["noDataValue"]
+        %x[gdal_translate -of EHdr "#{dem_path}" "#{blur_path}" #{DISCARD_STDERR}]
+        dem = ESRIHdr.new blur_path, nodata
         
         (sigma.to_f / resolution).ceil.times.inject(dem.rows) do |rows|
           2.times.inject(rows) do |rows|
@@ -114,12 +115,12 @@ module NSWTopo
             end.transpose
           end
         end.flatten.tap do |blurred|
-          AAIGrid.new(dem, blurred).write blur_path
+          ESRIHdr.new(dem, blurred).write blur_path
         end
         
-        aspect_path = temp_dir + "aspect.asc"
-        %x[gdaldem aspect -of AAIGrid "#{blur_path}" "#{aspect_path}" #{DISCARD_STDERR}]
-        aspect = AAIGrid.new aspect_path
+        aspect_path = temp_dir + "aspect.bil"
+        %x[gdaldem aspect -zero_for_flat -of EHdr "#{blur_path}" "#{aspect_path}"]
+        aspect = ESRIHdr.new aspect_path, 0.0
         
         reliefs.map do |azimuth, relief|
           [ relief.values, aspect.values ].transpose.map do |relief, aspect|
@@ -130,7 +131,7 @@ module NSWTopo
         end.map do |value|
           [ 255, value.ceil ].min
         end.tap do |values|
-          AAIGrid.new(reliefs.values.first, values).write relief_path
+          ESRIHdr.new(reliefs.values.first, values).write relief_path
         end
       end
       
@@ -141,6 +142,9 @@ module NSWTopo
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
       %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -srcnodata 0 -r bilinear -dstalpha "#{relief_path}" "#{tif_path}"]
       
+      # TODO: can we run the median filter in the code instead of via IM?
+      # TODO: should sigma be in pixels instead of metres?
+      # TODO: should the filter parameters be independent of resolution?
       filters = []
       if args = params["median"]
         pixels = (args.to_f / resolution).round

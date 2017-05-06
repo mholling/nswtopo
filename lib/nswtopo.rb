@@ -46,7 +46,7 @@ require_relative 'nswtopo/pdf'
 require_relative 'nswtopo/mbtiles'
 require_relative 'nswtopo/avenza'
 
-NSWTOPO_VERSION = "1.4.1"
+NSWTOPO_VERSION = "1.5"
 
 module NSWTopo
   SEGMENT = ?.

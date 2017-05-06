@@ -169,16 +169,18 @@ Generic layers depicting shaded relief, UTM grid and magnetic declination are al
 
 By including a layer such as `nsw/relief` in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layers for NSW and TAS are automatically generated from contour data.
 
-You can specify the azimuthal angle, altitude and terrain exaggeration used to generate the shaded relief layer. (The conventional azimuth angle of 315 is set as default, should probably be left as is.) You can also specify the opacity of the layer to change the aggressiveness of the effect. By default, a [multi-directional](https://pubs.usgs.gov/of/1992/of92-422/) hillshade is produced.
-  
+You can specify the azimuthal angle, altitude and terrain exaggeration used to generate the shaded relief layer. (The conventional azimuth angle of 315 is set as default, should probably be left as is.) You can also specify the opacity of the layer to change the aggressiveness of the effect.
+
     nsw.relief:
       azimuth: 315            # azimuth angle for shaded relief layers (degrees clockwise from North)
       altitude: 45            # angle of illumination from horizon (45 is standard)
       exaggeration: 1         # vertical exaggeration factor
       opacity: 0.3            # opacity of the shaded relief; determines how subtle the effect is
-      sources: 3              # number of light sources to use (change to 1 for conventional hillshade)
+      lightsources: 3         # number of light sources to use (change to 1 for conventional hillshade)
 
-Although the contour-generated relief works well in most cases, you can also provide your own elevation data from a _DEM_ (Digital Elevation Model). DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows, and set its resolution appropriately:
+By default, a [multi-directional](https://pubs.usgs.gov/of/1992/of92-422/) hillshade is produced. This simulates the combined effect of light sources at three different azimuthal angles. It emphasises local terrain variation more while being less overbearing. (Single-direction relief shading is still available by changing the `lightsources` parameter.)
+
+Although contour-generated shaded relief is superior, it's still possible provide your own elevation data from a _DEM_ (Digital Elevation Model). DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows, and set its resolution appropriately:
 
     nsw.relief:
       path: /path/to/my/dem.tif  # path for the GeoTIFF or hdr.adf file
@@ -546,4 +548,4 @@ Release History
 * 23/9/2016: version 1.3: improvements to labelling algorithm; remove old NSW server references
 * 5/10/2016: version 1.4: further labelling improvements; break out code into multiple files
   * 2/11/2016: version 1.4.1: add Electron as rasterising option; add multi-point shaded relief option; miscellaneous small fixes and refactoring
-  * 4/11/2016: HEAD: fix bug in rotated maps where shaded relief mask was not rotated
+* 6/5/2017: version 1.5: calculate shaded relief from contour data instead of DEM; fix bug in rotated maps where shaded relief mask was not rotated; fix magnetic declination calculator; add mbtiles output format; improve Electron raster reliability (sorta)

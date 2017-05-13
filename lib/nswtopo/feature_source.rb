@@ -11,13 +11,11 @@ module NSWTopo
     def shapefile_features(map, source, options)
       Enumerator.new do |yielder|
         shape_path = Pathname.new source["path"]
-        projection = Projection.new %x[gdalsrsinfo -o proj4 "#{shape_path}"].gsub(/['"]+/, "").strip
-        xmin, xmax, ymin, ymax = map.transform_bounds_to(projection).map(&:sort).flatten
         layer = options["name"]
         sql   = %Q[-sql "%s"] % options["sql"] if options["sql"]
         where = %Q[-where "%s"] % [ *options["where"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["where"]
         srs   = %Q[-t_srs "#{map.projection}"]
-        spat  = %Q[-spat #{xmin} #{ymin} #{xmax} #{ymax}]
+        spat  = %Q[-spat #{map.bounds.transpose.flatten.join ?\s} -spat_srs "#{map.projection}"]
         Dir.mktmppath do |temp_dir|
           json_path = temp_dir + "data.json"
           %x[ogr2ogr #{sql || where} #{srs} #{spat} -f GeoJSON "#{json_path}" "#{shape_path}" #{layer unless sql} -mapFieldType Date=Integer,DateTime=Integer -dim XY]

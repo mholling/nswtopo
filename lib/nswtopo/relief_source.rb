@@ -53,8 +53,8 @@ module NSWTopo
         end.map(&:ceil).join(?\s)
         txe, tye = bounds[0].join(?\s), bounds[1].reverse.join(?\s)
         
-        %w[contours coastline].map do |layer|
-          next unless dataset = params[layer]
+        %w[contours coastline].inject(nil) do |append, layer|
+          next append unless dataset = params[layer]
           case dataset
           when /^(https?:\/\/.*)\/\d+\/query$/
             srs, max_record_count = ArcGIS.get_json(URI.parse "#{$1}?f=json").values_at "spatialReference", "maxRecordCount"
@@ -68,20 +68,20 @@ module NSWTopo
               results["features"] += page["features"]
               results
             end
-            IO.popen %Q[ogr2ogr -s_srs "#{service_projection}" -t_srs "#{map.projection}" -nln #{layer}_temp "#{shp_path}" /vsistdin/ #{DISCARD_STDERR}], "w+" do |pipe|
+            IO.popen %Q[ogr2ogr -s_srs "#{service_projection}" -t_srs "#{map.projection}" -nln #{layer} "#{shp_path}" /vsistdin/ #{DISCARD_STDERR}], "w+" do |pipe|
               pipe.write features.to_json
             end
           else
-            %x[ogr2ogr -spat #{spat} -spat_srs "#{map.projection}" -t_srs "#{map.projection}" -nln #{layer}_temp "#{shp_path}" "#{dataset}" #{DISCARD_STDERR}]
+            %x[ogr2ogr -spat #{spat} -spat_srs "#{map.projection}" -t_srs "#{map.projection}" -nln #{layer} "#{shp_path}" "#{dataset}" #{DISCARD_STDERR}]
           end
-          case layer
-          when "contours"  then %x[ogr2ogr -nln #{layer} -sql "SELECT      #{attribute} FROM #{layer}_temp" "#{shp_path}" "#{shp_path}"]
-          when "coastline" then %x[ogr2ogr -nln #{layer} -sql "SELECT 0 AS #{attribute} FROM #{layer}_temp" "#{shp_path}" "#{shp_path}"]
+          sql = case layer
+          when "contours"  then "SELECT      #{attribute} FROM #{layer}"
+          when "coastline" then "SELECT 0 AS #{attribute} FROM #{layer}"
           end
-          %Q[-l #{layer}]
-        end.compact.join(?\s).tap do |layers|
-          %x[gdal_grid -a linear:radius=0:nodata=-9999 -zfield #{attribute} #{layers} -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
+          %x[ogr2ogr #{append} -nln combined -sql "#{sql}" "#{shp_path}" "#{shp_path}"]
+          %Q[-update -append]
         end
+        %x[gdal_grid -a linear:radius=0:nodata=-9999 -zfield #{attribute} -l combined -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
       else
         raise BadLayerError.new "online elevation data unavailable, please provide contour data or DEM path"
       end

@@ -549,3 +549,4 @@ Release History
 * 5/10/2016: version 1.4: further labelling improvements; break out code into multiple files
   * 2/11/2016: version 1.4.1: add Electron as rasterising option; add multi-point shaded relief option; miscellaneous small fixes and refactoring
 * 6/5/2017: version 1.5: calculate shaded relief from contour data instead of DEM; fix bug in rotated maps where shaded relief mask was not rotated; fix magnetic declination calculator; add mbtiles output format; improve Electron raster reliability (sorta)
+  * 13/5/2017: HEAD: fix bug with shaded relief when coastline is present

@@ -8,9 +8,7 @@ require 'net/http'
 require 'uri'
 require 'cgi'
 require 'pathname'
-require 'tempfile'
-
-SQL_PATH = Pathname.new Tempfile.new('sql')
+require 'ostruct'
 
 class Hash
   def to_query
@@ -126,30 +124,28 @@ def show_wfs(url, name, field, *fields, values, filter)
   end
 end
 
-
-def show_shapefile(dir, layer, attribute, *attributes, values, where, stats)
-  where_clause = %Q[where #{where}] if where
-  SQL_PATH.write %Q[select distinct #{attribute} from "#{layer}" #{where_clause} order by #{attribute}]
-  json = %x[ogr2ogr -f GeoJSON -sql @"#{SQL_PATH}" /vsistdout "#{dir}"]
-  JSON.parse(json)["features"].map do |feature|
-    feature["properties"][attribute]
-  end.each do |value|
-    predicate = [ *where, value.nil? ? "(#{attribute} IS NULL)" : "(#{attribute} = '#{value}')" ].join(" AND ")
-    if stats
-      SQL_PATH.write %Q[select #{attribute} from "#{layer}" where #{predicate} order by #{attribute}]
-      count = "%8s: " % %x[ogrinfo -so -sql @"#{SQL_PATH}" "#{dir}"].match(/^Feature Count: (\d+)$/)[1]
-    end
-    puts "%s%s%s" % [ count, ?\s * values.length * 2, value.nil? ? '(NULL)' : value]
-    show_shapefile dir, layer, *attributes, [ value, *values ], predicate, stats if attributes.any?
+def show_shapefile(path, layer, *attributes, values, where)
+  where_clause = %Q[WHERE #{where}] if where
+  sql = %Q[SELECT #{attributes.join ?,}, COUNT(*) AS count FROM #{layer} #{where} GROUP BY #{attributes.join ?,} ORDER BY #{attributes.join ?,}]
+  json = %x[ogr2ogr -f GeoJSON -dialect sqlite -sql "#{sql}" /vsistdout/ "#{path}"]
+  rows = JSON.parse(json)["features"].map do |feature|
+    OpenStruct.new feature["properties"]
   end
+  show = lambda do |rows, (attribute, *attributes), indent = 0|
+    rows.group_by(&attribute.to_sym).each do |value, rows|
+      count = rows.map(&:count).inject(&:+)
+      puts "%8d: %s%s" % [ count, ?\s * indent, value || "(NULL)" ]
+      show.(rows, attributes, indent + 2)
+    end if attribute
+  end
+  show.(rows, attributes)
 end
 
 dynamic = ARGV.delete "dynamic"
-stats   = ARGV.delete "stats"
 
 case
 when ARGV[0] =~ /\/services\/.*\/MapServer/ then show_arcgis(*ARGV, dynamic)
 when ARGV[0] =~ /wfs/i then show_wfs(*ARGV, [], nil)
-when ARGV[2] then show_shapefile(*ARGV, [], nil, stats)
+when ARGV[2] then show_shapefile(*ARGV, [], nil)
 else puts %x[ogrinfo -so "#{ARGV[0]}" #{ARGV[1]}]
 end

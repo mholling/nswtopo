@@ -29,7 +29,7 @@ def show_hierarchy(values, nn = values.transpose.length, n = nn)
   end
 end
 
-def show_arcgis(url, *args, dynamic)
+def show_arcgis(url, *args, dynamic, where)
   open "#{url}?f=json", "Referer" => url do |json|
     response = JSON.parse(json.read)
     case url
@@ -51,7 +51,7 @@ def show_arcgis(url, *args, dynamic)
   end and return unless args.any?
   query = {
     "f" => "json",
-    "where" => "1=0) OR (1=1",
+    "where" => where,
     "classificationDef" => {
       "type" => "uniqueValueDef",
       "uniqueValueFields" => [ *args ],
@@ -125,7 +125,7 @@ def show_wfs(url, name, field, *fields, values, filter)
 end
 
 def show_shapefile(path, layer, *attributes, values, where)
-  where_clause = %Q[WHERE #{where}] if where
+  where = %Q[WHERE #{where}] if where
   sql = %Q[SELECT #{attributes.join ?,}, COUNT(*) AS count FROM #{layer} #{where} GROUP BY #{attributes.join ?,} ORDER BY #{attributes.join ?,}]
   json = %x[ogr2ogr -f GeoJSON -dialect sqlite -sql "#{sql}" /vsistdout/ "#{path}"]
   rows = JSON.parse(json)["features"].map do |feature|
@@ -141,11 +141,14 @@ def show_shapefile(path, layer, *attributes, values, where)
   show.(rows, attributes)
 end
 
-dynamic = ARGV.delete "dynamic"
+dynamic = ARGV.delete "-dynamic"
+where = ARGV.each_cons(2).find.with_index do |(flag, argument), index|
+  ARGV.slice! index, 2 if flag == "-where"
+end&.last
 
 case
-when ARGV[0] =~ /\/services\/.*\/MapServer/ then show_arcgis(*ARGV, dynamic)
-when ARGV[0] =~ /wfs/i then show_wfs(*ARGV, [], nil)
-when ARGV[2] then show_shapefile(*ARGV, [], nil)
+when ARGV[0] =~ /\/services\/.*\/MapServer/ then show_arcgis(*ARGV, dynamic, where)
+when ARGV[0] =~ /wfs/i then show_wfs(*ARGV, [], where && "(#{where})")
+when ARGV[2] then show_shapefile(*ARGV, [], where)
 else puts %x[ogrinfo -so "#{ARGV[0]}" #{ARGV[1]}]
 end

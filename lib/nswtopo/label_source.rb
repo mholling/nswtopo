@@ -88,12 +88,14 @@ module NSWTopo
               when "reduce"
                 case arg
                 when "centrelines"
-                  [ 1 ].zip data.centrelines_centrepoints(true, false, *args)
+                  [ 1 ].zip data.centrelines_centrepoints(true, false, *args) if closed
                 when "centrepoints"
-                  [ 0 ].zip data.centrelines_centrepoints(false, true, *args)
+                  [ 0 ].zip data.centrelines_centrepoints(false, true, *args) if closed
                 when "centres"
-                  [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args)
-                end if closed
+                  [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args) if closed
+                when "intervals"
+                  [ 0 ].zip [ data.at_interval(closed, args[0] || DEFAULT_SAMPLE).map(&:first) ] if dimension > 0
+                end
               when "outset"
                 [ dimension ].zip [ data.outset(closed, arg) ] if dimension > 0
               when "inset"

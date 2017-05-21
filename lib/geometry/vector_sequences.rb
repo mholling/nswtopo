@@ -13,6 +13,22 @@ module VectorSequences
       area < 0 && (true == max_area || area.abs < max_area.abs)
     end
   end
+  
+  def at_interval(closed, interval)
+    Enumerator.new do |yielder|
+      each do |line|
+        (closed ? line.ring : line.segments).inject(0.5) do |alpha, segment|
+          angle = segment.difference.angle
+          while alpha * interval < segment.distance
+            segment[0] = segment.along(alpha * interval / segment.distance)
+            yielder << [ segment[0], angle ]
+            alpha = 1.0
+          end
+          alpha - segment.distance / interval
+        end
+      end
+    end
+  end
 end
 
 Array.send :include, VectorSequences

@@ -121,17 +121,10 @@ module NSWTopo
                 end
               end
               features.each do |dimension, feature, *|
-                feature.each do |line|
-                  (dimension == 1 ? line.segments : line.ring).inject(0.5) do |alpha, segment|
-                    angle = 180.0 * segment.difference.angle / Math::PI
-                    while alpha * interval < segment.distance
-                      segment[0] = segment.along(alpha * interval / segment.distance)
-                      translate = segment[0].round(MM_DECIMAL_DIGITS).join ?\s
-                      content.add_element "use", "transform" => "translate(#{translate}) rotate(#{angle.round 2})", "xlink:href" => "##{symbol_ids.sample}"
-                      alpha = 1.0
-                    end
-                    alpha - segment.distance / interval
-                  end
+                feature.at_interval(dimension == 2, interval).each do |point, angle|
+                  translate = point.round(MM_DECIMAL_DIGITS).join ?\s
+                  rotate = (180.0 * angle / Math::PI).round(2)
+                  content.add_element "use", "transform" => "translate(#{translate}) rotate(#{rotate})", "xlink:href" => "##{symbol_ids.sample}"
                 end if dimension && dimension != 0
               end
             when "inpoint", "outpoint", "endpoint"

@@ -157,6 +157,17 @@ module NSWTopo
                   fences << [ fence, buffer ]
                 end
               end if content
+            when "shield"
+              next unless content
+              filter_id = [ *ids, "background" ].join(SEGMENT)
+              defs.add_element("filter", "id" => filter_id, "y" => -0.25, "height" => 1.5, "x" => 0, "width" => 1).tap do |filter|
+                filter.add_element "feFlood", "flood-color" => args
+                filter.add_element "feComposite", "in" => "SourceGraphic"
+              end
+              content.elements.each("text") do |element|
+                element.add_attributes "filter" => "url(##{filter_id})", "style" => "white-space:pre"
+                element.text = " #{element.text} "
+              end
             when *SVG_PRESENTATION_ATTRIBUTES
               container.add_attribute command, args
             end

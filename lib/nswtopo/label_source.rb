@@ -52,17 +52,13 @@ module NSWTopo
         max_turn = attributes.fetch("max-turn", DEFAULT_MAX_TURN)
         features.each do |_, data, labels, _, sublayer|
           text = case
-          when labels.is_a?(REXML::Element)
-            labels
-          when attributes["format"]
-            attributes["format"] % labels
-          else
-            [ *labels ].map(&:to_s).reject(&:empty?).join(?\s)
+          when REXML::Elements === labels then labels
+          when attributes["format"] then attributes["format"] % labels
+          else [ *labels ].map(&:to_s).map(&:strip).reject(&:empty?).join(?\s)
           end
           [ *attributes["strip"] ].each do |strip|
             text.gsub! strip, ''
           end
-          text.strip! if String === text
           yield sublayer unless sublayers.include? sublayer
           sublayers << sublayer
           _, _, _, components = @features.find do |other_text, other_source_name, other_sublayer, _|

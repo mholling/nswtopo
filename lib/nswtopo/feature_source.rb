@@ -412,9 +412,10 @@ module NSWTopo
     
     def features(map)
       layers.map do |sublayer, features|
-        [ sublayer, features.reject { |feature| feature["label-only"] } ]
-      end.map do |sublayer, features|
-        features.map do |feature|
+        next [] if sublayer =~ /-labels$/
+        features.reject do |feature|
+          feature["label-only"]
+        end.map do |feature|
           dimension, angle = feature.values_at "dimension", "angle"
           categories = feature["categories"].reject(&:empty?)
           points_or_lines = feature["data"].map do |coords|

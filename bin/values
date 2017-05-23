@@ -133,7 +133,9 @@ def show_shapefile(path, layer, *attributes, values, where)
     OpenStruct.new feature["properties"]
   end
   show = lambda do |rows, (attribute, *attributes), indent = 0|
-    rows.group_by(&attribute.to_sym).each do |value, rows|
+    rows.group_by do |row|
+      row[attribute]
+    end.each do |value, rows|
       count = rows.map(&:count).inject(&:+)
       puts "%8d: %s%s" % [ count, ?\s * indent, value || "(NULL)" ]
       show.(rows, attributes, indent + 2)

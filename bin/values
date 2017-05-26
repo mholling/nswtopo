@@ -29,8 +29,8 @@ def show_hierarchy(values, nn = values.transpose.length, n = nn)
   end
 end
 
-def show_arcgis(url, *args, dynamic, where)
-  open "#{url}?f=json", "Referer" => url do |json|
+def show_arcgis(url, *args, dynamic, where, referer)
+  open "#{url}?f=json", "Referer" => referer || url do |json|
     response = JSON.parse(json.read)
     case url
     when /\d+$/ # inspect layer
@@ -69,7 +69,7 @@ def show_arcgis(url, *args, dynamic, where)
     url = url.sub /\d+$/, "dynamicLayer"
     query.merge! "layer" => layer.to_json
   end
-  open "#{url}/generateRenderer?#{query.to_query}", "Referer" => url do |json|
+  open "#{url}/generateRenderer?#{query.to_query}", "Referer" => referer || url do |json|
     response = JSON.parse(json.read)
     abort [ response["error"]["message"], *response["error"]["details"] ].join(?\n) if response["error"]
     values = response["uniqueValueInfos"].map do |info|
@@ -148,9 +148,12 @@ dynamic = ARGV.delete "-dynamic"
 where = ARGV.each_cons(2).find.with_index do |(flag, argument), index|
   ARGV.slice! index, 2 if flag == "-where"
 end&.last
+referer = ARGV.each_cons(2).find.with_index do |(flag, argument), index|
+  ARGV.slice! index, 2 if flag == "-referer"
+end&.last
 
 case
-when ARGV[0] =~ /\/services\/.*\/MapServer/ then show_arcgis(*ARGV, dynamic, where)
+when ARGV[0] =~ /\/MapServer|\/FeatureServer/ then show_arcgis(*ARGV, dynamic, where, referer)
 when ARGV[0] =~ /wfs/i then show_wfs(*ARGV, [], where && "(#{where})")
 when ARGV[2] then show_shapefile(*ARGV, [], where)
 else puts %x[ogrinfo -so "#{ARGV[0]}" #{ARGV[1]}]

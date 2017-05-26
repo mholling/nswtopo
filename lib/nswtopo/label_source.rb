@@ -89,6 +89,8 @@ module NSWTopo
                   [ 0 ].zip data.centrelines_centrepoints(false, true, *args) if closed
                 when "centres"
                   [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args) if closed
+                when "centroids"
+                  [ 0 ].zip [ data.reject(&:hole?).map(&:centroid) ] if closed
                 when "intervals"
                   [ 0 ].zip [ data.at_interval(closed, args[0] || DEFAULT_SAMPLE).map(&:first) ] if dimension > 0
                 end

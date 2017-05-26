@@ -7,6 +7,10 @@ module VectorSequence
     0.5 * ring.map { |p1, p2| p1.cross p2 }.inject(&:+)
   end
   
+  def hole?
+    signed_area < 0
+  end
+  
   def centroid
     ring.map do |p1, p2|
       (p1.plus p2).times(p1.cross p2)

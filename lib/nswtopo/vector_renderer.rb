@@ -150,9 +150,9 @@ module NSWTopo
               buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
               features.each do |dimension, feature, *|
                 case dimension
+                when 0 then feature.map { |point| [ point ] }
                 when 1 then feature.map(&:segments).flatten(1)
                 when 2 then feature.map(&:ring).flatten(1)
-                else []
                 end.each do |fence|
                   fences << [ fence, buffer ]
                 end

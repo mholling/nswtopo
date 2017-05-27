@@ -2,7 +2,7 @@ module NSWTopo
   class LabelSource
     include VectorRenderer
     
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase]
     TRANSFORMS = %w[reduce outset inset buffer smooth-in smooth-out smooth remove-holes close-gaps minimum-area minimum-length remove]
     DEFAULT_FONT_SIZE   = 1.8
     DEFAULT_MARGIN      = 1
@@ -59,6 +59,7 @@ module NSWTopo
           [ *attributes["strip"] ].each do |strip|
             text.gsub! strip, ''
           end
+          text.upcase! if String === text && attributes["upcase"]
           yield sublayer unless sublayers.include? sublayer
           sublayers << sublayer
           _, _, _, components = @features.find do |other_text, other_source_name, other_sublayer, _|

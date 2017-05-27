@@ -3,7 +3,12 @@ module Overlap
     simplex = [ map(&:first).inject(&:minus) ]
     perp = simplex[0].perp
     loop do
-      return false unless simplex[0].cross(perp.normalised).abs > buffer
+      return false unless case
+      when simplex.one? then simplex[0].norm
+      when simplex.inject(&:minus).dot(simplex[1]) > 0 then simplex[1].norm
+      when simplex.inject(&:minus).dot(simplex[0]) < 0 then simplex[0].norm
+      else simplex.inject(&:cross).abs / simplex.inject(&:minus).norm
+      end > buffer
       max = self[0].max_by { |point| point.cross perp }
       min = self[1].min_by { |point| point.cross perp }
       support = max.minus min

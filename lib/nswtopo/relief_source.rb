@@ -110,7 +110,9 @@ module NSWTopo
         (sigma.to_f / resolution).ceil.times.inject(dem.rows) do |rows|
           2.times.inject(rows) do |rows|
             rows.map do |row|
-              row.each_cons(3).map do |window|
+              row.map do |value|
+                value && value.nan? ? nil : value
+              end.each_cons(3).map do |window|
                 window[1] && window.compact.inject(&:+) / window.compact.length
               end.push(nil).unshift(nil)
             end.transpose

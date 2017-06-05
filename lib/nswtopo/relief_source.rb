@@ -78,8 +78,8 @@ module NSWTopo
           when "contours"  then "SELECT      #{attribute} FROM #{layer}"
           when "coastline" then "SELECT 0 AS #{attribute} FROM #{layer}"
           end
-          %x[ogr2ogr #{append} -nln combined -sql "#{sql}" "#{shp_path}" "#{shp_path}"]
-          %Q[-update -append]
+          %x[ogr2ogr -update #{append} -nln combined -sql "#{sql}" "#{shp_path}" "#{shp_path}"]
+          "-append"
         end
         %x[gdal_grid -a linear:radius=0:nodata=-9999 -zfield #{attribute} -l combined -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
       else

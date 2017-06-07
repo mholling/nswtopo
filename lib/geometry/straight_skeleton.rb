@@ -41,7 +41,6 @@ module StraightSkeleton
         distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
         next if distance < 0 || distance.nan?
         travel = @travel + distance / secant
-        next if @nodes.limit && travel >= @nodes.limit
         Collapse.new @nodes, heading.times(distance).plus(@point), travel, [ neighbour, self ].rotate(index)
       end.compact.min
     end
@@ -154,8 +153,6 @@ module StraightSkeleton
   end
   
   class Nodes
-    attr_reader :limit
-    
     def initialize(data, closed, limit = nil, options = {})
       @candidates, @closed, @limit = AVLTree.new, closed, limit
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
@@ -197,18 +194,14 @@ module StraightSkeleton
     
     def insert(node)
       @active << node
-      [ node, *node.neighbours ].compact.map do |node|
-        node.collapse
-      end.compact.each do |collapse|
-        @candidates << collapse
+      [ node, *node.neighbours ].compact.map(&:collapse).compact.each do |collapse|
+        @candidates << collapse unless @limit && collapse.travel >= @limit
       end
     end
     
     def progress(options = {}, &block)
-      @active.map do |node|
-        node.collapse
-      end.compact.each do |collapse|
-        @candidates << collapse
+      @active.map(&:collapse).compact.each do |collapse|
+        @candidates << collapse unless @limit && collapse.travel >= @limit
       end
       if options.fetch("splits", true)
         repeated_terminals, repeated_nodes = @active.select do |node|

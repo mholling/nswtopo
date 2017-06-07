@@ -32,7 +32,7 @@ module StraightSkeleton
       @secant ||= 1.0 / headings.compact.first.dot(heading)
     end
     
-    def collapse(limit)
+    def collapse
       @neighbours.map.with_index do |neighbour, index|
         next unless neighbour
         next if neighbour.point.equal? @point
@@ -41,7 +41,7 @@ module StraightSkeleton
         distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
         next if distance < 0 || distance.nan?
         travel = @travel + distance / secant
-        next if limit && travel >= limit
+        next if @nodes.limit && travel >= @nodes.limit
         Collapse.new @nodes, heading.times(distance).plus(@point), travel, [ neighbour, self ].rotate(index)
       end.compact.min
     end
@@ -58,12 +58,12 @@ module StraightSkeleton
       @travel <=> other.travel
     end
     
-    def insert!(limit)
+    def insert!
       @headings = @neighbours.map.with_index do |neighbour, index|
         neighbour.neighbours[1-index] = self if neighbour
         neighbour.headings[1-index] if neighbour
       end
-      @nodes.insert self, limit
+      @nodes.insert self
     end
   end
   
@@ -79,9 +79,9 @@ module StraightSkeleton
       @sources.all?(&:active?)
     end
     
-    def replace!(limit, &block)
+    def replace!(&block)
       @neighbours = [ @sources[0].prev, @sources[1].next ]
-      @neighbours.inject(&:==) ? block.call(prev) : insert!(limit) if @neighbours.any?
+      @neighbours.inject(&:==) ? block.call(prev) : insert! if @neighbours.any?
       @sources.each do |source|
         block.call source
         source.collapsed = self
@@ -112,15 +112,15 @@ module StraightSkeleton
       end
     end
     
-    def split!(limit, index, &block)
+    def split!(index, &block)
       @neighbours = [ @source.neighbours[index], @edge[1-index] ].rotate index
-      @neighbours.inject(&:equal?) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert!(limit) if @neighbours.any?
+      @neighbours.inject(&:equal?) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert! if @neighbours.any?
       @node.splits << self if index == 0
     end
     
-    def replace!(limit, &block)
-      dup.split!(limit, 0, &block)
-      dup.split!(limit, 1, &block)
+    def replace!(&block)
+      dup.split!(0, &block)
+      dup.split!(1, &block)
       block.call @source
     end
   end
@@ -137,7 +137,7 @@ module StraightSkeleton
       headings.inject(&:cross) < 0
     end
     
-    def split(pair, limit = nil)
+    def split(pair, limit)
       e0, e1 = pair.map(&:point)
       return if e0 == @point || e1 == @point
       h0, h1 = pair.map(&:heading)
@@ -154,8 +154,10 @@ module StraightSkeleton
   end
   
   class Nodes
-    def initialize(data, closed, options = {})
-      @candidates, @closed = AVLTree.new, closed
+    attr_reader :limit
+    
+    def initialize(data, closed, limit = nil, options = {})
+      @candidates, @closed, @limit = AVLTree.new, closed, limit
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
       nodes = data.sanitise(closed).tap do |lines|
@@ -193,18 +195,18 @@ module StraightSkeleton
       @active.include? node
     end
     
-    def insert(node, limit)
+    def insert(node)
       @active << node
       [ node, *node.neighbours ].compact.map do |node|
-        node.collapse limit
+        node.collapse
       end.compact.each do |collapse|
         @candidates << collapse
       end
     end
     
-    def progress(limit = nil, options = {}, &block)
+    def progress(options = {}, &block)
       @active.map do |node|
-        node.collapse limit
+        node.collapse
       end.compact.each do |collapse|
         @candidates << collapse
       end
@@ -250,7 +252,7 @@ module StraightSkeleton
         @active.select do |node|
           node.terminal? || node.reflex?
         end.map do |node|
-          candidate, closer, travel, searched = nil, nil, limit, Set.new
+          candidate, closer, travel, searched = nil, nil, @limit, Set.new
           loop do
             bounds = node.heading.times(node.secant * travel).plus(node.point).zip(node.point).map do |centre, coord|
               [ coord, centre - travel, centre + travel ].minmax
@@ -266,7 +268,7 @@ module StraightSkeleton
       end
       while candidate = @candidates.pop
         next unless candidate.viable?
-        candidate.replace!(limit) do |node, index = 0|
+        candidate.replace! do |node, index = 0|
           @active.delete node
           yield [ node, candidate ].rotate(index).map(&:original) if block_given?
         end
@@ -283,7 +285,7 @@ module StraightSkeleton
           nodes.each do |node|
             @active.delete node
           end.map do |node|
-            node.point.plus node.heading.times((limit - node.travel) * node.secant)
+            node.point.plus node.heading.times((@limit - node.travel) * node.secant)
           end.tap do |points|
             yielder << points
           end
@@ -378,7 +380,7 @@ module StraightSkeleton
   
   def inset(closed, margin, options = {})
     return self if margin.zero?
-    Nodes.new(self, closed, options).progress(margin, options)
+    Nodes.new(self, closed, margin, options).progress(options)
   end
   
   def outset(closed, margin, options = {})

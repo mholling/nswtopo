@@ -32,17 +32,18 @@ module StraightSkeleton
       @secant ||= 1.0 / headings.compact.first.dot(heading)
     end
     
-    def collapse
+    def collapses
       @neighbours.map.with_index do |neighbour, index|
         next unless neighbour
         next if neighbour.point.equal? @point
         cos = Math::cos(neighbour.heading.angle - heading.angle)
         next if cos*cos == 1.0
         distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
-        next if distance < 0 || distance.nan?
+        next if distance.nan?
         travel = @travel + distance / secant
+        next if travel < @travel || travel < neighbour.travel
         Collapse.new @nodes, heading.times(distance).plus(@point), travel, [ neighbour, self ].rotate(index)
-      end.compact.min
+      end.compact
     end
     
     def current
@@ -194,13 +195,13 @@ module StraightSkeleton
     
     def insert(node)
       @active << node
-      [ node, *node.neighbours ].compact.map(&:collapse).compact.each do |collapse|
+      [ node, *node.neighbours ].compact.map(&:collapses).flatten.each do |collapse|
         @candidates << collapse unless @limit && collapse.travel >= @limit
       end
     end
     
     def progress(options = {}, &block)
-      @active.map(&:collapse).compact.each do |collapse|
+      @active.map(&:collapses).flatten.each do |collapse|
         @candidates << collapse unless @limit && collapse.travel >= @limit
       end
       if options.fetch("splits", true)

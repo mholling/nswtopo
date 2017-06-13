@@ -298,71 +298,46 @@ module StraightSkeleton
   def centrelines_centrepoints(get_lines, get_points, fraction = 0.5)
     points = map(&:centroid) if get_points && all?(&:convex?)
     return [ points ] if points && !get_lines
-    ends   = Hash.new { |ends,   node|   ends[node] = [ ] }
-    splits = Hash.new { |splits, node| splits[node] = [ ] }
-    counts, travel = Hash.new(0), 0
+    neighbours = Hash.new { |neighbours, node| neighbours[node] = [] }
+    incoming, tails = Hash.new(0), Hash.new
     Nodes.new(self, true).progress do |node0, node1|
-      counts[node1] += 1
-      travel = [ travel, node1.travel ].max
-      case [ node0.class, node1.class ]
-      when [ Split, Collapse ], [ Split, Split ]
-        splits[node1] << [ node0, node1 ]
-      when [ Collapse, Collapse ]
-        splits.delete(node0).each do |path|
-          splits[node1] << [ *path, node1 ]
-        end if splits.key? node0
-        ends.delete(node0).each do |path|
-          ends[node1] << [ *path, node1 ]
-        end if ends.key? node0
-      when [ Vertex, Collapse ]
-        ends[node1] << [ node0, node1 ]
-      end
+      incoming[node1] += 1
+      neighbours[node0] << node1
+      neighbours[node1] << node0
     end
-    points ||= counts.select do |node, count|
-      count == 3
-    end.keys.sort_by(&:travel).reverse.reject do |node|
-      node.travel < fraction * travel
-    end.map(&:point) if get_points
+    travel = neighbours.keys.map(&:travel).max
+    points ||= incoming.select do |node, count|
+      Split === node || count > 2 && node.travel > fraction * travel
+    end.keys.sort_by(&:travel).reverse.map(&:point)
     return [ points ] unless get_lines
-    ends = ends.map do |node1, paths|
-      paths.reject do |*nodes, node, node1|
-        splits[node1].any? do |*nodes, node0, node1|
-          node0 == node
-        end if splits.key? node1
-      end.group_by do |*nodes, node, node1|
-        node
-      end.map do |node, paths|
-        paths.map do |path|
-          path.map(&:point).segments.map(&:difference).map(&:norm).inject(0, &:+)
-        end.zip(paths).max_by(&:first)
-      end.sort_by(&:first).last(2).map(&:last)
-    end
-    neighbours = Hash.new { |neighbours, node| neighbours[node] = Set.new }
-    paths, lengths = {}, {}
-    [ ends, splits.values ].flatten(2).select(&:many?).each do |path|
-      [ path, path.reverse ].each do |node0, *nodes, node1|
-        neighbours[node0] << node1
-        paths.store [ node0, node1 ], [ *nodes, node1]
-        lengths.store [ node0, node1 ], [ node0, *nodes, node1 ].map(&:point).segments.map(&:distance).inject(&:+)
-      end
-    end
-    distances, lines = Hash.new(0), {}
-    areas = map(&:signed_area)
-    candidates = neighbours.keys.map do |point|
-      [ [ point ], 0, Set[point] ]
-    end
-    while candidates.any?
-      nodes, distance, visited = candidates.pop
-      next if (neighbours[nodes.last] - visited).each do |node|
-        candidates << [ [ *nodes, node ], distance + lengths.fetch([ nodes.last, node ]), visited.dup.add(node) ]
+    loop do
+      break unless neighbours.reject do |node, (neighbour, *others)|
+        others.any? || neighbours[neighbour].one?
+      end.each do |node, (neighbour, *)|
+        next if neighbours[neighbour].one?
+        neighbours.delete node
+        neighbours[neighbour].delete node
+        nodes, length = tails.delete(node) || [ [ node ], 0 ]
+        candidate = [ nodes << neighbour, length + [ node.point, neighbour.point ].distance ]
+        tails[neighbour] = [ tails[neighbour], candidate ].compact.max_by(&:last)
       end.any?
-      index = nodes.map(&:whence).inject(&:|).find do |index|
+    end
+    lengths, lines = Hash.new(0), Hash.new
+    areas = map(&:signed_area)
+    candidates = tails.values
+    while candidates.any?
+      (*nodes, node), length = candidates.pop
+      next if (neighbours[node] - nodes).each do |neighbour|
+        candidates << [ [ *nodes, node, neighbour ], length + [ node.point, neighbour.point ].distance ]
+      end.any?
+      index = nodes.map(&:whence).inject(node.whence, &:|).find do |index|
         areas[index] > 0
       end
-      distances[index], lines[index] = distance, nodes if index && distance > distances[index]
+      (*tail_nodes, node), tail_length = tails[node] || [ [ node ], 0 ]
+      lengths[index], lines[index] = length + tail_length, nodes + tail_nodes.reverse if length + tail_length > lengths[index]
     end
     lines = lines.values.map do |nodes|
-      paths.values_at(*nodes.segments).inject(nodes.take(1), &:+).chunk do |node|
+      nodes.chunk do |node|
         node.travel > fraction * travel
       end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
         nodes.map(&:point)

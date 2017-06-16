@@ -32,20 +32,6 @@ module StraightSkeleton
       @secant ||= 1.0 / headings.compact.first.dot(heading)
     end
     
-    def collapses
-      @neighbours.map.with_index do |neighbour, index|
-        next unless neighbour
-        next if neighbour.point.equal? @point
-        cos = Math::cos(neighbour.heading.angle - heading.angle)
-        next if cos*cos == 1.0
-        distance = neighbour.heading.times(cos).minus(heading).dot(@point.minus neighbour.point) / (1.0 - cos*cos)
-        next if distance.nan?
-        travel = @travel + distance / secant
-        next if travel < @travel || travel < neighbour.travel
-        Collapse.new @nodes, heading.times(distance).plus(@point), travel, [ neighbour, self ].rotate(index)
-      end.compact
-    end
-    
     def current
       active? ? self : @collapsed ? @collapsed.current : nil
     end
@@ -155,7 +141,7 @@ module StraightSkeleton
   
   class Nodes
     def initialize(data, closed, limit = nil, options = {})
-      @candidates, @closed, @limit = AVLTree.new, closed, limit
+      @candidates, @closed, @travel, @limit = AVLTree.new, closed, 0, limit
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
       nodes = data.sanitise(closed).tap do |lines|
@@ -184,9 +170,23 @@ module StraightSkeleton
       nodes.map(&closed ? :ring : :segments).each do |edges|
         edges.each do |edge|
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
+        end.each do |edge|
+          collapse edge
         end
       end
       @active = nodes.flatten.to_set
+    end
+    
+    def collapse(edge)
+      h1, h2 = edge.map(&:heading)
+      p1, p2 = edge.map(&:point)
+      s1, s2 = edge.map(&:secant)
+      t1, t2 = edge.map(&:travel)
+      cos = Math::cos(h1.angle - h2.angle)
+      travel = (p1.minus(p2).dot(h1) + s2 * t2 * cos - s1 * t1) / (s2 * cos - s1)
+      return if travel.nan? || travel <= 0 || travel < @travel || (@limit && travel >= @limit)
+      point = h1.times(s1 * (travel - t1)).plus(p1)
+      @candidates << Collapse.new(self, point, travel, edge)
     end
     
     def include?(node)
@@ -195,15 +195,14 @@ module StraightSkeleton
     
     def insert(node)
       @active << node
-      [ node, *node.neighbours ].compact.map(&:collapses).flatten.each do |collapse|
-        @candidates << collapse unless @limit && collapse.travel >= @limit
+      2.times.inject [ node ] do |nodes|
+        [ nodes.first.prev, *nodes, nodes.last.next ].compact
+      end.segments.uniq.each do |edge|
+        collapse edge
       end
     end
     
     def progress(options = {}, &block)
-      @active.map(&:collapses).flatten.each do |collapse|
-        @candidates << collapse unless @limit && collapse.travel >= @limit
-      end
       if options.fetch("splits", true)
         repeated_terminals, repeated_nodes = @active.select do |node|
           @repeats.include? node.point
@@ -261,6 +260,7 @@ module StraightSkeleton
         end
       end
       while candidate = @candidates.pop
+        @travel = candidate.travel
         next unless candidate.viable?
         candidate.replace! do |node, index = 0|
           @active.delete node

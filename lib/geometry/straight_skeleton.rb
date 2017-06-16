@@ -91,9 +91,9 @@ module StraightSkeleton
         node.normals[1].equal? @node.normals[1]
       end.map do |node|
         [ node, node.next ]
-      end.find do |pair|
-        e0, e1 = pair.map(&:point)
-        h0, h1 = pair.map(&:heading)
+      end.find do |edge|
+        e0, e1 = edge.map(&:point)
+        h0, h1 = edge.map(&:heading)
         next if point.minus(e0).cross(h0) < 0
         next if point.minus(e1).cross(h1) > 0
         true
@@ -125,12 +125,12 @@ module StraightSkeleton
       normals.inject(&:cross) < 0
     end
     
-    def split(pair, limit)
-      p0, p1, p2 = [ *pair, self ].map(&:point)
+    def split(edge, limit)
+      p0, p1, p2 = [ *edge, self ].map(&:point)
       return if p0 == p2 || p1 == p2
-      h0, h1 = pair.map(&:heading)
+      h0, h1 = edge.map(&:heading)
       n0, n1 = self.normals
-      n2 = pair[0].normals[1]
+      n2 = edge[0].normals[1]
       denom = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
       return if denom.zero?
       x0 = n0.dot(p2) / denom
@@ -142,7 +142,7 @@ module StraightSkeleton
       return if point.minus(p0).dot(n2) < 0
       return if point.minus(p0).cross(h0) < 0
       return if point.minus(p1).cross(h1) > 0
-      Split.new @nodes, point, travel, self, pair[0]
+      Split.new @nodes, point, travel, self, edge[0]
     end
   end
   
@@ -247,11 +247,11 @@ module StraightSkeleton
             @candidates << Split.new(self, point, 0, set0.first, set1.last)
           end
         end if @closed
-        pairs = @active.select(&:next).map do |node|
+        edges = @active.select(&:next).map do |node|
           [ node, node.next ]
         end
-        pairs = RTree.load(pairs) do |pair|
-          pair.map(&:point).transpose.map(&:minmax)
+        edges = RTree.load(edges) do |edge|
+          edge.map(&:point).transpose.map(&:minmax)
         end
         @active.select do |node|
           node.terminal? || node.reflex?
@@ -261,8 +261,8 @@ module StraightSkeleton
             bounds = node.heading.times(node.secant * travel).plus(node.point).zip(node.point).map do |centre, coord|
               [ coord, centre - travel, centre + travel ].minmax
             end if travel
-            break candidate unless pairs.search(bounds, searched).any? do |pair|
-              closer = node.split pair, travel
+            break candidate unless edges.search(bounds, searched).any? do |edge|
+              closer = node.split edge, travel
             end
             candidate, travel = closer, closer.travel
           end

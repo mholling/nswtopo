@@ -22,9 +22,11 @@ module StraightSkeleton
     end
     
     def heading
-      @heading ||= headings.compact.inject do |heading1, heading2|
-        sum = heading1.plus heading2
-        sum.all?(&:zero?) ? heading1.perp : sum.normalised
+      @heading ||= begin
+        sin_sum = headings.compact.map(&:angle).map { |angle| Math::sin angle }.inject(&:+)
+        cos_sum = headings.compact.map(&:angle).map { |angle| Math::cos angle }.inject(&:+)
+        angle = Math::atan2 sin_sum, cos_sum
+        [ Math::cos(angle), Math::sin(angle) ]
       end
     end
     

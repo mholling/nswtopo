@@ -126,17 +126,22 @@ module StraightSkeleton
     end
     
     def split(pair, limit)
-      e0, e1 = pair.map(&:point)
-      return if e0 == @point || e1 == @point
+      p0, p1, p2 = [ *pair, self ].map(&:point)
+      return if p0 == p2 || p1 == p2
       h0, h1 = pair.map(&:heading)
-      direction = pair[0].headings[1]
-      travel = direction.dot(@point.minus e0) / (1 - secant * heading.dot(direction))
-      return if travel < 0 || travel.nan? || travel.infinite?
-      return if limit && travel >= limit
-      point = heading.times(secant * travel).plus(@point)
-      return if point.minus(e0).dot(direction) < 0
-      return if point.minus(e0).cross(h0) < 0
-      return if point.minus(e1).cross(h1) > 0
+      n0, n1 = self.headings
+      n2 = pair[0].headings[1]
+      denom = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
+      return if denom.zero?
+      x0 = n0.dot(p2) / denom
+      x1 = n1.dot(p2) / denom
+      x2 = n2.dot(p0) / denom
+      travel = x0 * n1.cross(n2) + x1 * n2.cross(n0) + x2 * n0.cross(n1)
+      return if travel < 0 || travel.infinite? || (limit && travel >= limit)
+      point = [ n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2) ].inject(&:plus)
+      return if point.minus(p0).dot(n2) < 0
+      return if point.minus(p0).cross(h0) < 0
+      return if point.minus(p1).cross(h1) > 0
       Split.new @nodes, point, travel, self, pair[0]
     end
   end
@@ -180,14 +185,18 @@ module StraightSkeleton
     end
     
     def collapse(edge)
-      h1, h2 = edge.map(&:heading)
-      p1, p2 = edge.map(&:point)
-      s1, s2 = edge.map(&:secant)
-      t1, t2 = edge.map(&:travel)
-      cos = Math::cos(h1.angle - h2.angle)
-      travel = (p1.minus(p2).dot(h1) + s2 * t2 * cos - s1 * t1) / (s2 * cos - s1)
-      return if travel.nan? || travel <= 0 || travel < @travel || (@limit && travel >= @limit)
-      point = h1.times(s1 * (travel - t1)).plus(p1)
+      return if edge.map(&:point).inject(&:equal?)
+      (h0, h1), (h1, h2) = edge.map(&:headings)
+      p0, p2 = edge.map(&:point)
+      t0, t2 = edge.map(&:travel)
+      denom = h2.cross(h1) + h1.cross(h0) + h0.cross(h2)
+      return if denom.zero?
+      x0 = (h0.dot(p0) - t0) / denom
+      x1 = (h1.dot(p2) - t2) / denom
+      x2 = (h2.dot(p2) - t2) / denom
+      travel = x0 * h1.cross(h2) + x1 * h2.cross(h0) + x2 * h0.cross(h1)
+      return if travel <= 0 || travel < @travel || (@limit && travel >= @limit)
+      point = [ h1.minus(h2).perp.times(x0), h2.minus(h0).perp.times(x1), h0.minus(h1).perp.times(x2) ].inject(&:plus)
       @candidates << Collapse.new(self, point, travel, edge)
     end
     

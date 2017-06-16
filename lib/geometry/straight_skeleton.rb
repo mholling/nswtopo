@@ -30,8 +30,9 @@ module StraightSkeleton
       end
     end
     
-    def secant
-      @secant ||= 1.0 / normals.compact.first.dot(heading)
+    def progress(travel)
+      cos = normals.all? ? Math::sqrt(Math::cos((1 + normals.inject(&:dot)) * 0.5)) : 1.0
+      heading.times(travel / cos).plus(point)
     end
     
     def current
@@ -258,7 +259,7 @@ module StraightSkeleton
         end.map do |node|
           candidate, closer, travel, searched = nil, nil, @limit, Set.new
           loop do
-            bounds = node.heading.times(node.secant * travel).plus(node.point).zip(node.point).map do |centre, coord|
+            bounds = node.progress(travel).zip(node.point).map do |centre, coord|
               [ coord, centre - travel, centre + travel ].minmax
             end if travel
             break candidate unless edges.search(bounds, searched).any? do |edge|
@@ -290,7 +291,7 @@ module StraightSkeleton
           nodes.each do |node|
             @active.delete node
           end.map do |node|
-            node.point.plus node.heading.times((@limit - node.travel) * node.secant)
+            node.progress(@limit - node.travel)
           end.tap do |points|
             yielder << points
           end

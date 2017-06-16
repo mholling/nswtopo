@@ -2,7 +2,7 @@ module StraightSkeleton
   DEFAULT_ROUNDING_ANGLE = 15
   
   module Node
-    attr_reader :point, :travel, :neighbours, :headings, :whence, :original
+    attr_reader :point, :travel, :neighbours, :normals, :whence, :original
     attr_writer :collapsed
     
     def active?
@@ -23,15 +23,15 @@ module StraightSkeleton
     
     def heading
       @heading ||= begin
-        sin_sum = headings.compact.map(&:angle).map { |angle| Math::sin angle }.inject(&:+)
-        cos_sum = headings.compact.map(&:angle).map { |angle| Math::cos angle }.inject(&:+)
+        sin_sum = normals.compact.map { |norm| Math::sin norm.angle }.inject(&:+)
+        cos_sum = normals.compact.map { |norm| Math::cos norm.angle }.inject(&:+)
         angle = Math::atan2 sin_sum, cos_sum
         [ Math::cos(angle), Math::sin(angle) ]
       end
     end
     
     def secant
-      @secant ||= 1.0 / headings.compact.first.dot(heading)
+      @secant ||= 1.0 / normals.compact.first.dot(heading)
     end
     
     def current
@@ -47,9 +47,9 @@ module StraightSkeleton
     end
     
     def insert!
-      @headings = @neighbours.map.with_index do |neighbour, index|
+      @normals = @neighbours.map.with_index do |neighbour, index|
         neighbour.neighbours[1-index] = self if neighbour
-        neighbour.headings[1-index] if neighbour
+        neighbour.normals[1-index] if neighbour
       end
       @nodes.insert self
     end
@@ -88,7 +88,7 @@ module StraightSkeleton
     def viable?
       return false unless @source.active?
       @edge = @node.splits.map(&:current).compact.select do |node|
-        node.headings[1].equal? @node.headings[1]
+        node.normals[1].equal? @node.normals[1]
       end.map do |node|
         [ node, node.next ]
       end.find do |pair|
@@ -117,20 +117,20 @@ module StraightSkeleton
     include Node
     attr_reader :splits
     
-    def initialize(nodes, point, index, headings)
-      @original, @neighbours, @nodes, @whence, @point, @headings, @travel, @splits = self, [ nil, nil ], nodes, Set[index], point, headings, 0, Set[self]
+    def initialize(nodes, point, index, normals)
+      @original, @neighbours, @nodes, @whence, @point, @normals, @travel, @splits = self, [ nil, nil ], nodes, Set[index], point, normals, 0, Set[self]
     end
     
     def reflex?
-      headings.inject(&:cross) < 0
+      normals.inject(&:cross) < 0
     end
     
     def split(pair, limit)
       p0, p1, p2 = [ *pair, self ].map(&:point)
       return if p0 == p2 || p1 == p2
       h0, h1 = pair.map(&:heading)
-      n0, n1 = self.headings
-      n2 = pair[0].headings[1]
+      n0, n1 = self.normals
+      n2 = pair[0].normals[1]
       denom = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
       return if denom.zero?
       x0 = n0.dot(p2) / denom
@@ -154,23 +154,23 @@ module StraightSkeleton
       nodes = data.sanitise(closed).tap do |lines|
         @repeats = lines.flatten(1).group_by { |point| point }.reject { |point, points| points.one? }
       end.map.with_index do |points, index|
-        headings = if closed
+        normals = if closed
           points.ring.map(&:difference).map(&:normalised).map(&:perp).ring.rotate(-1)
         else
           points.segments.map(&:difference).map(&:normalised).map(&:perp).unshift(nil).push(nil).segments
         end
-        points.zip(headings).map do |point, headings|
-          angle = headings.all? && Math::atan2(headings.inject(&:cross), headings.inject(&:dot))
+        points.zip(normals).map do |point, normals|
+          angle = normals.all? && Math::atan2(normals.inject(&:cross), normals.inject(&:dot))
           angle = -Math::PI if angle == Math::PI
-          next Vertex.new(self, point, index, headings) unless angle && angle < 0
+          next Vertex.new(self, point, index, normals) unless angle && angle < 0
           extras = (angle.abs / rounding_angle).floor
           extras = 1 if cutoff && angle < -cutoff
           extras.times.map do |n|
             angle * (n + 1) / (extras + 1)
           end.map do |angle|
-            headings[0].rotate_by(angle)
-          end.unshift(headings.first).push(headings.last).segments.map do |headings|
-            Vertex.new self, point, index, headings
+            normals[0].rotate_by(angle)
+          end.unshift(normals.first).push(normals.last).segments.map do |normals|
+            Vertex.new self, point, index, normals
           end
         end.flatten
       end
@@ -186,17 +186,17 @@ module StraightSkeleton
     
     def collapse(edge)
       return if edge.map(&:point).inject(&:equal?)
-      (h0, h1), (h1, h2) = edge.map(&:headings)
+      (n0, n1), (n1, n2) = edge.map(&:normals)
       p0, p2 = edge.map(&:point)
       t0, t2 = edge.map(&:travel)
-      denom = h2.cross(h1) + h1.cross(h0) + h0.cross(h2)
+      denom = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
       return if denom.zero?
-      x0 = (h0.dot(p0) - t0) / denom
-      x1 = (h1.dot(p2) - t2) / denom
-      x2 = (h2.dot(p2) - t2) / denom
-      travel = x0 * h1.cross(h2) + x1 * h2.cross(h0) + x2 * h0.cross(h1)
+      x0 = (n0.dot(p0) - t0) / denom
+      x1 = (n1.dot(p2) - t2) / denom
+      x2 = (n2.dot(p2) - t2) / denom
+      travel = x0 * n1.cross(n2) + x1 * n2.cross(n0) + x2 * n0.cross(n1)
       return if travel <= 0 || travel < @travel || (@limit && travel >= @limit)
-      point = [ h1.minus(h2).perp.times(x0), h2.minus(h0).perp.times(x1), h0.minus(h1).perp.times(x2) ].inject(&:plus)
+      point = [ n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2) ].inject(&:plus)
       @candidates << Collapse.new(self, point, travel, edge)
     end
     

@@ -320,7 +320,7 @@ module StraightSkeleton
     end
     travel = neighbours.keys.map(&:travel).max
     points ||= incoming.select do |node, count|
-      Split === node || count > 2 && node.travel > fraction * travel
+      count > 2 && node.travel > fraction * travel
     end.keys.sort_by(&:travel).reverse.map(&:point)
     return [ points ] unless get_lines
     loop do

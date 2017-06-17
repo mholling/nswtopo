@@ -155,11 +155,8 @@ module StraightSkeleton
       nodes = data.sanitise(closed).tap do |lines|
         @repeats = lines.flatten(1).group_by { |point| point }.reject { |point, points| points.one? }
       end.map.with_index do |points, index|
-        normals = if closed
-          points.ring.map(&:difference).map(&:normalised).map(&:perp).ring.rotate(-1)
-        else
-          points.segments.map(&:difference).map(&:normalised).map(&:perp).unshift(nil).push(nil).segments
-        end
+        normals = (closed ? points.ring : points.segments).map(&:difference).map(&:normalised).map(&:perp)
+        normals = closed ? normals.ring.rotate(-1) : normals.unshift(nil).push(nil).segments
         points.zip(normals).map do |point, normals|
           angle = normals.all? && Math::atan2(normals.inject(&:cross), normals.inject(&:dot))
           angle = -Math::PI if angle == Math::PI

@@ -123,7 +123,7 @@ module StraightSkeleton
     end
     
     def reflex?
-      normals.inject(&:cross) < 0
+      normals.inject(&:cross) < 0 || normals.inject(&:plus).all?(&:zero?)
     end
     
     def split(edge, limit)
@@ -158,16 +158,14 @@ module StraightSkeleton
         normals = (closed ? points.ring : points.segments).map(&:difference).map(&:normalised).map(&:perp)
         normals = closed ? normals.ring.rotate(-1) : normals.unshift(nil).push(nil).segments
         points.zip(normals).map do |point, normals|
-          angle = normals.all? && Math::atan2(normals.inject(&:cross), normals.inject(&:dot))
-          angle = -Math::PI if angle == Math::PI
-          next Vertex.new(self, point, index, normals) unless angle && angle < 0
-          extras = (angle.abs / rounding_angle).floor
-          extras = 1 if cutoff && angle < -cutoff
-          extras.times.map do |n|
-            angle * (n + 1) / (extras + 1)
-          end.map do |angle|
-            normals[0].rotate_by(angle)
-          end.unshift(normals.first).push(normals.last).segments.map do |normals|
+          vertex = Vertex.new(self, point, index, normals)
+          next vertex if vertex.terminal?
+          next vertex unless vertex.reflex?
+          angle = Math::atan2 normals.inject(&:cross), normals.inject(&:dot)
+          extras = cutoff && angle.abs > cutoff ? 1 : (angle.abs / rounding_angle).floor
+          extras.times.inject(normals.take(1)) do |normals, n|
+            normals << normals[0].rotate_by(angle * (n + 1) / (extras + 1))
+          end.push(normals.last).segments.map do |normals|
             Vertex.new self, point, index, normals
           end
         end.flatten

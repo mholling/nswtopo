@@ -31,7 +31,7 @@ module StraightSkeleton
     end
     
     def progress(travel)
-      cos = normals.all? ? Math::sqrt(Math::cos((1 + normals.inject(&:dot)) * 0.5)) : 1.0
+      cos = normals.all? ? Math::sqrt((1 + normals.inject(&:dot)) / 2) : 1.0
       heading.times(travel / cos).plus(point)
     end
     

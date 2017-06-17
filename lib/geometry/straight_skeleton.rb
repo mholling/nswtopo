@@ -38,6 +38,14 @@ module StraightSkeleton
     def current
       active? ? self : @collapsed ? @collapsed.current : nil
     end
+    
+    def self.solve(n0, n1, n2, x0, x1, x2)
+      det = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
+      return if det.zero?
+      travel = (x0 / det) * n1.cross(n2) + (x1 / det) * n2.cross(n0) + (x2 / det) * n0.cross(n1)
+      point = [ n1.minus(n2).perp.times(x0 / det), n2.minus(n0).perp.times(x1 / det), n0.minus(n1).perp.times(x2 / det) ].inject(&:plus)
+      [ point, travel ]
+    end
   end
   
   module InteriorNode
@@ -128,18 +136,11 @@ module StraightSkeleton
     
     def split(edge, limit)
       p0, p1, p2 = [ *edge, self ].map(&:point)
-      return if p0 == p2 || p1 == p2
+      n0, n1, n2 = [ *normals, edge[0].normals[1] ]
       h0, h1 = edge.map(&:heading)
-      n0, n1 = self.normals
-      n2 = edge[0].normals[1]
-      denom = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
-      return if denom.zero?
-      x0 = n0.dot(p2) / denom
-      x1 = n1.dot(p2) / denom
-      x2 = n2.dot(p0) / denom
-      travel = x0 * n1.cross(n2) + x1 * n2.cross(n0) + x2 * n0.cross(n1)
-      return if travel < 0 || travel.infinite? || (limit && travel >= limit)
-      point = [ n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2) ].inject(&:plus)
+      return if p0 == p2 || p1 == p2
+      point, travel = Node::solve n0, n1, n2, n0.dot(p2), n1.dot(p2), n2.dot(p0)
+      return if !travel || travel < 0 || travel.infinite? || (limit && travel >= limit)
       return if point.minus(p0).dot(n2) < 0
       return if point.minus(p0).cross(h0) < 0
       return if point.minus(p1).cross(h1) > 0
@@ -181,18 +182,12 @@ module StraightSkeleton
     end
     
     def collapse(edge)
-      return if edge.map(&:point).inject(&:equal?)
       (n0, n1), (n1, n2) = edge.map(&:normals)
       p0, p2 = edge.map(&:point)
       t0, t2 = edge.map(&:travel)
-      denom = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
-      return if denom.zero?
-      x0 = (n0.dot(p0) - t0) / denom
-      x1 = (n1.dot(p2) - t2) / denom
-      x2 = (n2.dot(p2) - t2) / denom
-      travel = x0 * n1.cross(n2) + x1 * n2.cross(n0) + x2 * n0.cross(n1)
-      return if travel <= 0 || travel < @travel || (@limit && travel >= @limit)
-      point = [ n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2) ].inject(&:plus)
+      return if p0.equal? p2
+      point, travel = Node::solve n0, n1, n2, n0.dot(p0) - t0, n1.dot(p2) - t2, n2.dot(p2) - t2
+      return if !travel || travel <= 0 || travel < @travel || (@limit && travel >= @limit)
       @candidates << Collapse.new(self, point, travel, edge)
     end
     

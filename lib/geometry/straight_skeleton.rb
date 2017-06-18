@@ -136,12 +136,12 @@ module StraightSkeleton
     
     def split(edge, limit)
       p0, p1, p2 = [ *edge, self ].map(&:point)
-      n0, n1, n2 = [ *normals, edge[0].normals[1] ]
-      h0, h1 = edge.map(&:heading)
+      (n00, n01), (n10, n11), (n20, n21) = [ *edge, self ].map(&:normals)
       return if p0 == p2 || p1 == p2
-      point, travel = Node::solve n0, n1, n2, n0.dot(p2), n1.dot(p2), n2.dot(p0)
+      point, travel = Node::solve n20, n21, n01, n20.dot(p2), n21.dot(p2), n01.dot(p0)
       return if !travel || travel < 0 || travel.infinite? || (limit && travel >= limit)
-      return if point.minus(p0).dot(n2) < 0
+      return if point.minus(p0).dot(n01) < 0
+      h0, h1 = edge.map(&:heading)
       return if point.minus(p0).cross(h0) < 0
       return if point.minus(p1).cross(h1) > 0
       Split.new @nodes, point, travel, self, edge[0]
@@ -160,7 +160,7 @@ module StraightSkeleton
         normals = closed ? normals.ring.rotate(-1) : normals.unshift(nil).push(nil).segments
         points.zip(normals).map do |point, normals|
           vertex = Vertex.new(self, point, index, normals)
-          next vertex if vertex.terminal?
+          next vertex if normals.one?
           next vertex unless vertex.reflex?
           angle = Math::atan2 normals.inject(&:cross), normals.inject(&:dot)
           extras = cutoff && angle.abs > cutoff ? 1 : (angle.abs / rounding_angle).floor
@@ -182,11 +182,11 @@ module StraightSkeleton
     end
     
     def collapse(edge)
-      (n0, n1), (n1, n2) = edge.map(&:normals)
-      p0, p2 = edge.map(&:point)
-      t0, t2 = edge.map(&:travel)
-      return if p0.equal? p2
-      point, travel = Node::solve n0, n1, n2, n0.dot(p0) - t0, n1.dot(p2) - t2, n2.dot(p2) - t2
+      (n00, n01), (n10, n11) = edge.map(&:normals)
+      p0, p1 = edge.map(&:point)
+      t0, t1 = edge.map(&:travel)
+      return if p0.equal? p1
+      point, travel = Node::solve n00, n01, n11, n00.dot(p0) - t0, n01.dot(p1) - t1, n11.dot(p1) - t1
       return if !travel || travel <= 0 || travel < @travel || (@limit && travel >= @limit)
       @candidates << Collapse.new(self, point, travel, edge)
     end
@@ -212,11 +212,11 @@ module StraightSkeleton
         repeated_terminals.group_by(&:point).each do |point, nodes|
           nodes.permutation(2).select do |node1, node2|
             node1.prev && node2.next
-          end.select do |node1, node2|
-            node1.heading.cross(node2.heading) > 0
+          end.select do |pair|
+            pair.map(&:heading).inject(&:cross) > 0
           end.group_by(&:first).map(&:last).map do |pairs|
-            pairs.min_by do |node1, node2|
-              node1.heading.dot node2.heading
+            pairs.min_by do |pair|
+              pair.map(&:heading).inject(&:dot)
             end
           end.compact.each do |node1, node2|
             @candidates << Split.new(self, point, 0, node1, node2)

@@ -22,17 +22,12 @@ module StraightSkeleton
     end
     
     def heading
-      @heading ||= begin
-        sin_sum = normals.compact.map { |norm| Math::sin norm.angle }.inject(&:+)
-        cos_sum = normals.compact.map { |norm| Math::cos norm.angle }.inject(&:+)
-        angle = Math::atan2 sin_sum, cos_sum
-        [ Math::cos(angle), Math::sin(angle) ]
-      end
+      @heading ||= normals.compact.inject(&:plus).normalised
     end
     
     def progress(travel)
-      cos = normals.all? ? Math::sqrt((1 + normals.inject(&:dot)) / 2) : 1.0
-      heading.times(travel / cos).plus(point)
+      return heading.times(travel).plus(point) unless normals.all?
+      heading.times(travel / Math::sqrt((1 + normals.inject(&:dot)) * 0.5)).plus(point)
     end
     
     def current
@@ -44,6 +39,14 @@ module StraightSkeleton
       return if det.zero?
       travel = (x0 / det) * n1.cross(n2) + (x1 / det) * n2.cross(n0) + (x2 / det) * n0.cross(n1)
       point = [ n1.minus(n2).perp.times(x0 / det), n2.minus(n0).perp.times(x1 / det), n0.minus(n1).perp.times(x2 / det) ].inject(&:plus)
+      [ point, travel ]
+    end
+    
+    def self.solve_asym(n0, n1, n2, x0, x1,x2)
+      det = n0.minus(n1).dot(n2)
+      return if det.zero?
+      travel = (x0 / det) * n1.dot(n2) - (x1 / det) * n2.dot(n0) + (x2 / det) * n0.cross(n1)
+      point = n2.times((x0 - x1) / det).plus n0.minus(n1).perp.times(x2 / det)
       [ point, travel ]
     end
   end
@@ -138,7 +141,11 @@ module StraightSkeleton
       p0, p1, p2 = [ *edge, self ].map(&:point)
       (n00, n01), (n10, n11), (n20, n21) = [ *edge, self ].map(&:normals)
       return if p0 == p2 || p1 == p2
-      point, travel = Node::solve n20, n21, n01, n20.dot(p2), n21.dot(p2), n01.dot(p0)
+      point, travel = case
+      when n20 && n21 then Node::solve(n20, n21, n01, n20.dot(p2), n21.dot(p2), n01.dot(p0))
+      when n20 then Node::solve_asym(n01, n20, n20, n01.dot(p0), n20.dot(p2), n20.cross(p2))
+      when n21 then Node::solve_asym(n01, n21, n21, n01.dot(p0), n21.dot(p2), n21.cross(p2))
+      end
       return if !travel || travel < 0 || travel.infinite? || (limit && travel >= limit)
       return if point.minus(p0).dot(n01) < 0
       h0, h1 = edge.map(&:heading)
@@ -186,7 +193,12 @@ module StraightSkeleton
       p0, p1 = edge.map(&:point)
       t0, t1 = edge.map(&:travel)
       return if p0.equal? p1
-      point, travel = Node::solve n00, n01, n11, n00.dot(p0) - t0, n01.dot(p1) - t1, n11.dot(p1) - t1
+      good = [ n00 && !n00.cross(n01).zero?, n11 && !n11.cross(n10).zero? ]
+      point, travel = case
+      when good.all? then Node::solve(n00, n01, n11, n00.dot(p0) - t0, n01.dot(p1) - t1, n11.dot(p1) - t1)
+      when good[0] then Node::solve_asym(n00, n01, n10, n00.dot(p0) - t0, n01.dot(p0) - t0, n10.cross(p1))
+      when good[1] then Node::solve_asym(n11, n10, n10, n11.dot(p1) - t0, n10.dot(p1) - t0, n01.cross(p0))
+      end
       return if !travel || travel <= 0 || travel < @travel || (@limit && travel >= @limit)
       @candidates << Collapse.new(self, point, travel, edge)
     end

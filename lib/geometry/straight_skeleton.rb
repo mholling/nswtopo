@@ -3,7 +3,6 @@ module StraightSkeleton
   
   module Node
     attr_reader :point, :travel, :neighbours, :normals, :whence, :original
-    attr_writer :collapsed
     
     def active?
       @nodes.include? self
@@ -37,10 +36,6 @@ module StraightSkeleton
     def progress(travel)
       return heading.times(travel).plus(point) unless normals.all?
       heading.times(travel / Math::sqrt((1 + normals.inject(&:dot)) * 0.5)).plus(point)
-    end
-    
-    def current
-      active? ? self : @collapsed ? @collapsed.current : nil
     end
     
     def self.solve(n0, n1, n2, x0, x1, x2)
@@ -91,10 +86,7 @@ module StraightSkeleton
     def replace!(&block)
       @neighbours = [ @sources[0].prev, @sources[1].next ]
       @neighbours.inject(&:==) ? block.call(prev) : insert! if @neighbours.any?
-      @sources.each do |source|
-        block.call source
-        source.collapsed = self
-      end
+      @sources.each(&block)
     end
   end
   
@@ -108,10 +100,8 @@ module StraightSkeleton
     
     def viable?
       return false unless @source.active?
-      @edge = @node.splits.map(&:current).compact.select do |node|
-        node.normals[1].equal? @node.normals[1]
-      end.map do |node|
-        [ node, node.next ]
+      @edge = @nodes.edges.select do |edge|
+        edge[0].normals[1].equal? @node.normals[1]
       end.find do |edge|
         e0, e1 = edge.map(&:point)
         h0, h1 = edge.map(&:heading)
@@ -124,7 +114,6 @@ module StraightSkeleton
     def split!(index, &block)
       @neighbours = [ @source.neighbours[index], @edge[1-index] ].rotate index
       @neighbours.inject(&:equal?) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert! if @neighbours.any?
-      @node.splits << self if index == 0
     end
     
     def replace!(&block)
@@ -136,10 +125,9 @@ module StraightSkeleton
   
   class Vertex
     include Node
-    attr_reader :splits
     
     def initialize(nodes, point, index, normals)
-      @original, @neighbours, @nodes, @whence, @point, @normals, @travel, @splits = self, [ nil, nil ], nodes, Set[index], point, normals, 0, Set[self]
+      @original, @neighbours, @nodes, @whence, @point, @normals, @travel = self, [ nil, nil ], nodes, Set[index], point, normals, 0
     end
     
     def reflex?
@@ -225,6 +213,12 @@ module StraightSkeleton
       end
     end
     
+    def edges
+      @active.select(&:next).map do |node|
+        [ node, node.next ]
+      end
+    end
+    
     def progress(options = {}, &block)
       if options.fetch("splits", true)
         repeated_terminals, repeated_nodes = @active.select do |node|
@@ -259,10 +253,7 @@ module StraightSkeleton
             @candidates << Split.new(self, point, 0, set0.first, set1.last)
           end
         end if @closed
-        edges = @active.select(&:next).map do |node|
-          [ node, node.next ]
-        end
-        edges = RTree.load(edges) do |edge|
+        index = RTree.load(edges) do |edge|
           edge.map(&:point).transpose.map(&:minmax)
         end
         @active.select do |node|
@@ -273,7 +264,7 @@ module StraightSkeleton
             bounds = node.progress(travel).zip(node.point).map do |centre, coord|
               [ coord, centre - travel, centre + travel ].minmax
             end if travel
-            break candidate unless edges.search(bounds, searched).any? do |edge|
+            break candidate unless index.search(bounds, searched).any? do |edge|
               closer = node.split edge, travel
             end
             candidate, travel = closer, closer.travel

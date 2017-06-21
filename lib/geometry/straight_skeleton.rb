@@ -166,7 +166,7 @@ module StraightSkeleton
   
   class Nodes
     def initialize(data, closed, limit = nil, options = {})
-      @candidates, @closed, @travel, @limit = AVLTree.new, closed, 0, limit
+      @candidates, @closed, @limit = AVLTree.new, closed, limit
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
       nodes = data.sanitise(closed).tap do |lines|
@@ -208,7 +208,7 @@ module StraightSkeleton
       when good[0] then Node::solve_asym(n00, n01, n10, n00.dot(p0) - t0, n01.dot(p0) - t0, n10.cross(p1))
       when good[1] then Node::solve_asym(n11, n10, n10, n11.dot(p1) - t0, n10.dot(p1) - t0, n01.cross(p0))
       end
-      return if !travel || travel <= 0 || travel < @travel || (@limit && travel >= @limit)
+      return if !travel || travel <= 0 || (@limit && travel >= @limit)
       @candidates << Collapse.new(self, point, travel, edge)
     end
     
@@ -283,7 +283,6 @@ module StraightSkeleton
         end
       end
       while candidate = @candidates.pop
-        @travel = candidate.travel
         next unless candidate.viable?
         candidate.replace! do |node, index = 0|
           @active.delete node

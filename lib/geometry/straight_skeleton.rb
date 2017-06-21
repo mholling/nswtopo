@@ -94,14 +94,14 @@ module StraightSkeleton
     include InteriorNode
     
     def initialize(nodes, point, travel, source, node)
-      @original, @nodes, @point, @travel, @source, @node = self, nodes, point, travel, source, node
+      @original, @nodes, @point, @travel, @source, @normal = self, nodes, point, travel, source, node.normals[1]
       @whence = source.whence | node.whence
     end
     
     def viable?
       return false unless @source.active?
       @edge = @nodes.edges.select do |edge|
-        edge[0].normals[1].equal? @node.normals[1]
+        edge[0].normals[1].equal? @normal
       end.find do |edge|
         e0, e1 = edge.map(&:point)
         h0, h1 = edge.map(&:heading)

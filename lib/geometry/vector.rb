@@ -33,6 +33,10 @@ module Vector
     map { |value| value * scalar }
   end
   
+  def /(scalar)
+    map { |value| value / scalar }
+  end
+  
   def negate
     map { |value| -value }
   end

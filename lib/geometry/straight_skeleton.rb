@@ -47,7 +47,7 @@ module StraightSkeleton
       det = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
       return if det.zero?
       travel = (x0 / det) * n1.cross(n2) + (x1 / det) * n2.cross(n0) + (x2 / det) * n0.cross(n1)
-      point = [ n1.minus(n2).perp.times(x0 / det), n2.minus(n0).perp.times(x1 / det), n0.minus(n1).perp.times(x2 / det) ].inject(&:plus)
+      point = [ n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2) ].inject(&:plus) / det
       [ point, travel ]
     end
     
@@ -55,7 +55,7 @@ module StraightSkeleton
       det = n0.minus(n1).dot(n2)
       return if det.zero?
       travel = (x0 / det) * n1.dot(n2) - (x1 / det) * n2.dot(n0) + (x2 / det) * n0.cross(n1)
-      point = n2.times((x0 - x1) / det).plus n0.minus(n1).perp.times(x2 / det)
+      point = (n2.times(x0 - x1).plus n0.minus(n1).perp.times(x2)) / det
       [ point, travel ]
     end
   end

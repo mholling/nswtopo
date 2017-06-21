@@ -196,6 +196,7 @@ module NSWTopo
           letter_spacing = attributes.fetch("letter-spacing", 0)
           word_spacing   = attributes.fetch("word-spacing", 0)
           debug_features << [ dimension, [ data ], %w[debug feature] ] if map.debug
+          next [] if map.debug == "features"
           case dimension
           when 0
             # TODO: can we prioritise by position in component list as well (in the case of skeleton centres)?

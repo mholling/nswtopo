@@ -22,7 +22,16 @@ module StraightSkeleton
     end
     
     def heading
-      @heading ||= normals.compact.inject(&:plus).normalised
+      @heading ||= case
+      when !normals.all?
+        normals.compact.first
+      when normals.inject(&:dot) >= 0
+        normals.inject(&:plus).normalised
+      when normals.inject(&:cross) >= 0
+        normals.map(&:perp).inject(&:minus).normalised
+      else
+        normals.map(&:perp).inject(&:minus).normalised.negate
+      end
     end
     
     def progress(travel)

@@ -194,7 +194,7 @@ module StraightSkeleton
       point, travel = case
       when good.all? then Node::solve(n00, n01, n11, n00.dot(p0) - t0, n01.dot(p1) - t1, n11.dot(p1) - t1)
       when good[0] then Node::solve_asym(n00, n01, n10, n00.dot(p0) - t0, n01.dot(p0) - t0, n10.cross(p1))
-      when good[1] then Node::solve_asym(n11, n10, n10, n11.dot(p1) - t0, n10.dot(p1) - t0, n01.cross(p0))
+      when good[1] then Node::solve_asym(n11, n10, n10, n11.dot(p1) - t1, n10.dot(p1) - t1, n01.cross(p0))
       end
       return if !travel || travel <= 0 || (@limit && travel >= @limit)
       @candidates << Collapse.new(self, point, travel, edge)

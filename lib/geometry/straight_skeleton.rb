@@ -33,9 +33,9 @@ module StraightSkeleton
       end
     end
     
-    def progress(travel)
-      return heading.times(travel).plus(point) unless normals.all?
-      heading.times(travel / Math::sqrt((1 + normals.inject(&:dot)) * 0.5)).plus(point)
+    def point_at(travel)
+      return heading.times(travel - @travel).plus(point) unless normals.all?
+      heading.times((travel - @travel) / Math::sqrt((1 + normals.inject(&:dot)) * 0.5)).plus(point)
     end
     
     def self.solve(n0, n1, n2, x0, x1, x2)
@@ -261,7 +261,7 @@ module StraightSkeleton
         end.map do |node|
           candidate, closer, travel, searched = nil, nil, @limit, Set.new
           loop do
-            bounds = node.progress(travel).zip(node.point).map do |centre, coord|
+            bounds = node.point_at(travel).zip(node.point).map do |centre, coord|
               [ coord, centre - travel, centre + travel ].minmax
             end if travel
             break candidate unless index.search(bounds, searched).any? do |edge|
@@ -292,7 +292,7 @@ module StraightSkeleton
           nodes.each do |node|
             @active.delete node
           end.map do |node|
-            node.progress(@limit - node.travel)
+            node.point_at(@limit)
           end.tap do |points|
             yielder << points
           end

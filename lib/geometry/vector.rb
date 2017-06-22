@@ -50,7 +50,7 @@ module Vector
   end
   
   def normalised
-    times(1.0 / norm)
+    self / norm
   end
   
   def proj(other)

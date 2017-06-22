@@ -14,7 +14,7 @@ module VectorSequence
   def centroid
     ring.map do |p1, p2|
       (p1.plus p2).times(p1.cross p2)
-    end.inject(&:plus).times(1.0 / 6.0 / signed_area)
+    end.inject(&:plus) / (6.0 * signed_area)
   end
   
   def convex?

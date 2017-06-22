@@ -81,59 +81,53 @@ module NSWTopo
             next dimensioned_data unless arg
             dimensioned_data.map do |dimension, data|
               closed = dimension == 2
-              case transform
+              transformed = case transform
               when "reduce"
                 case arg
                 when "centrelines"
-                  [ 1 ].zip data.centrelines_centrepoints(true, false, *args) if closed
+                  next [ 1 ].zip data.centrelines_centrepoints(true, false, *args) if closed
                 when "centrepoints"
-                  [ 0 ].zip data.centrelines_centrepoints(false, true, *args) if closed
+                  next [ 0 ].zip data.centrelines_centrepoints(false, true, *args) if closed
                 when "centres"
-                  [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args) if closed
+                  next [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args) if closed
                 when "centroids"
-                  [ 0 ].zip [ data.reject(&:hole?).map(&:centroid) ] if closed
+                  next [ [ 0, data.reject(&:hole?).map(&:centroid) ] ] if closed
                 when "intervals"
-                  [ 0 ].zip [ data.at_interval(closed, args[0] || DEFAULT_SAMPLE).map(&:first) ] if dimension > 0
+                  next [ [ 0, data.at_interval(closed, args[0] || DEFAULT_SAMPLE).map(&:first) ] ] if dimension > 0
                 end
               when "outset"
-                [ dimension ].zip [ data.outset(closed, arg) ] if dimension > 0
+                data.outset(closed, arg) if dimension > 0
               when "inset"
-                [ dimension ].zip [ data.inset(closed, arg) ] if dimension > 0
+                data.inset(closed, arg) if dimension > 0
               when "buffer"
-                [ dimension ].zip [ data.buffer(closed, arg, *args) ] if dimension > 0
+                data.buffer(closed, arg, *args) if dimension > 0
               when "smooth-in"
-                [ dimension ].zip [ data.smooth_in(closed, arg, max_turn) ] if dimension > 0
+                data.smooth_in(closed, arg, max_turn) if dimension > 0
               when "smooth-out"
-                [ dimension ].zip [ data.smooth_out(closed, arg, max_turn) ] if dimension > 0
+                data.smooth_out(closed, arg, max_turn) if dimension > 0
               when "smooth"
-                [ dimension ].zip [ data.smooth(closed, arg, max_turn) ] if dimension > 0
+                data.smooth(closed, arg, max_turn) if dimension > 0
               when "remove-holes"
-                [ dimension ].zip [ data.remove_holes(arg) ] if closed
+                data.remove_holes(arg) if closed
               when "close-gaps"
-                [ dimension ].zip [ data.close_gaps(arg, *args) ] if closed
+                data.close_gaps(arg, *args) if closed
               when "minimum-area"
-                next [ [ dimension, data ] ] unless closed
-                pruned = data.chunk(&:hole?).map(&:last).each_slice(2).map do |polys, holes|
+                data.chunk(&:hole?).map(&:last).each_slice(2).map do |polys, holes|
                   keep = polys.map do |points|
                     [ points, points.signed_area > arg ]
                   end
                   keep.select(&:last).map(&:first).tap do |result|
                     result += holes if holes && keep.last.last
                   end
-                end.flatten(1)
-                [ [ dimension, pruned ] ]
+                end.flatten(1) if closed
               when "minimum-hole"
-                next [ [ dimension, data ] ] unless closed
-                pruned = data.reject do |points|
+                data.reject do |points|
                   (-arg .. 0).include? points.signed_area
-                end
-                [ [ dimension, pruned ] ]
+                end if closed
               when "minimum-length"
-                next [ [ dimension, data ] ] unless dimension == 1
-                pruned = data.reject do |points|
+                data.reject do |points|
                   points.segments.map(&:distance).inject(0.0, &:+) < arg
-                end
-                [ [ dimension, pruned ] ]
+                end if dimension == 1
               when "remove"
                 [ ] if [ arg, *args ].any? do |value|
                   case value
@@ -143,7 +137,8 @@ module NSWTopo
                   when Numeric then text == value.to_s
                   end
                 end
-              end || [ [ dimension, data ] ]
+              end
+              [ [ dimension, transformed || data ] ]
             end.flatten(1)
           end.each do |dimension, data|
             data.each do |point_or_points|

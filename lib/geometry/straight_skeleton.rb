@@ -309,9 +309,9 @@ module StraightSkeleton
     result
   end
   
-  def centrelines_centrepoints(get_lines, get_points, fraction = 0.5)
-    points = map(&:centroid) if get_points && all?(&:convex?)
-    return [ points ] if points && !get_lines
+  def centres(dimensions, fraction = 0.5)
+    points = map(&:centroid) if dimensions.include? 0 && all?(&:convex?)
+    return [ [ 0, points ] ] if points && dimensions == [ 0 ]
     neighbours = Hash.new { |neighbours, node| neighbours[node] = [] }
     incoming, tails = Hash.new(0), Hash.new
     Nodes.new(self, true).progress do |node0, node1|
@@ -320,44 +320,48 @@ module StraightSkeleton
       neighbours[node1] << node0
     end
     travel = neighbours.keys.map(&:travel).max
-    points ||= incoming.select do |node, count|
-      count > 2 && node.travel > fraction * travel
-    end.keys.sort_by(&:travel).reverse.map(&:point)
-    return [ points ] unless get_lines
-    loop do
-      break unless neighbours.reject do |node, (neighbour, *others)|
-        others.any? || neighbours[neighbour].one?
-      end.each do |node, (neighbour, *)|
-        next if neighbours[neighbour].one?
-        neighbours.delete node
-        neighbours[neighbour].delete node
-        nodes, length = tails.delete(node) || [ [ node ], 0 ]
-        candidate = [ nodes << neighbour, length + [ node.point, neighbour.point ].distance ]
-        tails[neighbour] = [ tails[neighbour], candidate ].compact.max_by(&:last)
-      end.any?
-    end
-    lengths, lines = Hash.new(0), Hash.new
-    areas = map(&:signed_area)
-    candidates = tails.values
-    while candidates.any?
-      (*nodes, node), length = candidates.pop
-      next if (neighbours[node] - nodes).each do |neighbour|
-        candidates << [ [ *nodes, node, neighbour ], length + [ node.point, neighbour.point ].distance ]
-      end.any?
-      index = nodes.map(&:whence).inject(node.whence, &:|).find do |index|
-        areas[index] > 0
+    dimensions.map do |dimension|
+      data = case dimension
+      when 0
+        points ||= incoming.select do |node, count|
+          count > 2 && node.travel > fraction * travel
+        end.keys.sort_by(&:travel).reverse.map(&:point)
+      when 1
+        loop do
+          break unless neighbours.reject do |node, (neighbour, *others)|
+            others.any? || neighbours[neighbour].one?
+          end.each do |node, (neighbour, *)|
+            next if neighbours[neighbour].one?
+            neighbours.delete node
+            neighbours[neighbour].delete node
+            nodes, length = tails.delete(node) || [ [ node ], 0 ]
+            candidate = [ nodes << neighbour, length + [ node.point, neighbour.point ].distance ]
+            tails[neighbour] = [ tails[neighbour], candidate ].compact.max_by(&:last)
+          end.any?
+        end
+        lengths, lines = Hash.new(0), Hash.new
+        areas, candidates = map(&:signed_area), tails.values
+        while candidates.any?
+          (*nodes, node), length = candidates.pop
+          next if (neighbours[node] - nodes).each do |neighbour|
+            candidates << [ [ *nodes, node, neighbour ], length + [ node.point, neighbour.point ].distance ]
+          end.any?
+          index = nodes.map(&:whence).inject(node.whence, &:|).find do |index|
+            areas[index] > 0
+          end
+          (*tail_nodes, node), tail_length = tails[node] || [ [ node ], 0 ]
+          lengths[index], lines[index] = length + tail_length, nodes + tail_nodes.reverse if length + tail_length > lengths[index]
+        end
+        lines.values.map do |nodes|
+          nodes.chunk do |node|
+            node.travel > fraction * travel
+          end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
+            nodes.map(&:point)
+          end
+        end.flatten(1).sanitise(false)
       end
-      (*tail_nodes, node), tail_length = tails[node] || [ [ node ], 0 ]
-      lengths[index], lines[index] = length + tail_length, nodes + tail_nodes.reverse if length + tail_length > lengths[index]
+      [ dimension, data ]
     end
-    lines = lines.values.map do |nodes|
-      nodes.chunk do |node|
-        node.travel > fraction * travel
-      end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
-        nodes.map(&:point)
-      end
-    end.flatten(1).sanitise(false)
-    get_points ? [ lines, points ] : [ lines ]
   end
   
   def inset(closed, margin, options = {})

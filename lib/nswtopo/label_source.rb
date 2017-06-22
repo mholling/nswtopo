@@ -85,11 +85,11 @@ module NSWTopo
               when "reduce"
                 case arg
                 when "centrelines"
-                  next [ 1 ].zip data.centrelines_centrepoints(true, false, *args) if closed
+                  next data.centres [ 1 ], *args if closed
                 when "centrepoints"
-                  next [ 0 ].zip data.centrelines_centrepoints(false, true, *args) if closed
+                  next data.centres [ 0 ], *args if closed
                 when "centres"
-                  next [ 1, 0 ].zip data.centrelines_centrepoints(true, true, *args) if closed
+                  next data.centres [ 1, 0 ], *args if closed
                 when "centroids"
                   next [ [ 0, data.reject(&:hole?).map(&:centroid) ] ] if closed
                 when "intervals"

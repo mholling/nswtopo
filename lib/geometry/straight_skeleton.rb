@@ -22,7 +22,7 @@ module StraightSkeleton
     
     def heading
       @heading ||= case
-      when !normals.all?
+      when terminal?
         normals.compact.first
       when normals.inject(&:dot) >= 0
         normals.inject(&:plus).normalised
@@ -34,8 +34,8 @@ module StraightSkeleton
     end
     
     def point_at(travel)
-      return heading.times(travel - @travel).plus(point) unless normals.all?
-      heading.times((travel - @travel) / Math::sqrt((1 + normals.inject(&:dot)) * 0.5)).plus(point)
+      cosine = terminal? ? 1 : Math::sqrt((1 + normals.inject(&:dot)) * 0.5)
+      heading.times((travel - @travel) / cosine).plus(point)
     end
     
     def self.solve(n0, n1, n2, x0, x1, x2)

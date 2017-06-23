@@ -155,6 +155,7 @@ module StraightSkeleton
   class Nodes
     def initialize(data, closed, limit = nil, options = {})
       @candidates, @closed, @limit = AVLTree.new, closed, limit
+      rounding = options.fetch("rounding", true)
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
       nodes = data.sanitise(closed).tap do |lines|
@@ -165,7 +166,7 @@ module StraightSkeleton
         points.zip(normals).map do |point, normals|
           vertex = Vertex.new(self, point, index, normals)
           next vertex if normals.one?
-          next vertex unless vertex.reflex?
+          next vertex unless rounding && vertex.reflex?
           angle = Math::atan2 normals.inject(&:cross), normals.inject(&:dot)
           extras = cutoff && angle.abs > cutoff ? 1 : (angle.abs / rounding_angle).floor
           extras.times.inject(normals.take(1)) do |normals, n|
@@ -386,7 +387,7 @@ module StraightSkeleton
   end
   
   def close_gaps(max_gap, max_area = true)
-    outset(true, 0.5 * max_gap).remove_holes(max_area).inset(true, 0.5 * max_gap)
+    outset(true, 0.5 * max_gap, "rounding" => false).remove_holes(max_area).inset(true, 0.5 * max_gap, "rounding" => false)
   end
   
   def smooth_in(closed, margin, cutoff = nil)

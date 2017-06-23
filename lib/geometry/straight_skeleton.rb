@@ -168,6 +168,7 @@ module StraightSkeleton
           next vertex if normals.one?
           next vertex unless rounding && vertex.reflex?
           angle = Math::atan2 normals.inject(&:cross), normals.inject(&:dot)
+          angle -= 2 * Math::PI if angle > 0
           extras = cutoff && angle.abs > cutoff ? 1 : (angle.abs / rounding_angle).floor
           extras.times.inject(normals.take(1)) do |normals, n|
             normals << normals[0].rotate_by(angle * (n + 1) / (extras + 1))

@@ -3,7 +3,7 @@ module NSWTopo
     include VectorRenderer
     
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase]
-    TRANSFORMS = %w[reduce outset inset buffer smooth-in smooth-out smooth remove-holes close-gaps minimum-area minimum-hole minimum-length remove]
+    TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes close-gaps minimum-area minimum-hole minimum-length remove]
     DEFAULT_FONT_SIZE   = 1.8
     DEFAULT_MARGIN      = 1
     DEFAULT_LINE_HEIGHT = '110%'
@@ -101,10 +101,6 @@ module NSWTopo
                 data.inset(closed, arg) if dimension > 0
               when "buffer"
                 data.buffer(closed, arg, *args) if dimension > 0
-              when "smooth-in"
-                data.smooth_in(closed, arg, max_turn) if dimension > 0
-              when "smooth-out"
-                data.smooth_out(closed, arg, max_turn) if dimension > 0
               when "smooth"
                 data.smooth(closed, arg, max_turn) if dimension > 0
               when "remove-holes"

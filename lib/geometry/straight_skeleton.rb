@@ -100,9 +100,8 @@ module StraightSkeleton
     
     def viable?
       return false unless @source.active?
-      @edge = @nodes.edges.select do |edge|
-        edge[0].normals[1].equal? @normal
-      end.find do |edge|
+      @edge = @nodes.edges.find do |edge|
+        next unless edge[0].normals[1].equal? @normal
         e0, e1 = edge.map(&:point)
         h0, h1 = edge.map(&:heading)
         next if point.minus(e0).cross(h0) < 0

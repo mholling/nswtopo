@@ -311,7 +311,7 @@ module StraightSkeleton
   end
   
   def centres(dimensions, fraction = 0.5)
-    points = map(&:centroid) if dimensions.include? 0 && all?(&:convex?)
+    points = map(&:centroid) if dimensions.include?(0) && all?(&:convex?)
     return [ [ 0, points ] ] if points && dimensions == [ 0 ]
     neighbours = Hash.new { |neighbours, node| neighbours[node] = [] }
     incoming, tails = Hash.new(0), Hash.new

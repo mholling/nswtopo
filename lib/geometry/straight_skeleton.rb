@@ -350,7 +350,7 @@ module StraightSkeleton
           index = nodes.map(&:whence).inject(node.whence, &:|).find do |index|
             areas[index] > 0
           end
-          (*tail_nodes, node), tail_length = tails[node] || [ [ node ], 0 ]
+          tail_nodes, tail_length = tails[node] || [ [ node ], 0 ]
           lengths[index], lines[index] = length + tail_length, nodes + tail_nodes.reverse if length + tail_length > lengths[index]
         end
         lines.values.map do |nodes|

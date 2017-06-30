@@ -77,6 +77,16 @@ module NSWTopo
         %x[convert #{sequence} -compose Copy -layers mosaic "#{png_path}"]
       when /wkhtmltoimage/i
         %x["#{rasterise}" -q --width #{width} --height #{height} --zoom #{zoom} "#{svg_path}" "#{png_path}"]
+      when /chrome|chromium/i
+        src_path = temp_dir + "#{map.name}.scaled.svg"
+        svg = %w[width height].inject(svg_path.read) do |svg, attribute|
+          svg.sub(/#{attribute}='(.*?)mm'/) { |match| %Q[#{attribute}='#{$1.to_f * zoom}mm'] }
+        end
+        src_path.write svg
+        Dir.chdir(temp_dir) do
+          %x["#{rasterise}" --headless --enable-logging --log-level=1 --disable-lcd-text --hide-scrollbars --window-size=#{width},#{height} --screenshot "file://#{src_path}"]
+          FileUtils.mv "screenshot.png", png_path
+        end
       else
         abort("Error: specify either electron, phantomjs, wkhtmltoimage, inkscape or qlmanage as your rasterise method (see README).")
       end

@@ -326,7 +326,9 @@ module NSWTopo
               when "downhill" then baseline.reverse!
               else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
               end
-              hull = [ baseline.convex_hull ].outset(true, 0.5 * font_size, "splits" => false, "rounding-angle" => 90).flatten(1)
+              hull = [ baseline, baseline.reverse ].map do |line|
+                [ line ].inset(false, 0.5 * font_size, "splits" => false)
+              end.flatten(2).convex_hull
               next unless labelling_hull.surrounds?(hull).all?
               baseline << baseline.last(2).difference.normalised.times(text_length * 0.25).plus(baseline.last)
               path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT

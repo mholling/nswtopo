@@ -325,7 +325,7 @@ module StraightSkeleton
       data = case dimension
       when 0
         points ||= incoming.select do |node, count|
-          count > 2 && node.travel > fraction * travel
+          count > 2 && node.travel >= fraction * travel
         end.keys.sort_by(&:travel).reverse.map(&:point)
       when 1
         loop do
@@ -355,7 +355,7 @@ module StraightSkeleton
         end
         lines.values.map do |nodes|
           nodes.chunk do |node|
-            node.travel > fraction * travel
+            node.travel >= fraction * travel
           end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
             nodes.map(&:point)
           end

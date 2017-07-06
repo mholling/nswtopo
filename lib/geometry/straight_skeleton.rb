@@ -386,10 +386,6 @@ module StraightSkeleton
     end
   end
   
-  def close_gaps(max_gap, max_area = true)
-    outset(true, 0.5 * max_gap, "rounding" => false).remove_holes(max_area).inset(true, 0.5 * max_gap, "rounding" => false)
-  end
-  
   def smooth(closed, margin, cutoff = nil)
     inset(closed, margin).outset(closed, 2 * margin, "cutoff" => cutoff).inset(closed, margin, "cutoff" => cutoff)
   end

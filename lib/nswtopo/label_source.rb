@@ -3,7 +3,7 @@ module NSWTopo
     include VectorRenderer
     
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase]
-    TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove]
+    TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest]
     DEFAULT_FONT_SIZE   = 1.8
     DEFAULT_MARGIN      = 1
     DEFAULT_LINE_HEIGHT = '110%'
@@ -132,6 +132,11 @@ module NSWTopo
                   when Regexp  then text =~ value
                   when Numeric then text == value.to_s
                   end
+                end
+              when "keep-largest"
+                case dimension
+                when 1 then [ data.max_by(&:signed_area) ]
+                when 2 then [ data.max_by(&:path_length) ]
                 end
               end
               [ [ dimension, transformed || data ] ]

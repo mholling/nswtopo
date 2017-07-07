@@ -159,14 +159,20 @@ module NSWTopo
               end if content
             when "shield"
               next unless content
-              filter_id = [ *ids, "background" ].join(SEGMENT)
-              defs.add_element("filter", "id" => filter_id, "y" => -0.25, "height" => 1.5, "x" => 0, "width" => 1).tap do |filter|
-                filter.add_element "feFlood", "flood-color" => args
-                filter.add_element "feComposite", "in" => "SourceGraphic"
-              end
               content.elements.each("text") do |element|
-                element.add_attributes "filter" => "url(##{filter_id})", "style" => "white-space:pre"
-                element.text = " #{element.text} "
+                font_size, letter_spacing, word_spacing = %w[font-size letter-spacing word-spacing].map do |name|
+                  element.elements["./ancestor::g[@#{name}]/@#{name}"]
+                end.map do |attribute|
+                  attribute ? attribute.value.to_f : 0
+                end
+                group = REXML::Element.new("g")
+                width, height = element.text.glyph_length(font_size, letter_spacing, word_spacing) + 1.5 * font_size, 1.5 * font_size
+                group.add_element "rect", "x" => -0.5 * width, "y" => -0.5 * height, "width" => width, "height" => height, "rx" => font_size * 0.3, "ry" => font_size * 0.3, "stroke" => "none", "fill" => args
+                transform = element.attributes.get_attribute "transform"
+                transform.remove
+                group.attributes << transform
+                element.parent.elements << group
+                group << element
               end
             when *SVG_PRESENTATION_ATTRIBUTES
               container.add_attribute command, args

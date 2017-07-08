@@ -2,7 +2,7 @@ module NSWTopo
   class LabelSource
     include VectorRenderer
     
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase]
+    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase shield]
     TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
     DEFAULT_FONT_SIZE   = 1.8
     DEFAULT_MARGIN      = 1
@@ -208,6 +208,10 @@ module NSWTopo
               line.glyph_length(font_size, letter_spacing, word_spacing)
             end.max
             height = lines.map { font_size }.inject { |total, font_size| total + font_size * line_height }
+            if attributes["shield"]
+              width += VectorRenderer::SHIELD_X * font_size
+              height += VectorRenderer::SHIELD_Y * font_size
+            end
             [ *attributes["position"] || "over" ].map.with_index do |position, index|
               dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0

@@ -1,5 +1,6 @@
 module NSWTopo
   module VectorRenderer
+    SHIELD_X, SHIELD_Y = 1.5, 0.5
     SVG_PRESENTATION_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
     attr_reader :name, :params
     
@@ -166,7 +167,7 @@ module NSWTopo
                   attribute ? attribute.value.to_f : 0
                 end
                 group = REXML::Element.new("g")
-                width, height = element.text.glyph_length(font_size, letter_spacing, word_spacing) + 1.5 * font_size, 1.5 * font_size
+                width, height = element.text.glyph_length(font_size, letter_spacing, word_spacing) + SHIELD_X * font_size, (1 + SHIELD_Y) * font_size
                 group.add_element "rect", "x" => -0.5 * width, "y" => -0.5 * height, "width" => width, "height" => height, "rx" => font_size * 0.3, "ry" => font_size * 0.3, "stroke" => "none", "fill" => args
                 transform = element.attributes.get_attribute "transform"
                 transform.remove

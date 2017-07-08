@@ -3,7 +3,7 @@ module NSWTopo
     include VectorRenderer
     
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase]
-    TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest]
+    TRANSFORMS = %w[reduce outset inset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
     DEFAULT_FONT_SIZE   = 1.8
     DEFAULT_MARGIN      = 1
     DEFAULT_LINE_HEIGHT = '110%'
@@ -138,6 +138,10 @@ module NSWTopo
                 when 1 then [ data.max_by(&:signed_area) ]
                 when 2 then [ data.max_by(&:path_length) ]
                 end
+              when "trim"
+                data.map do |points|
+                  points.trim arg
+                end.reject(&:empty?) if dimension == 1
               end
               [ [ dimension, transformed || data ] ]
             end.flatten(1)

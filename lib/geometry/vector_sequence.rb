@@ -96,9 +96,10 @@ module VectorSequence
     segments.map(&:difference).map(&:norm).inject(0, &:+)
   end
   
-  def crop(length)
-    start = 0.5 * (path_length - length)
-    stop = start + length
+  def trim(margin)
+    start = [ margin, 0 ].max
+    stop = path_length - start
+    return [] unless start < stop
     points, total = [], 0
     segments.each do |segment|
       distance = segment.distance
@@ -115,6 +116,10 @@ module VectorSequence
       break if total >= stop
     end
     points
+  end
+  
+  def crop(length)
+    trim(0.5 * (path_length - length))
   end
 end
 

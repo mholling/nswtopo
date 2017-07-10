@@ -46,7 +46,7 @@ module StraightSkeleton
       [ point, travel ]
     end
     
-    def self.solve_asym(n0, n1, n2, x0, x1,x2)
+    def self.solve_asym(n0, n1, n2, x0, x1, x2)
       det = n0.minus(n1).dot(n2)
       return if det.zero?
       travel = (x0 * n1.dot(n2) - x1 * n2.dot(n0) + x2 * n0.cross(n1)) / det
@@ -198,6 +198,7 @@ module StraightSkeleton
       when good[1] then Node::solve_asym(n11, n10, n10, n11.dot(p1) - t1, n10.dot(p1) - t1, n01.cross(p0))
       end
       return if !travel || travel <= 0 || (@limit && travel >= @limit)
+      return if travel < t0 || travel < t1
       @candidates << Collapse.new(self, point, travel, edge)
     end
     

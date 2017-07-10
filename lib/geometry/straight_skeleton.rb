@@ -38,6 +38,13 @@ module StraightSkeleton
       heading.times((travel - @travel) / cosine).plus(point)
     end
     
+    # #################################
+    # solve for vector p and scalar t:
+    #   n0.p - t = x0
+    #   n1.p - t = x1
+    #   n2.p - t = x2
+    # #################################
+    
     def self.solve(n0, n1, n2, x0, x1, x2)
       det = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
       return if det.zero?
@@ -45,6 +52,13 @@ module StraightSkeleton
       point = [ n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2) ].inject(&:plus) / det
       [ point, travel ]
     end
+    
+    # #################################
+    # solve for vector p and scalar t:
+    #   n0.p - t = x0
+    #   n1.p - t = x1
+    #   n2 x p   = x2
+    # #################################
     
     def self.solve_asym(n0, n1, n2, x0, x1, x2)
       det = n0.minus(n1).dot(n2)

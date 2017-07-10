@@ -115,11 +115,11 @@ module StraightSkeleton
     def viable?
       return false unless @source.active?
       @edge = @nodes.edges.find do |edge|
-        next unless edge[0].normals[1].equal? @normal
-        e0, e1 = edge.map(&:point)
-        h0, h1 = edge.map(&:heading)
-        next if point.minus(e0).cross(h0) < 0
-        next if point.minus(e1).cross(h1) > 0
+        (n00, n01), (n10, n11) = edge.map(&:normals)
+        next unless n01.equal? @normal
+        p0, p1 = edge.map(&:point)
+        next if (n00 ? point.minus(p0).cross(n00) : 0) + point.minus(p0).cross(n01) < 0
+        next if (n11 ? point.minus(p1).cross(n11) : 0) + point.minus(p1).cross(n10) > 0
         true
       end
     end
@@ -158,9 +158,8 @@ module StraightSkeleton
       end
       return if !travel || travel < 0 || travel.infinite? || (limit && travel >= limit)
       return if point.minus(p0).dot(n01) < 0
-      h0, h1 = edge.map(&:heading)
-      return if point.minus(p0).cross(h0) < 0
-      return if point.minus(p1).cross(h1) > 0
+      return if (n00 ? point.minus(p0).cross(n00) : 0) + point.minus(p0).cross(n01) < 0
+      return if (n11 ? point.minus(p1).cross(n11) : 0) + point.minus(p1).cross(n10) > 0
       Split.new @nodes, point, travel, self, edge[0]
     end
   end

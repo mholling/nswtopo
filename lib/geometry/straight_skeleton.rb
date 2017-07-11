@@ -33,7 +33,7 @@ module StraightSkeleton
       end
     end
     
-    def point_at(travel)
+    def project(travel)
       cosine = terminal? ? 1 : Math::sqrt((1 + normals.inject(&:dot)) * 0.5)
       heading.times((travel - @travel) / cosine).plus(point)
     end
@@ -276,7 +276,7 @@ module StraightSkeleton
         end.map do |node|
           candidate, closer, travel, searched = nil, nil, @limit, Set.new
           loop do
-            bounds = node.point_at(travel).zip(node.point).map do |centre, coord|
+            bounds = node.project(travel).zip(node.point).map do |centre, coord|
               [ coord, centre - travel, centre + travel ].minmax
             end if travel
             break candidate unless index.search(bounds, searched).any? do |edge|
@@ -311,7 +311,7 @@ module StraightSkeleton
           nodes.each do |node|
             @active.delete node
           end.map do |node|
-            node.point_at(@limit)
+            node.project(@limit)
           end.tap do |points|
             yielder << points
           end
@@ -321,7 +321,7 @@ module StraightSkeleton
     
     def project(&block)
       @active.map do |node|
-        [ node.point, node.point_at(@limit) ]
+        [ node.point, node.project(@limit) ]
       end.each(&block) if @limit
     end
   end

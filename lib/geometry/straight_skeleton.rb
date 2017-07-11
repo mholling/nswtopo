@@ -295,6 +295,10 @@ module StraightSkeleton
           yield [ node, candidate ].rotate(index).map(&:original) if block_given?
         end
       end
+      self
+    end
+    
+    def finalise
       Enumerator.new do |yielder|
         while @active.any?
           nodes = [ @active.first ]
@@ -312,14 +316,22 @@ module StraightSkeleton
             yielder << points
           end
         end
-      end.to_a.sanitise(@closed) unless block_given?
+      end.to_a.sanitise(@closed)
+    end
+    
+    def project(&block)
+      @active.map do |node|
+        [ node.point, node.point_at(@limit) ]
+      end.each(&block) if @limit
     end
   end
   
-  def straight_skeleton
+  def straight_skeleton(limit = nil)
     result = [ ]
-    Nodes.new(self, true).progress do |nodes|
+    Nodes.new(self, true, limit).progress do |nodes|
       result << nodes.map(&:point)
+    end.project do |segment|
+      result << segment
     end
     result
   end
@@ -381,7 +393,7 @@ module StraightSkeleton
   
   def inset(closed, margin, options = {})
     return self if margin.zero?
-    Nodes.new(self, closed, margin, options).progress(options)
+    Nodes.new(self, closed, margin, options).progress(options).finalise
   end
   
   def outset(closed, margin, options = {})

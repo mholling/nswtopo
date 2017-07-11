@@ -85,7 +85,7 @@ module NSWTopo
               when "reduce"
                 case arg
                 when "skeleton"
-                  next [ [ 1, data.straight_skeleton ] ] if closed
+                  next [ [ 1, data.straight_skeleton(*args) ] ] if closed
                 when "centrelines"
                   next data.centres [ 1 ], *args if closed
                 when "centrepoints"

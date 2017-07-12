@@ -159,6 +159,8 @@ module StraightSkeleton
       p0, p1, p2 = [ *edge, self ].map(&:point)
       (n00, n01), (n10, n11), (n20, n21) = [ *edge, self ].map(&:normals)
       return if p0 == p2 || p1 == p2
+      # return unless (n20 ? n20.dot(n01) : 0) + (n21 ? n21.dot(n01) : 0) < 0
+      return unless heading.dot(n01) < 0
       point, travel = case
       when n20 && n21 then Node::solve(n20, n21, n01, n20.dot(p2), n21.dot(p2), n01.dot(p0))
       when n20 then Node::solve_asym(n01, n20, n20, n01.dot(p0), n20.dot(p2), n20.cross(p2))
@@ -166,8 +168,6 @@ module StraightSkeleton
       end
       return if !travel || travel < 0 || travel.infinite? || (limit && travel >= limit)
       return if point.minus(p0).dot(n01) < 0
-      return if (n00 ? point.minus(p0).cross(n00) : 0) + point.minus(p0).cross(n01) < 0
-      return if (n11 ? point.minus(p1).cross(n11) : 0) + point.minus(p1).cross(n10) > 0
       Split.new @nodes, point, travel, self, edge[0]
     end
   end
@@ -278,22 +278,18 @@ module StraightSkeleton
         end if @closed
         index = RTree.load(edges) do |edge|
           edge.map(&:point).transpose.map(&:minmax)
-        end
+        end if @limit
         @active.select do |node|
           node.terminal? || node.reflex?
-        end.map do |node|
-          candidate, closer, travel, searched = nil, nil, @limit, Set.new
-          loop do
-            bounds = node.project(travel).zip(node.point).map do |centre, coord|
-              [ coord, centre - travel, centre + travel ].minmax
-            end if travel
-            break candidate unless index.search(bounds, searched).any? do |edge|
-              closer = node.split edge, travel
-            end
-            candidate, travel = closer, closer.travel
+        end.each do |node|
+          bounds = node.project(@limit).zip(node.point).map do |centre, coord|
+            [ coord, centre - @limit, centre + @limit ].minmax
+          end if @limit
+          (index ? index.search(bounds) : edges).map do |edge|
+            node.split edge, @limit
+          end.compact.each do |split|
+            @candidates << split
           end
-        end.compact.tap do |splits|
-          @candidates.merge splits
         end
       end
       while candidate = @candidates.pop

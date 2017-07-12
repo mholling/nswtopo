@@ -122,9 +122,8 @@ module StraightSkeleton
     
     def viable?
       return false unless @source.active?
-      @edge = @nodes.edges.find do |edge|
+      @edge = @nodes.track(@normal).find do |edge|
         (n00, n01), (n10, n11) = edge.map(&:normals)
-        next unless n01.equal? @normal
         p0, p1 = edge.map(&:point)
         next if (n00 ? point.minus(p0).cross(n00) : 0) + point.minus(p0).cross(n01) < 0
         next if (n11 ? point.minus(p1).cross(n11) : 0) + point.minus(p1).cross(n10) > 0
@@ -175,6 +174,9 @@ module StraightSkeleton
   class Nodes
     def initialize(data, closed, limit = nil, options = {})
       @candidates, @closed, @limit = AVLTree.new, closed, limit
+      @track = Hash.new do |hash, normal|
+        hash[normal] = []
+      end.compare_by_identity
       rounding = options.fetch("rounding", true)
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
@@ -202,6 +204,8 @@ module StraightSkeleton
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end.each do |edge|
           collapse edge
+        end.map(&:first).each do |node|
+          @track[node.normals[1]] << node
         end
       end
       @active = nodes.flatten.to_set
@@ -229,6 +233,7 @@ module StraightSkeleton
     
     def insert(node)
       @active << node
+      @track[node.normals[1]] << node if node.normals[1]
       2.times.inject [ node ] do |nodes|
         [ nodes.first.prev, *nodes, nodes.last.next ].compact
       end.segments.uniq.each do |edge|
@@ -238,6 +243,12 @@ module StraightSkeleton
     
     def edges
       @active.select(&:next).map do |node|
+        [ node, node.next ]
+      end
+    end
+    
+    def track(normal)
+      @track[normal].select(&:active?).map do |node|
         [ node, node.next ]
       end
     end

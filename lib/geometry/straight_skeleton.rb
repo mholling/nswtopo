@@ -34,16 +34,8 @@ module StraightSkeleton
     end
     
     def project(travel)
-      dt = travel - @travel
-      n0, n1 = normals
-      case
-      when n0 && n1
-        (n0.perp.times(dt + n1.dot(point)).minus n1.perp.times(dt + n0.dot(point))) / n0.cross(n1)
-      when n0
-        n0.times(dt).plus(point)
-      when n1
-        n1.times(dt).plus(point)
-      end
+      cosine = terminal? ? 1 : Math::sqrt((1 + normals.inject(&:dot)) * 0.5)
+      heading.times((travel - @travel) / cosine).plus(point)
     end
     
     # #################################

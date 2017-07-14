@@ -35,48 +35,48 @@ module Clipping
   end
   
   def clip_polys(hull)
-    [ hull, hull.perps ].transpose.inject(self) do |polygons, (vertex, perp)|
-      polygons.inject([]) do |clipped, polygon|
-        insides = polygon.map { |point| point.minus(vertex).dot(perp) >= 0 }
-        case
-        when insides.all? then clipped << polygon
-        when insides.none?
-        else
-          outgoing = insides.ring.map.with_index.select { |inside, index| inside[0] && !inside[1] }.map(&:last)
-           ingoing = insides.ring.map.with_index.select { |inside, index| !inside[0] && inside[1] }.map(&:last)
-          pairs = [ outgoing, ingoing ].map do |indices|
-            polygon.ring.map.with_index.to_a.values_at(*indices).map do |segment, index|
-              [ segment.along(vertex.minus(segment[0]).dot(perp).to_f / segment.difference.dot(perp)), index ]
-            end.sort_by do |intersection, index|
-              [ vertex.minus(intersection).dot(perp.perp), index ]
-            end
-          end.transpose
-          clipped << []
-          while pairs.any?
-            index ||= pairs[0][1][1]
-            start ||= pairs[0][0][1]
-            pair = pairs.min_by do |pair|
-              intersections, indices = pair.transpose
-              (indices[0] - index) % polygon.length
-            end
-            pairs.delete pair
-            intersections, indices = pair.transpose
-            while (indices[0] - index) % polygon.length > 0
-              index += 1
-              index %= polygon.length
-              clipped.last << polygon[index]
-            end
-            clipped.last << intersections[0] << intersections[1]
-            if index == start
-              clipped << []
-              index = start = nil
-            else
-              index = indices[1]
-            end
+    handedness = first.hole? ? -1 : 1
+    hull.zip(hull.perps).inject(self) do |polygons, (vertex, perp)|
+      polygons.chunk do |points|
+        points.signed_area * handedness >= 0
+      end.map(&:last).each_slice(2).map do |polys, holes|
+        insides, neighbours, result = Hash[].compare_by_identity, Hash[].compare_by_identity, []
+        [ *polys, *holes ].each do |points|
+          points.map do |point|
+            point.minus(vertex).dot(perp) >= 0
+          end.ring.zip(points.ring).each do |inside, segment|
+            insides[segment] = inside
+            neighbours[segment] = [ nil, nil ]
+          end.map(&:last).ring.each do |segment0, segment1|
+            neighbours[segment1][0], neighbours[segment0][1] = segment0, segment1
           end
         end
-        clipped.select(&:any?)
-      end
+        neighbours.select! do |segment, _|
+          insides[segment].any?
+        end
+        insides.select do |segment, inside|
+          inside.inject(&:^)
+        end.each do |segment, inside|
+          segment[inside[0] ? 1 : 0] = segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
+        end.sort_by do |segment, inside|
+          segment[inside[0] ? 1 : 0].minus(vertex).cross(perp) * handedness
+        end.map(&:first).each_slice(2) do |segment0, segment1|
+          segment = [ segment0[1], segment1[0] ]
+          neighbours[segment0][1] = neighbours[segment1][0] = segment
+          neighbours[segment] = [ segment0, segment1 ]
+        end
+        while neighbours.any?
+          segment, * = neighbours.first
+          result << []
+          while neighbours.include? segment
+            result.last << segment[0]
+            *, segment = neighbours.delete(segment)
+          end
+        end
+        result.partition do |points|
+          points.signed_area * handedness >= 0
+        end.flatten(1)
+      end.flatten(1)
     end
   end
   

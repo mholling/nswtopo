@@ -73,9 +73,7 @@ module Clipping
             *, segment = neighbours.delete(segment)
           end
         end
-        result.partition do |points|
-          points.signed_area * handedness >= 0
-        end.flatten(1)
+        result # TODO: reorder holes when polgon is split into multipolygon
       end.flatten(1)
     end
   end

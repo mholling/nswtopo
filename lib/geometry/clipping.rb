@@ -35,11 +35,9 @@ module Clipping
   end
   
   def clip_polys(hull)
-    handedness = first.hole? ? -1 : 1
+    lefthanded = first.hole?
     hull.zip(hull.perps).inject(self) do |polygons, (vertex, perp)|
-      polygons.chunk do |points|
-        points.signed_area * handedness >= 0
-      end.map(&:last).each_slice(2).map do |polys, holes|
+      polygons.chunk(&:hole?).map(&:last).each_slice(2).map do |polys, holes|
         insides, neighbours, result = Hash[].compare_by_identity, Hash[].compare_by_identity, []
         [ *polys, *holes ].each do |points|
           points.map do |point|
@@ -59,7 +57,7 @@ module Clipping
         end.each do |segment, inside|
           segment[inside[0] ? 1 : 0] = segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
         end.sort_by do |segment, inside|
-          segment[inside[0] ? 1 : 0].minus(vertex).cross(perp) * handedness
+          segment[inside[0] ? 1 : 0].minus(vertex).cross(perp) * (lefthanded ? -1 : 1)
         end.map(&:first).each_slice(2) do |segment0, segment1|
           segment = [ segment0[1], segment1[0] ]
           neighbours[segment0][1] = neighbours[segment1][0] = segment

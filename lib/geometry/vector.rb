@@ -77,6 +77,14 @@ module Vector
       point.map { |value| value.round decimal_digits }
     end
   end
+  
+  def within?(polygon)
+    polygon.map do |point|
+      point.minus self
+    end.ring.map do |rays|
+      Math::atan2 rays.inject(&:cross), rays.inject(&:dot)
+    end.inject(&:+) > Math::PI
+  end
 end
 
 Array.send :include, Vector

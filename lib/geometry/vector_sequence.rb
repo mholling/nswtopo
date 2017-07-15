@@ -26,7 +26,7 @@ module VectorSequence
   def surrounds?(points)
     Enumerator.new do |yielder|
       points.each do |point|
-        yielder << [ self, perps ].transpose.all? { |vertex, perp| point.minus(vertex).dot(perp) >= 0 }
+        yielder << point.within?(self)
       end
     end
   end

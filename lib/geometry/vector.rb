@@ -83,7 +83,7 @@ module Vector
       point.minus self
     end.ring.map do |rays|
       Math::atan2 rays.inject(&:cross), rays.inject(&:dot)
-    end.inject(&:+) > Math::PI
+    end.inject(&:+).abs > Math::PI
   end
 end
 

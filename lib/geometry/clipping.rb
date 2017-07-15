@@ -71,7 +71,13 @@ module Clipping
             *, segment = neighbours.delete(segment)
           end
         end
-        result # TODO: reorder holes when polgon is split into multipolygon
+        holes, polys = result.partition(&:hole?).rotate(lefthanded ? 1 : 0)
+        polys.inject([]) do |memo, polygon|
+          memo << polygon
+          memo + holes.select do |hole|
+            hole.first.within?(polygon)
+          end
+        end
       end.flatten(1)
     end
   end

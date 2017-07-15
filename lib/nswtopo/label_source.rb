@@ -79,6 +79,10 @@ module NSWTopo
           end
           transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (arg, *args))|
             next dimensioned_data unless arg
+            opts, args = args.partition do |arg|
+              Hash === arg
+            end
+            opts = opts.inject({}, &:merge)
             dimensioned_data.map do |dimension, data|
               closed = dimension == 2
               transformed = case transform
@@ -87,20 +91,20 @@ module NSWTopo
                 when "skeleton"
                   next [ [ 1, data.straight_skeleton(*args) ] ] if closed
                 when "centrelines"
-                  next data.centres [ 1 ], *args if closed
+                  next data.centres [ 1 ], *args, opts if closed
                 when "centrepoints"
-                  next data.centres [ 0 ], *args if closed
+                  next data.centres [ 0 ], *args, opts if closed
                 when "centres"
-                  next data.centres [ 1, 0 ], *args if closed
+                  next data.centres [ 1, 0 ], *args, opts if closed
                 when "centroids"
                   next [ [ 0, data.reject(&:hole?).map(&:centroid) ] ] if closed
                 when "intervals"
                   next [ [ 0, data.at_interval(closed, args[0] || DEFAULT_SAMPLE).map(&:first) ] ] if dimension > 0
                 end
               when "outset"
-                data.outset(closed, arg) if dimension > 0
+                data.outset(closed, arg, opts) if dimension > 0
               when "inset"
-                data.inset(closed, arg) if dimension > 0
+                data.inset(closed, arg, opts) if dimension > 0
               when "buffer"
                 data.buffer(closed, arg, *args) if dimension > 0
               when "smooth"

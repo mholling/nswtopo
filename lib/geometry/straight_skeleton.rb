@@ -343,7 +343,9 @@ module StraightSkeleton
     result
   end
   
-  def centres(dimensions, fraction = 0.5)
+  def centres(dimensions, *args, options)
+    fraction  = args[0] || options["fraction"]
+    min_width = args[1] || options["min-width"]
     points = map(&:centroid) if dimensions.include?(0) && all?(&:convex?)
     return [ [ 0, points ] ] if points && dimensions == [ 0 ]
     neighbours = Hash.new { |neighbours, node| neighbours[node] = [] }
@@ -353,12 +355,13 @@ module StraightSkeleton
       neighbours[node0] << node1
       neighbours[node1] << node0
     end
-    travel = neighbours.keys.map(&:travel).max
+    max_travel = neighbours.keys.map(&:travel).max
+    min_travel = [ (fraction || 0.5) * max_travel, min_width && 0.5 * min_width ].compact.max
     dimensions.map do |dimension|
       data = case dimension
       when 0
         points ||= incoming.select do |node, count|
-          count > 2 && node.travel >= fraction * travel
+          count > 2 && node.travel >= min_travel
         end.keys.sort_by(&:travel).reverse.map(&:point)
       when 1
         loop do
@@ -388,7 +391,7 @@ module StraightSkeleton
         end
         lines.values.map do |nodes|
           nodes.chunk do |node|
-            node.travel >= fraction * travel
+            node.travel >= min_travel
           end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
             nodes.map(&:point)
           end

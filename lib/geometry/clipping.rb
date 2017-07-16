@@ -36,10 +36,12 @@ module Clipping
   
   def clip_polys(hull)
     lefthanded = first.hole?
-    hull.zip(hull.perps).inject(self) do |polygons, (vertex, perp)|
-      polygons.chunk(&:hole?).map(&:last).each_slice(2).map do |polys, holes|
+    chunk(&:hole?).map(&:last).each_slice(2).map do |polys, holes|
+      polys.zip.tap { |*, last| last.concat holes if holes }
+    end.flatten(1).map do |rings|
+      holes, polys = hull.zip(hull.perps).inject(rings) do |rings, (vertex, perp)|
         insides, neighbours, result = Hash[].compare_by_identity, Hash[].compare_by_identity, []
-        [ *polys, *holes ].each do |points|
+        rings.each do |points|
           points.map do |point|
             point.minus(vertex).dot(perp) >= 0
           end.ring.zip(points.ring).each do |inside, segment|
@@ -71,15 +73,17 @@ module Clipping
             *, segment = neighbours.delete(segment)
           end
         end
-        holes, polys = result.partition(&:hole?).rotate(lefthanded ? 1 : 0)
-        polys.inject([]) do |memo, polygon|
-          memo << polygon
-          memo + holes.select do |hole|
-            hole.first.within?(polygon)
-          end
+        result
+      end.partition(&:hole?).rotate(lefthanded ? 1 : 0)
+      next polys + holes if polys.one?
+      polys.inject([]) do |memo, polygon|
+        memo << polygon
+        within, holes = holes.partition do |hole|
+          hole.first.within? polygon
         end
-      end.flatten(1)
-    end
+        memo.concat within
+      end
+    end.flatten(1)
   end
   
   def clip_polys!(hull)

@@ -81,9 +81,13 @@ module Vector
   def within?(polygon)
     polygon.map do |point|
       point.minus self
-    end.ring.map do |rays|
-      Math::atan2 rays.inject(&:cross), rays.inject(&:dot)
-    end.inject(&:+).abs > Math::PI
+    end.ring.inject(0) do |winding, (p0, p1)|
+      case
+      when p1[1] > 0 && p0[1] <= 0 && p0.minus(p1).cross(p0) > 0 then winding + 1
+      when p0[1] > 0 && p1[1] <= 0 && p1.minus(p0).cross(p0) > 0 then winding - 1
+      else winding
+      end
+    end != 0
   end
 end
 

@@ -83,8 +83,10 @@ module Vector
       point.minus self
     end.ring.inject(0) do |winding, (p0, p1)|
       case
-      when p1[1] > 0 && p0[1] <= 0 && p0.minus(p1).cross(p0) > 0 then winding + 1
-      when p0[1] > 0 && p1[1] <= 0 && p1.minus(p0).cross(p0) > 0 then winding - 1
+      when p1[1] > 0 && p0[1] <= 0 && p0.minus(p1).cross(p0) >= 0 then winding + 1
+      when p0[1] > 0 && p1[1] <= 0 && p1.minus(p0).cross(p0) >= 0 then winding - 1
+      when p0[1] == 0 && p1[1] == 0 && p0[0] >= 0 && p1[0] < 0 then winding + 1
+      when p0[1] == 0 && p1[1] == 0 && p1[0] >= 0 && p0[0] < 0 then winding - 1
       else winding
       end
     end != 0

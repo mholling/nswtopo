@@ -56,10 +56,12 @@ module Clipping
         end
         insides.select do |segment, inside|
           inside.inject(&:^)
-        end.each do |segment, inside|
-          segment[inside[0] ? 1 : 0] = segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
-        end.sort_by do |segment, inside|
-          segment[inside[0] ? 1 : 0].minus(vertex).cross(perp) * (lefthanded ? -1 : 1)
+        end.map do |segment, inside|
+          [ segment, inside[0] ? 1 : 0 ]
+        end.each do |segment, index|
+          segment[index] = segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
+        end.sort_by do |segment, index|
+          [ segment[index].minus(vertex).cross(perp) * (lefthanded ? -1 : 1), index ]
         end.map(&:first).each_slice(2) do |segment0, segment1|
           segment = [ segment0[1], segment1[0] ]
           neighbours[segment0][1] = neighbours[segment1][0] = segment

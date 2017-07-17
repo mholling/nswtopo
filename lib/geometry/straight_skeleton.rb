@@ -333,9 +333,10 @@ module StraightSkeleton
     end
   end
   
-  def straight_skeleton(limit = nil)
+  def straight_skeleton(closed, limit = nil, options)
+    return map(&:reverse).straight_skeleton(closed, -limit, options) if limit && limit < 0
     result = [ ]
-    Nodes.new(self, true, limit).progress do |nodes|
+    Nodes.new(self, closed, limit, options).progress do |nodes|
       result << nodes.map(&:point)
     end.project do |segment|
       result << segment

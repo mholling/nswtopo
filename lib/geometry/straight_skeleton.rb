@@ -169,7 +169,6 @@ module StraightSkeleton
       @track = Hash.new do |hash, normal|
         hash[normal] = []
       end.compare_by_identity
-      rounding = options.fetch("rounding", true)
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
       nodes = data.sanitise(closed).tap do |lines|
@@ -180,7 +179,7 @@ module StraightSkeleton
         points.zip(normals).map do |point, normals|
           vertex = Vertex.new(self, point, index, normals)
           next vertex if normals.one?
-          next vertex unless rounding && vertex.reflex?
+          next vertex unless vertex.reflex?
           angle = Math::atan2 normals.inject(&:cross), normals.inject(&:dot)
           angle -= 2 * Math::PI if angle > 0
           extras = cutoff && angle.abs > cutoff ? 1 : (angle.abs / rounding_angle).floor

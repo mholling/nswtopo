@@ -6,7 +6,7 @@ module NSWTopo
       xml.elements.delete_all("/svg/g[@id]").map do |group|
         id = group.attributes["id"]
         puts "    Generating layer: #{id}"
-        layer_svg_path, layer_png_path = %w[svg png].map { |ext| temp_dir + [ map.name, id, ext ].join(?.) }
+        layer_svg_path, layer_png_path = %w[svg png].map { |ext| temp_dir + [ map.filename, id, ext ].join(?.) }
         xml.elements["/svg"].add group
         layer_svg_path.open("w") { |file| xml.write file }
         group.remove

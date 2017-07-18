@@ -226,7 +226,7 @@ rotation: 0
     
     return if config["no-output"]
     
-    svg_name = "#{map.name}.svg"
+    svg_name = "#{map.filename}.svg"
     svg_path = Pathname.pwd + svg_name
     
     unless config["no-update"]
@@ -336,21 +336,21 @@ rotation: 0
     end if formats.include? "prj"
     
     outstanding = (formats.keys & %w[png tif gif jpg kmz mbtiles zip psd pdf pgw tfw gfw jgw map prj]).reject do |format|
-      FileUtils.uptodate? "#{map.name}.#{format}", [ svg_path ]
+      FileUtils.uptodate? "#{map.filename}.#{format}", [ svg_path ]
     end
     
     Dir.mktmppath do |temp_dir|
       outstanding.group_by do |format|
         [ formats[format], format == "mbtiles" ]
       end.each do |(ppi, mbtiles), group|
-        png_path = temp_dir + "#{map.name}.#{ppi}.png"
+        png_path = temp_dir + "#{map.filename}.#{ppi}.png"
         Raster.build config, map, ppi, svg_path, temp_dir, png_path do |dimensions|
           puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
         end if (group & %w[png tif gif jpg kmz zip psd]).any? || (ppi && group.include?("pdf"))
         group.each do |format|
           begin
-            puts "Generating #{map.name}.#{format}"
-            output_path = temp_dir + "#{map.name}.#{format}"
+            puts "Generating #{map.filename}.#{format}"
+            output_path = temp_dir + "#{map.filename}.#{format}"
             case format
             when "png"
               FileUtils.cp png_path, output_path
@@ -371,7 +371,7 @@ rotation: 0
             when "pgw", "tfw", "gfw", "jgw"
               map.write_world_file output_path, map.resolution_at(ppi)
             when "map"
-              map.write_oziexplorer_map output_path, map.name, "#{map.name}.png", formats["png"]
+              map.write_oziexplorer_map output_path, map.name, "#{map.filename}.png", formats["png"]
             when "prj"
               File.write output_path, map.projection.send(formats["prj"])
             end

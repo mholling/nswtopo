@@ -4,7 +4,7 @@ module NSWTopo
     LEVELS = 3 # TODO: determine programmatically, or is this fixed?
     
     def self.build(config, map, ppi, png_path, temp_dir, zip_path)
-      zip_dir = temp_dir + map.name
+      zip_dir = temp_dir + map.filename
       tiles_dir = zip_dir + "tiles"
       tiles_dir.mkpath
       
@@ -21,7 +21,7 @@ module NSWTopo
         end.inject(&:product).each.with_index do |(y, x), n|
           FileUtils.cp tile_path % n, tiles_dir + "#{level}x#{y}x#{x}.png"
         end
-        zip_dir.join("#{map.name}.ref").open("w") do |file|
+        zip_dir.join("#{map.filename}.ref").open("w") do |file|
           file.puts map.projection.wkt_simple
           file.puts map.geotransform_at(ppi).flatten.join(?,)
           file << dimensions.join(?,)

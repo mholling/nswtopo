@@ -16,7 +16,7 @@ module NSWTopo
       ]
       cosine = Math::cos(map.wgs84_bounds.last.mean * Math::PI / 180)
       bounds = map.transform_bounds_to(Projection.new "EPSG:3857")
-      png_path = temp_dir + "#{map.name}.mbtiles.png"
+      png_path = temp_dir + "#{map.filename}.mbtiles.png"
       (ppi <= 25 ? ppi : Math::log2(RESOLUTION * ppi * cosine / METERS_PER_INCH / map.scale).ceil).downto(0).inject([]) do |levels, zoom|
         resolution = RESOLUTION / (2 ** zoom)
         indices, dimensions, topleft = bounds.map do |lower, upper|
@@ -24,7 +24,7 @@ module NSWTopo
         end.map.with_index do |indices, axis|
           [ indices, (indices.last - indices.first) * TILE_SIZE, ORIGIN + (axis.zero? ? indices.first : indices.last) * TILE_SIZE * resolution]
         end.transpose
-        tile_path = temp_dir.join("#{map.name}.mbtiles.#{zoom}.%09d.png").to_s
+        tile_path = temp_dir.join("#{map.filename}.mbtiles.#{zoom}.%09d.png").to_s
         levels << [ resolution, indices, dimensions, topleft, tile_path, zoom ]
         break levels if indices.map(&:count).all? { |count| count < 3 }
         levels
@@ -36,7 +36,7 @@ module NSWTopo
       end.tap do |levels|
         puts "  Tiling for zoom levels %s" % levels.map(&:last).minmax.uniq.join(?-)
       end.each.in_parallel do |resolution, indices, dimensions, topleft, tile_path, zoom|
-        tif_path, tfw_path = %w[tif tfw].map { |ext| temp_dir + "#{map.name}.mbtiles.#{zoom}.#{ext}" }
+        tif_path, tfw_path = %w[tif tfw].map { |ext| temp_dir + "#{map.filename}.mbtiles.#{zoom}.#{ext}" }
         WorldFile.write topleft, resolution, 0, tfw_path
         %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorAlpha -depth 8 "#{tif_path}"]
         %x[gdalwarp -s_srs "#{map.projection}" -t_srs EPSG:3857 -r lanczos -dstalpha "#{png_path}" "#{tif_path}"]

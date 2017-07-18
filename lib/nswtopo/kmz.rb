@@ -81,7 +81,7 @@ module NSWTopo
         end.inject({}, &:merge)
         puts
         
-        kmz_dir = temp_dir + map.name
+        kmz_dir = temp_dir + map.filename
         kmz_dir.mkdir
         
         pyramid.map do |zoom, indices_bounds|
@@ -150,7 +150,7 @@ module NSWTopo
         kml_path = kmz_dir + "doc.kml"
         File.write kml_path, xml
         
-        temp_kmz_path = temp_dir + "#{map.name}.kmz"
+        temp_kmz_path = temp_dir + "#{map.filename}.kmz"
         Dir.chdir(kmz_dir) { %x[#{ZIP} -r "#{temp_kmz_path}" *] }
         FileUtils.cp temp_kmz_path, kmz_path
       end

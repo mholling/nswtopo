@@ -42,7 +42,7 @@ module NSWTopo
         ]
         %x["#{rasterise}" "#{js_path}"]
       when /electron/i
-        src_path, js_path, preload_path, tile_path = temp_dir + "#{map.name}.zoomed.svg", temp_dir + "rasterise.js", temp_dir + "preload.js", temp_dir + "tile"
+        src_path, js_path, preload_path, tile_path = temp_dir + "#{map.filename}.zoomed.svg", temp_dir + "rasterise.js", temp_dir + "preload.js", temp_dir + "tile"
         xml = svg_path.read
         xml.sub!(/(<svg[^>]*width\s*=\s*['"])([\d\.e\+\-]+)/i) { "#{$1}#{$2.to_f * zoom}" }
         xml.sub!(/(<svg[^>]*height\s*=\s*['"])([\d\.e\+\-]+)/i) { "#{$1}#{$2.to_f * zoom}" }
@@ -78,7 +78,7 @@ module NSWTopo
       when /wkhtmltoimage/i
         %x["#{rasterise}" -q --width #{width} --height #{height} --zoom #{zoom} "#{svg_path}" "#{png_path}"]
       when /chrome|chromium/i
-        src_path = temp_dir + "#{map.name}.scaled.svg"
+        src_path = temp_dir + "#{map.filename}.scaled.svg"
         svg = %w[width height].inject(svg_path.read) do |svg, attribute|
           svg.sub(/#{attribute}='(.*?)mm'/) { |match| %Q[#{attribute}='#{$1.to_f * zoom}mm'] }
         end

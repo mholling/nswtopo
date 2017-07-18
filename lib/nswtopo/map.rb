@@ -1,7 +1,5 @@
 module NSWTopo
   class Map
-    attr_reader :debug
-    
     def initialize(config)
       @name, @scale, @debug = config.values_at("name", "scale", "debug")
       
@@ -72,7 +70,11 @@ module NSWTopo
       abort "Error: invalid bounds file #{e.message}"
     end
     
-    attr_reader :name, :scale, :projection, :bounds, :centre, :extents, :rotation
+    attr_reader :name, :scale, :projection, :bounds, :centre, :extents, :rotation, :debug
+    
+    def filename
+      @filename ||= @name.gsub(/\s+/, ?-).gsub(/[^-\w\.]/, '')
+    end
     
     def reproject_from(projection, point_or_points)
       projection.reproject_to(@projection, point_or_points)

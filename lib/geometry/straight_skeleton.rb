@@ -142,7 +142,7 @@ module StraightSkeleton
     end
     
     def reflex?
-      normals.inject(&:cross) < 0 || normals.inject(&:plus).all?(&:zero?)
+      normals.inject(&:cross) <= 0
     end
     
     def split(edge, limit)
@@ -169,7 +169,7 @@ module StraightSkeleton
       end.compare_by_identity
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
-      nodes = data.sanitise(closed).tap do |lines|
+      nodes = data.sanitise(closed).to_d.tap do |lines|
         @repeats = lines.flatten(1).group_by { |point| point }.reject { |point, points| points.one? }
       end.map.with_index do |points, index|
         normals = (closed ? points.ring : points.segments).map(&:difference).map(&:normalised).map(&:perp)
@@ -315,7 +315,7 @@ module StraightSkeleton
           nodes.each do |node|
             @active.delete node
           end.map do |node|
-            node.project(@limit)
+            node.project(@limit).to_f
           end.tap do |points|
             yielder << points
           end
@@ -334,9 +334,9 @@ module StraightSkeleton
     return map(&:reverse).straight_skeleton(closed, -limit, options) if limit && limit < 0
     result = [ ]
     Nodes.new(self, closed, limit, options).progress do |nodes|
-      result << nodes.map(&:point)
+      result << nodes.map(&:point).to_f
     end.project do |segment|
-      result << segment
+      result << segment.to_f
     end
     result
   end
@@ -360,7 +360,7 @@ module StraightSkeleton
           node.travel >= min_travel
         end.sort_by do |node, count|
           [ -count, -node.travel ]
-        end.map(&:first).map(&:point)
+        end.map(&:first).map(&:point).to_f
       when 1
         loop do
           break unless neighbours.reject do |node, (neighbour, *others)|
@@ -391,7 +391,7 @@ module StraightSkeleton
           nodes.chunk do |node|
             node.travel >= min_travel
           end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
-            nodes.map(&:point)
+            nodes.map(&:point).to_f
           end
         end.flatten(1).sanitise(false)
       end

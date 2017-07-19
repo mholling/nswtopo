@@ -41,6 +41,14 @@ module Vector
     map { |value| -value }
   end
   
+  def to_d
+    map(&:to_d)
+  end
+  
+  def to_f
+    map(&:to_f)
+  end
+  
   def angle
     Math::atan2 at(1), at(0)
   end

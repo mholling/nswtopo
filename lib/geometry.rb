@@ -1,3 +1,5 @@
+require 'bigdecimal'
+require 'bigdecimal/util'
 require_relative 'geometry/vector'
 require_relative 'geometry/segment'
 require_relative 'geometry/vector_sequence'

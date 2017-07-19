@@ -20,19 +20,6 @@ module StraightSkeleton
       @neighbours[1]
     end
     
-    def heading
-      @heading ||= case
-      when terminal?
-        normals.compact.first
-      when normals.inject(&:dot) >= 0
-        normals.inject(&:plus).normalised
-      when normals.inject(&:cross) >= 0
-        normals.map(&:perp).inject(&:minus).normalised
-      else
-        normals.map(&:perp).inject(&:minus).normalised.negate
-      end
-    end
-    
     # #####################################
     # solve for vector p:
     #   n0.(p - @point) = travel - @travel
@@ -162,8 +149,7 @@ module StraightSkeleton
       p0, p1, p2 = [ *edge, self ].map(&:point)
       (n00, n01), (n10, n11), (n20, n21) = [ *edge, self ].map(&:normals)
       return if p0 == p2 || p1 == p2
-      # return unless (n20 ? n20.dot(n01) : 0) + (n21 ? n21.dot(n01) : 0) < 0
-      return unless heading.dot(n01) < 0
+      return unless (n20 ? n20.dot(n01) : 0) + (n21 ? n21.dot(n01) : 0) < 0
       point, travel = case
       when n20 && n21 then Node::solve(n20, n21, n01, n20.dot(p2), n21.dot(p2), n01.dot(p0))
       when n20 then Node::solve_asym(n01, n20, n20, n01.dot(p0), n20.dot(p2), n20.cross(p2))
@@ -262,16 +248,16 @@ module StraightSkeleton
           @repeats.include? node.point
         end.partition(&:terminal?)
         repeated_terminals.group_by(&:point).each do |point, nodes|
-          nodes.permutation(2).select do |node1, node2|
-            node1.prev && node2.next
-          end.select do |pair|
-            pair.map(&:heading).inject(&:cross) > 0
+          nodes.permutation(2).select do |node0, node1|
+            node0.normals[0] && node1.normals[1]
+          end.select do |node0, node1|
+            node0.normals[0].cross(node1.normals[1]) > 0
           end.group_by(&:first).map(&:last).map do |pairs|
-            pairs.min_by do |pair|
-              pair.map(&:heading).inject(&:dot)
+            pairs.min_by do |node0, node1|
+              node0.normals[0].dot(node1.normals[1])
             end
-          end.compact.each do |node1, node2|
-            @candidates << Split.new(self, point, 0, node1, node2)
+          end.compact.each do |node0, node1|
+            @candidates << Split.new(self, point, 0, node0, node1)
           end
         end
         repeated_nodes.group_by(&:point).select do |point, nodes|
@@ -285,7 +271,7 @@ module StraightSkeleton
             else                             [ *sets,  set, [ node ] ]
             end
           end.sort_by do |set|
-            set.first.heading.angle
+            set.first.normals.first
           end.ring.each do |set0, set1|
             @candidates << Split.new(self, point, 0, set0.first, set1.last)
           end

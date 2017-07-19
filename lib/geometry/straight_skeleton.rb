@@ -33,9 +33,21 @@ module StraightSkeleton
       end
     end
     
+    # #####################################
+    # solve for vector p:
+    #   n0.(p - @point) = travel - @travel
+    #   n1.(p - @point) = travel - @travel
+    # #####################################
+    
     def project(travel)
-      cosine = terminal? ? 1 : Math::sqrt((1 + normals.inject(&:dot)) * 0.5)
-      heading.times((travel - @travel) / cosine).plus(point)
+      det = normals.inject(&:cross) if normals.all?
+      case
+      when det && det.nonzero?
+        x = normals.map { |normal| travel - @travel + normal.dot(point) }
+        [ normals[1][1] * x[0] - normals[0][1] * x[1], normals[0][0] * x[1] - normals[1][0] * x[0] ] / det
+      when normals[0] then normals[0].times(travel - @travel).plus(point)
+      when normals[1] then normals[1].times(travel - @travel).plus(point)
+      end
     end
     
     # #################################

@@ -88,8 +88,6 @@ module NSWTopo
               transformed = case transform
               when "reduce"
                 case arg
-                when "skeleton"
-                  next [ [ 1, data.straight_skeleton(closed, *args, opts) ] ]
                 when "centrelines"
                   next data.centres [ 1 ], *args, opts if closed
                 when "centrepoints"

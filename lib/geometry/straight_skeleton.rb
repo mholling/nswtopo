@@ -322,23 +322,6 @@ module StraightSkeleton
         end
       end.to_a.sanitise(@closed)
     end
-    
-    def project(&block)
-      @active.map do |node|
-        [ node.point, node.project(@limit) ]
-      end.each(&block) if @limit
-    end
-  end
-  
-  def straight_skeleton(closed, limit = nil, options)
-    return map(&:reverse).straight_skeleton(closed, -limit, options) if limit && limit < 0
-    result = [ ]
-    Nodes.new(self, closed, limit, options).progress do |nodes|
-      result << nodes.map(&:point).to_f
-    end.project do |segment|
-      result << segment.to_f
-    end
-    result
   end
   
   def centres(dimensions, *args, options)

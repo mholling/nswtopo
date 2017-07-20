@@ -198,6 +198,54 @@ module StraightSkeleton
         end
       end
       @active = nodes.flatten.to_set
+      return unless options.fetch("splits", true)
+      repeated_terminals, repeated_nodes = @active.select do |node|
+        @repeats.include? node.point
+      end.partition(&:terminal?)
+      repeated_terminals.group_by(&:point).each do |point, nodes|
+        nodes.permutation(2).select do |node0, node1|
+          node0.normals[0] && node1.normals[1]
+        end.select do |node0, node1|
+          node0.normals[0].cross(node1.normals[1]) > 0
+        end.group_by(&:first).map(&:last).map do |pairs|
+          pairs.min_by do |node0, node1|
+            node0.normals[0].dot(node1.normals[1])
+          end
+        end.compact.each do |node0, node1|
+          @candidates << Split.new(self, point, 0, node0, node1)
+        end
+      end
+      repeated_nodes.group_by(&:point).select do |point, nodes|
+        nodes.all?(&:reflex?)
+      end.each do |point, nodes|
+        nodes.inject([]) do |(*sets, set), node|
+          case
+          when !set then                   [ [ node ] ]
+          when set.last.next == node  then [ *sets, [ *set, node ] ]
+          when set.first == node.next then [ *sets, [ node, *set ] ]
+          else                             [ *sets,  set, [ node ] ]
+          end
+        end.sort_by do |set|
+          set.first.normals.first
+        end.ring.each do |set0, set1|
+          @candidates << Split.new(self, point, 0, set0.first, set1.last)
+        end
+      end if @closed
+      index = RTree.load(edges) do |edge|
+        edge.map(&:point).transpose.map(&:minmax)
+      end if @limit
+      @active.select do |node|
+        node.terminal? || node.reflex?
+      end.each do |node|
+        bounds = node.project(@limit).zip(node.point).map do |centre, coord|
+          [ coord, centre - @limit, centre + @limit ].minmax
+        end if @limit
+        (index ? index.search(bounds) : edges).map do |edge|
+          node.split edge, @limit
+        end.compact.each do |split|
+          @candidates << split
+        end
+      end
     end
     
     def collapse(edge)
@@ -242,56 +290,7 @@ module StraightSkeleton
       end
     end
     
-    def progress(options = {}, &block)
-      if options.fetch("splits", true)
-        repeated_terminals, repeated_nodes = @active.select do |node|
-          @repeats.include? node.point
-        end.partition(&:terminal?)
-        repeated_terminals.group_by(&:point).each do |point, nodes|
-          nodes.permutation(2).select do |node0, node1|
-            node0.normals[0] && node1.normals[1]
-          end.select do |node0, node1|
-            node0.normals[0].cross(node1.normals[1]) > 0
-          end.group_by(&:first).map(&:last).map do |pairs|
-            pairs.min_by do |node0, node1|
-              node0.normals[0].dot(node1.normals[1])
-            end
-          end.compact.each do |node0, node1|
-            @candidates << Split.new(self, point, 0, node0, node1)
-          end
-        end
-        repeated_nodes.group_by(&:point).select do |point, nodes|
-          nodes.all?(&:reflex?)
-        end.each do |point, nodes|
-          nodes.inject([]) do |(*sets, set), node|
-            case
-            when !set then                   [ [ node ] ]
-            when set.last.next == node  then [ *sets, [ *set, node ] ]
-            when set.first == node.next then [ *sets, [ node, *set ] ]
-            else                             [ *sets,  set, [ node ] ]
-            end
-          end.sort_by do |set|
-            set.first.normals.first
-          end.ring.each do |set0, set1|
-            @candidates << Split.new(self, point, 0, set0.first, set1.last)
-          end
-        end if @closed
-        index = RTree.load(edges) do |edge|
-          edge.map(&:point).transpose.map(&:minmax)
-        end if @limit
-        @active.select do |node|
-          node.terminal? || node.reflex?
-        end.each do |node|
-          bounds = node.project(@limit).zip(node.point).map do |centre, coord|
-            [ coord, centre - @limit, centre + @limit ].minmax
-          end if @limit
-          (index ? index.search(bounds) : edges).map do |edge|
-            node.split edge, @limit
-          end.compact.each do |split|
-            @candidates << split
-          end
-        end
-      end
+    def progress(&block)
       while candidate = @candidates.pop
         next unless candidate.viable?
         candidate.replace! do |node, index = 0|
@@ -384,7 +383,7 @@ module StraightSkeleton
   
   def inset(closed, margin, options = {})
     return self if margin.zero?
-    Nodes.new(self, closed, margin, options).progress(options).finalise
+    Nodes.new(self, closed, margin, options).progress.finalise
   end
   
   def outset(closed, margin, options = {})

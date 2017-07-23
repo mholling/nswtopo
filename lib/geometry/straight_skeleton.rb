@@ -162,87 +162,19 @@ module StraightSkeleton
   end
   
   class Nodes
-    def initialize(data, closed, limit = nil, options = {})
-      @candidates, @closed, @limit = AVLTree.new, closed, limit
-      @track = Hash.new do |hash, normal|
-        hash[normal] = []
-      end.compare_by_identity
-      rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
-      nodes = data.sanitise(closed).to_d.tap do |lines|
+    def initialize(data, closed)
+      @closed, @active = closed, Set[]
+      data.sanitise(closed).to_d.tap do |lines|
         @repeats = lines.flatten(1).group_by { |point| point }.reject { |point, points| points.one? }
-      end.map.with_index do |points, index|
+      end.each.with_index do |points, index|
         normals = (closed ? points.ring : points.segments).map(&:difference).map(&:normalised).map(&:perp)
         normals = closed ? normals.ring.rotate(-1) : normals.unshift(nil).push(nil).segments
         points.zip(normals).map do |point, normals|
-          vertex = Vertex.new(self, point, Set[index], normals)
-          next vertex if normals.one?
-          next vertex unless vertex.reflex?
-          angle = Math::atan2 normals.inject(&:cross), normals.inject(&:dot)
-          angle -= 2 * Math::PI if angle > 0
-          extras = (angle.abs / rounding_angle).floor
-          extras.times.inject(normals.take(1)) do |normals, n|
-            normals << normals[0].rotate_by(angle * (n + 1) / (extras + 1))
-          end.push(normals.last).segments.map do |normals|
-            Vertex.new self, point, Set[index], normals
-          end
-        end.flatten
-      end
-      nodes.map(&closed ? :ring : :segments).each do |edges|
-        edges.each do |edge|
+          Vertex.new self, point, Set[index], normals
+        end.each do |node|
+          @active << node
+        end.send(closed ? :ring : :segments).each do |edge|
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
-        end.each do |edge|
-          collapse edge
-        end.map(&:first).each do |node|
-          @track[node.normals[1]] << node
-        end
-      end
-      @active = nodes.flatten.to_set
-      return unless options.fetch("splits", true)
-      repeated_terminals, repeated_nodes = @active.select do |node|
-        @repeats.include? node.point
-      end.partition(&:terminal?)
-      repeated_terminals.group_by(&:point).each do |point, nodes|
-        nodes.permutation(2).select do |node0, node1|
-          node0.normals[0] && node1.normals[1]
-        end.select do |node0, node1|
-          node0.normals[0].cross(node1.normals[1]) > 0
-        end.group_by(&:first).map(&:last).map do |pairs|
-          pairs.min_by do |node0, node1|
-            node0.normals[0].dot(node1.normals[1])
-          end
-        end.compact.each do |node0, node1|
-          @candidates << Split.new(self, point, 0, node0, node1)
-        end
-      end
-      repeated_nodes.group_by(&:point).select do |point, nodes|
-        nodes.all?(&:reflex?)
-      end.each do |point, nodes|
-        nodes.inject([]) do |(*sets, set), node|
-          case
-          when !set then                   [ [ node ] ]
-          when set.last.next == node  then [ *sets, [ *set, node ] ]
-          when set.first == node.next then [ *sets, [ node, *set ] ]
-          else                             [ *sets,  set, [ node ] ]
-          end
-        end.sort_by do |set|
-          set.first.normals.first
-        end.ring.each do |set0, set1|
-          @candidates << Split.new(self, point, 0, set0.first, set1.last)
-        end
-      end if @closed
-      index = RTree.load(edges) do |edge|
-        edge.map(&:point).transpose.map(&:minmax)
-      end if @limit
-      @active.select do |node|
-        node.terminal? || node.reflex?
-      end.each do |node|
-        bounds = node.project(@limit).zip(node.point).map do |centre, coord|
-          [ coord, centre - @limit, centre + @limit ].minmax
-        end if @limit
-        (index ? index.search(bounds) : edges).map do |edge|
-          node.split edge, @limit
-        end.compact.each do |split|
-          @candidates << split
         end
       end
     end
@@ -289,7 +221,84 @@ module StraightSkeleton
       end
     end
     
-    def progress(&block)
+    def progress(limit = nil, options = {}, &block)
+      @candidates, @limit = AVLTree.new, limit
+      @track = Hash.new do |hash, normal|
+        hash[normal] = []
+      end.compare_by_identity
+      rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
+      @active.reject(&:terminal?).select(&:reflex?).each do |node|
+        angle = Math::atan2 node.normals.inject(&:cross), node.normals.inject(&:dot)
+        angle -= 2 * Math::PI if angle > 0
+        extras = (angle.abs / rounding_angle).floor
+        normals = extras.times.map do |n|
+          node.normals[0].rotate_by(angle * (n + 1) / (extras + 1))
+        end
+        nodes = extras.times.map do
+          Vertex.new self, node.point, node.whence, [ nil, nil ]
+        end.each do |extra_node|
+          @active << extra_node
+        end.unshift(node)
+        [ node.neighbours[0], *nodes, node.neighbours[1] ].segments.each do |edge|
+          edge[1].neighbours[0], edge[0].neighbours[1] = edge
+        end.zip([ node.normals[0], *normals, node.normals[1] ]).each do |edge, normal|
+          edge[1].normals[0] = edge[0].normals[1] = normal
+        end
+      end
+      edges.each do |edge|
+        collapse edge
+      end.map(&:first).each do |node|
+        @track[node.normals[1]] << node
+      end
+      if options.fetch("splits", true)
+        repeated_terminals, repeated_nodes = @active.select do |node|
+          @repeats.include? node.point
+        end.partition(&:terminal?)
+        repeated_terminals.group_by(&:point).each do |point, nodes|
+          nodes.permutation(2).select do |node0, node1|
+            node0.normals[0] && node1.normals[1]
+          end.select do |node0, node1|
+            node0.normals[0].cross(node1.normals[1]) > 0
+          end.group_by(&:first).map(&:last).map do |pairs|
+            pairs.min_by do |node0, node1|
+              node0.normals[0].dot(node1.normals[1])
+            end
+          end.compact.each do |node0, node1|
+            @candidates << Split.new(self, point, 0, node0, node1)
+          end
+        end
+        repeated_nodes.group_by(&:point).select do |point, nodes|
+          nodes.all?(&:reflex?)
+        end.each do |point, nodes|
+          nodes.inject([]) do |(*sets, set), node|
+            case
+            when !set then                   [ [ node ] ]
+            when set.last.next == node  then [ *sets, [ *set, node ] ]
+            when set.first == node.next then [ *sets, [ node, *set ] ]
+            else                             [ *sets,  set, [ node ] ]
+            end
+          end.sort_by do |set|
+            set.first.normals.first
+          end.ring.each do |set0, set1|
+            @candidates << Split.new(self, point, 0, set0.first, set1.last)
+          end
+        end if @closed
+      end
+      index = RTree.load(edges) do |edge|
+        edge.map(&:point).transpose.map(&:minmax)
+      end if @limit
+      @active.select do |node|
+        node.terminal? || node.reflex?
+      end.each do |node|
+        bounds = node.project(@limit).zip(node.point).map do |centre, coord|
+          [ coord, centre - @limit, centre + @limit ].minmax
+        end if @limit
+        (index ? index.search(bounds) : edges).map do |edge|
+          node.split edge, @limit
+        end.compact.each do |split|
+          @candidates << split
+        end
+      end
       while candidate = @candidates.pop
         next unless candidate.viable?
         candidate.replace! do |node, index = 0|
@@ -382,7 +391,7 @@ module StraightSkeleton
   
   def inset(closed, margin, options = {})
     return self if margin.zero?
-    Nodes.new(self, closed, margin, options).progress.finalise
+    Nodes.new(self, closed).progress(margin, options).finalise
   end
   
   def outset(closed, margin, options = {})

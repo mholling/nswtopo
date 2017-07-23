@@ -168,7 +168,6 @@ module StraightSkeleton
         hash[normal] = []
       end.compare_by_identity
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
-      cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
       nodes = data.sanitise(closed).to_d.tap do |lines|
         @repeats = lines.flatten(1).group_by { |point| point }.reject { |point, points| points.one? }
       end.map.with_index do |points, index|
@@ -180,7 +179,7 @@ module StraightSkeleton
           next vertex unless vertex.reflex?
           angle = Math::atan2 normals.inject(&:cross), normals.inject(&:dot)
           angle -= 2 * Math::PI if angle > 0
-          extras = cutoff && angle.abs > cutoff ? 1 : (angle.abs / rounding_angle).floor
+          extras = (angle.abs / rounding_angle).floor
           extras.times.inject(normals.take(1)) do |normals, n|
             normals << normals[0].rotate_by(angle * (n + 1) / (extras + 1))
           end.push(normals.last).segments.map do |normals|
@@ -402,8 +401,8 @@ module StraightSkeleton
     end
   end
   
-  def smooth(closed, margin, cutoff = nil)
-    inset(closed, margin).outset(closed, 2 * margin, "cutoff" => cutoff).inset(closed, margin, "cutoff" => cutoff)
+  def smooth(closed, margin)
+    inset(closed, margin).outset(closed, 2 * margin).inset(closed, margin)
   end
 end
 

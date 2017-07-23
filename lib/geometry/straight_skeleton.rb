@@ -137,8 +137,8 @@ module StraightSkeleton
   class Vertex
     include Node
     
-    def initialize(nodes, point, index, normals)
-      @original, @neighbours, @nodes, @whence, @point, @normals, @travel = self, [ nil, nil ], nodes, Set[index], point, normals, 0
+    def initialize(nodes, point, whence, normals)
+      @original, @neighbours, @nodes, @whence, @point, @normals, @travel = self, [ nil, nil ], nodes, whence, point, normals, 0
     end
     
     def reflex?
@@ -174,7 +174,7 @@ module StraightSkeleton
         normals = (closed ? points.ring : points.segments).map(&:difference).map(&:normalised).map(&:perp)
         normals = closed ? normals.ring.rotate(-1) : normals.unshift(nil).push(nil).segments
         points.zip(normals).map do |point, normals|
-          vertex = Vertex.new(self, point, index, normals)
+          vertex = Vertex.new(self, point, Set[index], normals)
           next vertex if normals.one?
           next vertex unless vertex.reflex?
           angle = Math::atan2 normals.inject(&:cross), normals.inject(&:dot)
@@ -183,7 +183,7 @@ module StraightSkeleton
           extras.times.inject(normals.take(1)) do |normals, n|
             normals << normals[0].rotate_by(angle * (n + 1) / (extras + 1))
           end.push(normals.last).segments.map do |normals|
-            Vertex.new self, point, index, normals
+            Vertex.new self, point, Set[index], normals
           end
         end.flatten
       end

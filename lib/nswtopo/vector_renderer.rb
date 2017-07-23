@@ -169,9 +169,9 @@ module NSWTopo
                 group = REXML::Element.new("g")
                 width, height = element.text.glyph_length(font_size, letter_spacing, word_spacing) + SHIELD_X * font_size, (1 + SHIELD_Y) * font_size
                 group.add_element "rect", "x" => -0.5 * width, "y" => -0.5 * height, "width" => width, "height" => height, "rx" => font_size * 0.3, "ry" => font_size * 0.3, "stroke" => "none", "fill" => args
-                transform = element.attributes.get_attribute "transform"
-                transform.remove
-                group.attributes << transform
+                text_transform = element.attributes.get_attribute "transform"
+                text_transform.remove
+                group.attributes << text_transform
                 element.parent.elements << group
                 group << element
               end

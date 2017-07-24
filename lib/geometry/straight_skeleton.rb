@@ -224,6 +224,7 @@ module StraightSkeleton
     attr_reader :limit
     
     def progress(limit = nil, options = {}, &block)
+      return self if limit && limit.zero?
       @candidates, @limit = AVLTree.new, limit
       @track = Hash.new do |hash, normal|
         hash[normal] = []
@@ -390,12 +391,10 @@ module StraightSkeleton
   end
   
   def inset(closed, margin, options = {})
-    return self if margin.zero?
     Nodes.new(self, closed).progress(margin, options).finalise
   end
   
   def outset(closed, margin, options = {})
-    return self if margin.zero?
     map(&:reverse).inset(closed, margin, options).map(&:reverse)
   end
   

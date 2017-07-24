@@ -355,6 +355,12 @@ module StraightSkeleton
     Nodes.new(self, closed).progress(-margin, options).readout
   end
   
+  def offset(closed, *margins, options)
+    margins.inject Nodes.new(self, closed) do |nodes, margin|
+      nodes.progress(+margin, options)
+    end.readout
+  end
+  
   def buffer(closed, margin, overshoot = margin)
     nodes = closed ? Nodes.new(self, closed) : Nodes.new(self + map(&:reverse), closed)
     nodes.progress(+margin+overshoot).progress(-overshoot, "splits" => false).readout

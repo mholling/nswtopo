@@ -257,9 +257,10 @@ module StraightSkeleton
         hash[normal] = []
       end.compare_by_identity
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
+      cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
       @active.reject(&:terminal?).select(&:reflex?).each do |node|
         angle = Math::atan2 node.normals.inject(&:cross).abs, node.normals.inject(&:dot)
-        extras = (angle / rounding_angle).floor
+        extras = cutoff && angle > cutoff ? 1 : (angle / rounding_angle).floor
         next unless extras > 0
         normals = extras.times.map do |n|
           node.normals[0].rotate_by(angle * (n + 1) * -direction / (extras + 1))
@@ -359,8 +360,8 @@ module StraightSkeleton
     nodes.progress(+margin+overshoot).progress(-overshoot, "splits" => false).readout
   end
   
-  def smooth(closed, margin)
-    Nodes.new(self, closed).progress(+margin).progress(-2 * margin).progress(+margin).readout
+  def smooth(closed, margin, cutoff = nil)
+    Nodes.new(self, closed).progress(+margin).progress(-2 * margin, "cutoff" => cutoff).progress(+margin, "cutoff" => cutoff).readout
   end
   
   def centres(dimensions, *args, options)

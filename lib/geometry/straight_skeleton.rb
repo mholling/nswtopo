@@ -72,7 +72,7 @@ module StraightSkeleton
     include Node
     
     def <=>(other)
-      @travel <=> other.travel
+      (@travel <=> other.travel) * @nodes.direction
     end
     
     def insert!
@@ -142,10 +142,10 @@ module StraightSkeleton
     end
     
     def reflex?
-      normals.inject(&:cross) <= 0
+      normals.inject(&:cross) * @nodes.direction <= 0
     end
     
-    def split(edge, limit)
+    def split(edge)
       p0, p1, p2 = [ *edge, self ].map(&:point)
       (n00, n01), (n10, n11), (n20, n21) = [ *edge, self ].map(&:normals)
       return if p0 == p2 || p1 == p2
@@ -154,9 +154,10 @@ module StraightSkeleton
       when n20 && n21 then Node::solve(n20, n21, n01, n20.dot(p2), n21.dot(p2), n01.dot(p0))
       when n20 then Node::solve_asym(n01, n20, n20, n01.dot(p0), n20.dot(p2), n20.cross(p2))
       when n21 then Node::solve_asym(n01, n21, n21, n01.dot(p0), n21.dot(p2), n21.cross(p2))
-      end
-      return if !travel || travel < 0 || travel.infinite? || (limit && travel >= limit)
-      return if point.minus(p0).dot(n01) < 0
+      end || return
+      return if travel * @nodes.direction < 0
+      return if @nodes.limit && travel.abs >= @nodes.limit.abs
+      return if point.minus(p0).dot(n01) * @nodes.direction < 0
       Split.new @nodes, point, travel, self, edge[0]
     end
   end
@@ -189,9 +190,10 @@ module StraightSkeleton
       when good.all? then Node::solve(n00, n01, n11, n00.dot(p0) - t0, n01.dot(p1) - t1, n11.dot(p1) - t1)
       when good[0] then Node::solve_asym(n00, n01, n10, n00.dot(p0) - t0, n01.dot(p0) - t0, n10.cross(p1))
       when good[1] then Node::solve_asym(n11, n10, n10, n11.dot(p1) - t1, n10.dot(p1) - t1, n01.cross(p0))
-      end
-      return if !travel || travel <= 0 || (@limit && travel >= @limit)
-      return if travel < t0 || travel < t1
+      end || return
+      return if travel * direction <= 0
+      return if @limit && travel.abs >= @limit.abs
+      return if travel.abs < t0.abs || travel.abs < t1.abs
       @candidates << Collapse.new(self, point, travel, edge)
     end
     
@@ -221,21 +223,46 @@ module StraightSkeleton
       end
     end
     
-    attr_reader :limit
+    def finalise
+      Enumerator.new do |yielder|
+        while @active.any?
+          nodes = [ @active.first ]
+          while node = nodes.last.next and node != nodes.first
+            nodes.push node
+          end
+          while node = nodes.first.prev and node != nodes.last
+            nodes.unshift node
+          end
+          @active.subtract nodes
+          yielder << nodes
+        end
+      end.to_a
+    end
+    
+    attr_reader :limit, :direction
     
     def progress(limit = nil, options = {}, &block)
       return self if limit && limit.zero?
-      @candidates, @limit = AVLTree.new, limit
+      finalise.each do |nodes|
+        nodes.map do |node|
+          Vertex.new self, node.project, node.whence, node.normals
+        end.each do |node|
+          @active << node
+        end.send(@closed ? :ring : :segments).each do |edge|
+          edge[1].neighbours[0], edge[0].neighbours[1] = edge
+        end
+      end if @limit
+      @candidates, @limit, @direction = AVLTree.new, limit, limit ? limit <=> 0 : 1
       @track = Hash.new do |hash, normal|
         hash[normal] = []
       end.compare_by_identity
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       @active.reject(&:terminal?).select(&:reflex?).each do |node|
-        angle = Math::atan2 node.normals.inject(&:cross), node.normals.inject(&:dot)
-        angle -= 2 * Math::PI if angle > 0
-        extras = (angle.abs / rounding_angle).floor
+        angle = Math::atan2 node.normals.inject(&:cross).abs, node.normals.inject(&:dot)
+        extras = (angle / rounding_angle).floor
+        next unless extras > 0
         normals = extras.times.map do |n|
-          node.normals[0].rotate_by(angle * (n + 1) / (extras + 1))
+          node.normals[0].rotate_by(angle * (n + 1) * -direction / (extras + 1))
         end
         nodes = extras.times.map do
           Vertex.new self, node.point, node.whence, [ nil, nil ]
@@ -289,15 +316,15 @@ module StraightSkeleton
       end
       index = RTree.load(edges) do |edge|
         edge.map(&:point).transpose.map(&:minmax)
-      end if @limit
+      end if limit
       @active.select do |node|
         node.terminal? || node.reflex?
       end.each do |node|
         bounds = node.project.zip(node.point).map do |centre, coord|
-          [ coord, centre - @limit, centre + @limit ].minmax
-        end if @limit
+          [ coord, centre - limit, centre + limit ].minmax
+        end if limit
         (index ? index.search(bounds) : edges).map do |edge|
-          node.split edge, @limit
+          node.split edge
         end.compact.each do |split|
           @candidates << split
         end
@@ -312,24 +339,28 @@ module StraightSkeleton
       self
     end
     
-    def finalise
-      Enumerator.new do |yielder|
-        while @active.any?
-          nodes = [ @active.first ]
-          while node = nodes.last.next and node != nodes.first
-            nodes.push node
-          end
-          while node = nodes.first.prev and node != nodes.last
-            nodes.unshift node
-          end
-          nodes.each do |node|
-            @active.delete node
-          end.map(&:project).tap do |points|
-            yielder << points.to_f
-          end
-        end
-      end.to_a.sanitise(@closed)
+    def readout
+      finalise.map do |nodes|
+        nodes.map(&:project).to_f
+      end.sanitise(@closed)
     end
+  end
+  
+  def inset(closed, margin, options = {})
+    Nodes.new(self, closed).progress(+margin, options).readout
+  end
+  
+  def outset(closed, margin, options = {})
+    Nodes.new(self, closed).progress(-margin, options).readout
+  end
+  
+  def buffer(closed, margin, overshoot = margin)
+    nodes = closed ? Nodes.new(self, closed) : Nodes.new(self + map(&:reverse), closed)
+    nodes.progress(+margin+overshoot).progress(-overshoot, "splits" => false).readout
+  end
+  
+  def smooth(closed, margin)
+    Nodes.new(self, closed).progress(+margin).progress(-2 * margin).progress(+margin).readout
   end
   
   def centres(dimensions, *args, options)
@@ -388,29 +419,6 @@ module StraightSkeleton
       end
       [ dimension, data ]
     end
-  end
-  
-  def inset(closed, margin, options = {})
-    Nodes.new(self, closed).progress(margin, options).finalise
-  end
-  
-  def outset(closed, margin, options = {})
-    map(&:reverse).inset(closed, margin, options).map(&:reverse)
-  end
-  
-  def buffer(closed, margin, overshoot = margin)
-    case
-    when !closed
-      (self + map(&:reverse)).inset(closed, margin + overshoot).outset(closed, overshoot, "splits" => false)
-    when margin > 0
-      outset(closed, margin + overshoot).inset(closed, overshoot, "splits" => false)
-    else
-      inset(closed, -(margin + overshoot)).outset(closed, -overshoot, "splits" => false)
-    end
-  end
-  
-  def smooth(closed, margin)
-    inset(closed, margin).outset(closed, 2 * margin).inset(closed, margin)
   end
 end
 

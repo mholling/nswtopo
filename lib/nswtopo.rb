@@ -138,6 +138,11 @@ rotation: 0
       when /\.kml$|\.gpx$/i
         path = Pathname.new(name_or_path).expand_path
         [ path.basename(path.extname).to_s, OverlaySource, params.merge("path" => path) ]
+      when /\.yml$/i
+        path = Pathname.new(name_or_path)
+        params = YAML.load(path.read).merge(params) rescue nil
+        abort "Error: couldn't find source for '#{name_or_path}'" unless params
+        [ path.basename(path.extname).to_s, NSWTopo.const_get(params.delete "class"), params ]
       else
         yaml = [ Pathname.pwd, Pathname.new(__dir__).parent + "sources" ].map do |root|
           root + "#{name_or_path}.yml"

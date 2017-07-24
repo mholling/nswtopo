@@ -20,20 +20,20 @@ module StraightSkeleton
       @neighbours[1]
     end
     
-    # #####################################
+    # ###########################################
     # solve for vector p:
-    #   n0.(p - @point) = travel - @travel
-    #   n1.(p - @point) = travel - @travel
-    # #####################################
+    #   n0.(p - @point) = @nodes.limit - @travel
+    #   n1.(p - @point) = @nodes.limit - @travel
+    # ###########################################
     
-    def project(travel)
+    def project
       det = normals.inject(&:cross) if normals.all?
       case
       when det && det.nonzero?
-        x = normals.map { |normal| travel - @travel + normal.dot(point) }
+        x = normals.map { |normal| @nodes.limit - @travel + normal.dot(point) }
         [ normals[1][1] * x[0] - normals[0][1] * x[1], normals[0][0] * x[1] - normals[1][0] * x[0] ] / det
-      when normals[0] then normals[0].times(travel - @travel).plus(point)
-      when normals[1] then normals[1].times(travel - @travel).plus(point)
+      when normals[0] then normals[0].times(@nodes.limit - @travel).plus(point)
+      when normals[1] then normals[1].times(@nodes.limit - @travel).plus(point)
       end
     end
     
@@ -221,6 +221,8 @@ module StraightSkeleton
       end
     end
     
+    attr_reader :limit
+    
     def progress(limit = nil, options = {}, &block)
       @candidates, @limit = AVLTree.new, limit
       @track = Hash.new do |hash, normal|
@@ -290,7 +292,7 @@ module StraightSkeleton
       @active.select do |node|
         node.terminal? || node.reflex?
       end.each do |node|
-        bounds = node.project(@limit).zip(node.point).map do |centre, coord|
+        bounds = node.project.zip(node.point).map do |centre, coord|
           [ coord, centre - @limit, centre + @limit ].minmax
         end if @limit
         (index ? index.search(bounds) : edges).map do |edge|
@@ -321,10 +323,8 @@ module StraightSkeleton
           end
           nodes.each do |node|
             @active.delete node
-          end.map do |node|
-            node.project(@limit).to_f
-          end.tap do |points|
-            yielder << points
+          end.map(&:project).tap do |points|
+            yielder << points.to_f
           end
         end
       end.to_a.sanitise(@closed)

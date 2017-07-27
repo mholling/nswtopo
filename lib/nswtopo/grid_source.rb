@@ -5,7 +5,7 @@ module NSWTopo
     PARAMS = %q[
       interval: 1000
       label-spacing: 5
-      label-inset: 2
+      label-inset: 1.5
       label-offset: 2
       stroke: black
       stroke-width: 0.1
@@ -28,10 +28,10 @@ module NSWTopo
     def initialize(name, params)
       @name, @params = name, YAML.load(PARAMS).deep_merge(params)
       @font_size = @params["labels"]["font-size"]
-      @grid_interval, @label_spacing, @label_offset = @params.values_at "interval", "label-spacing", "label-offset"
+      @grid_interval, @label_spacing, @label_offset, @label_inset = @params.values_at "interval", "label-spacing", "label-offset", "label-inset"
     end
     
-    attr_reader :font_size, :grid_interval, :label_spacing, :label_offset
+    attr_reader :font_size, :grid_interval, :label_spacing, :label_offset, :label_inset
     
     def grids(map)
       Projection.utm_zone(map.bounds.inject(&:product), map.projection).inject do |range, zone|
@@ -106,7 +106,8 @@ module NSWTopo
     end
     
     def edge_labels(map)
-      corners = map.coord_corners(-5.0)
+      edge_inset = label_inset + font_size * 0.5 * Math::sin(map.rotation.abs * Math::PI / 180)
+      corners = map.coord_corners(-edge_inset)
       label_grids(map, grid_interval).map do |zone, utm, *lines|
         corners.zip(corners.perps).map.with_index do |(corner, perp), index|
           outgoing = index < 2

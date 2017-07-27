@@ -192,7 +192,7 @@ module NSWTopo
     end
     
     def features(map)
-      labelling_hull, debug_features = map.mm_corners(-2), []
+      labelling_hull, debug_features = map.mm_corners(-1), []
       fence_index = RTree.load(fences) do |fence, buffer|
         fence.transpose.map(&:minmax).map do |min, max|
           [ min - buffer, max + buffer ]

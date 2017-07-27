@@ -124,7 +124,13 @@ def show_wfs(url, name, field, *fields, values, filter)
   end
 end
 
-def show_shapefile(path, layer, *attributes, values, where)
+def show_shapefile(*args, values, where)
+  path, layer, *attributes = args
+  if attributes.none?
+    where = %Q[-where "#{where}"] if where
+    puts %x[ogrinfo #{where} -so "#{path}" #{layer}]
+    return
+  end
   where = %Q[WHERE #{where}] if where
   attribute_list = attributes.join ?,
   sql = %Q[SELECT #{attribute_list}, COUNT(*) AS count FROM #{layer} #{where} GROUP BY #{attribute_list} ORDER BY #{attribute_list}]
@@ -155,6 +161,5 @@ end&.last
 case
 when ARGV[0] =~ /\/MapServer|\/FeatureServer/ then show_arcgis(*ARGV, dynamic, where, referer)
 when ARGV[0] =~ /wfs/i then show_wfs(*ARGV, [], where && "(#{where})")
-when ARGV[2] then show_shapefile(*ARGV, [], where)
-else puts %x[ogrinfo -so "#{ARGV[0]}" #{ARGV[1]}]
+else show_shapefile(*ARGV, [], where)
 end

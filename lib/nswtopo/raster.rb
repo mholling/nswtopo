@@ -46,6 +46,7 @@ module NSWTopo
         xml = svg_path.read
         xml.sub!(/(<svg[^>]*width\s*=\s*['"])([\d\.e\+\-]+)/i) { "#{$1}#{$2.to_f * zoom}" }
         xml.sub!(/(<svg[^>]*height\s*=\s*['"])([\d\.e\+\-]+)/i) { "#{$1}#{$2.to_f * zoom}" }
+        xml.gsub!(/xlink:href='(.*?\.(png|jpg))'/) { %Q[xlink:href='#{Pathname.new($1).expand_path}'] }
         xml.sub!(/(<svg[^>]*)>/i) { "#{$1} style='overflow: hidden'>" }
         src_path.write xml
         preload_path.write %Q[
@@ -80,8 +81,9 @@ module NSWTopo
       when /chrome|chromium/i
         src_path = temp_dir + "#{map.filename}.scaled.svg"
         svg = %w[width height].inject(svg_path.read) do |svg, attribute|
-          svg.sub(/#{attribute}='(.*?)mm'/) { |match| %Q[#{attribute}='#{$1.to_f * zoom}mm'] }
+          svg.sub(/#{attribute}='(.*?)mm'/) { %Q[#{attribute}='#{$1.to_f * zoom}mm'] }
         end
+        svg.gsub!(/xlink:href='(.*?\.(png|jpg))'/) { %Q[xlink:href='#{Pathname.new($1).expand_path}'] }
         src_path.write svg
         Dir.chdir(temp_dir) do
           %x["#{rasterise}" --headless --enable-logging --log-level=1 --disable-lcd-text --hide-scrollbars --window-size=#{width},#{height} --screenshot "file://#{src_path}"]

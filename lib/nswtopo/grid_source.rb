@@ -5,6 +5,8 @@ module NSWTopo
     PARAMS = %q[
       interval: 1000
       label-spacing: 5
+      label-inset: 2
+      label-offset: 1
       stroke: black
       stroke-width: 0.1
       boundary:
@@ -26,18 +28,21 @@ module NSWTopo
     
     def initialize(name, params)
       @name, @params = name, YAML.load(PARAMS).deep_merge(params)
+      @font_size = @params["labels"]["font-size"]
+      @grid_interval, @label_spacing, @label_offset = @params.values_at "interval", "label-spacing", "label-offset"
     end
     
+    attr_reader :font_size, :grid_interval, :label_spacing, :label_offset
+    
     def grids(map)
-      interval = params["interval"]
       Projection.utm_zone(map.bounds.inject(&:product), map.projection).inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
       end.map do |zone|
         utm = Projection.utm(zone)
         eastings, northings = map.transform_bounds_to(utm).map do |bound|
-          (bound[0] / interval).floor .. (bound[1] / interval).ceil
+          (bound[0] / grid_interval).floor .. (bound[1] / grid_interval).ceil
         end.map do |counts|
-          counts.map { |count| count * interval }
+          counts.map { |count| count * grid_interval }
         end
         grid = eastings.map do |easting|
           [ easting ].product northings.reverse
@@ -67,13 +72,12 @@ module NSWTopo
     end
     
     def labels(map)
-      params["label-spacing"] ? periodic_labels(map) : edge_labels(map)
+      label_spacing ? periodic_labels(map) : edge_labels(map)
     end
     
-    def label(coord, interval)
-      font_size = params["labels"].fetch("font-size", 2.75)
+    def label(coord, label_interval)
       parts = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
-      parts << [ "%03d" % (coord % 1000), 80 ] unless interval % 1000 == 0
+      parts << [ "%03d" % (coord % 1000), 80 ] unless label_interval % 1000 == 0
       text_path = REXML::Element.new("textPath")
       parts.each.with_index do |(text, percent), index|
         tspan = text_path.add_element "tspan", "font-size" => "#{percent}%"
@@ -87,7 +91,6 @@ module NSWTopo
     end
     
     def edge_labels(map)
-      interval = params["interval"]
       corners = map.coord_corners(-5.0)
       grids(map).map do |zone, utm, grid|
         corners.zip(corners.perps).map.with_index do |(corner, perp), index|
@@ -102,7 +105,7 @@ module NSWTopo
           end.select(&:last).select do |coord, segment|
             corners.surrounds?(segment).any? && Projection.in_zone?(zone, segment[outgoing ? 1 : 0], map.projection)
           end.map do |coord, segment|
-            length, text_path = label(coord, interval)
+            length, text_path = label(coord, grid_interval)
             segment_length = 1000.0 * segment.distance / map.scale
             fraction = length / segment_length
             fractions = outgoing ? [ 1.0 - fraction, 1.0 ] : [ 0.0, fraction ]
@@ -114,7 +117,7 @@ module NSWTopo
     end
     
     def periodic_labels(map)
-      label_interval = params["label-spacing"] * params["interval"]
+      label_interval = label_spacing * grid_interval
       grids(map).map do |zone, utm, grid|
         [ grid, grid.transpose ].map.with_index do |lines, index|
           lines.select(&:any?).map do |line|

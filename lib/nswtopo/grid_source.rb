@@ -6,7 +6,7 @@ module NSWTopo
       interval: 1000
       label-spacing: 5
       label-inset: 2
-      label-offset: 1
+      label-offset: 2
       stroke: black
       stroke-width: 0.1
       boundary:
@@ -20,7 +20,6 @@ module NSWTopo
           stroke-opacity: 0.75
         font-family: "'Arial Narrow', sans-serif"
         font-size: 2.75
-        outset: 2.0
         stroke: none
         fill: black
         orientation: uphill
@@ -71,6 +70,22 @@ module NSWTopo
       end
     end
     
+    def label_grids(map, label_interval)
+      grids(map).map do |zone, utm, grid|
+        eastings, northings = [ grid, grid.transpose ].map.with_index do |lines, index|
+          lines.select do |line|
+            line[0][index] % label_interval == 0
+          end.map do |line|
+            offset_line = line.map(&:dup).each do |coords|
+              coords[index] += 0.001 * label_offset * map.scale
+            end
+            [ line[0][index], offset_line ]
+          end.to_h
+        end
+        [ zone, utm, eastings, northings ]
+      end
+    end
+    
     def labels(map)
       label_spacing ? periodic_labels(map) : edge_labels(map)
     end
@@ -92,11 +107,10 @@ module NSWTopo
     
     def edge_labels(map)
       corners = map.coord_corners(-5.0)
-      grids(map).map do |zone, utm, grid|
+      label_grids(map, grid_interval).map do |zone, utm, *lines|
         corners.zip(corners.perps).map.with_index do |(corner, perp), index|
-          eastings, outgoing = index % 2 == 0, index < 2
-          (eastings ? grid : grid.transpose).map do |line|
-            coord = line[0][eastings ? 0 : 1]
+          outgoing = index < 2
+          lines[index % 2].map do |coord, line|
             segment = map.reproject_from(utm, line).segments.find do |points|
               points.one? { |point| point.minus(corner).dot(perp) < 0.0 }
             end
@@ -110,7 +124,7 @@ module NSWTopo
             fraction = length / segment_length
             fractions = outgoing ? [ 1.0 - fraction, 1.0 ] : [ 0.0, fraction ]
             baseline = fractions.map { |fraction| segment.along fraction }
-            [ 1, [ baseline ], text_path, eastings ? "eastings" : "northings" ]
+            [ 1, [ baseline ], text_path, index % 2 == 0 ? "eastings" : "northings" ]
           end
         end
       end.flatten(2)
@@ -118,13 +132,9 @@ module NSWTopo
     
     def periodic_labels(map)
       label_interval = label_spacing * grid_interval
-      grids(map).map do |zone, utm, grid|
-        [ grid, grid.transpose ].map.with_index do |lines, index|
-          lines.select(&:any?).map do |line|
-            [ line, line[0][index] ]
-          end.select do |line, coord|
-            coord % label_interval == 0
-          end.map do |line, coord|
+      label_grids(map, label_interval).map do |zone, utm, eastings, northings|
+        [ eastings, northings ].map.with_index do |lines, index|
+          lines.map do |coord, line|
             line.segments.select do |segment|
               segment[0][1-index] % label_interval == 0
             end.select do |segment|

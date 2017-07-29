@@ -117,21 +117,28 @@ module NSWTopo
               when "remove-holes"
                 data.remove_holes(arg) if closed
               when "minimum-area"
-                data.chunk(&:hole?).map(&:last).each_slice(2).map do |polys, holes|
-                  keep = polys.map do |points|
-                    [ points, points.signed_area > arg ]
+                case dimension
+                when 1
+                  data.reject do |points|
+                    points.last == points.first && points.signed_area.abs < arg
                   end
-                  keep.select(&:last).map(&:first).tap do |result|
-                    result += holes if holes && keep.last.last
-                  end
-                end.flatten(1) if closed
+                when 2
+                  data.chunk(&:hole?).map(&:last).each_slice(2).map do |polys, holes|
+                    keep = polys.map do |points|
+                      [ points, points.signed_area > arg ]
+                    end
+                    keep.select(&:last).map(&:first).tap do |result|
+                      result += holes if holes && keep.last.last
+                    end
+                  end.flatten(1)
+                end
               when "minimum-hole"
                 data.reject do |points|
                   (-arg .. 0).include? points.signed_area
                 end if closed
               when "minimum-length"
                 data.reject do |points|
-                  points.segments.map(&:distance).inject(0.0, &:+) < arg
+                  points.segments.map(&:distance).inject(0.0, &:+) < arg && points.first == points.last
                 end if dimension == 1
               when "remove"
                 [ ] if [ arg, *args ].any? do |value|

@@ -14,6 +14,16 @@ module VectorSequences
     end
   end
   
+  def in_sections(count)
+    map(&:segments).map do |segments|
+      segments.each_slice(count).map do |segments|
+        segments.inject do |section, segment|
+          section << segment[1]
+        end
+      end
+    end.flatten(1)
+  end
+  
   def at_interval(closed, interval)
     Enumerator.new do |yielder|
       each do |line|

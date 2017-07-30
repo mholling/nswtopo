@@ -362,8 +362,11 @@ module StraightSkeleton
   end
   
   def buffer(closed, margin, overshoot = margin)
-    nodes = closed ? Nodes.new(self, closed) : Nodes.new(self + map(&:reverse), closed)
-    nodes.progress(+margin+overshoot).progress(-overshoot, "splits" => false).readout
+    if closed
+      Nodes.new(self, closed).progress(-margin-overshoot).progress(+overshoot, "splits" => false).readout
+    else
+      Nodes.new(self + map(&:reverse), closed).progress(+margin+overshoot).progress(-overshoot, "splits" => false).readout
+    end
   end
   
   def smooth(closed, margin, cutoff = nil)

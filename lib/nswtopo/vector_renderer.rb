@@ -63,7 +63,9 @@ module NSWTopo
               filter.to_s.split.to_set <= categories
             end
           end.values.inject(sublayer_actions, &:merge)
-          bezier, section = commands.values_at "bezier", "section"
+          font_size, bezier, section = commands.values_at "font-size", "bezier", "section"
+          commands["letter-spacing"] = (commands["letter-spacing"].to_i * font_size * 0.01).round(4) if /^\d+%$/ === commands["letter-spacing"]
+          commands[  "word-spacing"] = (commands[  "word-spacing"].to_i * font_size * 0.01).round(4) if /^\d+%$/ === commands[  "word-spacing"]
           features.each do |dimension, feature, _, _, angle|
             case dimension
             when 0

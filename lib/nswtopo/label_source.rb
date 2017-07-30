@@ -210,7 +210,9 @@ module NSWTopo
         components.map.with_index do |(dimension, data, attributes), component|
           font_size      = attributes.fetch("font-size", DEFAULT_FONT_SIZE)
           letter_spacing = attributes.fetch("letter-spacing", 0)
-          word_spacing   = attributes.fetch("word-spacing", 0)
+          letter_spacing = letter_spacing.to_i * font_size * 0.01 if /^\d+%$/ === letter_spacing
+          word_spacing = attributes.fetch("word-spacing", 0)
+          word_spacing = word_spacing.to_i * font_size * 0.01 if /^\d+%$/ === word_spacing
           debug_features << [ dimension, [ data ], %w[debug feature] ] if map.debug
           next [] if map.debug == "features"
           case dimension

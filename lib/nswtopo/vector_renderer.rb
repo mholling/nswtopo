@@ -89,6 +89,7 @@ module NSWTopo
             end
           end if content
           commands.each do |command, args|
+            next unless args
             args = args.map(&:to_a).inject([], &:+) if Array === args && args.all? { |arg| Hash === arg }
             case command
             when "blur"

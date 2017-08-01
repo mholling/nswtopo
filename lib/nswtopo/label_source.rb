@@ -221,10 +221,8 @@ module NSWTopo
             margin      = attributes.fetch("margin", DEFAULT_MARGIN)
             line_height = attributes.fetch("line-height", DEFAULT_LINE_HEIGHT)
             line_height = 0.01 * $1.to_f if /(.*)%$/ === line_height
-            lines = text.in_two
-            width = lines.map do |line|
-              line.glyph_length(font_size, letter_spacing, word_spacing)
-            end.max
+            lines, widths = text.in_two(font_size, letter_spacing, word_spacing)
+            width = widths.max
             height = lines.map { font_size }.inject { |total, font_size| total + font_size * line_height }
             if attributes["shield"]
               width += VectorRenderer::SHIELD_X * font_size

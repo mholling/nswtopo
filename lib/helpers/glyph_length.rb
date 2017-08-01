@@ -13,6 +13,22 @@ module GlyphLength
   def glyph_length(font_size, letter_spacing = 0, word_spacing = 0)
     WIDTHS.values_at(*chars).inject(0, &:+) * 0.001 * font_size + [ length - 1, 0 ].max * letter_spacing + count(?\s) * word_spacing
   end
+
+  def in_two(font_size, letter_spacing, word_spacing)
+    space_width = ?\s.glyph_length(font_size, letter_spacing, word_spacing)
+    words, widths = split(match(?\n) ? ?\n : match(?/) ? ?/ : ?\s).map(&:strip).map do |word|
+      [ word, word.glyph_length(font_size, letter_spacing, word_spacing) ]
+    end.transpose
+    (1...words.size).map do |index|
+      [ 0...index, index...words.size ]
+    end.map do |ranges|
+      ranges.map do |range|
+        [ words[range].join(?\s), widths[range].inject(&:+) + (range.size - 1) * space_width ]
+      end.transpose
+    end.min_by do |lines, line_widths|
+      line_widths.max
+    end || [ words, widths ]
+  end
 end
 
 String.send :include, GlyphLength

@@ -165,9 +165,7 @@ module StraightSkeleton
   class Nodes
     def initialize(data, closed)
       @closed, @active = closed, Set[]
-      data.sanitise(closed).to_d.tap do |lines|
-        @repeats = lines.flatten(1).group_by { |point| point }.reject { |point, points| points.one? }
-      end.each.with_index do |points, index|
+      data.sanitise(closed).to_d.each.with_index do |points, index|
         normals = (closed ? points.ring : points.segments).map(&:difference).map(&:normalised).map(&:perp)
         normals = closed ? normals.ring.rotate(-1) : normals.unshift(nil).push(nil).segments
         points.zip(normals).map do |point, normals|
@@ -257,6 +255,7 @@ module StraightSkeleton
       @track = Hash.new do |hash, normal|
         hash[normal] = []
       end.compare_by_identity
+      repeats = @active.group_by(&:point).reject { |point, nodes| nodes.one? }
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
       @active.reject(&:terminal?).select(&:reflex?).each do |node|
@@ -284,7 +283,7 @@ module StraightSkeleton
       end
       if options.fetch("splits", true)
         repeated_terminals, repeated_nodes = @active.select do |node|
-          @repeats.include? node.point
+          repeats.include? node.point
         end.partition(&:terminal?)
         repeated_terminals.group_by(&:point).each do |point, nodes|
           nodes.permutation(2).select do |node0, node1|

@@ -256,10 +256,23 @@ module StraightSkeleton
       end.compare_by_identity
       repeats = @active.group_by(&:point).reject { |point, nodes| nodes.one? }
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
-      cutoff = options["cutoff"] && options["cutoff"] * Math::PI / 180
+      cutoff_angle = options["cutoff"] && options["cutoff"] * Math::PI / 180
+      @active.reject(&:terminal?).select do |node|
+        direction * Math::atan2(node.normals.inject(&:cross), node.normals.inject(&:dot)) < -cutoff_angle
+      end.each do |node|
+        @active.delete node
+        2.times.map do
+          Vertex.new self, node.point, node.whence, [ nil, nil ]
+        end.each.with_index do |vertex, index|
+          vertex.normals[index] = node.normals[index]
+          vertex.neighbours[index] = node.neighbours[index]
+          vertex.neighbours[index].neighbours[1-index] = vertex
+          @active << vertex
+        end
+      end if cutoff_angle
       @active.reject(&:terminal?).select(&:reflex?).each do |node|
         angle = Math::atan2 node.normals.inject(&:cross).abs, node.normals.inject(&:dot)
-        extras = cutoff && angle > cutoff ? 1 : (angle / rounding_angle).floor
+        extras = (angle / rounding_angle).floor
         next unless extras > 0
         normals = extras.times.map do |n|
           node.normals[0].rotate_by(angle * (n + 1) * -direction / (extras + 1))

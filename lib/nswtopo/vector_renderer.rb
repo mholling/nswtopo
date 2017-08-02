@@ -1,6 +1,6 @@
 module NSWTopo
   module VectorRenderer
-    SHIELD_X, SHIELD_Y = 1.5, 0.5
+    SHIELD_X, SHIELD_Y = 1.0, 0.5
     SVG_PRESENTATION_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
     attr_reader :name, :params
     

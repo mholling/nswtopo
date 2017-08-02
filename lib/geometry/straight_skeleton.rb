@@ -193,7 +193,8 @@ module StraightSkeleton
       end || return
       return if travel * direction <= 0
       return if @limit && travel.abs >= @limit.abs
-      return if travel.abs < t0.abs || travel.abs < t1.abs
+      # # should be needed, but this line causes problems:
+      # return if travel.abs < t0.abs || travel.abs < t1.abs
       @candidates << Collapse.new(self, point, travel, edge)
     end
     

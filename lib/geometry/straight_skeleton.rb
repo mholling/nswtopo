@@ -381,8 +381,8 @@ module StraightSkeleton
     end
   end
   
-  def smooth(closed, margin, cutoff = nil)
-    Nodes.new(self, closed).progress(+margin).progress(-2 * margin, "cutoff" => cutoff).progress(+margin, "cutoff" => cutoff).readout
+  def smooth(margin, cutoff = nil)
+    Nodes.new(self, false).progress(+margin).progress(-2 * margin, "cutoff" => cutoff).progress(+margin, "cutoff" => cutoff).readout
   end
   
   def centres(dimensions, *args, options)

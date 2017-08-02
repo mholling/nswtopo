@@ -113,7 +113,7 @@ module NSWTopo
               when "buffer"
                 data.buffer(closed, arg, *args) if dimension > 0
               when "smooth"
-                data.smooth(closed, arg, max_turn) if dimension > 0
+                next [ [ 1, data.smooth(arg, max_turn) ] ] if dimension > 0
               when "remove-holes"
                 data.remove_holes(arg) if closed
               when "minimum-area"

@@ -189,9 +189,8 @@ module StraightSkeleton
       when good[0] then Node::solve_asym(n00, n01, n10, n00.dot(p0) - t0, n01.dot(p0) - t0, n10.cross(p1))
       when good[1] then Node::solve_asym(n11, n10, n10, n11.dot(p1) - t1, n10.dot(p1) - t1, n01.cross(p0))
       end || return
-      return if travel * direction <= 0
-      return if @limit && travel.abs >= @limit.abs
-      return if travel.abs < t0.abs || travel.abs < t1.abs
+      return if travel * direction < @travel * direction
+      return if @limit && travel.abs > @limit.abs
       @candidates << Collapse.new(self, point, travel, edge)
     end
     
@@ -250,7 +249,7 @@ module StraightSkeleton
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end
       end if @limit
-      @candidates, @limit, @direction = AVLTree.new, limit, limit ? limit <=> 0 : 1
+      @candidates, @travel, @limit, @direction = AVLTree.new, 0, limit, limit ? limit <=> 0 : 1
       @track = Hash.new do |hash, normal|
         hash[normal] = []
       end.compare_by_identity
@@ -344,6 +343,7 @@ module StraightSkeleton
       end
       while candidate = @candidates.pop
         next unless candidate.viable?
+        @travel = candidate.travel
         candidate.replace! do |node, index = 0|
           @active.delete node
           yield [ node, candidate ].rotate(index).map(&:original) if block_given?

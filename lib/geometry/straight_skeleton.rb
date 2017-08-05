@@ -194,6 +194,17 @@ module StraightSkeleton
       @candidates << Collapse.new(self, point, travel, edge)
     end
     
+    def split(node)
+      bounds = node.project.zip(node.point).map do |centre, coord|
+        [ coord, centre - limit, centre + limit ].minmax
+      end if limit
+      @index.search(bounds).map do |edge|
+        node.split edge
+      end.compact.each do |split|
+        @candidates << split
+      end
+    end
+    
     def include?(node)
       @active.include? node
     end
@@ -328,14 +339,7 @@ module StraightSkeleton
       @active.select do |node|
         node.terminal? || node.reflex?
       end.each do |node|
-        bounds = node.project.zip(node.point).map do |centre, coord|
-          [ coord, centre - limit, centre + limit ].minmax
-        end if limit
-        @index.search(bounds).map do |edge|
-          node.split edge
-        end.compact.each do |split|
-          @candidates << split
-        end
+        split node
       end
       while candidate = @candidates.pop
         next unless candidate.viable?

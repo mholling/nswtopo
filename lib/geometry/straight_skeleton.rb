@@ -20,6 +20,23 @@ module StraightSkeleton
       @neighbours[1]
     end
     
+    def split(edge)
+      p0, p1, p2 = [ *edge, self ].map(&:point)
+      t0, t1, t2 = [ *edge, self ].map(&:travel)
+      (n00, n01), (n10, n11), (n20, n21) = [ *edge, self ].map(&:normals)
+      return if p0 == p2 || p1 == p2
+      return unless [ n20, n21 ].compact.inject(&:plus).dot(n01) < 0
+      point, travel = case
+      when n20 && n21 then Node::solve(n20, n21, n01, n20.dot(p2) - t2, n21.dot(p2) - t2, n01.dot(p0) - t0)
+      when n20 then Node::solve_asym(n01, n20, n20, n01.dot(p0) - t0, n20.dot(p2) - t2, n20.cross(p2))
+      when n21 then Node::solve_asym(n01, n21, n21, n01.dot(p0) - t0, n21.dot(p2) - t2, n21.cross(p2))
+      end || return
+      return if travel * @nodes.direction < @travel
+      return if @nodes.limit && travel.abs > @nodes.limit.abs
+      return if point.minus(p0).dot(n01) * @nodes.direction < 0
+      Split.new @nodes, point, travel, self, edge[0]
+    end
+    
     # ###########################################
     # solve for vector p:
     #   n0.(p - @point) = @nodes.limit - @travel
@@ -116,8 +133,8 @@ module StraightSkeleton
       @edge = @nodes.track(@normal).find do |edge|
         (n00, n01), (n10, n11) = edge.map(&:normals)
         p0, p1 = edge.map(&:point)
-        next if (n00 ? point.minus(p0).cross(n00) : 0) + point.minus(p0).cross(n01) < 0
-        next if (n11 ? point.minus(p1).cross(n11) : 0) + point.minus(p1).cross(n10) > 0
+        next if point.minus(p0).cross(n00 ? n00.plus(n01) : n01) < 0
+        next if point.minus(p1).cross(n11 ? n11.plus(n10) : n10) > 0
         true
       end
     end
@@ -143,22 +160,6 @@ module StraightSkeleton
     
     def reflex?
       normals.inject(&:cross) * @nodes.direction <= 0
-    end
-    
-    def split(edge)
-      p0, p1, p2 = [ *edge, self ].map(&:point)
-      (n00, n01), (n10, n11), (n20, n21) = [ *edge, self ].map(&:normals)
-      return if p0 == p2 || p1 == p2
-      return unless (n20 ? n20.dot(n01) : 0) + (n21 ? n21.dot(n01) : 0) < 0
-      point, travel = case
-      when n20 && n21 then Node::solve(n20, n21, n01, n20.dot(p2), n21.dot(p2), n01.dot(p0))
-      when n20 then Node::solve_asym(n01, n20, n20, n01.dot(p0), n20.dot(p2), n20.cross(p2))
-      when n21 then Node::solve_asym(n01, n21, n21, n01.dot(p0), n21.dot(p2), n21.cross(p2))
-      end || return
-      return if travel * @nodes.direction < 0
-      return if @nodes.limit && travel.abs >= @nodes.limit.abs
-      return if point.minus(p0).dot(n01) * @nodes.direction < 0
-      Split.new @nodes, point, travel, self, edge[0]
     end
   end
   
@@ -196,8 +197,8 @@ module StraightSkeleton
     
     def split(node)
       bounds = node.project.zip(node.point).map do |centre, coord|
-        [ coord, centre - limit, centre + limit ].minmax
-      end if limit
+        [ coord, centre - @limit, centre + @limit ].minmax
+      end if @limit
       @index.search(bounds).map do |edge|
         node.split edge
       end.compact.each do |split|
@@ -217,6 +218,8 @@ module StraightSkeleton
       end.segments.uniq.each do |edge|
         collapse edge
       end
+      split node if node.terminal? && Collapse === node
+      # TODO: terminal Split nodes should also generate new split candidates, but can't make this work
     end
     
     def track(normal)

@@ -208,12 +208,6 @@ module StraightSkeleton
       end
     end
     
-    def edges
-      @active.select(&:next).map do |node|
-        [ node, node.next ]
-      end
-    end
-    
     def track(normal)
       @track[normal].select(&:active?).map do |node|
         [ node, node.next ]
@@ -251,7 +245,7 @@ module StraightSkeleton
       end if @limit
       @candidates, @travel, @limit, @direction = AVLTree.new, 0, limit, limit ? limit <=> 0 : 1
       @track = Hash.new do |hash, normal|
-        hash[normal] = []
+        hash[normal] = Set[]
       end.compare_by_identity
       repeats = @active.group_by(&:point).reject { |point, nodes| nodes.one? }
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
@@ -287,10 +281,15 @@ module StraightSkeleton
           edge[1].normals[0] = edge[0].normals[1] = normal
         end
       end
-      edges.each do |edge|
+      @active.select(&:next).map do |node|
+        [ node, node.next ]
+      end.each do |edge|
         collapse edge
-      end.map(&:first).each do |node|
-        @track[node.normals[1]] << node
+        @track[edge[0].normals[1]] << edge[0]
+      end.map do |edge|
+        [ edge.map(&:point).transpose.map(&:minmax), edge ]
+      end.tap do |bounds_edges|
+        @index = RTree.load bounds_edges
       end
       if options.fetch("splits", true)
         repeated_terminals, repeated_nodes = @active.select do |node|
@@ -326,16 +325,13 @@ module StraightSkeleton
           end
         end if @closed
       end
-      index = RTree.load(edges) do |edge|
-        edge.map(&:point).transpose.map(&:minmax)
-      end if limit
       @active.select do |node|
         node.terminal? || node.reflex?
       end.each do |node|
         bounds = node.project.zip(node.point).map do |centre, coord|
           [ coord, centre - limit, centre + limit ].minmax
         end if limit
-        (index ? index.search(bounds) : edges).map do |edge|
+        @index.search(bounds).map do |edge|
           node.split edge
         end.compact.each do |split|
           @candidates << split

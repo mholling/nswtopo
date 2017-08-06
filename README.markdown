@@ -10,17 +10,14 @@ Pre-Requisites
 
 The software is run as a script, so you will need some familiarity with the command line. It was developed on a Mac but has also been tested on Windows and Linux.
 
-The following open-source packages are required in order to run the script:
+The following software is required in order to run the script:
 
 * The [Ruby programming language](http://ruby-lang.org). You'll need at least Ruby 2.3, or better yet the latest stable release (2.4.1 as of August 2017).
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. Version 1.9.x (January 2012) or later is needed.
+* [Google Chrome](https://www.google.com/chrome/browser/desktop/index.html) web browser, for creating a raster image of your map.
 * [Inkscape](http://inkscape.org/) (a vector graphics editing program), if you wish to make manual edits or additions to your map.
 * A zip command utility, if you wish to produce KMZ maps.
-
-An image editing tool such as [GIMP](http://www.gimp.org/) or Photoshop may also be useful for creating a custom background canvas for your map.
-
-For printing, it is best to produce a [raster](http://en.wikipedia.org/wiki/Raster_graphics) image (e.g. PNG, TIFF) of your map to ensure it is printed correctly. While you can use Inkscape to produce a raster, I recommend [PhantomJS](http://phantomjs.org/) as a better alternative. [Download](http://phantomjs.org/download.html) and unzip the software in your map folder or home directory.
 
 Finally, a geographic viewing or mapping program such as [Google Earth](http://earth.google.com) is very useful for easily specifying the area you wish to create a map for, and for viewing your resulting map in conjunction with GPS data.
 
@@ -29,13 +26,13 @@ Finally, a geographic viewing or mapping program such as [Google Earth](http://e
   * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php#windows) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
   * Install the GDAL utilities using the [OSGeo4W](http://trac.osgeo.org/osgeo4w/) installer. Unless you want all the software offered by the installer, use the 'advanced install' option to install only GDAL. When presented with packages to install, select 'All -> Uninstall' to deselect everything, then open 'Commandline Utilites', choose 'Install' for the gdal package (some other required packages will also be selected), and install. Subsequently you should use the 'OSGeo4w Shell' as your command line when running nswtopo.rb.
   * (Other ways of obtaining Windows GDAL utilities are listed [here](http://trac.osgeo.org/gdal/wiki/DownloadingGdalBinaries#Windows), however not all of them include GDAL 1.9.x or above, including FWTools which was formerly recommended.)
-  * Download and install [Inkscape](http://inkscape.org/download/).
+  * Download and install [Google Chrome](https://www.google.com/chrome/browser/desktop/index.html) and [Inkscape](http://inkscape.org/download/), if required.
   * (If you want to create KMZ maps, install [7-Zip](http://www.7-zip.org) and add its location, `C:\Program Files\7-Zip`, to your PATH following [these instructions](http://java.com/en/download/help/path.xml), using a semicolon to separate your addition.)
 * _Mac OS X_:
   * ImageMagick and GDAL can obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS; follow [these instructions](http://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install gdal` and `sudo port install imagemagick +q8`
   * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software:frameworks#gdal_complete) for GDAL, and the instructions [here](http://www.imagemagick.org/script/binary-releases.php#macosx) for ImageMagick. (This may or may not be quicker/easier than installing XCode and MacPorts!)
   * Type `ruby -v` in a terminal window to see whether a version 2.3 or greater Ruby already exists. If not, you can install Ruby a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/). (If you are using MacPorts, `sudo port install ruby24 +nosuffix` should also work.)
-  * Download and install Inkscape [here](http://inkscape.org/download/), or install it using MacPorts: `sudo port install inkscape`
+  * Download and install [Google Chrome](https://www.google.com/chrome/browser/desktop/index.html) and [Inkscape](http://inkscape.org/download/), if required.
 * _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, Inkscape and zip packages using your distro's package manager (Pacman, RPM, Aptitude, etc).
 
 You can check that the tools are correctly installed by using the following commands:
@@ -389,27 +386,16 @@ If you select `prj` as an output, a corresponding [ESRI world file](http://en.wi
 
 ## Producing Raster Images
 
-There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). To produce a raster map image, install either [Electron](http://electron.atom.io/) (via [Node.js](https://nodejs.org)), [PhantomJS](http://phantomjs.org/download.html) or [Inkscape](http://inkscape.org/). (Electron or PhantomJS is recommended for best results.) Then set your configuration file as follows:
+For printing purposes, it's preferable to render your map as a high-resolution raster image. Available formats are PNG, GIF, JPG, TIFF and KMZ. The [Google Chrome](https://www.google.com/chrome/browser/desktop/index.html) browser is used for this purpose. Find the full path of the Chrome executable on your system, specifying it in your configuration as follows, along with the raster formats you wish to produce:
 
-* To use PhantomJS for rasterising, specify the path of the PhantomJS binary you downloaded. e.g. for Windows:
+        rasterise: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+        formats: png
 
-        rasterise: C:/Users/Matthew/phantomjs-1.9.8-windows/phantomjs.exe
+(For Windows, the path will point to a `.exe` file in one of the `Program Files` folders.) The resolution of the raster image defaults to 300 pixels per inch, but may be specified explicity as follows:
 
-* To use Electron for rasterising:
-
-        rasterise: electron
-
-* To use Inkscape for rasterising:
-
-        rasterise: inkscape
-
-If your command line does not recognise the `inkscape` or `electron` command, you may need to specify the full path. e.g. for Mac:
-
-        rasterise: /Applications/Inkscape.app/Contents/Resources/bin/inkscape
-
-(Or the corresponding `C:/Program Files/Inkscape/inkscape.exe` path in Windows.)
-
-If your map uses shaded relief, it will not render correctly in PhantomJS version 2.0 and above; in this case version 1.9.8 is recommended (although it may crash if your map is too large). Electron is the quickest and most accurate rendering option, however installation (via Node.js and npm) may be less straightforward for the unititiated.
+        formats:
+          png: 200
+          tif: 600
 
 Suggested Workflow for Rogaining Maps
 =====================================
@@ -547,4 +533,4 @@ Release History
 * 5/10/2016: version 1.4: further labelling improvements; break out code into multiple files
   * 2/11/2016: version 1.4.1: add Electron as rasterising option; add multi-point shaded relief option; miscellaneous small fixes and refactoring
 * 6/5/2017: version 1.5: calculate shaded relief from contour data instead of DEM; fix bug in rotated maps where shaded relief mask was not rotated; fix magnetic declination calculator; add mbtiles output format; improve Electron raster reliability (sorta)
-  * 13/5/2017: HEAD: fix bug with shaded relief when coastline is present
+  * 6/8/2017: HEAD: fix bug with shaded relief when coastline is present; switch to Google Chrome as preferred rasterising method

@@ -89,6 +89,15 @@ rotation: 0
       end
     end
     
+    flags_config = ARGV.drop_while do |arg|
+      arg[0] != ?-
+    end.chunk_while do |arg1, arg2|
+      arg2[0] != ?-
+    end.map do |flag, *values|
+      values << true if values.empty?
+      [ flag[1..-1], values.empty? ? true : values.one? ? values[0] : values ]
+    end.to_h
+    
     config = [ Pathname.new(__dir__).parent, Pathname.pwd ].map do |dir_path|
       dir_path + "nswtopo.cfg"
     end.select(&:exist?).map do |config_path|
@@ -97,7 +106,7 @@ rotation: 0
       rescue ArgumentError, SyntaxError => e
         abort "Error in configuration file: #{e.message}"
       end
-    end.inject(default_config, &:deep_merge)
+    end.push(flags_config).inject(default_config, &:deep_merge)
     
     config["include"] = [ *config["include"] ]
     if config["include"].empty?

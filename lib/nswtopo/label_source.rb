@@ -2,6 +2,7 @@ module NSWTopo
   class LabelSource
     include VectorRenderer
     
+    CENTRELINE_FRACTION = 0.3
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase shield]
     TRANSFORMS = %w[reduce fallback outset inset offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
     DEFAULT_FONT_SIZE   = 1.8
@@ -238,7 +239,7 @@ module NSWTopo
               transform = "translate(#{x} #{y}) rotate(#{-map.rotation})"
               text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
               text_elements = lines.map.with_index do |line, index|
-                y = font_size * (lines.one? ? 0.5 * dy + 0.35 : line_height * (dy + index - 0.5) + 0.35)
+                y = font_size * (lines.one? ? 0.5 * dy + CENTRELINE_FRACTION : line_height * (dy + index - 0.5) + CENTRELINE_FRACTION)
                 REXML::Element.new("text").tap do |text|
                   text.add_attributes "text-anchor" => text_anchor, "transform" => transform, "y" => y
                   text.add_text line
@@ -367,7 +368,7 @@ module NSWTopo
                 text_element.add_element text, "xlink:href" => "##{path_id}"
               when String
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
-                text_path.add_element("tspan", "dy" => (0.35 * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
+                text_path.add_element("tspan", "dy" => (CENTRELINE_FRACTION * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
               end
               Label.new source_name, sublayer, feature, component, priority, hull, attributes, [ text_element, path_element ], along
             end.compact.map do |candidate|

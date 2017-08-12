@@ -2,6 +2,7 @@ module NSWTopo
   module VectorRenderer
     SHIELD_X, SHIELD_Y = 1.0, 0.5
     SVG_PRESENTATION_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
+    SCALABLE_ATTRIBUTES = %w[word-spacing letter-spacing stroke-width]
     attr_reader :name, :params
     
     def fences
@@ -64,8 +65,9 @@ module NSWTopo
             end
           end.values.inject(sublayer_actions, &:merge)
           font_size, bezier, section = commands.values_at "font-size", "bezier", "section"
-          commands["letter-spacing"] = (commands["letter-spacing"].to_i * font_size * 0.01).round(4) if /^\d+%$/ === commands["letter-spacing"]
-          commands[  "word-spacing"] = (commands[  "word-spacing"].to_i * font_size * 0.01).round(4) if /^\d+%$/ === commands[  "word-spacing"]
+          SCALABLE_ATTRIBUTES.each do |attribute|
+            commands[attribute] = (commands[attribute].to_i * font_size * 0.01).round(4) if /^\d+%$/ === commands[attribute]
+          end
           features.each do |dimension, feature, _, _, angle|
             case dimension
             when 0

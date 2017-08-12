@@ -16,10 +16,10 @@ module NSWTopo
         outline:
           stroke: white
           fill: none
-          stroke-width: 0.3
-          stroke-opacity: 0.75
-        font-family: "'Arial Narrow', sans-serif"
-        font-size: 2.75
+          stroke-width: 10%
+          opacity: 0.65
+        font-family: Arial Narrow, sans-serif
+        font-size: 2.3
         stroke: none
         fill: black
         orientation: uphill

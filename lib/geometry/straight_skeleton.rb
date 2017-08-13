@@ -305,45 +305,43 @@ module StraightSkeleton
       end.tap do |bounds_edges|
         @index = RTree.load bounds_edges
       end
-      if options.fetch("splits", true)
-        repeated_terminals, repeated_nodes = @active.select do |node|
-          repeats.include? node.point
-        end.partition(&:terminal?)
-        repeated_terminals.group_by(&:point).each do |point, nodes|
-          nodes.permutation(2).select do |node0, node1|
-            node0.normals[0] && node1.normals[1]
-          end.select do |node0, node1|
-            node0.normals[0].cross(node1.normals[1]) > 0
-          end.group_by(&:first).map(&:last).map do |pairs|
-            pairs.min_by do |node0, node1|
-              node0.normals[0].dot(node1.normals[1])
-            end
-          end.compact.each do |node0, node1|
-            @candidates << Split.new(self, point, 0, node0, node1)
+      repeated_terminals, repeated_nodes = @active.select do |node|
+        repeats.include? node.point
+      end.partition(&:terminal?)
+      repeated_terminals.group_by(&:point).each do |point, nodes|
+        nodes.permutation(2).select do |node0, node1|
+          node0.normals[0] && node1.normals[1]
+        end.select do |node0, node1|
+          node0.normals[0].cross(node1.normals[1]) > 0
+        end.group_by(&:first).map(&:last).map do |pairs|
+          pairs.min_by do |node0, node1|
+            node0.normals[0].dot(node1.normals[1])
           end
+        end.compact.each do |node0, node1|
+          @candidates << Split.new(self, point, 0, node0, node1)
         end
-        repeated_nodes.group_by(&:point).select do |point, nodes|
-          nodes.all?(&:reflex?)
-        end.each do |point, nodes|
-          nodes.inject([]) do |(*sets, set), node|
-            case
-            when !set then                   [ [ node ] ]
-            when set.last.next == node  then [ *sets, [ *set, node ] ]
-            when set.first == node.next then [ *sets, [ node, *set ] ]
-            else                             [ *sets,  set, [ node ] ]
-            end
-          end.sort_by do |set|
-            set.first.normals.first
-          end.ring.each do |set0, set1|
-            @candidates << Split.new(self, point, 0, set0.first, set1.last)
-          end
-        end if @closed
       end
+      repeated_nodes.group_by(&:point).select do |point, nodes|
+        nodes.all?(&:reflex?)
+      end.each do |point, nodes|
+        nodes.inject([]) do |(*sets, set), node|
+          case
+          when !set then                   [ [ node ] ]
+          when set.last.next == node  then [ *sets, [ *set, node ] ]
+          when set.first == node.next then [ *sets, [ node, *set ] ]
+          else                             [ *sets,  set, [ node ] ]
+          end
+        end.sort_by do |set|
+          set.first.normals.first
+        end.ring.each do |set0, set1|
+          @candidates << Split.new(self, point, 0, set0.first, set1.last)
+        end
+      end if @closed
       @active.select do |node|
         node.terminal? || node.reflex?
       end.each do |node|
         split node
-      end
+      end if options.fetch("splits", true)
       while candidate = @candidates.pop
         next unless candidate.viable?
         @travel = candidate.travel

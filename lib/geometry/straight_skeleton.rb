@@ -257,13 +257,15 @@ module StraightSkeleton
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end
       end if @limit
+      
       @candidates, @travel, @limit, @direction = AVLTree.new, 0, limit, limit ? limit <=> 0 : 1
+      rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
+      cutoff_angle = options["cutoff"] && options["cutoff"] * Math::PI / 180
       @track = Hash.new do |hash, normal|
         hash[normal] = Set[]
       end.compare_by_identity
       repeats = @active.group_by(&:point).reject { |point, nodes| nodes.one? }
-      rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
-      cutoff_angle = options["cutoff"] && options["cutoff"] * Math::PI / 180
+      
       @active.reject(&:terminal?).select do |node|
         direction * Math::atan2(node.normals.inject(&:cross), node.normals.inject(&:dot)) < -cutoff_angle
       end.each do |node|
@@ -277,6 +279,7 @@ module StraightSkeleton
           @active << vertex
         end
       end if cutoff_angle
+      
       @active.reject(&:terminal?).select(&:reflex?).each do |node|
         angle = Math::atan2 node.normals.inject(&:cross).abs, node.normals.inject(&:dot)
         extras = (angle / rounding_angle).floor
@@ -295,19 +298,11 @@ module StraightSkeleton
           edge[1].normals[0] = edge[0].normals[1] = normal
         end
       end
-      @active.select(&:next).map do |node|
-        [ node, node.next ]
-      end.each do |edge|
-        collapse edge
-        @track[edge[0].normals[1]] << edge[0]
-      end.map do |edge|
-        [ edge.map(&:point).transpose.map(&:minmax), edge ]
-      end.tap do |bounds_edges|
-        @index = RTree.load bounds_edges
-      end
+      
       repeated_terminals, repeated_nodes = @active.select do |node|
         repeats.include? node.point
       end.partition(&:terminal?)
+      
       repeated_terminals.group_by(&:point).each do |point, nodes|
         nodes.permutation(2).select do |node0, node1|
           node0.normals[0] && node1.normals[1]
@@ -321,6 +316,7 @@ module StraightSkeleton
           @candidates << Split.new(self, point, 0, node0, node1)
         end
       end
+      
       repeated_nodes.group_by(&:point).select do |point, nodes|
         nodes.all?(&:reflex?)
       end.each do |point, nodes|
@@ -337,11 +333,24 @@ module StraightSkeleton
           @candidates << Split.new(self, point, 0, set0.first, set1.last)
         end
       end if @closed
+      
+      @active.select(&:next).map do |node|
+        [ node, node.next ]
+      end.each do |edge|
+        collapse edge
+        @track[edge[0].normals[1]] << edge[0]
+      end.map do |edge|
+        [ edge.map(&:point).transpose.map(&:minmax), edge ]
+      end.tap do |bounds_edges|
+        @index = RTree.load bounds_edges
+      end
+      
       @active.select do |node|
         node.terminal? || node.reflex?
       end.each do |node|
         split node
       end if options.fetch("splits", true)
+      
       while candidate = @candidates.pop
         next unless candidate.viable?
         @travel = candidate.travel
@@ -350,6 +359,7 @@ module StraightSkeleton
           yield [ node, candidate ].rotate(index).map(&:original) if block_given?
         end
       end
+      
       self
     end
     

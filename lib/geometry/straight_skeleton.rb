@@ -154,8 +154,8 @@ module StraightSkeleton
   class Vertex
     include Node
     
-    def initialize(nodes, point, whence, normals)
-      @original, @neighbours, @nodes, @whence, @point, @normals, @travel = self, [ nil, nil ], nodes, whence, point, normals, 0
+    def initialize(nodes, point, normals, whence)
+      @original, @neighbours, @nodes, @point, @normals, @whence, @travel = self, [ nil, nil ], nodes, point, normals, whence, 0
     end
     
     def reflex?
@@ -170,7 +170,7 @@ module StraightSkeleton
         normals = (closed ? points.ring : points.segments).map(&:difference).map(&:normalised).map(&:perp)
         normals = closed ? normals.ring.rotate(-1) : normals.unshift(nil).push(nil).segments
         points.zip(normals).map do |point, normals|
-          Vertex.new self, point, Set[index], normals
+          Vertex.new self, point, normals, Set[index]
         end.each do |node|
           @active << node
         end.send(closed ? :ring : :segments).each do |edge|
@@ -248,9 +248,9 @@ module StraightSkeleton
     
     def progress(limit = nil, options = {}, &block)
       return self if limit && limit.zero?
-      finalise.each do |nodes|
+      finalise.each.with_index do |nodes, index|
         nodes.map do |node|
-          Vertex.new self, node.project, node.whence, node.normals
+          Vertex.new self, node.project, node.normals, Set[index]
         end.each do |node|
           @active << node
         end.send(@closed ? :ring : :segments).each do |edge|
@@ -269,7 +269,7 @@ module StraightSkeleton
       end.each do |node|
         @active.delete node
         2.times.map do
-          Vertex.new self, node.point, node.whence, [ nil, nil ]
+          Vertex.new self, node.point, [ nil, nil ], node.whence
         end.each.with_index do |vertex, index|
           vertex.normals[index] = node.normals[index]
           vertex.neighbours[index] = node.neighbours[index]
@@ -285,7 +285,7 @@ module StraightSkeleton
           node.normals[0].rotate_by(angle * (n + 1) * -direction / (extras + 1))
         end
         nodes = extras.times.map do
-          Vertex.new self, node.point, node.whence, [ nil, nil ]
+          Vertex.new self, node.point, [ nil, nil ], node.whence
         end.each do |extra_node|
           @active << extra_node
         end.unshift(node)

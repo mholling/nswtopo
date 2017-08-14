@@ -264,7 +264,22 @@ module StraightSkeleton
       @track = Hash.new do |hash, normal|
         hash[normal] = Set[]
       end.compare_by_identity
-      repeats = @active.group_by(&:point).reject { |point, nodes| nodes.one? }
+      
+      joins = Set[]
+      @active.group_by(&:point).each do |point, nodes|
+        nodes.permutation(2).select do |node0, node1|
+          node0.prev && node1.next && node0.prev.point != node1.next.point
+        end.group_by(&:first).map(&:last).map do |pairs|
+          pairs.min_by do |node0, node1|
+            normals = [ node1.normals[1], node0.normals[0] ]
+            Math::atan2 normals.inject(&:cross), normals.inject(&:dot)
+          end
+        end.each do |node0, node1|
+          @candidates << Split.new(self, point, 0, node0, node1)
+          joins << node0 << node1
+        end
+        # nodes produce here won't be rounded, but this will be very rare
+      end
       
       @active.reject(&:terminal?).select do |node|
         direction * Math::atan2(node.normals.inject(&:cross), node.normals.inject(&:dot)) < -cutoff_angle
@@ -280,7 +295,7 @@ module StraightSkeleton
         end
       end if cutoff_angle
       
-      @active.reject(&:terminal?).select(&:reflex?).each do |node|
+      (@active - joins).reject(&:terminal?).select(&:reflex?).each do |node|
         angle = Math::atan2 node.normals.inject(&:cross).abs, node.normals.inject(&:dot)
         extras = (angle / rounding_angle).floor
         next unless extras > 0
@@ -298,41 +313,6 @@ module StraightSkeleton
           edge[1].normals[0] = edge[0].normals[1] = normal
         end
       end
-      
-      repeated_terminals, repeated_nodes = @active.select do |node|
-        repeats.include? node.point
-      end.partition(&:terminal?)
-      
-      repeated_terminals.group_by(&:point).each do |point, nodes|
-        nodes.permutation(2).select do |node0, node1|
-          node0.normals[0] && node1.normals[1]
-        end.select do |node0, node1|
-          node0.normals[0].cross(node1.normals[1]) > 0
-        end.group_by(&:first).map(&:last).map do |pairs|
-          pairs.min_by do |node0, node1|
-            node0.normals[0].dot(node1.normals[1])
-          end
-        end.compact.each do |node0, node1|
-          @candidates << Split.new(self, point, 0, node0, node1)
-        end
-      end
-      
-      repeated_nodes.group_by(&:point).select do |point, nodes|
-        nodes.all?(&:reflex?)
-      end.each do |point, nodes|
-        nodes.inject([]) do |(*sets, set), node|
-          case
-          when !set then                   [ [ node ] ]
-          when set.last.next == node  then [ *sets, [ *set, node ] ]
-          when set.first == node.next then [ *sets, [ node, *set ] ]
-          else                             [ *sets,  set, [ node ] ]
-          end
-        end.sort_by do |set|
-          set.first.normals.first
-        end.ring.each do |set0, set1|
-          @candidates << Split.new(self, point, 0, set0.first, set1.last)
-        end
-      end if @closed
       
       @active.select(&:next).map do |node|
         [ node, node.next ]

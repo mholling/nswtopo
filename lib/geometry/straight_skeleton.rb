@@ -229,19 +229,22 @@ module StraightSkeleton
     end
     
     def finalise
-      Enumerator.new do |yielder|
+      [].tap do |result|
+        used = Set[]
         while @active.any?
-          nodes = [ @active.first ]
-          while node = nodes.last.next and node != nodes.first
+          nodes = @active.take 1
+          while node = nodes.last.next and !used.include?(node)
             nodes.push node
+            used << node
           end
-          while node = nodes.first.prev and node != nodes.last
+          while node = nodes.first.prev and !used.include?(node)
             nodes.unshift node
+            used << node
           end
           @active.subtract nodes
-          yielder << nodes
+          result << nodes
         end
-      end.to_a
+      end
     end
     
     attr_reader :limit, :direction

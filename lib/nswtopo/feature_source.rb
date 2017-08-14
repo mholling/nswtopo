@@ -2,12 +2,12 @@ module NSWTopo
   class FeatureSource
     include VectorRenderer
     attr_reader :path
-    
+
     def initialize(name, params)
       @name, @params = name, params
       @path = Pathname.pwd + "#{name}.json"
     end
-    
+
     def shapefile_features(map, source, options)
       Enumerator.new do |yielder|
         shape_path = Pathname.new source["path"]
@@ -42,7 +42,7 @@ module NSWTopo
         end
       end
     end
-    
+
     def arcgis_features(map, source, options)
       options["definition"] ||= "1 = 1" if options.delete "redefine"
       url = if URI.parse(source["url"]).path.split(?/).any?
@@ -194,14 +194,14 @@ module NSWTopo
         end
       end
     end
-    
+
     def wfs_features(map, source, options)
       url = source["url"]
       type_name = options["name"]
       per_page = [ *options["per-page"], *source["per-page"], 500 ].min
       headers = source["headers"]
       base_query = { "service" => "wfs", "version" => "2.0.0" }
-      
+
       query = base_query.merge("request" => "DescribeFeatureType", "typeName" => type_name).to_query
       xml = WFS.get_xml URI.parse("#{url}?#{query}"), headers
       namespace, type = xml.elements["xsd:schema/xsd:element[@name='#{type_name}']/@type"].value.split ?:
@@ -215,7 +215,7 @@ module NSWTopo
         end
         { name => method }
       end.inject({}, &:merge)
-      
+
       geometry_name = xml.elements["xsd:schema/[@name='#{type}']//xsd:element[@name][starts-with(@type,'gml:')]/@name"].value
       geometry_type = xml.elements["xsd:schema/[@name='#{type}']//xsd:element[@name][starts-with(@type,'gml:')]/@type"].value
       dimension = case geometry_type
@@ -224,17 +224,17 @@ module NSWTopo
       when *%w[gml:SurfacePropertyType gml:MultiSurfacePropertyType] then 2
       else raise BadLayerError.new "unsupported geometry type '#{geometry_type}'"
       end
-      
+
       query = base_query.merge("request" => "GetCapabilities").to_query
       xml = WFS.get_xml URI.parse("#{url}?#{query}"), headers
       default_crs = xml.elements["wfs:WFS_Capabilities/FeatureTypeList/FeatureType[Name[text()='#{namespace}:#{type_name}']]/DefaultCRS"].text
       wkid = default_crs.match(/EPSG::(\d+)$/)[1]
       projection = Projection.new "epsg:#{wkid}"
-      
+
       points = map.projection.reproject_to(projection, map.coord_corners)
       polygon = [ *points, points.first ].map { |corner| corner.reverse.join ?\s }.join ?,
       bounds_filter = "INTERSECTS(#{geometry_name},POLYGON((#{polygon})))"
-      
+
       filters = [ bounds_filter, *options["filter"], *options["where"] ]
       names &= [ *options["category"], *options["rotate"], *options["label"] ]
       get_query = {
@@ -244,7 +244,7 @@ module NSWTopo
         "count" => per_page,
         "cql_filter" => "(#{filters.join ') AND ('})"
       }
-      
+
       Enumerator.new do |yielder|
         index = 0
         loop do
@@ -276,19 +276,19 @@ module NSWTopo
         end
       end
     end
-    
+
     def create(map)
       return if path.exist?
-      
+
       puts "Downloading: #{name}"
       feature_hull = map.coord_corners(1.0)
-      
+
       %w[host instance folder service cookie].map do |key|
         { key => params.delete(key) }
       end.inject(&:merge).tap do |default|
         params["sources"] = { "default" => default }
       end unless params["sources"]
-      
+
       sources = params["sources"].map do |name, source|
         source["headers"] ||= {}
         if source["cookie"]
@@ -302,7 +302,7 @@ module NSWTopo
         source["headers"]["User-Agent"] ||= "Ruby/#{RUBY_VERSION}"
         { name => source }
       end.inject(&:merge)
-      
+
       params["features"].inject([]) do |memo, (key, value)|
         case value
         when Array then memo + value.map { |val| [ key, val ] }
@@ -400,7 +400,7 @@ module NSWTopo
         end
       end
     end
-    
+
     def layers
       @layers ||= begin
         raise BadLayerError.new("source file not found at #{path}") unless path.exist?
@@ -409,7 +409,7 @@ module NSWTopo
         end
       end
     end
-    
+
     def features(map)
       layers.map do |sublayer, features|
         next [] if sublayer =~ /-labels$/
@@ -425,7 +425,7 @@ module NSWTopo
         end
       end.flatten(1)
     end
-    
+
     def labels(map)
       layers.map do |sublayer, features|
         features.select do |feature|
@@ -437,14 +437,14 @@ module NSWTopo
       end.flatten(1)
     end
   end
-  
+
   class ArcGISVector < FeatureSource
     def initialize(*args)
       super(*args)
       params["sources"].each { |name, source| source["protocol"] = "arcgis" }
     end
   end
-  
+
   class ShapefileSource < FeatureSource
     def initialize(*args)
       super(*args)

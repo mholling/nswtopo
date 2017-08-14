@@ -5,7 +5,7 @@ module NSWTopo
       [ [ top_left[0], resolution * cos,  resolution * sin ],
         [ top_left[1], resolution * sin, -resolution * cos ] ]
     end
-    
+
     def self.write(top_left, resolution, angle, path)
       (x, r00, r01), (y, r10, r11) = geotransform(top_left, resolution, angle)
       path.open("w") do |file|

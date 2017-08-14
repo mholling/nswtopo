@@ -2,12 +2,12 @@ module NSWTopo
   module Avenza
     extend Dither
     LEVELS = 3 # TODO: determine programmatically, or is this fixed?
-    
+
     def self.build(config, map, ppi, png_path, temp_dir, zip_path)
       zip_dir = temp_dir + map.filename
       tiles_dir = zip_dir + "tiles"
       tiles_dir.mkpath
-      
+
       (LEVELS - 1).downto(0).map.with_index do |level, index|
         [ level, index, ppi.to_f / 2**index ]
       end.each.in_parallel do |level, index, ppi|
@@ -30,9 +30,9 @@ module NSWTopo
       Pathname.glob(tiles_dir + "*.png").each.in_parallel_groups do |tile_paths|
         dither config, *tile_paths
       end
-      
+
       %x[convert "#{png_path}" -thumbnail 64x64 -gravity center -background white -extent 64x64 -alpha Remove -type TrueColor "#{zip_dir + 'thumb.png'}"]
-      
+
       Dir.chdir(zip_dir) { %x[#{ZIP} -r "#{zip_path}" *] }
     end
   end

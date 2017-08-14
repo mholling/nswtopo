@@ -2,7 +2,7 @@ class RTree
   def initialize(nodes, bounds, object = nil)
     @nodes, @bounds, @object = nodes, bounds, object
   end
-  
+
   def overlaps?(bounds)
     return false if @bounds.empty?
     return true unless bounds
@@ -12,7 +12,7 @@ class RTree
       end
     end
   end
-  
+
   def self.load(bounds_objects, &block)
     case
     when block_given? then load bounds_objects.map(&block).zip(bounds_objects)
@@ -30,7 +30,7 @@ class RTree
       RTree.new nodes, bounds_objects.map(&:first).transpose.map(&:flatten).map(&:minmax)
     end
   end
-  
+
   def search(bounds, searched = Set.new)
     Enumerator.new do |yielder|
       unless searched.include? self

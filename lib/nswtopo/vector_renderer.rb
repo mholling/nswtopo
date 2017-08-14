@@ -4,11 +4,11 @@ module NSWTopo
     SVG_PRESENTATION_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
     SCALABLE_ATTRIBUTES = %w[word-spacing letter-spacing stroke-width]
     attr_reader :name, :params
-    
+
     def fences
       @fences ||= []
     end
-    
+
     def render_svg(xml, map)
       defs = xml.elements["svg/defs"]
       unless map.rotation.zero?
@@ -24,7 +24,7 @@ module NSWTopo
         end
         transform = "translate(#{x} #{-y}) rotate(#{map.rotation})"
       end
-      
+
       features(map).group_by do |dimension, feature, categories, sublayer, *|
         sublayer
       end.each do |sublayer, features|
@@ -32,7 +32,7 @@ module NSWTopo
         puts "  #{sublayer}" if sublayer
         group.add_attributes("transform" => transform) if transform
         sublayer_actions = params.merge params.fetch(sublayer, {})
-        
+
         features.reject do |dimension, feature, *|
           feature.empty?
         end.group_by do |dimension, feature, categories, *|

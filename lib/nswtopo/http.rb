@@ -27,7 +27,7 @@ module NSWTopo
       req.body = body.to_s
       request uri, req, &block
     end
-    
+
     def self.head(uri, *args, &block)
       request uri, Net::HTTP::Head.new(uri.request_uri, *args), &block
     end

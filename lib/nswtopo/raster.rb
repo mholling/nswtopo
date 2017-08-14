@@ -2,7 +2,7 @@ module NSWTopo
   module Raster
     extend Dither
     TILE_SIZE = 2000
-    
+
     def self.build(config, map, ppi, svg_path, temp_dir, png_path)
       width, height = dimensions = map.dimensions_at(ppi)
       yield dimensions if block_given?

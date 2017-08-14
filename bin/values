@@ -92,7 +92,7 @@ def show_wfs(url, name, field, *fields, values, filter)
     "startIndex" => 0,
     "outputFormat" => "application/json",
   }
-  
+
   filters = []
   loop do
     cql_filter = [ *filter, *filters ].join " AND "
@@ -110,13 +110,13 @@ def show_wfs(url, name, field, *fields, values, filter)
     when String then "(#{field} NOT IN ('#{value}'))"
     else             "(#{field} NOT IN (#{value}))"
     end
-    
+
     value_filter = case value
     when nil    then "(#{field} IS NULL)"
     when String then "(#{field} IN ('#{value}'))"
     else             "(#{field} IN (#{value}))"
     end
-    
+
     puts "%s%s" % [ "   " * values.length, value || "(null)" ]
     if fields.any?
       show_wfs(url, name, *fields, [ *values, value ], [ *filter, value_filter ].join(" AND "))

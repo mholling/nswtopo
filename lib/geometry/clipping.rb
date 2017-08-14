@@ -4,11 +4,11 @@ module Clipping
       result.select { |point| point.minus(vertex).dot(perp) >= 0 }
     end
   end
-  
+
   def clip_points!(hull)
     replace clip_points(hull)
   end
-  
+
   def clip_lines(hull)
     [ hull, hull.perps ].transpose.inject(self) do |result, (vertex, perp)|
       result.inject([]) do |clipped, points|
@@ -29,11 +29,11 @@ module Clipping
       end
     end.select(&:many?)
   end
-  
+
   def clip_lines!(hull)
     replace clip_lines(hull)
   end
-  
+
   def clip_polys(hull)
     lefthanded = first.hole?
     chunk(&:hole?).map(&:last).each_slice(2).map do |polys, holes|
@@ -85,7 +85,7 @@ module Clipping
       end
     end.flatten(1)
   end
-  
+
   def clip_polys!(hull)
     replace clip_polys(hull)
   end

@@ -9,7 +9,7 @@ module GlyphLength
     ?[ => 342, ?] => 342, ?^ => 247, ?_ => 475, ?` => 247, ?: => 216, ?; => 217, ?< => 533, ?= => 533, ?> => 533, ?? => 361, ?@ => 757, ?\s => 200,
   }
   WIDTHS.default = WIDTHS[?M]
-  
+
   def glyph_length(font_size, letter_spacing = 0, word_spacing = 0)
     WIDTHS.values_at(*chars).inject(0, &:+) * 0.001 * font_size + [ length - 1, 0 ].max * letter_spacing + count(?\s) * word_spacing
   end

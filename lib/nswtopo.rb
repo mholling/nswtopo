@@ -52,13 +52,13 @@ module NSWTopo
   SEGMENT = ?.
   MM_DECIMAL_DIGITS = 4
   EARTH_RADIUS = 6378137.0
-  
+
   WINDOWS = !RbConfig::CONFIG["host_os"][/mswin|mingw/].nil?
   OP = WINDOWS ? '(' : '\('
   CP = WINDOWS ? ')' : '\)'
   ZIP = WINDOWS ? "7z a -tzip" : "zip"
   DISCARD_STDERR = WINDOWS ? "2> nul" : "2>/dev/null"
-  
+
   CONFIG = %q[---
 name: map
 scale: 25000
@@ -71,16 +71,16 @@ rotation: 0
   BadGpxKmlFile = Class.new(Exception)
   BadLayerError = Class.new(Exception)
   NoVectorPDF = Class.new(Exception)
-  
+
   def self.run
     default_config = YAML.load(CONFIG)
-    
+
     %w[bounds.kml bounds.gpx].map do |filename|
       Pathname.pwd + filename
     end.find(&:exist?).tap do |bounds_path|
       default_config["bounds"] = bounds_path if bounds_path
     end
-    
+
     unless Pathname.pwd.join("nswtopo.cfg").exist?
       if default_config["bounds"]
         puts "No nswtopo.cfg configuration file found. Using #{default_config['bounds'].basename} as map bounds."
@@ -88,7 +88,7 @@ rotation: 0
         abort "Error: could not find any configuration file (nswtopo.cfg) or bounds file (bounds.kml)."
       end
     end
-    
+
     flags_config = ARGV.drop_while do |arg|
       arg[0] != ?-
     end.chunk_while do |arg1, arg2|
@@ -97,7 +97,7 @@ rotation: 0
       values << true if values.empty?
       [ flag[1..-1], values.empty? ? true : values.one? ? values[0] : values ]
     end.to_h
-    
+
     config = [ Pathname.new(__dir__).parent, Pathname.pwd ].map do |dir_path|
       dir_path + "nswtopo.cfg"
     end.select(&:exist?).map do |config_path|
@@ -107,13 +107,13 @@ rotation: 0
         abort "Error in configuration file: #{e.message}"
       end
     end.push(flags_config).inject(default_config, &:deep_merge)
-    
+
     config["include"] = [ *config["include"] ]
     if config["include"].empty?
       config["include"] << "nsw/topographic"
       puts "No layers specified. Adding nsw/topographic by default."
     end
-    
+
     %w[controls.gpx controls.kml].map do |filename|
       Pathname.pwd + filename
     end.find(&:file?).tap do |control_path|
@@ -123,18 +123,18 @@ rotation: 0
         config["controls"]["path"] ||= control_path.to_s
       end
     end
-    
+
     config["include"].unshift "canvas" if Pathname.new("canvas.png").expand_path.exist?
-    
+
     map = Map.new(config)
-    
+
     puts "Map details:"
     puts "  name: #{map.name}"
     puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
     puts "  scale: 1:%i" % map.scale
     puts "  rotation: %.1f degrees" % map.rotation
     puts "  extent: %.1fkm x %.1fkm" % map.extents.map { |extent| 0.001 * extent }
-    
+
     sources = config["include"].map do |name_or_path_or_hash|
       [ *name_or_path_or_hash ].flatten
     end.map do |name_or_path, resolution|
@@ -163,7 +163,7 @@ rotation: 0
         [ name_or_path.gsub(?/, SEGMENT), NSWTopo.const_get(params.delete "class"), params ]
       end
     end
-    
+
     [ *config["import"] ].reverse.map do |file_or_hash|
       [ *file_or_hash ].flatten
     end.map do |file_or_path, name|
@@ -172,7 +172,7 @@ rotation: 0
       name ||= path.basename(path.extname).to_s
       sources.unshift [ name, ImportSource, "path" => path ]
     end
-    
+
     sources.each do |name, klass, params|
       config.map do |key, value|
         [ key.match(%r{#{name}#{SEGMENT}(.+)}), value ]
@@ -182,13 +182,13 @@ rotation: 0
         params.deep_merge! layers_params if layers_params
       end
     end
-    
+
     sources.select do |name, klass, params|
       config[name]
     end.each do |name, klass, params|
       params.deep_merge! config[name]
     end
-    
+
     sources.select do |name, klass, params|
       ReliefSource == klass
     end.each do |name, klass, params|
@@ -196,7 +196,7 @@ rotation: 0
         [ *params["relief-masks"] ].map { |sublayer| [ name, sublayer ].join SEGMENT }
       end.inject(&:+)
     end
-    
+
     config["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
       sources.each do |name, klass, params|
@@ -208,7 +208,7 @@ rotation: 0
         end
       end
     end
-    
+
     config["exclude"] = [ *config["exclude"] ].map { |name| name.gsub ?/, SEGMENT }
     config["exclude"].each do |source_or_layer_name|
       sources.reject! do |name, klass, params|
@@ -219,17 +219,17 @@ rotation: 0
         params["exclude"] << match[1] if match
       end
     end
-    
+
     sources.find do |name, klass, params|
       params.fetch("min-version", NSWTOPO_VERSION).to_s > NSWTOPO_VERSION
     end.tap do |name, klass, params|
       abort "Error: map source '#{name}' requires a newer version of this software; please upgrade." if name
     end
-    
+
     sources.map! do |name, klass, params|
       klass.new(name, params)
     end
-    
+
     sources.each do |source|
       begin
         source.create(map) if source.respond_to?(:create)
@@ -237,24 +237,24 @@ rotation: 0
         $stderr.puts "Error: #{e.message}" and next
       end
     end
-    
+
     return if config["no-output"]
-    
+
     svg_name = "#{map.filename}.svg"
     svg_path = Pathname.pwd + svg_name
-    
+
     unless config["no-update"]
       xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
-      
+
       removals = config["exclude"].select do |name|
         predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}')"
         xml.elements["/svg/g[#{predicate}] | svg/defs/[#{predicate}]"]
       end
-      
+
       updates = sources.reject do |source|
         source.respond_to?(:path) ? FileUtils.uptodate?(svg_path, [ *source.path ]) : xml.elements["/svg/g[@id='#{source.name}' or starts-with(@id,'#{source.name}#{SEGMENT}')]"]
       end
-      
+
       Dir.mktmppath do |temp_dir|
         if updates.any? do |source|
           source.respond_to? :labels
@@ -263,7 +263,7 @@ rotation: 0
         end then
           label_source = LabelSource.new
         end
-        
+
         config["exclude"].map do |name|
           predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}') or @id='labels#{SEGMENT}#{name}' or starts-with(@id,'labels#{SEGMENT}#{name}#{SEGMENT}')"
           xpath = "/svg/g[#{predicate}] | svg/defs/[#{predicate}]"
@@ -272,7 +272,7 @@ rotation: 0
             xml.elements.each(xpath, &:remove)
           end
         end
-        
+
         [ *updates, *label_source ].each do |source|
           begin
             if source == label_source
@@ -312,9 +312,9 @@ rotation: 0
             puts "Failed to render #{source.name}: #{e.message}"
           end
         end
-        
+
         xml.elements.each("/svg/g[*]") { |group| group.add_attribute("inkscape:groupmode", "layer") }
-        
+
         if config["check-fonts"]
           fonts_needed = xml.elements.collect("//[@font-family]") do |element|
             element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")
@@ -328,7 +328,7 @@ rotation: 0
             fonts_missing.sort.each { |family| puts "  #{family}" }
           end
         end
-        
+
         tmp_svg_path = temp_dir + svg_name
         tmp_svg_path.open("w") do |file|
           formatter = REXML::Formatters::Pretty.new
@@ -338,7 +338,7 @@ rotation: 0
         FileUtils.cp tmp_svg_path, svg_path
       end if updates.any? || removals.any?
     end
-    
+
     formats = [ *config["formats"] ].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["prj"] = %w[wkt_all proj4 wkt wkt_simple wkt_noct wkt_esri mapinfo xml].delete(formats["prj"]) || "proj4" if formats.include? "prj"
     formats["png"] ||= nil if formats.include? "map"
@@ -348,11 +348,11 @@ rotation: 0
     (formats.keys & %w[png tif gif jpg]).each do |format|
       formats["#{format[0]}#{format[2]}w"] = formats[format]
     end if formats.include? "prj"
-    
+
     outstanding = (formats.keys & %w[png tif gif jpg kmz mbtiles zip psd pdf pgw tfw gfw jgw map prj]).reject do |format|
       FileUtils.uptodate? "#{map.filename}.#{format}", [ svg_path ]
     end
-    
+
     Dir.mktmppath do |temp_dir|
       outstanding.group_by do |format|
         [ formats[format], format == "mbtiles" ]

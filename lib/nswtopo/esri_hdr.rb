@@ -5,7 +5,7 @@ module NSWTopo
       when Pathname then path_or_object.sub_ext(".hdr").each_line.map(&:upcase).map(&:split).to_h
       when ESRIHdr then path_or_object.header.dup
       end
-      
+
       @format = case @header.values_at "PIXELTYPE", "NBITS", "BYTEORDER"
       when %w[SIGNEDINT 8 I]    then "c*"
       when %w[SIGNEDINT 8 M]    then "c*"
@@ -22,7 +22,7 @@ module NSWTopo
       when %w[FLOAT 32 I]       then "e*"
       when %w[FLOAT 32 M]       then "g*"
       end
-      
+
       @nodata = case path_or_object
       when Pathname
         case @header.values_at "PIXELTYPE", "NBITS"
@@ -37,7 +37,7 @@ module NSWTopo
         end if args.any?
       when ESRIHdr then path_or_object.nodata
       end
-      
+
       @values = case path_or_object
       when Pathname
         path_or_object.sub_ext(".bil").binread.unpack(@format).map do |value|
@@ -46,7 +46,7 @@ module NSWTopo
       when ESRIHdr then args[0]
       end
     end
-    
+
     def write(path)
       @header.map do |pair|
         "%-#{@header.keys.map(&:length).max}s  %s\n" % pair
@@ -59,9 +59,9 @@ module NSWTopo
         path.sub_ext(".bil").binwrite data
       end
     end
-    
+
     attr_reader :header, :values, :nodata
-    
+
     def rows
       @values.each_slice @header["NCOLS"].to_i
     end

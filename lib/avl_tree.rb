@@ -1,43 +1,43 @@
 class AVLTree
   include Enumerable
   attr_accessor :value, :left, :right, :height
-  
+
   def initialize(&block)
     empty!
   end
-  
+
   def empty?
     @value.nil?
   end
-  
+
   def empty!
     @value, @left, @right, @height = nil, nil, nil, 0
   end
-  
+
   def leaf?
     [ @left, @right ].all?(&:empty?)
   end
-  
+
   def replace_with(node)
     @value, @left, @right, @height = node.value, node.left, node.right, node.height
   end
-  
+
   def balance
     empty? ? 0 : @left.height - @right.height
   end
-  
+
   def update_height
     @height = empty? ? 0 : [ @left, @right ].map(&:height).max + 1
   end
-  
+
   def first_node
     empty? || @left.empty? ? self : @left.first_node
   end
-  
+
   def last_node
     empty? || @right.empty? ? self : @right.last_node
   end
-  
+
   def ancestors(node)
     node.empty? ? [] : case [ @value, @value.object_id ] <=> [ node.value, node.value.object_id ]
     when +1 then [ *@left.ancestors(node), self ]
@@ -45,21 +45,21 @@ class AVLTree
     when -1 then [ *@right.ancestors(node), self ]
     end
   end
-  
+
   def rotate_left
     a, b, c, v, @value = @left, @right.left, @right.right, @value, @right.value
     @left = @right
     @left.value, @left.left, @left.right, @right = v, a, b, c
     [ @left, self ].each(&:update_height)
   end
-  
+
   def rotate_right
     a, b, c, v, @value = @left.left, @left.right, @right, @value, @left.value
     @right = @left
     @left.value, @left, @right.left, @right.right = v, a, b, c
     [ @right, self ].each(&:update_height)
   end
-  
+
   def rebalance
     update_height
     case balance
@@ -71,7 +71,7 @@ class AVLTree
       rotate_left
     end unless empty?
   end
-  
+
   def insert(value)
     if empty?
       @value, @left, @right = value, AVLTree.new, AVLTree.new
@@ -85,12 +85,12 @@ class AVLTree
     rebalance
   end
   alias << insert
-  
+
   def merge(values)
     values.each { |value| insert value }
     self
   end
-  
+
   def delete(value)
     case [ @value, @value.object_id ] <=> [ value, value.object_id ]
     when +1 then @left.delete value
@@ -113,11 +113,11 @@ class AVLTree
     when -1 then @right.delete value
     end.tap { rebalance } unless empty?
   end
-  
+
   def pop
     delete first_node.value unless empty?
   end
-  
+
   def each(&block)
     unless empty?
       @left.each &block

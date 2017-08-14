@@ -1,7 +1,7 @@
 module NSWTopo
   class GridSource
     include VectorRenderer
-    
+
     PARAMS = %q[
       interval: 1000
       label-spacing: 5
@@ -24,15 +24,15 @@ module NSWTopo
         fill: black
         orientation: uphill
     ]
-    
+
     def initialize(name, params)
       @name, @params = name, YAML.load(PARAMS).deep_merge(params)
       @font_size = @params["labels"]["font-size"]
       @grid_interval, @label_spacing, @label_offset, @label_inset = @params.values_at "interval", "label-spacing", "label-offset", "label-inset"
     end
-    
+
     attr_reader :font_size, :grid_interval, :label_spacing, :label_offset, :label_inset
-    
+
     def grids(map)
       Projection.utm_zone(map.bounds.inject(&:product), map.projection).inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
@@ -49,7 +49,7 @@ module NSWTopo
         [ zone, utm, grid ]
       end
     end
-    
+
     def features(map)
       grids(map).map do |zone, utm, grid|
         wgs84_grid = grid.map do |lines|
@@ -69,7 +69,7 @@ module NSWTopo
         [ 1, lines, category ]
       end
     end
-    
+
     def label_grids(map, label_interval)
       grids(map).map do |zone, utm, grid|
         eastings, northings = [ grid, grid.transpose ].map.with_index do |lines, index|
@@ -85,11 +85,11 @@ module NSWTopo
         [ zone, utm, eastings, northings ]
       end
     end
-    
+
     def labels(map)
       label_spacing ? periodic_labels(map) : edge_labels(map)
     end
-    
+
     def label(coord, label_interval)
       parts = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
       parts << [ "%03d" % (coord % 1000), 80 ] unless label_interval % 1000 == 0
@@ -104,7 +104,7 @@ module NSWTopo
       end.flatten.drop(1).inject(&:+)
       [ length, text_path ]
     end
-    
+
     def edge_labels(map)
       edge_inset = label_inset + font_size * 0.5 * Math::sin(map.rotation.abs * Math::PI / 180)
       corners = map.coord_corners(-edge_inset)
@@ -130,7 +130,7 @@ module NSWTopo
         end
       end.flatten(2)
     end
-    
+
     def periodic_labels(map)
       label_interval = label_spacing * grid_interval
       label_grids(map, label_interval).map do |zone, utm, eastings, northings|

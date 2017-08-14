@@ -2,7 +2,7 @@ module NSWTopo
   class ControlSource
     include VectorRenderer
     attr_reader :path
-    
+
     PARAMS = %q[
       diameter: 7.0
       stroke: "#880088"
@@ -53,7 +53,7 @@ module NSWTopo
       labels:
         margin: 1.4142
     ]
-    
+
     def initialize(name, params)
       @name = name
       @params = YAML.load(PARAMS).deep_merge(params)
@@ -64,7 +64,7 @@ module NSWTopo
       @params = scaled_params.deep_merge(@params)
       @path = Pathname.new(@params["path"]).expand_path
     end
-    
+
     def types_waypoints
       raise BadLayerError.new("#{name} file not found at #{path}") unless path.exist?
       gps_waypoints = GPS.new(path).waypoints
@@ -81,13 +81,13 @@ module NSWTopo
     rescue BadGpxKmlFile => e
       raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
     end
-    
+
     def features(map)
       types_waypoints.map do |type, waypoints|
         [ 0, map.coords_to_mm(map.reproject_from_wgs84(waypoints)), type ]
       end
     end
-    
+
     def labels(map)
       types_waypoints.reject do |type, waypoints|
         type == :water

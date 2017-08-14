@@ -1,25 +1,25 @@
 module StraightSkeleton
   DEFAULT_ROUNDING_ANGLE = 15
-  
+
   module Node
     attr_reader :point, :travel, :neighbours, :normals, :whence, :original
-    
+
     def active?
       @nodes.include? self
     end
-    
+
     def terminal?
       @neighbours.one?
     end
-    
+
     def prev
       @neighbours[0]
     end
-    
+
     def next
       @neighbours[1]
     end
-    
+
     def split(edge)
       p0, p1, p2 = [ *edge, self ].map(&:point)
       t0, t1, t2 = [ *edge, self ].map(&:travel)
@@ -36,13 +36,13 @@ module StraightSkeleton
       return if point.minus(p0).dot(n01) * @nodes.direction < 0
       Split.new @nodes, point, travel, self, edge[0]
     end
-    
+
     # ###########################################
     # solve for vector p:
     #   n0.(p - @point) = @nodes.limit - @travel
     #   n1.(p - @point) = @nodes.limit - @travel
     # ###########################################
-    
+
     def project
       det = normals.inject(&:cross) if normals.all?
       case
@@ -53,14 +53,14 @@ module StraightSkeleton
       when normals[1] then normals[1].times(@nodes.limit - @travel).plus(point)
       end
     end
-    
+
     # #################################
     # solve for vector p and scalar t:
     #   n0.p - t = x0
     #   n1.p - t = x1
     #   n2.p - t = x2
     # #################################
-    
+
     def self.solve(n0, n1, n2, x0, x1, x2)
       det = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
       return if det.zero?
@@ -68,14 +68,14 @@ module StraightSkeleton
       point = [ n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2) ].inject(&:plus) / det
       [ point, travel ]
     end
-    
+
     # #################################
     # solve for vector p and scalar t:
     #   n0.p - t = x0
     #   n1.p - t = x1
     #   n2 x p   = x2
     # #################################
-    
+
     def self.solve_asym(n0, n1, n2, x0, x1, x2)
       det = n0.minus(n1).dot(n2)
       return if det.zero?
@@ -84,14 +84,14 @@ module StraightSkeleton
       [ point, travel ]
     end
   end
-  
+
   module InteriorNode
     include Node
-    
+
     def <=>(other)
       (@travel <=> other.travel) * @nodes.direction
     end
-    
+
     def insert!
       @normals = @neighbours.map.with_index do |neighbour, index|
         neighbour.neighbours[1-index] = self if neighbour
@@ -100,34 +100,34 @@ module StraightSkeleton
       @nodes.insert self
     end
   end
-  
+
   class Collapse
     include InteriorNode
-    
+
     def initialize(nodes, point, travel, sources)
       @original, @nodes, @point, @travel, @sources = self, nodes, point, travel, sources
       @whence = @sources.map(&:whence).inject(&:|)
     end
-    
+
     def viable?
       @sources.all?(&:active?)
     end
-    
+
     def replace!(&block)
       @neighbours = [ @sources[0].prev, @sources[1].next ]
       @neighbours.inject(&:==) ? block.call(prev) : insert! if @neighbours.any?
       @sources.each(&block)
     end
   end
-  
+
   class Split
     include InteriorNode
-    
+
     def initialize(nodes, point, travel, source, node)
       @original, @nodes, @point, @travel, @source, @normal = self, nodes, point, travel, source, node.normals[1]
       @whence = source.whence | node.whence
     end
-    
+
     def viable?
       return false unless @source.active?
       @edge = @nodes.track(@normal).find do |edge|
@@ -138,31 +138,31 @@ module StraightSkeleton
         true
       end
     end
-    
+
     def split!(index, &block)
       @neighbours = [ @source.neighbours[index], @edge[1-index] ].rotate index
       @neighbours.inject(&:equal?) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert! if @neighbours.any?
     end
-    
+
     def replace!(&block)
       dup.split!(0, &block)
       dup.split!(1, &block)
       block.call @source
     end
   end
-  
+
   class Vertex
     include Node
-    
+
     def initialize(nodes, point, normals, whence)
       @original, @neighbours, @nodes, @point, @normals, @whence, @travel = self, [ nil, nil ], nodes, point, normals, whence, 0
     end
-    
+
     def reflex?
       normals.inject(&:cross) * @nodes.direction <= 0
     end
   end
-  
+
   class Nodes
     def initialize(data, closed)
       @closed, @active = closed, Set[]
@@ -178,7 +178,7 @@ module StraightSkeleton
         end
       end
     end
-    
+
     def collapse(edge)
       (n00, n01), (n10, n11) = edge.map(&:normals)
       p0, p1 = edge.map(&:point)
@@ -194,7 +194,7 @@ module StraightSkeleton
       return if @limit && travel.abs > @limit.abs
       @candidates << Collapse.new(self, point, travel, edge)
     end
-    
+
     def split(node)
       bounds = node.project.zip(node.point).map do |centre, coord|
         [ coord, centre - @limit, centre + @limit ].minmax
@@ -205,11 +205,11 @@ module StraightSkeleton
         @candidates << split
       end
     end
-    
+
     def include?(node)
       @active.include? node
     end
-    
+
     def insert(node)
       @active << node
       @track[node.normals[1]] << node if node.normals[1]
@@ -221,13 +221,13 @@ module StraightSkeleton
       split node if node.terminal? && Collapse === node
       # TODO: terminal Split nodes should also generate new split candidates, but can't make this work
     end
-    
+
     def track(normal)
       @track[normal].select(&:active?).map do |node|
         [ node, node.next ]
       end
     end
-    
+
     def finalise
       [].tap do |result|
         used = Set[]
@@ -246,9 +246,9 @@ module StraightSkeleton
         end
       end
     end
-    
+
     attr_reader :limit, :direction
-    
+
     def progress(limit = nil, options = {}, &block)
       return self if limit && limit.zero?
       finalise.each.with_index do |nodes, index|
@@ -260,14 +260,14 @@ module StraightSkeleton
           edge[1].neighbours[0], edge[0].neighbours[1] = edge
         end
       end if @limit
-      
+
       @candidates, @travel, @limit, @direction = AVLTree.new, 0, limit, limit ? limit <=> 0 : 1
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff_angle = options["cutoff"] && options["cutoff"] * Math::PI / 180
       @track = Hash.new do |hash, normal|
         hash[normal] = Set[]
       end.compare_by_identity
-      
+
       joins = Set[]
       @active.group_by(&:point).each do |point, nodes|
         nodes.permutation(2).select do |node0, node1|
@@ -283,7 +283,7 @@ module StraightSkeleton
         end
         # nodes produce here won't be rounded, but this will be very rare
       end
-      
+
       @active.reject(&:terminal?).select do |node|
         direction * Math::atan2(node.normals.inject(&:cross), node.normals.inject(&:dot)) < -cutoff_angle
       end.each do |node|
@@ -297,7 +297,7 @@ module StraightSkeleton
           @active << vertex
         end
       end if cutoff_angle
-      
+
       (@active - joins).reject(&:terminal?).select(&:reflex?).each do |node|
         angle = Math::atan2 node.normals.inject(&:cross).abs, node.normals.inject(&:dot)
         extras = (angle / rounding_angle).floor
@@ -316,7 +316,7 @@ module StraightSkeleton
           edge[1].normals[0] = edge[0].normals[1] = normal
         end
       end
-      
+
       @active.select(&:next).map do |node|
         [ node, node.next ]
       end.each do |edge|
@@ -327,13 +327,13 @@ module StraightSkeleton
       end.tap do |bounds_edges|
         @index = RTree.load bounds_edges
       end
-      
+
       @active.select do |node|
         node.terminal? || node.reflex?
       end.each do |node|
         split node
       end if options.fetch("splits", true)
-      
+
       while candidate = @candidates.pop
         next unless candidate.viable?
         @travel = candidate.travel
@@ -342,31 +342,31 @@ module StraightSkeleton
           yield [ node, candidate ].rotate(index).map(&:original) if block_given?
         end
       end
-      
+
       self
     end
-    
+
     def readout
       finalise.map do |nodes|
         nodes.map(&:project).to_f
       end.sanitise(@closed)
     end
   end
-  
+
   def inset(closed, margin, options = {})
     Nodes.new(self, closed).progress(+margin, options).readout
   end
-  
+
   def outset(closed, margin, options = {})
     Nodes.new(self, closed).progress(-margin, options).readout
   end
-  
+
   def offset(closed, *margins, options)
     margins.inject Nodes.new(self, closed) do |nodes, margin|
       nodes.progress(+margin, options)
     end.readout
   end
-  
+
   def buffer(closed, margin, overshoot = margin)
     if closed
       Nodes.new(self, closed).progress(-margin-overshoot).progress(+overshoot, "splits" => false).readout
@@ -374,11 +374,11 @@ module StraightSkeleton
       Nodes.new(self + map(&:reverse), closed).progress(+margin+overshoot).progress(-overshoot, "splits" => false).readout
     end
   end
-  
+
   def smooth(margin, cutoff = nil)
     Nodes.new(self, false).progress(+margin).progress(-2 * margin, "cutoff" => cutoff).progress(+margin, "cutoff" => cutoff).readout
   end
-  
+
   def centres(dimensions, *args, options)
     fraction  = args[0] || options["fraction"]
     min_width = args[1] || options["min-width"]

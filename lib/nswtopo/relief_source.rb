@@ -14,30 +14,30 @@ module NSWTopo
       bilateral: 4
       sigma: 100
     ]
-    
+
     def initialize(name, params)
       super name, YAML.load(PARAMS).merge(params)
     end
-    
+
     def get_raster(map, dimensions, resolution, temp_dir)
       dem_path = temp_dir + "dem.tif"
       altitude, azimuth, exaggeration, highlights, lightsources, sigma = params.values_at *%w[altitude azimuth exaggeration highlights lightsources sigma]
       bounds = map.bounds.map do |lower, upper|
         [ lower - 3 * sigma, upper + 3 * sigma ]
       end
-      
+
       case
       when params["path"]
         src_path = temp_dir + "dem.txt"
         vrt_path = temp_dir + "dem.vrt"
-        
+
         paths = [ *params["path"] ].map do |path|
           Pathname.glob path
         end.inject([], &:+).map(&:expand_path).tap do |paths|
           raise BadLayerError.new("no dem data files at specified path") if paths.empty?
         end
         src_path.write paths.join(?\n)
-        
+
         %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
         %x[gdalwarp -t_srs "#{map.projection}" -te #{bounds.flatten.values_at(0,2,1,3).join(?\s)} -tr #{resolution} #{resolution} -r bilinear "#{vrt_path}" "#{dem_path}"]
       when params["contours"]
@@ -45,14 +45,14 @@ module NSWTopo
         gdal_version = %x[gdalinfo --version][/\d+(\.\d+(\.\d+)?)?/].split(?.).map(&:to_i)
         raise BadLayerError.new "no elevation attibute specified" unless attribute
         raise BadLayerError.new "GDAL version 2.1 or greater required for shaded relief" if ([ 2, 1 ] <=> gdal_version) == 1
-        
+
         shp_path = temp_dir + "dem.contours"
         spat = bounds.flatten.values_at(0,2,1,3).join ?\s
         outsize = bounds.map do |bound|
           (bound[1] - bound[0]) / resolution
         end.map(&:ceil).join(?\s)
         txe, tye = bounds[0].join(?\s), bounds[1].reverse.join(?\s)
-        
+
         %w[contours coastline].inject(nil) do |append, layer|
           next append unless dataset = params[layer]
           case dataset
@@ -85,7 +85,7 @@ module NSWTopo
       else
         raise BadLayerError.new "online elevation data unavailable, please provide contour data or DEM path"
       end
-      
+
       reliefs = -90.step(90, 90.0 / lightsources).select.with_index do |offset, index|
         index.odd?
       end.map do |offset|
@@ -96,7 +96,7 @@ module NSWTopo
         raise BadLayerError.new("invalid elevation data") unless $?.success?
         [ azimuth, ESRIHdr.new(relief_path, 0) ]
       end.to_h
-      
+
       relief_path = temp_dir + "relief.combined.bil"
       if reliefs.one?
         reliefs.values.first.write relief_path
@@ -105,7 +105,7 @@ module NSWTopo
         nodata = JSON.parse(%x[gdalinfo -json "#{dem_path}"])["bands"][0]["noDataValue"]
         %x[gdal_translate -of EHdr "#{dem_path}" "#{blur_path}" #{DISCARD_STDERR}]
         dem = ESRIHdr.new blur_path, nodata
-        
+
         # TODO: should sigma be in pixels instead of metres?
         (sigma.to_f / resolution).ceil.times.inject(dem.rows) do |rows|
           2.times.inject(rows) do |rows|
@@ -120,11 +120,11 @@ module NSWTopo
         end.flatten.tap do |blurred|
           ESRIHdr.new(dem, blurred).write blur_path
         end
-        
+
         aspect_path = temp_dir + "aspect.bil"
         %x[gdaldem aspect -zero_for_flat -of EHdr "#{blur_path}" "#{aspect_path}"]
         aspect = ESRIHdr.new aspect_path, 0.0
-        
+
         reliefs.map do |azimuth, relief|
           [ relief.values, aspect.values ].transpose.map do |relief, aspect|
             relief ? aspect ? 2 * relief * Math::sin((aspect - azimuth) * Math::PI / 180)**2 : relief : 0
@@ -137,14 +137,14 @@ module NSWTopo
           ESRIHdr.new(reliefs.values.first, values).write relief_path
         end
       end
-      
+
       tif_path = temp_dir + "relief.combined.tif"
       tfw_path = temp_dir + "relief.combined.tfw"
       map.write_world_file tfw_path, resolution
       density = 0.01 * map.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
       %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -srcnodata 0 -r bilinear -dstalpha "#{relief_path}" "#{tif_path}"]
-      
+
       filters = []
       if args = params["median"]
         pixels = (2 * args + 1).to_i
@@ -155,11 +155,11 @@ module NSWTopo
         filters << "-channel RGB -selective-blur 0x#{sigma}+#{threshold}%"
       end
       %x[mogrify -quiet -virtual-pixel edge #{filters.join ?\s} "#{tif_path}"] if filters.any?
-      
+
       threshold = Math::sin(altitude * Math::PI / 180)
       shade = %Q["#{tif_path}" -colorspace Gray -fill white -opaque none -level #{   90*threshold}%,0%                            -alpha Copy -fill black  +opaque black ]
       sun   = %Q["#{tif_path}" -colorspace Gray -fill black -opaque none -level #{10+90*threshold}%,100% +level 0%,#{highlights}% -alpha Copy -fill yellow +opaque yellow]
-      
+
       temp_dir.join(path.basename).tap do |raster_path|
         %x[convert -quiet #{OP} #{shade} #{CP} #{OP} #{sun} #{CP} -composite -define png:color-type=6 "#{raster_path}"]
       end

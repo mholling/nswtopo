@@ -10,7 +10,7 @@ module NSWTopo
           end
         end
       end
-      
+
       def tracks
         Enumerator.new do |yielder|
           @xml.elements.each "/gpx//trk" do |track|
@@ -20,7 +20,7 @@ module NSWTopo
           end
         end
       end
-      
+
       def areas
         Enumerator.new { |yielder| }
       end
@@ -36,7 +36,7 @@ module NSWTopo
           end
         end
       end
-      
+
       def tracks
         Enumerator.new do |yielder|
           @xml.elements.each "/kml//Placemark[.//LineString//coordinates]" do |track|
@@ -51,7 +51,7 @@ module NSWTopo
           end
         end
       end
-      
+
       def areas
         Enumerator.new do |yielder|
           @xml.elements.each "/kml//Placemark[.//Polygon//coordinates]" do |polygon|

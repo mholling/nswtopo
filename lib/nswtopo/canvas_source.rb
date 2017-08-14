@@ -1,11 +1,11 @@
 module NSWTopo
   class CanvasSource
     include RasterRenderer
-    
+
     def create()
       raise BadLayerError.new("canvas image not found at #{path}") unless path.exist?
     end
-    
+
     def resolution_for(map)
       raise BadLayerError.new("canvas image not found at #{path}") unless path.exist?
       return params["resolution"] if params["resolution"]

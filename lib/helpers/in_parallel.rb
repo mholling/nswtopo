@@ -1,6 +1,6 @@
 module InParallel
   CORES = Etc.nprocessors rescue 1
-  
+
   def in_parallel
     processes = Set.new
     begin
@@ -19,7 +19,7 @@ module InParallel
     end while processes.any?
     rewind
   end
-  
+
   def in_parallel_groups(&block)
     group_by.with_index do |item, index|
       index % CORES

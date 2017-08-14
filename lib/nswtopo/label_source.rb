@@ -1,7 +1,7 @@
 module NSWTopo
   class LabelSource
     include VectorRenderer
-    
+
     CENTRELINE_FRACTION = 0.3
     ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase shield]
     TRANSFORMS = %w[reduce fallback outset inset offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
@@ -27,12 +27,12 @@ module NSWTopo
         stroke: red
         stroke-width: 0.2
     ]
-    
+
     def initialize
       @name, @features = "labels", []
       @params = YAML.load(PARAMS)
     end
-    
+
     def add(source, map)
       source_params = params[source.name] = source.params[name]
       sublayers = Set.new
@@ -169,36 +169,36 @@ module NSWTopo
           end
         end
       end if source.respond_to? :labels
-      
+
       fences.concat source.fences if source.respond_to? :fences
     end
-    
+
     Label = Struct.new(:source_name, :sublayer, :feature, :component, :priority, :hull, :attributes, :elements, :along) do
       def point?
         along.nil?
       end
-      
+
       def optional?
         attributes["optional"]
       end
-      
+
       def categories
         attributes["categories"]
       end
-      
+
       def conflicts
         @conflicts ||= Set.new
       end
-      
+
       attr_accessor :ordinal
       def <=>(other)
         self.ordinal <=> other.ordinal
       end
-      
+
       alias hash object_id
       alias eql? equal?
     end
-    
+
     def features(map)
       labelling_hull, debug_features = map.mm_corners(-1), []
       fence_index = RTree.load(fences) do |fence, buffer|
@@ -206,7 +206,7 @@ module NSWTopo
           [ min - buffer, max + buffer ]
         end
       end
-      
+
       candidates = @features.map.with_index do |(text, source_name, sublayer, components), feature|
         components.map.with_index do |(dimension, data, attributes), component|
           font_size      = attributes.fetch("font-size", DEFAULT_FONT_SIZE)
@@ -408,21 +408,21 @@ module NSWTopo
           candidate.priority = index
         end
       end.flatten
-      
+
       if map.debug
         candidates.each do |candidate|
           debug_features << [ 2, [ candidate.hull ], %w[debug candidate] ]
         end
         return debug_features
       end
-      
+
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices
       end.each do |candidate1, candidate2|
         candidate1.conflicts << candidate2
         candidate2.conflicts << candidate1
       end
-      
+
       candidates.group_by do |candidate|
         [ candidate.feature, candidate.attributes["separation"] ]
       end.each do |(feature, buffer), candidates|
@@ -433,7 +433,7 @@ module NSWTopo
           candidate2.conflicts << candidate1
         end if buffer
       end
-      
+
       candidates.group_by do |candidate|
         [ candidate.source_name, candidate.sublayer, candidate.attributes["separation-all"] ]
       end.each do |(source_name, sublayer, buffer), candidates|
@@ -444,14 +444,14 @@ module NSWTopo
           candidate2.conflicts << candidate1
         end if buffer
       end
-      
+
       conflicts = candidates.map do |candidate|
         [ candidate, candidate.conflicts.dup ]
       end.to_h
       labels, remaining, changed = Set.new, AVLTree.new, candidates
       grouped = candidates.to_set.classify(&:feature)
       counts = Hash.new { |hash, feature| hash[feature] = 0 }
-      
+
       loop do
         changed.each do |candidate|
           conflict_count = conflicts[candidate].count do |other|
@@ -478,7 +478,7 @@ module NSWTopo
         end
         changed.merge grouped[label.feature] if counts[label.feature] == 1
       end
-      
+
       candidates.reject(&:optional?).group_by(&:feature).select do |feature, candidates|
         counts[feature].zero?
       end.each do |feature, candidates|
@@ -493,7 +493,7 @@ module NSWTopo
         labels << label
         counts[feature] += 1
       end
-      
+
       grouped = candidates.group_by do |candidate|
         [ candidate.feature, candidate.component ]
       end
@@ -506,7 +506,7 @@ module NSWTopo
           end
         end
       end
-      
+
       labels.map do |label|
         [ nil, label.elements, label.categories, label.source_name ]
       end

@@ -9,7 +9,7 @@ module NSWTopo
     rescue JSON::ParserError
       raise ServerError.new "unexpected response format"
     end
-    
+
     def self.post_json(uri, body, *args)
       HTTP.post(uri, body, *args) do |response|
         JSON.parse(response.body).tap do |result|

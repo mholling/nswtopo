@@ -79,10 +79,10 @@ Alternatively, specify the map bounds in UTM by providing the UTM zone (54, 55 o
 
 or, as latitude/longitude bounds:
 
-    latitudes: 
+    latitudes:
     - -35.951221
     - -35.892871
-    longitudes: 
+    longitudes:
     - 149.383789
     - 149.489746
 
@@ -201,7 +201,7 @@ Grid labels are rendered periodically across the map at an interval determined b
 
 ## Declination
 
-This layer marks magnetic north lines on the map, and is useful for rogaining maps. The magnetic declination angle for the map centre is automatically retrieved from an [NOAA online calculator](http://www.ngdc.noaa.gov/geomag-web/#declination). (Override by specifying an `angle: ` value.) Specify spacing and rendering for the magnetic declination lines. 
+This layer marks magnetic north lines on the map, and is useful for rogaining maps. The magnetic declination angle for the map centre is automatically retrieved from an [NOAA online calculator](http://www.ngdc.noaa.gov/geomag-web/#declination). (Override by specifying an `angle: ` value.) Specify spacing and rendering for the magnetic declination lines.
 
     declination:
       spacing: 1000           # perpendicular spacing of magnetic declination lines in metres

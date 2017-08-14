@@ -38,11 +38,11 @@ module Overlap
       end
     end
   end
-  
+
   def overlap?(buffer = 0)
     !separated_by?(buffer)
   end
-  
+
   def overlaps(buffer = 0)
     return [] if empty?
     axis = flatten(1).transpose.map { |values| values.max - values.min }.map.with_index.max.last

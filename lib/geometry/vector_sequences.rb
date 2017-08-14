@@ -6,14 +6,14 @@ module VectorSequences
       end.map(&:first) + segments.last(closed ? 0 : 1).map(&:last)
     end.reject(&:empty?).reject(&:one?)
   end
-  
+
   def remove_holes(max_area = true)
     reject do |points|
       area = points.signed_area
       area < 0 && (true == max_area || area.abs < max_area.abs)
     end
   end
-  
+
   def in_sections(count)
     map(&:segments).map do |segments|
       segments.each_slice(count).map do |segments|
@@ -23,7 +23,7 @@ module VectorSequences
       end
     end.flatten(1)
   end
-  
+
   def at_interval(closed, interval)
     Enumerator.new do |yielder|
       each do |line|

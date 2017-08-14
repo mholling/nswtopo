@@ -4,7 +4,7 @@ module HashHelpers
       result.merge(key => result[key].is_a?(Hash) && value.is_a?(Hash) ? result[key].deep_merge(value) : value)
     end
   end
-  
+
   def deep_merge!(hash)
     hash.each do |key, value|
       self[key].is_a?(Hash) && value.is_a?(Hash) ? self[key].deep_merge!(value) : self[key] = value

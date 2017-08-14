@@ -2,7 +2,7 @@ module NSWTopo
   class Map
     def initialize(config)
       @name, @scale, @debug = config.values_at("name", "scale", "debug")
-      
+
       wgs84_points = case
       when config["zone"] && config["eastings"] && config["northings"]
         utm = Projection.utm(config["zone"])
@@ -23,15 +23,15 @@ module NSWTopo
       else
         abort "Error: map extent must be provided as a bounds file, zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
       end
-      
+
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
       @projection = config["utm"] ?
         Projection.utm(config["zone"] || Projection.utm_zone(@projection_centre, Projection.wgs84)) :
         Projection.transverse_mercator(@projection_centre.first, 1.0)
-      
+
       @declination = config["declination"]["angle"] if config["declination"]
       config["rotation"] = -declination if config["rotation"] == "magnetic"
-      
+
       if config["size"]
         sizes = config["size"].split(/[x,]/).map(&:to_f)
         abort "Error: invalid map size: #{config["size"]}" unless sizes.length == 2 && sizes.all? { |size| size > 0.0 }
@@ -69,45 +69,45 @@ module NSWTopo
     rescue BadGpxKmlFile => e
       abort "Error: invalid bounds file #{e.message}"
     end
-    
+
     attr_reader :name, :scale, :projection, :bounds, :centre, :extents, :rotation, :debug
-    
+
     def filename
       @filename ||= @name.gsub(/\s+/, ?-).gsub(/[^-\w\.]/, '')
     end
-    
+
     def reproject_from(projection, point_or_points)
       projection.reproject_to(@projection, point_or_points)
     end
-    
+
     def reproject_from_wgs84(point_or_points)
       reproject_from(Projection.wgs84, point_or_points)
     end
-    
+
     def transform_bounds_to(target_projection)
       @projection.transform_bounds_to target_projection, bounds
     end
-    
+
     def wgs84_bounds
       transform_bounds_to Projection.wgs84
     end
-    
+
     def resolution_at(ppi)
       @scale * 0.0254 / ppi
     end
-    
+
     def dimensions_at(ppi)
       @extents.map { |extent| (ppi * extent / @scale / 0.0254).floor }
     end
-    
+
     def top_left
       [ @centre, @extents.rotate_by_degrees(-@rotation), [ :-, :+ ] ].transpose.map { |coord, extent, plus_minus| coord.send(plus_minus, 0.5 * extent) }
     end
-    
+
     def geotransform_at(ppi)
       WorldFile.geotransform top_left, resolution_at(ppi), @rotation
     end
-    
+
     def coord_corners(margin_in_mm = 0)
       metres = margin_in_mm * 0.001 * @scale
       @extents.map do |extent|
@@ -116,11 +116,11 @@ module NSWTopo
         @centre.plus point.rotate_by_degrees(@rotation)
       end
     end
-    
+
     def wgs84_corners
       @projection.reproject_to_wgs84 coord_corners
     end
-    
+
     def coords_to_mm(coords)
       coords.one_or_many do |easting, northing|
         [ easting - bounds.first.first, bounds.last.last - northing ].map do |metres|
@@ -128,11 +128,11 @@ module NSWTopo
         end
       end
     end
-    
+
     def mm_corners(*args)
       coords_to_mm coord_corners(*args).reverse
     end
-    
+
     def overlaps?(bounds)
       axes = [ [ 1, 0 ], [ 0, 1 ] ].map { |axis| axis.rotate_by_degrees(@rotation) }
       bounds.inject(&:product).map do |corner|
@@ -141,11 +141,11 @@ module NSWTopo
         projections.max < -0.5 * extent || projections.min > 0.5 * extent
       end
     end
-    
+
     def write_world_file(path, resolution)
       WorldFile.write top_left, resolution, @rotation, path
     end
-    
+
     def write_oziexplorer_map(path, name, image, ppi)
       dimensions = dimensions_at(ppi)
       pixel_corners = dimensions.each.with_index.map { |dimension, order| [ 0, dimension ].rotate(order) }.inject(:product).values_at(0,2,3,1)
@@ -180,7 +180,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
 ].gsub(/\r\n|\r|\n/, "\r\n")
       end
     end
-    
+
     def declination
       @declination ||= begin
         today = Date.today
@@ -196,7 +196,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
         end
       end
     end
-    
+
     def xml
       millimetres = @extents.map { |extent| 1000.0 * extent / @scale }
       REXML::Document.new.tap do |xml|

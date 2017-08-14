@@ -2,12 +2,12 @@ module NSWTopo
   class OverlaySource
     include VectorRenderer
     attr_reader :path
-    
+
     def initialize(name, params)
       @name, @params = name, params
       @path = Pathname.new(params["path"]).expand_path
     end
-    
+
     def features(map)
       raise BadLayerError.new("#{name} file not found at #{path}") unless path.exist?
       gps = GPS.new(path)

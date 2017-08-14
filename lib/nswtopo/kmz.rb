@@ -3,7 +3,7 @@ module NSWTopo
     TILE_SIZE = 512
     TILT = 40 * Math::PI / 180.0
     FOV = 30 * Math::PI / 180.0
-    
+
     def self.style
       lambda do |style|
         style.add_element("ListStyle", "id" => "hideChildren").tap do |list_style|
@@ -11,7 +11,7 @@ module NSWTopo
         end
       end
     end
-    
+
     def self.lat_lon_box(bounds)
       lambda do |box|
         [ %w[west east south north], bounds.flatten ].transpose.each do |limit, value|
@@ -19,7 +19,7 @@ module NSWTopo
         end
       end
     end
-    
+
     def self.region(bounds, topmost = false)
       lambda do |region|
         region.add_element("Lod").tap do |lod|
@@ -29,7 +29,7 @@ module NSWTopo
         region.add_element("LatLonAltBox").tap(&lat_lon_box(bounds))
       end
     end
-    
+
     def self.network_link(bounds, path)
       lambda do |network|
         network.add_element("Region").tap(&region(bounds))
@@ -40,34 +40,34 @@ module NSWTopo
         end
       end
     end
-    
+
     def self.build(map, ppi, image_path, kmz_path)
       wgs84_bounds = map.wgs84_bounds
       degrees_per_pixel = 180.0 * map.resolution_at(ppi) / Math::PI / EARTH_RADIUS
       dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel }
       max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE).to_i
       topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
-      
+
       Dir.mktmppath do |temp_dir|
         file_name = image_path.basename
         source_path = temp_dir + file_name
         worldfile_path = temp_dir + "#{file_name}w"
         FileUtils.cp image_path, source_path
         map.write_world_file worldfile_path, map.resolution_at(ppi)
-        
+
         pyramid = (0..max_zoom).map do |zoom|
           resolution = degrees_per_pixel * 2**(max_zoom - zoom)
           degrees_per_tile = resolution * TILE_SIZE
           counts = wgs84_bounds.map { |bound| (bound.reverse.inject(:-) / degrees_per_tile).ceil }
           dimensions = counts.map { |count| count * TILE_SIZE }
-          
+
           tfw_path = temp_dir + "zoom-#{zoom}.tfw"
           tif_path = temp_dir + "zoom-#{zoom}.tif"
           %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
           WorldFile.write topleft, resolution, 0, tfw_path
-          
+
           %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{Projection.wgs84}" -r bilinear -dstalpha "#{source_path}" "#{tif_path}"]
-          
+
           indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
             boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
             [ boundaries[0..-2], boundaries[1..-1] ].transpose.map(&:sort)
@@ -80,21 +80,21 @@ module NSWTopo
           { zoom => indices_bounds }
         end.inject({}, &:merge)
         puts
-        
+
         kmz_dir = temp_dir + map.filename
         kmz_dir.mkdir
-        
+
         pyramid.map do |zoom, indices_bounds|
           zoom_dir = kmz_dir + zoom.to_s
           zoom_dir.mkdir
-          
+
           tif_path = temp_dir + "zoom-#{zoom}.tif"
           indices_bounds.map do |indices, tile_bounds|
             index_dir = zoom_dir + indices.first.to_s
             index_dir.mkdir unless index_dir.exist?
             tile_kml_path = index_dir + "#{indices.last}.kml"
             tile_png_name = "#{indices.last}.png"
-            
+
             xml = REXML::Document.new
             xml << REXML::XMLDecl.new(1.0, "UTF-8")
             xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
@@ -118,7 +118,7 @@ module NSWTopo
               end
             end
             File.write tile_kml_path, xml
-            
+
             tile_png_path = index_dir + tile_png_name
             crops = indices.map { |index| index * TILE_SIZE }
             %Q[convert "#{tif_path}" -quiet +repage -crop #{TILE_SIZE}x#{TILE_SIZE}+#{crops.join ?+} +repage +dither -type PaletteBilevelMatte PNG8:"#{tile_png_path}"]
@@ -130,7 +130,7 @@ module NSWTopo
           end
           puts
         end
-        
+
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new(1.0, "UTF-8")
         xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
@@ -149,7 +149,7 @@ module NSWTopo
         end
         kml_path = kmz_dir + "doc.kml"
         File.write kml_path, xml
-        
+
         temp_kmz_path = temp_dir + "#{map.filename}.kmz"
         Dir.chdir(kmz_dir) { %x[#{ZIP} -r "#{temp_kmz_path}" *] }
         FileUtils.cp temp_kmz_path, kmz_path

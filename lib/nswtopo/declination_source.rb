@@ -1,7 +1,7 @@
 module NSWTopo
   class DeclinationSource
     include VectorRenderer
-    
+
     PARAMS = %q[
       spacing: 1000
       arrows: 150
@@ -13,11 +13,11 @@ module NSWTopo
           d: M 0 0 L 0.4 2 L 0 1.3 L -0.4 2 Z
           stroke: none
     ]
-    
+
     def initialize(name, params)
       @name, @params = name, YAML.load(PARAMS).merge(params)
     end
-    
+
     def features(map)
       arrows = params["arrows"]
       bl, br, tr, tl = map.coord_corners

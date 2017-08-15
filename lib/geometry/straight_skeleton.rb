@@ -28,25 +28,6 @@ module StraightSkeleton
       @neighbours[1]
     end
 
-    def split(edge)
-      p0, p1, p2 = [ *edge, self ].map(&:point)
-      t0, t1, t2 = [ *edge, self ].map(&:travel)
-      (n00, n01), (n10, n11), (n20, n21) = [ *edge, self ].map(&:normals)
-      return if p0 == p2 || p1 == p2
-      return if terminal? and Split === self and @source.normals[0].equal? n01
-      return if terminal? and Split === self and @source.normals[1].equal? n01
-      return unless terminal? || [ n20, n21 ].compact.inject(&:plus).dot(n01) < 0
-      point, travel = case
-      when n20 && n21 then Node::solve(n20, n21, n01, n20.dot(p2) - t2, n21.dot(p2) - t2, n01.dot(p0) - t0)
-      when n20 then Node::solve_asym(n01, n20, n20, n01.dot(p0) - t0, n20.dot(p2) - t2, n20.cross(p2))
-      when n21 then Node::solve_asym(n01, n21, n21, n01.dot(p0) - t0, n21.dot(p2) - t2, n21.cross(p2))
-      end || return
-      return if travel * @nodes.direction < @travel
-      return if @nodes.limit && travel.abs > @nodes.limit.abs
-      return if point.minus(p0).dot(n01) * @nodes.direction < 0
-      Split.new @nodes, point, travel, self, edge[0]
-    end
-
     # ###########################################
     # solve for vector p:
     #   n0.(p - @point) = @nodes.limit - @travel
@@ -62,36 +43,6 @@ module StraightSkeleton
       when normals[0] then normals[0].times(@nodes.limit - @travel).plus(point)
       when normals[1] then normals[1].times(@nodes.limit - @travel).plus(point)
       end
-    end
-
-    # #################################
-    # solve for vector p and scalar t:
-    #   n0.p - t = x0
-    #   n1.p - t = x1
-    #   n2.p - t = x2
-    # #################################
-
-    def self.solve(n0, n1, n2, x0, x1, x2)
-      det = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
-      return if det.zero?
-      travel = (x0 * n1.cross(n2) + x1 * n2.cross(n0) + x2 * n0.cross(n1)) / det
-      point = [ n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2) ].inject(&:plus) / det
-      [ point, travel ]
-    end
-
-    # #################################
-    # solve for vector p and scalar t:
-    #   n0.p - t = x0
-    #   n1.p - t = x1
-    #   n2 x p   = x2
-    # #################################
-
-    def self.solve_asym(n0, n1, n2, x0, x1, x2)
-      det = n0.minus(n1).dot(n2)
-      return if det.zero?
-      travel = (x0 * n1.dot(n2) - x1 * n2.dot(n0) + x2 * n0.cross(n1)) / det
-      point = (n2.times(x0 - x1).plus n0.minus(n1).perp.times(x2)) / det
-      [ point, travel ]
     end
   end
 
@@ -140,6 +91,8 @@ module StraightSkeleton
       @whence = source.whence | node.whence
     end
 
+    attr_reader :source
+
     def viable?
       return false unless @source.active?
       @edge = @nodes.track(@normal).find do |edge|
@@ -187,6 +140,36 @@ module StraightSkeleton
       end
     end
 
+    # #################################
+    # solve for vector p and scalar t:
+    #   n0.p - t = x0
+    #   n1.p - t = x1
+    #   n2.p - t = x2
+    # #################################
+
+    def self.solve(n0, n1, n2, x0, x1, x2)
+      det = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
+      return if det.zero?
+      travel = (x0 * n1.cross(n2) + x1 * n2.cross(n0) + x2 * n0.cross(n1)) / det
+      point = [ n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2) ].inject(&:plus) / det
+      [ point, travel ]
+    end
+
+    # #################################
+    # solve for vector p and scalar t:
+    #   n0.p - t = x0
+    #   n1.p - t = x1
+    #   n2 x p   = x2
+    # #################################
+
+    def self.solve_asym(n0, n1, n2, x0, x1, x2)
+      det = n0.minus(n1).dot(n2)
+      return if det.zero?
+      travel = (x0 * n1.dot(n2) - x1 * n2.dot(n0) + x2 * n0.cross(n1)) / det
+      point = (n2.times(x0 - x1).plus n0.minus(n1).perp.times(x2)) / det
+      [ point, travel ]
+    end
+
     def collapse(edge)
       (n00, n01), (n10, n11) = edge.map(&:normals)
       p0, p1 = edge.map(&:point)
@@ -194,9 +177,9 @@ module StraightSkeleton
       return if p0.equal? p1
       good = [ n00 && !n00.cross(n01).zero?, n11 && !n11.cross(n10).zero? ]
       point, travel = case
-      when good.all? then Node::solve(n00, n01, n11, n00.dot(p0) - t0, n01.dot(p1) - t1, n11.dot(p1) - t1)
-      when good[0] then Node::solve_asym(n00, n01, n10, n00.dot(p0) - t0, n01.dot(p0) - t0, n10.cross(p1))
-      when good[1] then Node::solve_asym(n11, n10, n10, n11.dot(p1) - t1, n10.dot(p1) - t1, n01.cross(p0))
+      when good.all? then Nodes::solve(n00, n01, n11, n00.dot(p0) - t0, n01.dot(p1) - t1, n11.dot(p1) - t1)
+      when good[0] then Nodes::solve_asym(n00, n01, n10, n00.dot(p0) - t0, n01.dot(p0) - t0, n10.cross(p1))
+      when good[1] then Nodes::solve_asym(n11, n10, n10, n11.dot(p1) - t1, n10.dot(p1) - t1, n01.cross(p0))
       end || return
       return if travel * direction < @travel * direction
       return if @limit && travel.abs > @limit.abs
@@ -208,7 +191,22 @@ module StraightSkeleton
         [ coord, centre - @limit, centre + @limit ].minmax
       end if @limit
       @index.search(bounds).map do |edge|
-        node.split edge
+        p0, p1, p2 = [ *edge, node ].map(&:point)
+        t0, t1, t2 = [ *edge, node ].map(&:travel)
+        (n00, n01), (n10, n11), (n20, n21) = [ *edge, node ].map(&:normals)
+        next if p0 == p2 || p1 == p2
+        next if node.terminal? and Split === node and node.source.normals[0].equal? n01
+        next if node.terminal? and Split === node and node.source.normals[1].equal? n01
+        next unless node.terminal? || [ n20, n21 ].compact.inject(&:plus).dot(n01) < 0
+        point, travel = case
+        when n20 && n21 then Nodes::solve(n20, n21, n01, n20.dot(p2) - t2, n21.dot(p2) - t2, n01.dot(p0) - t0)
+        when n20 then Nodes::solve_asym(n01, n20, n20, n01.dot(p0) - t0, n20.dot(p2) - t2, n20.cross(p2))
+        when n21 then Nodes::solve_asym(n01, n21, n21, n01.dot(p0) - t0, n21.dot(p2) - t2, n21.cross(p2))
+        end || next
+        next if travel * @direction < node.travel
+        next if @limit && travel.abs > @limit.abs
+        next if point.minus(p0).dot(n01) * @direction < 0
+        Split.new self, point, travel, node, edge[0]
       end.compact.each do |split|
         @candidates << split
       end

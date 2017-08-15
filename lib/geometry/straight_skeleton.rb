@@ -12,6 +12,14 @@ module StraightSkeleton
       @neighbours.one?
     end
 
+    def reflex?
+      normals.inject(&:cross) * @nodes.direction <= 0
+    end
+
+    def splits?
+      terminal? || reflex?
+    end
+
     def prev
       @neighbours[0]
     end
@@ -120,6 +128,8 @@ module StraightSkeleton
       @neighbours.inject(&:==) ? block.call(prev) : insert! if @neighbours.any?
       @sources.each(&block)
     end
+
+    alias splits? terminal?
   end
 
   class Split
@@ -158,10 +168,6 @@ module StraightSkeleton
 
     def initialize(nodes, point, normals, whence)
       @original, @neighbours, @nodes, @point, @normals, @whence, @travel = self, [ nil, nil ], nodes, point, normals, whence, 0
-    end
-
-    def reflex?
-      normals.inject(&:cross) * @nodes.direction <= 0
     end
   end
 
@@ -220,7 +226,7 @@ module StraightSkeleton
       end.segments.uniq.each do |edge|
         collapse edge
       end
-      split node if node.terminal?
+      split node if node.splits?
     end
 
     def track(normal)
@@ -329,9 +335,7 @@ module StraightSkeleton
         @index = RTree.load bounds_edges
       end
 
-      @active.select do |node|
-        node.terminal? || node.reflex?
-      end.each do |node|
+      @active.select(&:splits?).each do |node|
         split node
       end if options.fetch("splits", true)
 

@@ -266,7 +266,7 @@ module StraightSkeleton
         end
       end if @limit
 
-      @candidates, @travel, @limit, @direction = AVLTree.new, 0, limit, limit ? limit <=> 0 : 1
+      @candidates, @travel, @limit, @direction = AVLTree.new, 0, limit && limit.to_d, limit ? limit <=> 0 : 1
       rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
       cutoff_angle = options["cutoff"] && options["cutoff"] * Math::PI / 180
       @track = Hash.new do |hash, normal|

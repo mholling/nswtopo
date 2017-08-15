@@ -25,7 +25,9 @@ module StraightSkeleton
       t0, t1, t2 = [ *edge, self ].map(&:travel)
       (n00, n01), (n10, n11), (n20, n21) = [ *edge, self ].map(&:normals)
       return if p0 == p2 || p1 == p2
-      return unless [ n20, n21 ].compact.inject(&:plus).dot(n01) < 0
+      return if terminal? and Split === self and @source.normals[0].equal? n01
+      return if terminal? and Split === self and @source.normals[1].equal? n01
+      return unless terminal? || [ n20, n21 ].compact.inject(&:plus).dot(n01) < 0
       point, travel = case
       when n20 && n21 then Node::solve(n20, n21, n01, n20.dot(p2) - t2, n21.dot(p2) - t2, n01.dot(p0) - t0)
       when n20 then Node::solve_asym(n01, n20, n20, n01.dot(p0) - t0, n20.dot(p2) - t2, n20.cross(p2))
@@ -218,8 +220,7 @@ module StraightSkeleton
       end.segments.uniq.each do |edge|
         collapse edge
       end
-      split node if node.terminal? && Collapse === node
-      # TODO: terminal Split nodes should also generate new split candidates, but can't make this work
+      split node if node.terminal?
     end
 
     def track(normal)

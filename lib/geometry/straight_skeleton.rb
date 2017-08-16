@@ -254,7 +254,7 @@ module StraightSkeleton
 
     attr_reader :direction
 
-    def progress(limit = nil, options = {}, &block)
+    def progress(limit, options = {}, &block)
       return self if limit && limit.zero?
       nodeset.tap do
         @active.clear
@@ -269,8 +269,11 @@ module StraightSkeleton
       end if @limit
 
       @candidates, @travel, @limit, @direction = AVLTree.new, 0, limit && limit.to_d, limit ? limit <=> 0 : 1
-      rounding_angle = options.fetch("rounding-angle", DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
-      cutoff_angle = options["cutoff"] && options["cutoff"] * Math::PI / 180
+
+      interval, rounding_angle, cutoff_angle = options.values_at "interval", "rounding-angle", "cutoff"
+      rounding_angle = (rounding_angle || DEFAULT_ROUNDING_ANGLE) * Math::PI / 180
+      cutoff_angle *= Math::PI / 180 if cutoff_angle
+
       @track = Hash.new do |hash, normal|
         hash[normal] = Set[]
       end.compare_by_identity
@@ -339,12 +342,17 @@ module StraightSkeleton
         split node
       end if options.fetch("splits", true)
 
+      travel = 0
       while candidate = @candidates.pop
         next unless candidate.viable?
         @travel = candidate.travel
+        while travel < @travel
+          yield :interval, travel, readout(travel).at_interval(@closed, interval).map(&:first)
+          travel += interval
+        end if interval && block_given?
         candidate.replace! do |node, index = 0|
           @active.delete node
-          yield [ node, candidate ].rotate(index).map(&:original) if block_given?
+          yield :nodes, *[ node, candidate ].rotate(index).map(&:original) if block_given?
         end
       end
 

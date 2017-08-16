@@ -92,18 +92,22 @@ module NSWTopo
                 when "centrelines"
                   next data.centres [ 1 ], *args, opts if closed
                 when "centrepoints"
+                  opts["interval"] ||= DEFAULT_SAMPLE
                   next data.centres [ 0 ], *args, opts if closed
                 when "centres"
+                  opts["interval"] ||= DEFAULT_SAMPLE
                   next data.centres [ 1, 0 ], *args, opts if closed
                 when "centroids"
                   next [ [ 0, data.reject(&:hole?).map(&:centroid) ] ] if closed
                 when "intervals"
-                  next [ [ 0, data.at_interval(closed, args[0] || DEFAULT_SAMPLE).map(&:first) ] ] if dimension > 0
+                  interval = args[0] || DEFAULT_SAMPLE
+                  next [ [ 0, data.at_interval(closed, interval).map(&:first) ] ] if dimension > 0
                 end
               when "fallback"
                 case arg
                 when "intervals"
-                  next [ [ 1, data ], [ 0, data.at_interval(closed, args[0] || DEFAULT_SAMPLE).map(&:first) ] ] if dimension == 1
+                  interval = args[0] || DEFAULT_SAMPLE
+                  next [ [ 1, data ], [ 0, data.at_interval(closed, interval).map(&:first) ] ] if dimension == 1
                 end
               when "outset"
                 data.outset(closed, arg, opts) if dimension > 0

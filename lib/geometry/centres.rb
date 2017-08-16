@@ -2,25 +2,31 @@ module Centres
   include StraightSkeleton
 
   def centres(dimensions, *args, options)
-    fraction  = args[0] || options["fraction"]
+    fraction  = args[0] || options["fraction"] || 0.5
     min_width = args[1] || options["min-width"]
+    interval  = args[2] || options["interval"]
     neighbours = Hash.new { |neighbours, node| neighbours[node] = [] }
-    incoming, tails = Hash.new(0), Hash.new
-    Nodes.new(self, true).progress do |node0, node1|
-      incoming[node1] += 1
-      neighbours[node0] << node1
-      neighbours[node1] << node0
+    samples, tails, node1 = Hash.new, Hash.new, nil
+    Nodes.new(self, true).progress(nil, "interval" => interval) do |event, *args|
+      case event
+      when :nodes
+        node0, node1 = *args
+        neighbours[node0] << node1
+        neighbours[node1] << node0
+      when :interval
+        travel, points = *args
+        samples[travel] = points
+      end
     end
+    samples[node1.travel] = [ node1.point.to_f ]
     max_travel = neighbours.keys.map(&:travel).max
-    min_travel = [ (fraction || 0.5) * max_travel, min_width && 0.5 * min_width ].compact.max
+    min_travel = [ fraction * max_travel, min_width && 0.5 * min_width ].compact.max
     dimensions.map do |dimension|
       data = case dimension
       when 0
-        points = incoming.select do |node, count|
-          node.travel >= min_travel
-        end.sort_by do |node, count|
-          [ -count, -node.travel ]
-        end.map(&:first).map(&:point).to_f
+        samples.select do |travel, points|
+          travel > min_travel
+        end.map(&:last).flatten(1).reverse
       when 1
         loop do
           break unless neighbours.reject do |node, (neighbour, *others)|

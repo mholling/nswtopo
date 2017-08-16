@@ -233,20 +233,20 @@ module StraightSkeleton
       end
     end
 
-    def finalise
+    def nodeset
       [].tap do |result|
-        used = Set[]
-        while @active.any?
-          nodes = @active.take 1
-          while node = nodes.last.next and !used.include?(node)
+        pending, processed = @active.dup, Set[]
+        while pending.any?
+          nodes = pending.take 1
+          while node = nodes.last.next and !processed.include?(node)
             nodes.push node
-            used << node
+            processed << node
           end
-          while node = nodes.first.prev and !used.include?(node)
+          while node = nodes.first.prev and !processed.include?(node)
             nodes.unshift node
-            used << node
+            processed << node
           end
-          @active.subtract nodes
+          pending.subtract nodes
           result << nodes
         end
       end
@@ -256,7 +256,9 @@ module StraightSkeleton
 
     def progress(limit = nil, options = {}, &block)
       return self if limit && limit.zero?
-      finalise.each.with_index do |nodes, index|
+      nodeset.tap do
+        @active.clear
+      end.each.with_index do |nodes, index|
         nodes.map do |node|
           Vertex.new self, node.project(@limit), node.normals, Set[index]
         end.each do |node|
@@ -349,10 +351,10 @@ module StraightSkeleton
       self
     end
 
-    def readout
-      finalise.map do |nodes|
+    def readout(travel = @limit)
+      nodeset.map do |nodes|
         nodes.map do |node|
-          node.project(@limit).to_f
+          node.project(travel).to_f
         end
       end.sanitise(@closed)
     end

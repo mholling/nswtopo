@@ -24,14 +24,14 @@ module VectorSequences
     end.flatten(1)
   end
 
-  def at_interval(closed, interval)
-    Enumerator.new do |yielder|
-      each do |line|
-        (closed ? line.ring : line.segments).inject(0.5) do |alpha, segment|
-          angle = segment.difference.angle
+  def sample_at(closed, interval, angles = false)
+    [].tap do |result|
+      map(&closed ? :ring : :segments).each do |segments|
+        segments.inject(0.5) do |alpha, segment|
+          angle = segment.difference.angle if angles
           while alpha * interval < segment.distance
             segment[0] = segment.along(alpha * interval / segment.distance)
-            yielder << [ segment[0], angle ]
+            angles ? result << [ segment[0], angle ] : result << segment[0]
             alpha = 1.0
           end
           alpha - segment.distance / interval

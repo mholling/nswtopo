@@ -222,7 +222,6 @@ module NSWTopo
           next [] if map.debug == "features"
           case dimension
           when 0
-            # TODO: can we prioritise by position in component list as well (in the case of skeleton centres)?
             margin      = attributes.fetch("margin", DEFAULT_MARGIN)
             line_height = attributes.fetch("line-height", DEFAULT_LINE_HEIGHT)
             line_height = 0.01 * $1.to_f if /(.*)%$/ === line_height
@@ -258,7 +257,7 @@ module NSWTopo
               fence = fence_index.search(hull.transpose.map(&:minmax)).any? do |fence, buffer|
                 [ hull, fence ].overlap?(buffer)
               end
-              priority = [ fence ? 1 : 0, index ]
+              priority = [ fence ? 1 : 0, index, component ]
               Label.new source_name, sublayer, feature, component, priority, hull, attributes, text_elements
             end.compact.tap do |candidates|
               candidates.combination(2).each do |candidate1, candidate2|

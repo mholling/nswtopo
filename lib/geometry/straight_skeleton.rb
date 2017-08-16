@@ -30,18 +30,18 @@ module StraightSkeleton
 
     # ###########################################
     # solve for vector p:
-    #   n0.(p - @point) = @nodes.limit - @travel
-    #   n1.(p - @point) = @nodes.limit - @travel
+    #   n0.(p - @point) = travel - @travel
+    #   n1.(p - @point) = travel - @travel
     # ###########################################
 
-    def project
+    def project(travel)
       det = normals.inject(&:cross) if normals.all?
       case
       when det && det.nonzero?
-        x = normals.map { |normal| @nodes.limit - @travel + normal.dot(point) }
+        x = normals.map { |normal| travel - @travel + normal.dot(point) }
         [ normals[1][1] * x[0] - normals[0][1] * x[1], normals[0][0] * x[1] - normals[1][0] * x[0] ] / det
-      when normals[0] then normals[0].times(@nodes.limit - @travel).plus(point)
-      when normals[1] then normals[1].times(@nodes.limit - @travel).plus(point)
+      when normals[0] then normals[0].times(travel - @travel).plus(point)
+      when normals[1] then normals[1].times(travel - @travel).plus(point)
       end
     end
   end
@@ -187,7 +187,7 @@ module StraightSkeleton
     end
 
     def split(node)
-      bounds = node.project.zip(node.point).map do |centre, coord|
+      bounds = node.project(@limit).zip(node.point).map do |centre, coord|
         [ coord, centre - @limit, centre + @limit ].minmax
       end if @limit
       @index.search(bounds).map do |edge|
@@ -252,13 +252,13 @@ module StraightSkeleton
       end
     end
 
-    attr_reader :limit, :direction
+    attr_reader :direction
 
     def progress(limit = nil, options = {}, &block)
       return self if limit && limit.zero?
       finalise.each.with_index do |nodes, index|
         nodes.map do |node|
-          Vertex.new self, node.project, node.normals, Set[index]
+          Vertex.new self, node.project(@limit), node.normals, Set[index]
         end.each do |node|
           @active << node
         end.send(@closed ? :ring : :segments).each do |edge|
@@ -351,7 +351,9 @@ module StraightSkeleton
 
     def readout
       finalise.map do |nodes|
-        nodes.map(&:project).to_f
+        nodes.map do |node|
+          node.project(@limit).to_f
+        end
       end.sanitise(@closed)
     end
   end

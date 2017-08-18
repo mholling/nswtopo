@@ -44,7 +44,7 @@ module Clipping
         rings.each do |points|
           points.map do |point|
             point.minus(vertex).dot(perp) >= 0
-          end.ring.zip(points.ring).each do |inside, segment|
+          end.segments.zip(points.segments).each do |inside, segment|
             insides[segment] = inside
             neighbours[segment] = [ nil, nil ]
           end.map(&:last).ring.each do |segment0, segment1|
@@ -72,6 +72,7 @@ module Clipping
             result.last << segment[0]
             *, segment = neighbours.delete(segment)
           end
+          result.last << result.last.first
         end
         result
       end.partition(&:hole?).rotate(lefthanded ? 1 : 0)

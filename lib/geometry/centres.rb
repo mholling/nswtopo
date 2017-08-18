@@ -7,7 +7,7 @@ module Centres
     interval  = args[2] || options["interval"]
     neighbours = Hash.new { |neighbours, node| neighbours[node] = [] }
     samples, tails, node1 = Hash.new, Hash.new, nil
-    Nodes.new(self, true).progress(nil, "interval" => interval) do |event, *args|
+    Nodes.new(self).progress(nil, "interval" => interval) do |event, *args|
       case event
       when :nodes
         node0, node1 = *args
@@ -59,7 +59,7 @@ module Centres
           end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
             nodes.map(&:point).to_f
           end
-        end.flatten(1).sanitise(false)
+        end.flatten(1)
       end
       [ dimension, data ]
     end

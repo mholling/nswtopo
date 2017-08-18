@@ -1,12 +1,4 @@
 module VectorSequences
-  def sanitise(closed)
-    (closed ? map(&:ring) : map(&:segments)).map do |segments|
-      segments.reject do |segment|
-        segment.inject(&:==)
-      end.map(&:first) + segments.last(closed ? 0 : 1).map(&:last)
-    end.reject(&:empty?).reject(&:one?)
-  end
-
   def remove_holes(max_area = true)
     reject do |points|
       area = points.signed_area
@@ -24,9 +16,9 @@ module VectorSequences
     end.flatten(1)
   end
 
-  def sample_at(closed, interval, angles = false)
+  def sample_at(interval, angles = false)
     [].tap do |result|
-      map(&closed ? :ring : :segments).each do |segments|
+      map(&:segments).each do |segments|
         segments.inject(0.5) do |alpha, segment|
           angle = segment.difference.angle if angles
           while alpha * interval < segment.distance

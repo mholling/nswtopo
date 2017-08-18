@@ -1,30 +1,30 @@
 module Buffer
   include StraightSkeleton
 
-  def inset(closed, margin, options = {})
-    Nodes.new(self, closed).progress(+margin, options).readout
+  def inset(margin, options = {})
+    Nodes.new(self).progress(+margin, options).readout
   end
 
-  def outset(closed, margin, options = {})
-    Nodes.new(self, closed).progress(-margin, options).readout
+  def outset(margin, options = {})
+    Nodes.new(self).progress(-margin, options).readout
   end
 
-  def offset(closed, *margins, options)
-    margins.inject Nodes.new(self, closed) do |nodes, margin|
+  def offset(*margins, options)
+    margins.inject Nodes.new(self) do |nodes, margin|
       nodes.progress(+margin, options)
     end.readout
   end
 
   def buffer(closed, margin, overshoot = margin)
     if closed
-      Nodes.new(self, closed).progress(-margin-overshoot).progress(+overshoot, "splits" => false).readout
+      Nodes.new(self).progress(-margin-overshoot).progress(+overshoot, "splits" => false).readout
     else
-      Nodes.new(self + map(&:reverse), closed).progress(+margin+overshoot).progress(-overshoot, "splits" => false).readout
+      Nodes.new(self + map(&:reverse)).progress(+margin+overshoot).progress(-overshoot, "splits" => false).readout
     end
   end
 
   def smooth(margin, cutoff = nil)
-    Nodes.new(self, false).progress(+margin).progress(-2 * margin, "cutoff" => cutoff).progress(+margin, "cutoff" => cutoff).readout
+    Nodes.new(self).progress(+margin).progress(-2 * margin, "cutoff" => cutoff).progress(+margin, "cutoff" => cutoff).readout
   end
 end
 

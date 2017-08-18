@@ -1,5 +1,6 @@
 module StraightSkeleton
   DEFAULT_ROUNDING_ANGLE = 15
+  # TODO: can we avoid the need to store whence values?
 
   module Node
     attr_reader :point, :travel, :neighbours, :normals, :whence, :original
@@ -119,23 +120,29 @@ module StraightSkeleton
   class Vertex
     include Node
 
-    def initialize(nodes, point, normals, whence)
-      @original, @neighbours, @nodes, @point, @normals, @whence, @travel = self, [ nil, nil ], nodes, point, normals, whence, 0
+    def initialize(nodes, point, whence)
+      @original, @nodes, @point, @whence, @neighbours, @normals, @travel = self, nodes, point, whence, [ nil, nil ], [ nil, nil ], 0
     end
   end
 
   class Nodes
-    def initialize(data, closed)
-      @closed, @active = closed, Set[]
-      data.sanitise(closed).to_d.each.with_index do |points, index|
-        normals = (closed ? points.ring : points.segments).map(&:difference).map(&:normalised).map(&:perp)
-        normals = closed ? normals.ring.rotate(-1) : normals.unshift(nil).push(nil).segments
-        points.zip(normals).map do |point, normals|
-          Vertex.new self, point, normals, Set[index]
+    def self.stitch(normal, *edge)
+      edge[1].neighbours[0], edge[0].neighbours[1] = edge
+      edge[1].normals[0] = edge[0].normals[1] = normal
+    end
+
+    def initialize(data)
+      @active = Set[]
+      data.to_d.map do |*points, point|
+        points.first == point ? [ points, :ring ] : [ points << point, :segments ]
+      end.each.with_index do |(points, pair), index|
+        normals = points.send(pair).map(&:difference).map(&:normalised).map(&:perp)
+        points.map do |point|
+          Vertex.new self, point, Set[index]
         end.each do |node|
           @active << node
-        end.send(closed ? :ring : :segments).each do |edge|
-          edge[1].neighbours[0], edge[0].neighbours[1] = edge
+        end.send(pair).zip(normals).each do |edge, normal|
+          Nodes.stitch normal, *edge
         end
       end
     end
@@ -247,6 +254,7 @@ module StraightSkeleton
             processed << node
           end
           pending.subtract nodes
+          nodes << nodes.first if nodes.first == nodes.last.next
           result << nodes
         end
       end
@@ -256,15 +264,21 @@ module StraightSkeleton
 
     def progress(limit, options = {}, &block)
       return self if limit && limit.zero?
+
       nodeset.tap do
         @active.clear
-      end.each.with_index do |nodes, index|
+      end.map do |*nodes, node|
+        nodes.first == node ? [ nodes, :ring ] : [ nodes << node, :segments ]
+      end.each.with_index do |(nodes, pair), index|
+        normals = nodes.send(pair).map do |edge|
+          edge[0].normals[1]
+        end
         nodes.map do |node|
-          Vertex.new self, node.project(@limit), node.normals, Set[index]
+          Vertex.new self, node.project(@limit), Set[index]
         end.each do |node|
           @active << node
-        end.send(@closed ? :ring : :segments).each do |edge|
-          edge[1].neighbours[0], edge[0].neighbours[1] = edge
+        end.send(pair).zip(normals).each do |edge, normal|
+          Nodes.stitch normal, *edge
         end
       end if @limit
 
@@ -278,20 +292,43 @@ module StraightSkeleton
         hash[normal] = Set[]
       end.compare_by_identity
 
-      joins = Set[]
-      @active.group_by(&:point).each do |point, nodes|
-        nodes.permutation(2).select do |node0, node1|
-          node0.prev && node1.next && node0.prev.point != node1.next.point
-        end.group_by(&:first).map(&:last).map do |pairs|
-          pairs.min_by do |node0, node1|
-            normals = [ node1.normals[1], node0.normals[0] ]
-            Math::atan2 normals.inject(&:cross), normals.inject(&:dot)
-          end
-        end.each do |node0, node1|
-          @candidates << Split.new(self, point, 0, node0, node1)
-          joins << node0 << node1
+      @active.group_by(&:point).reject do |point, nodes|
+        case nodes.length
+        when 1 then true
+        when 2
+          nodes[0].next&.point == nodes[1].prev&.point &&
+          nodes[1].next&.point == nodes[0].prev&.point
+        else false
         end
-        # nodes produce here won't be rounded, but this will be very rare
+      end.each do |point, nodes|
+        @active.subtract nodes
+        nodes.inject [] do |events, node|
+          events << [ :incoming, node.prev ] if node.prev
+          events << [ :outgoing, node.next ] if node.next
+          events
+        end.sort_by do |event, node|
+          case event
+          when :incoming then [ -@direction * node.normals[1].angle,        1 ]
+          when :outgoing then [ -@direction * node.normals[0].negate.angle, 0 ]
+          end
+        end.ring.map(&:transpose).each do |events, neighbours|
+          case events
+          when [ :outgoing, :incoming ]
+          when [ :outgoing, :outgoing ]
+            node = Vertex.new self, point, neighbours[1].whence
+            Nodes.stitch neighbours[1].normals[0], node, neighbours[1]
+            @active << node
+          when [ :incoming, :incoming ]
+            node = Vertex.new self, point, node0.whence
+            Nodes.stitch neighbours[0].normals[1], neighbours[0], node
+            @active << node
+          when [ :incoming, :outgoing ]
+            node = Vertex.new self, point, neighbours.map(&:whence).inject(&:|)
+            Nodes.stitch neighbours[0].normals[1], neighbours[0], node
+            Nodes.stitch neighbours[1].normals[0], node, neighbours[1]
+            @active << node
+          end
+        end
       end
 
       @active.reject(&:terminal?).select do |node|
@@ -299,7 +336,7 @@ module StraightSkeleton
       end.each do |node|
         @active.delete node
         2.times.map do
-          Vertex.new self, node.point, [ nil, nil ], node.whence
+          Vertex.new self, node.point, node.whence
         end.each.with_index do |vertex, index|
           vertex.normals[index] = node.normals[index]
           vertex.neighbours[index] = node.neighbours[index]
@@ -308,22 +345,22 @@ module StraightSkeleton
         end
       end if cutoff_angle
 
-      (@active - joins).reject(&:terminal?).select(&:reflex?).each do |node|
+      @active.reject(&:terminal?).select(&:reflex?).each do |node|
         angle = Math::atan2 node.normals.inject(&:cross).abs, node.normals.inject(&:dot)
         extras = (angle / rounding_angle).floor
         next unless extras > 0
-        normals = extras.times.map do |n|
+        extra_normals = extras.times.map do |n|
           node.normals[0].rotate_by(angle * (n + 1) * -direction / (extras + 1))
         end
-        nodes = extras.times.map do
-          Vertex.new self, node.point, [ nil, nil ], node.whence
+        extra_nodes = extras.times.map do
+          Vertex.new self, node.point, node.whence
         end.each do |extra_node|
           @active << extra_node
-        end.unshift(node)
-        [ node.neighbours[0], *nodes, node.neighbours[1] ].segments.each do |edge|
-          edge[1].neighbours[0], edge[0].neighbours[1] = edge
-        end.zip([ node.normals[0], *normals, node.normals[1] ]).each do |edge, normal|
-          edge[1].normals[0] = edge[0].normals[1] = normal
+        end
+        edges = [ node.neighbours[0], node, *extra_nodes, node.neighbours[1] ].segments
+        normals = [ node.normals[0], *extra_normals, node.normals[1] ]
+        edges.zip(normals).each do |edge, normal|
+          Nodes.stitch normal, *edge
         end
       end
 
@@ -347,7 +384,7 @@ module StraightSkeleton
         next unless candidate.viable?
         @travel = candidate.travel
         while travel < @travel
-          yield :interval, travel, readout(travel).sample_at(@closed, interval)
+          yield :interval, travel, readout(travel).sample_at(interval)
           travel += interval
         end if interval && block_given?
         candidate.replace! do |node, index = 0|
@@ -364,7 +401,7 @@ module StraightSkeleton
         nodes.map do |node|
           node.project(travel).to_f
         end
-      end.sanitise(@closed)
+      end
     end
   end
 end

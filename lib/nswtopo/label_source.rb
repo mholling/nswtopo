@@ -76,7 +76,7 @@ module NSWTopo
           when 1, 2
             data.map do |coords|
               map.coords_to_mm coords
-            end.sanitise(dimension == 2)
+            end
           end
           transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (arg, *args))|
             next dimensioned_data unless arg
@@ -101,20 +101,20 @@ module NSWTopo
                   next [ [ 0, data.reject(&:hole?).map(&:centroid) ] ] if closed
                 when "intervals"
                   interval = args[0] || DEFAULT_SAMPLE
-                  next [ [ 0, data.sample_at(closed, interval) ] ] if dimension > 0
+                  next [ [ 0, data.sample_at(interval) ] ] if dimension > 0
                 end
               when "fallback"
                 case arg
                 when "intervals"
                   interval = args[0] || DEFAULT_SAMPLE
-                  next [ [ 1, data ], [ 0, data.sample_at(closed, interval) ] ] if dimension == 1
+                  next [ [ 1, data ], [ 0, data.sample_at(interval) ] ] if dimension == 1
                 end
               when "outset"
-                data.outset(closed, arg, opts) if dimension > 0
+                data.outset(arg, opts) if dimension > 0
               when "inset"
-                data.inset(closed, arg, opts) if dimension > 0
+                data.inset(arg, opts) if dimension > 0
               when "offset"
-                data.offset(closed, arg, *args, opts) if dimension > 0
+                data.offset(arg, *args, opts) if dimension > 0
               when "buffer"
                 data.buffer(closed, arg, *args) if dimension > 0
               when "smooth"
@@ -278,7 +278,7 @@ module NSWTopo
             when REXML::Element then data.path_length
             when String then text.glyph_length(font_size, letter_spacing, word_spacing)
             end
-            points = data.send(pairs).inject([]) do |memo, segment|
+            points = data.segments.inject([]) do |memo, segment|
               steps = REXML::Element === text ? 1 : (segment.distance / sample).ceil
               memo += steps.times.map do |step|
                 segment.along(step.to_f / steps)
@@ -358,7 +358,7 @@ module NSWTopo
               else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
               end
               hull = [ baseline, baseline.reverse ].map do |line|
-                [ line ].inset(false, 0.5 * font_size, "splits" => false)
+                [ line ].inset(0.5 * font_size, "splits" => false)
               end.flatten(2).convex_hull
               next unless labelling_hull.surrounds?(hull).all?
               baseline << baseline.last(2).difference.normalised.times(text_length * 0.25).plus(baseline.last)

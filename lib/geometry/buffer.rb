@@ -17,9 +17,9 @@ module Buffer
 
   def buffer(closed, margin, overshoot = margin)
     if closed
-      Nodes.new(self).progress(-margin-overshoot).progress(+overshoot, "splits" => false).readout
+      Nodes.new(self).progress(-margin-overshoot).progress(+overshoot).readout
     else
-      Nodes.new(self + map(&:reverse)).progress(+margin+overshoot).progress(-overshoot, "splits" => false).readout
+      Nodes.new(self + map(&:reverse)).progress(+margin+overshoot).progress(-overshoot).readout
     end
   end
 

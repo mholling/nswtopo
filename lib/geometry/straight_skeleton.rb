@@ -1,9 +1,8 @@
 module StraightSkeleton
   DEFAULT_ROUNDING_ANGLE = 15
-  # TODO: can we avoid the need to store whence values?
 
   module Node
-    attr_reader :point, :travel, :neighbours, :normals, :whence, :original
+    attr_reader :point, :travel, :neighbours, :normals, :original
 
     def active?
       @nodes.include? self
@@ -27,6 +26,10 @@ module StraightSkeleton
 
     def next
       @neighbours[1]
+    end
+
+    def index
+      @index ||= @nodes.index self
     end
 
     # ###########################################
@@ -68,7 +71,6 @@ module StraightSkeleton
 
     def initialize(nodes, point, travel, sources)
       @original, @nodes, @point, @travel, @sources = self, nodes, point, travel, sources
-      @whence = @sources.map(&:whence).inject(&:|)
     end
 
     def viable?
@@ -89,7 +91,6 @@ module StraightSkeleton
 
     def initialize(nodes, point, travel, source, node)
       @original, @nodes, @point, @travel, @source, @normal = self, nodes, point, travel, source, node.normals[1]
-      @whence = source.whence | node.whence
     end
 
     attr_reader :source
@@ -120,8 +121,8 @@ module StraightSkeleton
   class Vertex
     include Node
 
-    def initialize(nodes, point, whence)
-      @original, @nodes, @point, @whence, @neighbours, @normals, @travel = self, nodes, point, whence, [ nil, nil ], [ nil, nil ], 0
+    def initialize(nodes, point)
+      @original, @nodes, @point, @neighbours, @normals, @travel = self, nodes, point, [ nil, nil ], [ nil, nil ], 0
     end
   end
 
@@ -132,17 +133,18 @@ module StraightSkeleton
     end
 
     def initialize(data)
-      @active = Set[]
-      data.to_d.map do |*points, point|
-        points.first == point ? [ points, :ring ] : [ points << point, :segments ]
-      end.each.with_index do |(points, pair), index|
+      @active, @indices = Set[], Hash.new.compare_by_identity
+      data.to_d.map.with_index do |(*points, point), index|
+        points.first == point ? [ points, :ring, (index unless points.hole?) ] : [ points << point, :segments, nil ]
+      end.each do |points, pair, index|
         normals = points.send(pair).map(&:difference).map(&:normalised).map(&:perp)
         points.map do |point|
-          Vertex.new self, point, Set[index]
+          Vertex.new self, point
         end.each do |node|
           @active << node
         end.send(pair).zip(normals).each do |edge, normal|
           Nodes.stitch normal, *edge
+          @indices[normal] = index if index
         end
       end
     end
@@ -267,6 +269,7 @@ module StraightSkeleton
 
       nodeset.tap do
         @active.clear
+        @indices = nil
       end.map do |*nodes, node|
         nodes.first == node ? [ nodes, :ring ] : [ nodes << node, :segments ]
       end.each.with_index do |(nodes, pair), index|
@@ -274,7 +277,7 @@ module StraightSkeleton
           edge[0].normals[1]
         end
         nodes.map do |node|
-          Vertex.new self, node.project(@limit), Set[index]
+          Vertex.new self, node.project(@limit)
         end.each do |node|
           @active << node
         end.send(pair).zip(normals).each do |edge, normal|
@@ -312,22 +315,18 @@ module StraightSkeleton
           when :outgoing then [ -@direction * node.normals[0].negate.angle, 0 ]
           end
         end.ring.map(&:transpose).each do |events, neighbours|
+          node = Vertex.new self, point
           case events
-          when [ :outgoing, :incoming ]
+          when [ :outgoing, :incoming ] then next
           when [ :outgoing, :outgoing ]
-            node = Vertex.new self, point, neighbours[1].whence
             Nodes.stitch neighbours[1].normals[0], node, neighbours[1]
-            @active << node
           when [ :incoming, :incoming ]
-            node = Vertex.new self, point, node0.whence
             Nodes.stitch neighbours[0].normals[1], neighbours[0], node
-            @active << node
           when [ :incoming, :outgoing ]
-            node = Vertex.new self, point, neighbours.map(&:whence).inject(&:|)
             Nodes.stitch neighbours[0].normals[1], neighbours[0], node
             Nodes.stitch neighbours[1].normals[0], node, neighbours[1]
-            @active << node
           end
+          @active << node
         end
       end
 
@@ -336,7 +335,7 @@ module StraightSkeleton
       end.each do |node|
         @active.delete node
         2.times.map do
-          Vertex.new self, node.point, node.whence
+          Vertex.new self, node.point
         end.each.with_index do |vertex, index|
           vertex.normals[index] = node.normals[index]
           vertex.neighbours[index] = node.neighbours[index]
@@ -351,9 +350,11 @@ module StraightSkeleton
         next unless extras > 0
         extra_normals = extras.times.map do |n|
           node.normals[0].rotate_by(angle * (n + 1) * -direction / (extras + 1))
+        end.each do |normal|
+          @indices[normal] = @indices[node.normals[0]] if @indices
         end
         extra_nodes = extras.times.map do
-          Vertex.new self, node.point, node.whence
+          Vertex.new self, node.point
         end.each do |extra_node|
           @active << extra_node
         end
@@ -402,6 +403,10 @@ module StraightSkeleton
           node.project(travel).to_f
         end
       end
+    end
+
+    def index(node)
+      @indices.values_at(*node.normals).find(&:itself)
     end
   end
 end

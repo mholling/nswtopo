@@ -1,11 +1,4 @@
 module VectorSequences
-  def remove_holes(max_area = true)
-    reject do |points|
-      area = points.signed_area
-      area < 0 && (true == max_area || area.abs < max_area.abs)
-    end
-  end
-
   def in_sections(count)
     map(&:segments).map do |segments|
       segments.each_slice(count).map do |segments|

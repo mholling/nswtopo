@@ -119,8 +119,6 @@ module NSWTopo
                 data.buffer(closed, arg, *args) if dimension > 0
               when "smooth"
                 next [ [ 1, data.smooth(arg, max_turn) ] ] if dimension > 0
-              when "remove-holes"
-                data.remove_holes(arg) if closed
               when "minimum-area"
                 case dimension
                 when 1
@@ -137,9 +135,12 @@ module NSWTopo
                     end
                   end.flatten(1)
                 end
-              when "minimum-hole"
+              when "minimum-hole", "remove-holes"
                 data.reject do |points|
-                  (-arg .. 0).include? points.signed_area
+                  case arg
+                  when true then points.signed_area < 0
+                  when Numeric then (-arg.abs ... 0).include? points.signed_area
+                  end
                 end if closed
               when "minimum-length"
                 data.reject do |points|

@@ -61,6 +61,14 @@ module Centres
       [ dimension, data ]
     end
   end
+
+  def skeleton
+    result = []
+    Nodes.new(self).progress(nil) do |event, node0, node1|
+      result << [ node0.point, node1.point ].to_f
+    end
+    result
+  end
 end
 
 Array.send :include, Centres

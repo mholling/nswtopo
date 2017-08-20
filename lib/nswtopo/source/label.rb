@@ -465,7 +465,7 @@ module NSWTopo
           end
           labelled = counts[candidate.feature].zero? ? 0 : 1
           optional = candidate.optional? ? 1 : 0
-          ordinal = [ conflict_count, labelled, optional, candidate.priority ]
+          ordinal = [ optional, conflict_count, labelled, candidate.priority ]
           next if candidate.ordinal == ordinal
           remaining.delete candidate
           candidate.ordinal = ordinal

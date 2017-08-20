@@ -228,8 +228,8 @@ module NSWTopo
             margin      = attributes.fetch("margin", DEFAULT_MARGIN)
             line_height = attributes.fetch("line-height", DEFAULT_LINE_HEIGHT)
             line_height = 0.01 * $1.to_f if /(.*)%$/ === line_height
-            lines, widths = text.in_two(font_size, letter_spacing, word_spacing)
-            width = widths.max
+            lines = text.in_two(font_size, letter_spacing, word_spacing)
+            width = lines.map(&:last).max
             height = lines.map { font_size }.inject { |total, font_size| total + font_size * line_height }
             if attributes["shield"]
               width += VectorRenderer::SHIELD_X * font_size
@@ -244,10 +244,10 @@ module NSWTopo
               end
               transform = "translate(#{x} #{y}) rotate(#{-map.rotation})"
               text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
-              text_elements = lines.map.with_index do |line, index|
+              text_elements = lines.map.with_index do |(line, text_length), index|
                 y = font_size * (lines.one? ? 0.5 * dy + CENTRELINE_FRACTION : line_height * (dy + index - 0.5) + CENTRELINE_FRACTION)
                 REXML::Element.new("text").tap do |text|
-                  text.add_attributes "text-anchor" => text_anchor, "transform" => transform, "y" => y
+                  text.add_attributes "text-anchor" => text_anchor, "transform" => transform, "y" => y, "textLength" => text_length, "lengthAdjust" => "spacingAndGlyphs"
                   text.add_text line
                 end
               end

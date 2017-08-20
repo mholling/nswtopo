@@ -21,10 +21,10 @@ module GlyphLength
     end.map do |lines|
       lines.map do |line|
         [ line, line.glyph_length(font_size, letter_spacing, word_spacing) ]
-      end.transpose
-    end.min_by do |lines, line_widths|
-      line_widths.max
-    end || [ words[0], words[0].glyph_length(font_size, letter_spacing, word_spacing) ].zip
+      end
+    end.min_by do |lines_widths|
+      lines_widths.map(&:last).max
+    end || [ [ words[0], words[0].glyph_length(font_size, letter_spacing, word_spacing) ] ]
   end
 end
 

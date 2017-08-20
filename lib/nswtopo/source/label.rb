@@ -15,16 +15,17 @@ module NSWTopo
       font-size: #{DEFAULT_FONT_SIZE}
       debug:
         fill: none
+        opacity: 0.5
       debug feature:
-        stroke: blue
+        stroke: "#6600ff"
         stroke-width: 0.2
         symbol:
           circle:
             r: 0.3
             stroke: none
-            fill: blue
+            fill: "#6600ff"
       debug candidate:
-        stroke: red
+        stroke: magenta
         stroke-width: 0.2
     ]
 
@@ -417,12 +418,10 @@ module NSWTopo
         end
       end.flatten
 
-      if map.debug
-        candidates.each do |candidate|
-          debug_features << [ 2, [ candidate.hull ], %w[debug candidate] ]
-        end
-        return debug_features
-      end
+      candidates.each do |candidate|
+        debug_features << [ 2, [ candidate.hull ], %w[debug candidate] ]
+      end if map.debug
+      return debug_features if %w[features candidates].include? map.debug
 
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices
@@ -517,6 +516,8 @@ module NSWTopo
 
       labels.map do |label|
         [ nil, label.elements, label.categories, label.source_name ]
+      end.tap do |result|
+        result.concat debug_features if map.debug
       end
     end
   end

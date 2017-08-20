@@ -3,7 +3,7 @@ module NSWTopo
     include VectorRenderer
 
     CENTRELINE_FRACTION = 0.35
-    ATTRIBUTES = %w[font-size letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase shield]
+    ATTRIBUTES = %w[font-size font-variant font-family letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase shield small-caps]
     TRANSFORMS = %w[reduce fallback outset inset offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
     DEFAULT_FONT_SIZE   = 1.8
     DEFAULT_MARGIN      = 1
@@ -221,6 +221,8 @@ module NSWTopo
           letter_spacing = letter_spacing.to_i * font_size * 0.01 if /^\d+%$/ === letter_spacing
           word_spacing = attributes.fetch("word-spacing", 0)
           word_spacing = word_spacing.to_i * font_size * 0.01 if /^\d+%$/ === word_spacing
+          small_caps = attributes.fetch("small-caps", attributes["font-variant"] == "small-caps")
+          small_caps = small_caps.to_i * 0.01 if /^\d+%$/ === small_caps
           debug_features << [ dimension, [ data ], %w[debug feature] ] if map.debug
           next [] if map.debug == "features"
           case dimension
@@ -228,7 +230,7 @@ module NSWTopo
             margin      = attributes.fetch("margin", DEFAULT_MARGIN)
             line_height = attributes.fetch("line-height", DEFAULT_LINE_HEIGHT)
             line_height = 0.01 * $1.to_f if /(.*)%$/ === line_height
-            lines = text.in_two(font_size, letter_spacing, word_spacing)
+            lines = text.in_two(font_size, letter_spacing, word_spacing, small_caps)
             width = lines.map(&:last).max
             height = lines.map { font_size }.inject { |total, font_size| total + font_size * line_height }
             if attributes["shield"]
@@ -279,7 +281,7 @@ module NSWTopo
             separation  = attributes.fetch("separation-along", nil)
             text_length = case text
             when REXML::Element then data.path_length
-            when String then text.glyph_length(font_size, letter_spacing, word_spacing)
+            when String then text.glyph_length(font_size, letter_spacing, word_spacing, small_caps)
             end
             points = data.segments.inject([]) do |memo, segment|
               steps = REXML::Element === text ? 1 : (segment.distance / sample).ceil

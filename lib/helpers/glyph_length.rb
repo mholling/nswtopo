@@ -1,4 +1,5 @@
 module GlyphLength
+  DEFAULT_SMALLCAPS_FRACTION = 0.75
   WIDTHS = {
     ?A => 724, ?B => 598, ?C => 640, ?D => 750, ?E => 549, ?F => 484, ?G => 720, ?H => 742, ?I => 326, ?J => 315, ?K => 678, ?L => 522, ?M => 835,
     ?N => 699, ?O => 779, ?P => 532, ?Q => 779, ?R => 675, ?S => 536, ?T => 596, ?U => 722, ?V => 661, ?W => 975, ?X => 641, ?Y => 641, ?Z => 684,
@@ -10,21 +11,24 @@ module GlyphLength
   }
   WIDTHS.default = WIDTHS[?M]
 
-  def glyph_length(font_size, letter_spacing = 0, word_spacing = 0)
-    WIDTHS.values_at(*chars).inject(0, &:+) * 0.001 * font_size + [ length - 1, 0 ].max * letter_spacing + count(?\s) * word_spacing
+  def glyph_length(font_size, letter_spacing = 0, word_spacing = 0, small_caps = false)
+    small_caps = DEFAULT_SMALLCAPS_FRACTION if small_caps == true
+    chars.map do |char|
+      small_caps && char.downcase == char ? small_caps * WIDTHS[char.upcase] : WIDTHS[char]
+    end.inject(0, &:+) * 0.001 * font_size + [ length - 1, 0 ].max * letter_spacing + count(?\s) * word_spacing
   end
 
-  def in_two(font_size, letter_spacing, word_spacing)
+  def in_two(font_size, letter_spacing, word_spacing, small_caps)
     words = split(match(?\n) ? ?\n : match(?/) ? ?/ : ?\s).map(&:strip)
     (1...words.size).map do |index|
       [ words[0...index].join(?\s), words[index...words.size].join(?\s) ]
     end.map do |lines|
       lines.map do |line|
-        [ line, line.glyph_length(font_size, letter_spacing, word_spacing) ]
+        [ line, line.glyph_length(font_size, letter_spacing, word_spacing, small_caps) ]
       end
     end.min_by do |lines_widths|
       lines_widths.map(&:last).max
-    end || [ [ words[0], words[0].glyph_length(font_size, letter_spacing, word_spacing) ] ]
+    end || [ [ words[0], words[0].glyph_length(font_size, letter_spacing, word_spacing, small_caps) ] ]
   end
 end
 

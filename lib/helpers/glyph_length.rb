@@ -15,19 +15,16 @@ module GlyphLength
   end
 
   def in_two(font_size, letter_spacing, word_spacing)
-    space_width = ?\s.glyph_length(font_size, letter_spacing, word_spacing)
-    words, widths = split(match(?\n) ? ?\n : match(?/) ? ?/ : ?\s).map(&:strip).map do |word|
-      [ word, word.glyph_length(font_size, letter_spacing, word_spacing) ]
-    end.transpose
+    words = split(match(?\n) ? ?\n : match(?/) ? ?/ : ?\s).map(&:strip)
     (1...words.size).map do |index|
-      [ 0...index, index...words.size ]
-    end.map do |ranges|
-      ranges.map do |range|
-        [ words[range].join(?\s), widths[range].inject(&:+) + (range.size - 1) * space_width ]
+      [ words[0...index].join(?\s), words[index...words.size].join(?\s) ]
+    end.map do |lines|
+      lines.map do |line|
+        [ line, line.glyph_length(font_size, letter_spacing, word_spacing) ]
       end.transpose
     end.min_by do |lines, line_widths|
       line_widths.max
-    end || [ words, widths ]
+    end || [ words[0], words[0].glyph_length(font_size, letter_spacing, word_spacing) ].zip
   end
 end
 

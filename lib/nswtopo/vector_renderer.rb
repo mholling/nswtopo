@@ -157,13 +157,7 @@ module NSWTopo
             when "fence"
               buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
               features.each do |dimension, feature, *|
-                case dimension
-                when 0 then feature.map { |point| [ point ] }
-                when 1 then feature.map(&:segments).flatten(1)
-                when 2 then feature.map(&:ring).flatten(1)
-                end.each do |fence|
-                  fences << [ fence, buffer ]
-                end
+                fences << [ dimension, feature, buffer ]
               end if content
             when "shield"
               next unless content

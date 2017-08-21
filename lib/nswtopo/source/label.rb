@@ -209,7 +209,15 @@ module NSWTopo
 
     def features(map)
       labelling_hull, debug_features = map.mm_corners(-1), []
-      fence_index = RTree.load(fences) do |fence, buffer|
+      fence_segments = fences.map.with_index do |(dimension, feature, buffer), index|
+        case dimension
+        when 0 then feature.map { |point| [ point ] }
+        when 1, 2 then feature.map(&:segments).flatten(1)
+        end.map do |segment|
+          [ segment, [ buffer, index ] ]
+        end
+      end.flatten(1)
+      fence_index = RTree.load(fence_segments) do |fence, (buffer, *)|
         fence.transpose.map(&:minmax).map do |min, max|
           [ min - buffer, max + buffer ]
         end
@@ -238,7 +246,7 @@ module NSWTopo
               width += VectorRenderer::SHIELD_X * font_size
               height += VectorRenderer::SHIELD_Y * font_size
             end
-            [ *attributes["position"] || "over" ].map.with_index do |position, index|
+            [ *attributes["position"] || "over" ].map.with_index do |position, position_index|
               dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
               f = dx * dy == 0 ? 1 : 0.707
@@ -260,10 +268,12 @@ module NSWTopo
                 corner.rotate_by_degrees(-map.rotation).plus(data)
               end
               next unless labelling_hull.surrounds?(hull).all?
-              fence = fence_index.search(hull.transpose.map(&:minmax)).any? do |fence, buffer|
-                [ hull, fence ].overlap?(buffer)
-              end
-              priority = [ fence ? 1 : 0, index, component ]
+              fence_count = fence_index.search(hull.transpose.map(&:minmax)).inject(Set[]) do |indices, (fence, (buffer, index))|
+                next indices if indices.include? index
+                next indices unless [ hull, fence ].overlap?(buffer)
+                indices << index
+              end.size
+              priority = [ fence_count, position_index, component ]
               Label.new source_name, sublayer, feature, component, priority, hull, attributes, text_elements
             end.compact.tap do |candidates|
               candidates.combination(2).each do |candidate1, candidate2|
@@ -318,7 +328,7 @@ module NSWTopo
               bounds = segment.transpose.map(&:minmax).map do |min, max|
                 [ min - 0.5 * font_size, max + 0.5 * font_size ]
               end
-              hash[segment] = fence_index.search(bounds).any? do |fence, buffer|
+              hash[segment] = fence_index.search(bounds).any? do |fence, (buffer, *)|
                 [ segment, fence ].overlap?(buffer + 0.5 * font_size)
               end
             end

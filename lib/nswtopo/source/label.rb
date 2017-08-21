@@ -378,7 +378,7 @@ module NSWTopo
               end.flatten(2).convex_hull
               next unless labelling_hull.surrounds?(hull).all?
               baseline << baseline.last(2).difference.normalised.times(text_length * 0.25).plus(baseline.last)
-              path_id = [ name, source_name, "path", baseline.hash ].join SEGMENT
+              path_id = [ name, source_name, "path", feature, component, indices.first, indices.last ].join SEGMENT
               path_element = REXML::Element.new("path")
               path_element.add_attributes "id" => path_id, "d" => [ baseline ].to_path_data(MM_DECIMAL_DIGITS), "pathLength" => baseline.path_length.round(MM_DECIMAL_DIGITS)
               text_element = REXML::Element.new("text")

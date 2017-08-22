@@ -7,7 +7,8 @@ module NSWTopo
       width, height = dimensions = map.dimensions_at(ppi)
       yield dimensions if block_given?
       rasterise, dpi = config["rasterise"]
-      zoom = ppi.to_f / (dpi || 96)
+      rasterise, dpi = config.fetch(rasterise, rasterise) || config["chrome"] || config["chromium"], (dpi || 96).to_f
+      zoom = ppi / dpi
       case rasterise
       when /inkscape/i
         %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-png="#{png_path}" --export-width=#{width} --export-height=#{height} --export-background="#FFFFFF" #{DISCARD_STDERR}]

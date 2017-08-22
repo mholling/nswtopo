@@ -1,7 +1,7 @@
 module NSWTopo
   module Dither
-    def dither(config, *png_paths)
-      binary = String === config["dither"] ? config["dither"] : config["pngquant"] || config["gimp"] || true
+    def dither(*png_paths)
+      binary = String === CONFIG["dither"] ? CONFIG["dither"] : CONFIG["pngquant"] || CONFIG["gimp"] || true
       case binary
       when /gimp/i
         script = %Q[

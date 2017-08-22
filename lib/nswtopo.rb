@@ -50,74 +50,72 @@ module NSWTopo
   ZIP = WINDOWS ? "7z a -tzip" : "zip"
   DISCARD_STDERR = WINDOWS ? "2> nul" : "2>/dev/null"
 
-  CONFIG = %q[---
-name: map
-scale: 25000
-ppi: 300
-rotation: 0
-]
-
   InternetError = Class.new(Exception)
   ServerError = Class.new(Exception)
   BadGpxKmlFile = Class.new(Exception)
   BadLayerError = Class.new(Exception)
   NoVectorPDF = Class.new(Exception)
 
+  base_config = YAML.load %Q[
+    name: map
+    scale: 25000
+    ppi: 300
+    rotation: 0
+  ]
+
+  %w[bounds.kml bounds.gpx].map do |filename|
+    Pathname.pwd + filename
+  end.find(&:exist?).tap do |bounds_path|
+    base_config["bounds"] = bounds_path if bounds_path
+  end
+
+  unless Pathname.pwd.join("nswtopo.cfg").exist?
+    if base_config["bounds"]
+      puts "No nswtopo.cfg configuration file found. Using #{base_config['bounds'].basename} as map bounds."
+    else
+      abort "Error: could not find any configuration file (nswtopo.cfg) or bounds file (bounds.kml)."
+    end
+  end
+
+  flags_config = ARGV.drop_while do |arg|
+    arg[0] != ?-
+  end.chunk_while do |arg1, arg2|
+    arg2[0] != ?-
+  end.map do |flag, *values|
+    values << true if values.empty?
+    [ flag[1..-1], values.empty? ? true : values.one? ? values[0] : values ]
+  end.to_h
+
+  CONFIG = [ Pathname.new(__dir__).parent, Pathname.pwd ].map do |dir_path|
+    dir_path + "nswtopo.cfg"
+  end.select(&:exist?).map do |config_path|
+    begin
+      YAML.load config_path.read
+    rescue ArgumentError, SyntaxError => e
+      abort "Error in configuration file: #{e.message}"
+    end
+  end.push(flags_config).inject(base_config, &:deep_merge)
+
+  CONFIG["include"] = [ *CONFIG["include"] ]
+  if CONFIG["include"].empty?
+    CONFIG["include"] << "nsw/topographic"
+    puts "No layers specified. Adding nsw/topographic by default."
+  end
+
+  %w[controls.gpx controls.kml].map do |filename|
+    Pathname.pwd + filename
+  end.find(&:file?).tap do |control_path|
+    if control_path
+      CONFIG["include"] |= [ "controls" ]
+      CONFIG["controls"] ||= {}
+      CONFIG["controls"]["path"] ||= control_path.to_s
+    end
+  end
+
+  CONFIG["include"].unshift "canvas" if Pathname.new("canvas.png").expand_path.exist?
+
   def self.run
-    default_config = YAML.load(CONFIG)
-
-    %w[bounds.kml bounds.gpx].map do |filename|
-      Pathname.pwd + filename
-    end.find(&:exist?).tap do |bounds_path|
-      default_config["bounds"] = bounds_path if bounds_path
-    end
-
-    unless Pathname.pwd.join("nswtopo.cfg").exist?
-      if default_config["bounds"]
-        puts "No nswtopo.cfg configuration file found. Using #{default_config['bounds'].basename} as map bounds."
-      else
-        abort "Error: could not find any configuration file (nswtopo.cfg) or bounds file (bounds.kml)."
-      end
-    end
-
-    flags_config = ARGV.drop_while do |arg|
-      arg[0] != ?-
-    end.chunk_while do |arg1, arg2|
-      arg2[0] != ?-
-    end.map do |flag, *values|
-      values << true if values.empty?
-      [ flag[1..-1], values.empty? ? true : values.one? ? values[0] : values ]
-    end.to_h
-
-    config = [ Pathname.new(__dir__).parent, Pathname.pwd ].map do |dir_path|
-      dir_path + "nswtopo.cfg"
-    end.select(&:exist?).map do |config_path|
-      begin
-        YAML.load config_path.read
-      rescue ArgumentError, SyntaxError => e
-        abort "Error in configuration file: #{e.message}"
-      end
-    end.push(flags_config).inject(default_config, &:deep_merge)
-
-    config["include"] = [ *config["include"] ]
-    if config["include"].empty?
-      config["include"] << "nsw/topographic"
-      puts "No layers specified. Adding nsw/topographic by default."
-    end
-
-    %w[controls.gpx controls.kml].map do |filename|
-      Pathname.pwd + filename
-    end.find(&:file?).tap do |control_path|
-      if control_path
-        config["include"] |= [ "controls" ]
-        config["controls"] ||= {}
-        config["controls"]["path"] ||= control_path.to_s
-      end
-    end
-
-    config["include"].unshift "canvas" if Pathname.new("canvas.png").expand_path.exist?
-
-    map = Map.new(config)
+    map = Map.new
 
     puts "Map details:"
     puts "  name: #{map.name}"
@@ -126,7 +124,7 @@ rotation: 0
     puts "  rotation: %.1f degrees" % map.rotation
     puts "  extent: %.1fkm x %.1fkm" % map.extents.map { |extent| 0.001 * extent }
 
-    sources = config["include"].map do |name_or_path_or_hash|
+    sources = CONFIG["include"].map do |name_or_path_or_hash|
       [ *name_or_path_or_hash ].flatten
     end.map do |name_or_path, resolution|
       params = resolution ? { "resolution" => resolution } : { }
@@ -155,7 +153,7 @@ rotation: 0
       end
     end
 
-    [ *config["import"] ].reverse.map do |file_or_hash|
+    [ *CONFIG["import"] ].reverse.map do |file_or_hash|
       [ *file_or_hash ].flatten
     end.map do |file_or_path, name|
       [ Pathname.new(file_or_path).expand_path, name ]
@@ -165,7 +163,7 @@ rotation: 0
     end
 
     sources.each do |name, klass, params|
-      config.map do |key, value|
+      CONFIG.map do |key, value|
         [ key.match(%r{#{name}#{SEGMENT}(.+)}), value ]
       end.select(&:first).map do |match, layer_params|
         { match[1] => layer_params }
@@ -175,9 +173,9 @@ rotation: 0
     end
 
     sources.select do |name, klass, params|
-      config[name]
+      CONFIG[name]
     end.each do |name, klass, params|
-      params.deep_merge! config[name]
+      params.deep_merge! CONFIG[name]
     end
 
     sources.select do |name, klass, params|
@@ -188,7 +186,7 @@ rotation: 0
       end.inject(&:+)
     end
 
-    config["contour-interval"].tap do |interval|
+    CONFIG["contour-interval"].tap do |interval|
       interval ||= map.scale < 40000 ? 10 : 20
       sources.each do |name, klass, params|
         params["exclude"] = [ *params["exclude"] ]
@@ -200,8 +198,8 @@ rotation: 0
       end
     end
 
-    config["exclude"] = [ *config["exclude"] ].map { |name| name.gsub ?/, SEGMENT }
-    config["exclude"].each do |source_or_layer_name|
+    CONFIG["exclude"] = [ *CONFIG["exclude"] ].map { |name| name.gsub ?/, SEGMENT }
+    CONFIG["exclude"].each do |source_or_layer_name|
       sources.reject! do |name, klass, params|
         name == source_or_layer_name
       end
@@ -229,15 +227,15 @@ rotation: 0
       end
     end
 
-    return if config["no-output"]
+    return if CONFIG["no-output"]
 
     svg_name = "#{map.filename}.svg"
     svg_path = Pathname.pwd + svg_name
 
-    unless config["no-update"]
+    unless CONFIG["no-update"]
       xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
 
-      removals = config["exclude"].select do |name|
+      removals = CONFIG["exclude"].select do |name|
         predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}')"
         xml.elements["/svg/g[#{predicate}] | svg/defs/[#{predicate}]"]
       end
@@ -255,7 +253,7 @@ rotation: 0
           label_source = LabelSource.new
         end
 
-        config["exclude"].map do |name|
+        CONFIG["exclude"].map do |name|
           predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}') or @id='labels#{SEGMENT}#{name}' or starts-with(@id,'labels#{SEGMENT}#{name}#{SEGMENT}')"
           xpath = "/svg/g[#{predicate}] | svg/defs/[#{predicate}]"
           if xml.elements[xpath]
@@ -306,7 +304,7 @@ rotation: 0
 
         xml.elements.each("/svg/g[*]") { |group| group.add_attribute("inkscape:groupmode", "layer") }
 
-        if config["check-fonts"]
+        if CONFIG["check-fonts"]
           fonts_needed = xml.elements.collect("//[@font-family]") do |element|
             element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")
           end.uniq
@@ -330,11 +328,11 @@ rotation: 0
       end if updates.any? || removals.any?
     end
 
-    formats = [ *config["formats"] ].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
+    formats = [ *CONFIG["formats"] ].map { |format| [ *format ].flatten }.inject({}) { |memo, (format, option)| memo.merge format => option }
     formats["prj"] = %w[wkt_all proj4 wkt wkt_simple wkt_noct wkt_esri mapinfo xml].delete(formats["prj"]) || "proj4" if formats.include? "prj"
     formats["png"] ||= nil if formats.include? "map"
     (formats.keys & %w[png tif gif jpg kmz mbtiles zip psd]).each do |format|
-      formats[format] ||= config["ppi"]
+      formats[format] ||= CONFIG["ppi"]
     end
     (formats.keys & %w[png tif gif jpg]).each do |format|
       formats["#{format[0]}#{format[2]}w"] = formats[format]
@@ -349,9 +347,12 @@ rotation: 0
         [ formats[format], format == "mbtiles" ]
       end.each do |(ppi, mbtiles), group|
         png_path = temp_dir + "#{map.filename}.#{ppi}.png"
-        Raster.build config, map, ppi, svg_path, temp_dir, png_path do |dimensions|
-          puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
-        end if (group & %w[png tif gif jpg kmz zip psd]).any? || (ppi && group.include?("pdf"))
+        if (group & %w[png tif gif jpg kmz zip psd]).any? || (ppi && group.include?("pdf"))
+          Raster.build map, ppi, svg_path, temp_dir, png_path do |dimensions|
+            puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
+          end
+          Dither.dither png_path if CONFIG["dither"]
+        end
         group.each do |format|
           begin
             puts "Generating #{map.filename}.#{format}"
@@ -366,13 +367,13 @@ rotation: 0
             when "kmz"
               KMZ.build map, ppi, png_path, output_path
             when "mbtiles"
-              MBTiles.build config, map, ppi, svg_path, temp_dir, output_path
+              MBTiles.build map, ppi, svg_path, temp_dir, output_path
             when "zip"
-              Avenza.build config, map, ppi, png_path, temp_dir, output_path
+              Avenza.build map, ppi, png_path, temp_dir, output_path
             when "psd"
-              PSD.build config, map, ppi, svg_path, png_path, temp_dir, output_path
+              PSD.build map, ppi, svg_path, png_path, temp_dir, output_path
             when "pdf"
-              ppi ? %x[convert "#{png_path}" "#{output_path}"] : PDF.build(config, map, svg_path, temp_dir, output_path)
+              ppi ? %x[convert "#{png_path}" "#{output_path}"] : PDF.build(map, svg_path, temp_dir, output_path)
             when "pgw", "tfw", "gfw", "jgw"
               map.write_world_file output_path, map.resolution_at(ppi)
             when "map"

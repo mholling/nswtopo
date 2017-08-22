@@ -3,7 +3,7 @@ module NSWTopo
     extend Dither
     RESOLUTION, ORIGIN, TILE_SIZE = 2 * 78271.516, -20037508.34, 256
     METERS_PER_INCH = 0.0254
-    def self.build(config, map, ppi, svg_path, temp_dir, mbt_path)
+    def self.build(map, ppi, svg_path, temp_dir, mbt_path)
       sql = %Q[
         CREATE TABLE metadata (name TEXT, value TEXT);
         INSERT INTO metadata VALUES ("name", "#{map.name}");
@@ -30,7 +30,7 @@ module NSWTopo
         levels
       end.tap do |(resolution, *, zoom), *|
         ppi = (METERS_PER_INCH * map.scale / resolution / cosine).ceil
-        Raster.build config.merge("dither" => false), map, ppi, svg_path, temp_dir, png_path do |dimensions|
+        Raster.build map, ppi, svg_path, temp_dir, png_path do |dimensions|
           puts "  Generating raster: %ix%i (%.1fMpx) @ zoom level %i" % [ *dimensions, 0.000001 * dimensions.inject(:*), zoom ]
         end
       end.tap do |levels|
@@ -50,7 +50,7 @@ module NSWTopo
       end.tap do |tiles|
         puts "  Optimising #{tiles.length} tiles"
       end.map(&:first).each.in_parallel_groups do |png_paths|
-        dither config, *png_paths
+        dither *png_paths
       end
       temp_dir.join("mbtiles.sql").tap do |sql_path|
         sql_path.write sql

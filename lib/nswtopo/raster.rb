@@ -1,13 +1,12 @@
 module NSWTopo
   module Raster
-    extend Dither
     TILE_SIZE = 2000
 
-    def self.build(config, map, ppi, svg_path, temp_dir, png_path)
+    def self.build(map, ppi, svg_path, temp_dir, png_path)
       width, height = dimensions = map.dimensions_at(ppi)
       yield dimensions if block_given?
-      rasterise, dpi = config["rasterise"]
-      rasterise, dpi = config.fetch(rasterise, rasterise) || config["chrome"] || config["chromium"], (dpi || 96).to_f
+      rasterise, dpi = CONFIG["rasterise"]
+      rasterise, dpi = CONFIG.fetch(rasterise, rasterise) || CONFIG["chrome"] || CONFIG["chromium"], (dpi || 96).to_f
       zoom = ppi / dpi
       case rasterise
       when /inkscape/i
@@ -15,7 +14,7 @@ module NSWTopo
       when /batik/
         args = %Q[-d "#{png_path}" -bg 255.255.255.255 -m image/png -w #{width} -h #{height} "#{svg_path}"]
         jar_path = Pathname.new(rasterise).expand_path + "batik-rasterizer.jar"
-        java = config["java"] || "java"
+        java = CONFIG["java"] || "java"
         %x[#{java} -jar "#{jar_path}" #{args}]
       when /rsvg-convert/
         %x["#{rasterise}" --background-color white --format png --output "#{png_path}" --width #{width} --height #{height} "#{svg_path}"]
@@ -94,7 +93,6 @@ module NSWTopo
         abort("Error: specify either electron, phantomjs, wkhtmltoimage, inkscape or qlmanage as your rasterise method (see README).")
       end
       %x[mogrify +repage -crop #{width}x#{height}+0+0 -units PixelsPerInch -density #{ppi} -background white -alpha Remove -define PNG:exclude-chunk=bkgd "#{png_path}"]
-      dither config, png_path if config["dither"]
       map.write_world_file Pathname.new("#{png_path}w"), map.resolution_at(ppi)
     end
   end

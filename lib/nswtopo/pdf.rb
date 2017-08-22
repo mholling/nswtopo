@@ -1,13 +1,13 @@
 module NSWTopo
   module PDF
-    def self.build(config, map, svg_path, temp_dir, pdf_path)
-      rasterise = config["rasterise"]
+    def self.build(map, svg_path, temp_dir, pdf_path)
+      rasterise = CONFIG["rasterise"]
       case rasterise
       when /inkscape/i
         %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-pdf="#{pdf_path}" #{DISCARD_STDERR}]
       when /batik/
         jar_path = Pathname.new(rasterise).expand_path + "batik-rasterizer.jar"
-        java = config["java"] || "java"
+        java = CONFIG["java"] || "java"
         %x[#{java} -jar "#{jar_path}" -d "#{pdf_path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
       when /rsvg-convert/
         %x["#{rasterise}" --background-color white --format pdf --output "#{pdf_path}" "#{svg_path}"]

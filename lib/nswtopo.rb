@@ -35,6 +35,7 @@ require_relative 'nswtopo/psd'
 require_relative 'nswtopo/pdf'
 require_relative 'nswtopo/mbtiles'
 require_relative 'nswtopo/avenza'
+require_relative 'nswtopo/font'
 require_relative 'nswtopo/source'
 
 NSWTOPO_VERSION = "1.5"

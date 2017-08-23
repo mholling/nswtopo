@@ -3,16 +3,20 @@ module NSWTopo
     include VectorRenderer
 
     CENTRELINE_FRACTION = 0.35
-    ATTRIBUTES = %w[font-size font-variant font-family letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase shield small-caps]
+    ATTRIBUTES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase shield]
     TRANSFORMS = %w[reduce fallback outset inset offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
-    DEFAULT_FONT_SIZE   = 1.8
-    DEFAULT_MARGIN      = 1
-    DEFAULT_LINE_HEIGHT = '110%'
-    DEFAULT_MAX_TURN    = 60
-    DEFAULT_MAX_ANGLE   = StraightSkeleton::DEFAULT_ROUNDING_ANGLE
-    DEFAULT_SAMPLE      = 5
+    SCALABLE_ATTRIBUTES = %w[letter-spacing word-spacing line-height]
+    DEFAULT_SAMPLE = 5
+    DEFAULT_PARAMS = %Q[
+      font-size: 1.8
+      line-height: 110%
+      margin: 1.0
+      max-turn: 60
+      min-radius: 0
+      max-angle: #{StraightSkeleton::DEFAULT_ROUNDING_ANGLE}
+      sample: #{DEFAULT_SAMPLE}
+    ]
     PARAMS = %Q[
-      font-size: #{DEFAULT_FONT_SIZE}
       debug:
         fill: none
         opacity: 0.5
@@ -35,7 +39,7 @@ module NSWTopo
     end
 
     def add(source, map)
-      source_params = params[source.name] = source.params[name]
+      source_params = params[source.name] = YAML.load(DEFAULT_PARAMS).merge(source.params[name])
       sublayers = Set.new
       source.labels(map).group_by do |dimension, data, labels, categories, sublayer|
         [ dimension, [ *categories ].map(&:to_s).reject(&:empty?).map(&:to_category).to_set ]
@@ -51,7 +55,7 @@ module NSWTopo
             keys.include? key
           end
         end
-        max_turn = attributes.fetch("max-turn", DEFAULT_MAX_TURN)
+        max_turn = attributes["max-turn"]
         features.each do |_, data, labels, _, sublayer|
           text = case
           when REXML::Element === labels then labels
@@ -225,23 +229,19 @@ module NSWTopo
 
       candidates = @features.map.with_index do |(text, source_name, sublayer, components), feature|
         components.map.with_index do |(dimension, data, attributes), component|
-          font_size      = attributes.fetch("font-size", DEFAULT_FONT_SIZE)
-          letter_spacing = attributes.fetch("letter-spacing", 0)
-          letter_spacing = letter_spacing.to_i * font_size * 0.01 if /^\d+%$/ === letter_spacing
-          word_spacing = attributes.fetch("word-spacing", 0)
-          word_spacing = word_spacing.to_i * font_size * 0.01 if /^\d+%$/ === word_spacing
-          small_caps = attributes.fetch("small-caps", attributes["font-variant"] == "small-caps")
-          small_caps = small_caps.to_i * 0.01 if /^\d+%$/ === small_caps
+          font_size = attributes["font-size"]
+          SCALABLE_ATTRIBUTES.each do |name|
+            attributes[name] = attributes[name].to_i * font_size * 0.01 if /^\d+%$/ === attributes[name]
+          end
+          font = Font[attributes]
           debug_features << [ dimension, [ data ], %w[debug feature] ] if map.debug
           next [] if map.debug == "features"
           case dimension
           when 0
-            margin      = attributes.fetch("margin", DEFAULT_MARGIN)
-            line_height = attributes.fetch("line-height", DEFAULT_LINE_HEIGHT)
-            line_height = 0.01 * $1.to_f if /(.*)%$/ === line_height
-            lines = text.in_two(font_size, letter_spacing, word_spacing, small_caps)
+            margin, line_height = attributes.values_at "margin", "line-height"
+            lines = font.in_two text, attributes
             width = lines.map(&:last).max
-            height = lines.map { font_size }.inject { |total, font_size| total + font_size * line_height }
+            height = lines.map { font_size }.inject { |total| total + line_height }
             if attributes["shield"]
               width += VectorRenderer::SHIELD_X * font_size
               height += VectorRenderer::SHIELD_Y * font_size
@@ -253,16 +253,21 @@ module NSWTopo
               x, y = [ dx, dy ].zip(data).map do |d, centre|
                 centre + d * f * margin
               end
-              transform = "translate(#{x} #{y}) rotate(#{-map.rotation})"
-              text_anchor = dx > 0 ? "start" : dx < 0 ? "end" : "middle"
+              text_attributes = {
+                "transform" => "translate(#{x} #{y}) rotate(#{-map.rotation})",
+                "text-anchor" => dx > 0 ? "start" : dx < 0 ? "end" : "middle",
+              }
               text_elements = lines.map.with_index do |(line, text_length), index|
-                y = font_size * (lines.one? ? 0.5 * dy + CENTRELINE_FRACTION : line_height * (dy + index - 0.5) + CENTRELINE_FRACTION)
+                y = (lines.one? ? 0 : dy == 0 ? index - 0.5 : index * dy) * line_height
+                y += (CENTRELINE_FRACTION + 0.5 * dy) * font_size
                 REXML::Element.new("text").tap do |text|
-                  text.add_attributes "text-anchor" => text_anchor, "transform" => transform, "y" => y, "textLength" => text_length, "lengthAdjust" => "spacingAndGlyphs"
+                  text.add_attributes text_attributes
+                  text.add_attribute "textLength", text_length
+                  text.add_attribute "y", y
                   text.add_text line
                 end
               end
-              hull = [ [ dx, width ], [dy, height ] ].map do |d, l|
+              hull = [ [ dx, width ], [ dy, height ] ].map do |d, l|
                 [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.rotate_by_degrees(-map.rotation).plus(data)
@@ -284,15 +289,15 @@ module NSWTopo
           when 1, 2
             closed = dimension == 2
             pairs = closed ? :ring : :segments
-            orientation = attributes.fetch("orientation", nil)
-            max_turn    = attributes.fetch("max-turn", DEFAULT_MAX_TURN) * Math::PI / 180
-            min_radius  = attributes.fetch("min-radius", 0)
-            max_angle   = attributes.fetch("max-angle", DEFAULT_MAX_ANGLE) * Math::PI / 180
-            sample      = attributes.fetch("sample", DEFAULT_SAMPLE)
-            separation  = attributes.fetch("separation-along", nil)
+            orientation = attributes["orientation"]
+            max_turn    = attributes["max-turn"] * Math::PI / 180
+            min_radius  = attributes["min-radius"]
+            max_angle   = attributes["max-angle"] * Math::PI / 180
+            sample      = attributes["sample"]
+            separation  = attributes["separation-along"]
             text_length = case text
             when REXML::Element then data.path_length
-            when String then text.glyph_length(font_size, letter_spacing, word_spacing, small_caps)
+            when String then font.glyph_length text, attributes
             end
             points = data.segments.inject([]) do |memo, segment|
               steps = REXML::Element === text ? 1 : (segment.distance / sample).ceil
@@ -387,7 +392,7 @@ module NSWTopo
                 text_element.add_element text, "xlink:href" => "##{path_id}"
               when String
                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
-                text_path.add_element("tspan", "dy" => (CENTRELINE_FRACTION * font_size).round(MM_DECIMAL_DIGITS)).add_text(text)
+                text_path.add_element("tspan", "dy" => CENTRELINE_FRACTION * font_size).add_text(text)
               end
               Label.new source_name, sublayer, feature, component, priority, hull, attributes, [ text_element, path_element ], along
             end.compact.map do |candidate|

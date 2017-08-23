@@ -65,8 +65,8 @@ module NSWTopo
             end
           end.values.inject(sublayer_actions, &:merge)
           font_size, bezier, section = commands.values_at "font-size", "bezier", "section"
-          SCALABLE_ATTRIBUTES.each do |attribute|
-            commands[attribute] = (commands[attribute].to_i * font_size * 0.01).round(4) if /^\d+%$/ === commands[attribute]
+          SCALABLE_ATTRIBUTES.each do |name|
+            commands[name] = (commands[name].to_i * font_size * 0.01).round(5) if /^\d+%$/ === commands[name]
           end
           features.each do |dimension, feature, _, _, angle|
             case dimension
@@ -162,13 +162,9 @@ module NSWTopo
             when "shield"
               next unless content
               content.elements.each("text") do |element|
-                font_size, letter_spacing, word_spacing = %w[font-size letter-spacing word-spacing].map do |name|
-                  element.elements["./ancestor::g[@#{name}]/@#{name}"]
-                end.map do |attribute|
-                  attribute ? attribute.value.to_f : 0
-                end
+                text_length = element.elements["./ancestor-or-self::[@textLength]/@textLength"].value.to_f
                 group = REXML::Element.new("g")
-                width, height = element.text.glyph_length(font_size, letter_spacing, word_spacing) + SHIELD_X * font_size, (1 + SHIELD_Y) * font_size
+                width, height = text_length + SHIELD_X * font_size, (1 + SHIELD_Y) * font_size
                 group.add_element "rect", "x" => -0.5 * width, "y" => -0.5 * height, "width" => width, "height" => height, "rx" => font_size * 0.3, "ry" => font_size * 0.3, "stroke" => "none", "fill" => args
                 text_transform = element.attributes.get_attribute "transform"
                 text_transform.remove

@@ -16,31 +16,20 @@ require 'timeout'
 require_relative 'helpers'
 require_relative 'avl_tree'
 require_relative 'geometry'
-require_relative 'nswtopo/http'
+require_relative 'nswtopo/helpers'
 require_relative 'nswtopo/gps'
 require_relative 'nswtopo/projection'
-require_relative 'nswtopo/world_file'
 require_relative 'nswtopo/map'
-require_relative 'nswtopo/raster_renderer'
 require_relative 'nswtopo/esri_hdr'
-require_relative 'nswtopo/tiled_map_server'
-require_relative 'nswtopo/arcgis_raster'
-require_relative 'nswtopo/vector_renderer'
-require_relative 'nswtopo/arcgis'
-require_relative 'nswtopo/wfs'
-require_relative 'nswtopo/dither'
-require_relative 'nswtopo/raster'
-require_relative 'nswtopo/kmz'
-require_relative 'nswtopo/psd'
-require_relative 'nswtopo/pdf'
-require_relative 'nswtopo/mbtiles'
-require_relative 'nswtopo/avenza'
 require_relative 'nswtopo/font'
-require_relative 'nswtopo/source'
+require_relative 'nswtopo/formats'
+require_relative 'nswtopo/sources'
 
 NSWTOPO_VERSION = "1.5"
 
 module NSWTopo
+  extend Dither
+  
   SEGMENT = ?.
   MM_DECIMAL_DIGITS = 4
   EARTH_RADIUS = 6378137.0
@@ -352,7 +341,7 @@ module NSWTopo
           Raster.build map, ppi, svg_path, temp_dir, png_path do |dimensions|
             puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
           end
-          Dither.dither png_path if CONFIG["dither"]
+          dither png_path if CONFIG["dither"]
         end
         group.each do |format|
           begin

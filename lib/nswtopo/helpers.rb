@@ -1,0 +1,5 @@
+require_relative 'helpers/http'
+require_relative 'helpers/arcgis'
+require_relative 'helpers/wfs'
+require_relative 'helpers/world_file'
+require_relative 'helpers/dither'

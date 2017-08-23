@@ -1,7 +1,7 @@
 module NSWTopo
   class Map
     def initialize
-      @name, @scale, @debug = CONFIG.values_at("name", "scale", "debug")
+      @name, @scale = CONFIG.values_at "name", "scale"
 
       wgs84_points = case
       when CONFIG["zone"] && CONFIG["eastings"] && CONFIG["northings"]

@@ -234,8 +234,8 @@ module NSWTopo
             attributes[name] = attributes[name].to_i * font_size * 0.01 if /^\d+%$/ === attributes[name]
           end
           font = Font[attributes]
-          debug_features << [ dimension, [ data ], %w[debug feature] ] if MAP.debug
-          next [] if MAP.debug == "features"
+          debug_features << [ dimension, [ data ], %w[debug feature] ] if CONFIG["debug"]
+          next [] if CONFIG["debug"] == "features"
           case dimension
           when 0
             margin, line_height = attributes.values_at "margin", "line-height"
@@ -435,8 +435,8 @@ module NSWTopo
 
       candidates.each do |candidate|
         debug_features << [ 2, [ candidate.hull ], %w[debug candidate] ]
-      end if MAP.debug
-      return debug_features if %w[features candidates].include? MAP.debug
+      end if CONFIG["debug"]
+      return debug_features if %w[features candidates].include? CONFIG["debug"]
 
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices
@@ -532,7 +532,7 @@ module NSWTopo
       labels.map do |label|
         [ nil, label.elements, label.categories, label.source_name ]
       end.tap do |result|
-        result.concat debug_features if MAP.debug
+        result.concat debug_features if CONFIG["debug"]
       end
     end
   end

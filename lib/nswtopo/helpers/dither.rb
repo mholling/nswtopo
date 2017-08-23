@@ -1,9 +1,10 @@
 module NSWTopo
   module Dither
     def dither(*png_paths)
-      binary = String === CONFIG["dither"] ? CONFIG["dither"] : CONFIG["pngquant"] || CONFIG["gimp"] || true
-      case binary
-      when /gimp/i
+      case
+      when pngquant = CONFIG["pngquant"]
+        %x["#{pngquant}" --quiet --force --ext .png "#{png_paths.join '" "'}"]
+      when gimp = CONFIG["gimp"]
         script = %Q[
           (map
             (lambda (path)
@@ -19,11 +20,7 @@ module NSWTopo
             (list "#{png_paths.join '" "'}")
           )
         ]
-        %x["#{binary}" -c -d -f -i -b '#{script}' -b '(gimp-quit TRUE)' #{DISCARD_STDERR}]
-      when /pngquant/i
-        %x["#{binary}" --quiet --force --ext .png "#{png_paths.join '" "'}"]
-      when String
-        abort "Unrecognised dither option: #{binary}"
+        %x["#{gimp}" -c -d -f -i -b '#{script}' -b '(gimp-quit TRUE)' #{DISCARD_STDERR}]
       else
         %x[mogrify -type PaletteBilevelAlpha -dither Riemersma "#{png_paths.join '" "'}"]
       end if png_paths.any?

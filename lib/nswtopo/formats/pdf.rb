@@ -1,19 +1,10 @@
 module NSWTopo
   module PDF
     def self.build(map, svg_path, temp_dir, pdf_path)
-      rasterise = CONFIG["rasterise"]
-      case rasterise
-      when /inkscape/i
-        %x["#{rasterise}" --without-gui --file="#{svg_path}" --export-pdf="#{pdf_path}" #{DISCARD_STDERR}]
-      when /batik/
-        jar_path = Pathname.new(rasterise).expand_path + "batik-rasterizer.jar"
-        java = CONFIG["java"] || "java"
-        %x[#{java} -jar "#{jar_path}" -d "#{pdf_path}" -bg 255.255.255.255 -m application/pdf "#{svg_path}"]
-      when /rsvg-convert/
-        %x["#{rasterise}" --background-color white --format pdf --output "#{pdf_path}" "#{svg_path}"]
-      when "qlmanage"
-        raise NoVectorPDF.new("qlmanage")
-      when /phantomjs/
+      case
+      when inkscape = CONFIG["inkscape"]
+        %x["#{inkscape}" --without-gui --file="#{svg_path}" --export-pdf="#{pdf_path}" #{DISCARD_STDERR}]
+      when phantomjs = CONFIG["phantomjs"]
         xml = REXML::Document.new(svg_path.read)
         width, height = %w[width height].map { |name| xml.elements["/svg"].attributes[name] }
         js_path = temp_dir + "makepdf.js"
@@ -25,9 +16,9 @@ module NSWTopo
               phantom.exit();
           });
         ]
-        %x["#{rasterise}" "#{js_path}"]
+        %x["#{phantomjs}" "#{js_path}"]
       else
-        abort("Error: specify either inkscape or phantomjs as your rasterise method (see README).")
+        abort("Error: please specify a path to Inkscape before creating PDF output (see README).")
       end
     end
   end

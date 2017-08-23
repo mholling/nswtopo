@@ -15,7 +15,7 @@ The following software is required in order to run the script:
 * The [Ruby programming language](http://ruby-lang.org). You'll need at least Ruby 2.3, or better yet the latest stable release (2.4.1 as of August 2017).
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. Version 1.9.x (January 2012) or later is needed.
-* [Google Chrome](https://www.google.com/chrome/browser/desktop/index.html) web browser, for creating a raster image of your map.
+* [Google Chrome](https://www.google.com/chrome/browser/desktop/index.html) web browser, for getting font information and creating a raster image of your map.
 * [Inkscape](http://inkscape.org/) (a vector graphics editing program), if you wish to make manual edits or additions to your map.
 * A zip command utility, if you wish to produce KMZ maps.
 
@@ -100,6 +100,15 @@ or,
     size: 60 x 60
 
 (Make sure you get your map bounds correct the first time to avoid starting over with the downloads.)
+
+## Specifying the Location of Google Chrome
+
+If available, Google Chrome is used in headless mode to measure font sizes and create more consistent labels. It's also the preferred way to produce raster outputs of your maps. The Chrome application isn't available on the command line, so you'll need to find and specify its location in your configuration file. Likewise, if you wish to create a vector PDF output file, the Inkscape path needs to be set:
+
+    chrome: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+    inkscape: /Applications/Inkscape.app/Contents/Resources/bin/inkscape
+
+(For Windows, the path will point to a `.exe` file in one of the `Program Files` folders.)
 
 ## Running the Script
 
@@ -366,9 +375,9 @@ For the `mbtiles` format, a maximum zoom level (normally 15 or 16) can be specif
     formats:
     - mbtiles: 16
 
-For significanly smaller `mbtiles` file size, I recommend installing the `pngquant` utility and specifying tile dithering as follows:
+For significanly smaller `mbtiles` file size, I recommend installing the `pngquant` utility and specifying its path as follows:
 
-    dither: /path/to/pngquant
+    pngquant: /path/to/pngquant
 
 You can also specify an output resolution for the PDF format, in which case the PDF will render as an embedded raster image (instead of vector data):
 
@@ -386,16 +395,16 @@ If you select `prj` as an output, a corresponding [ESRI world file](http://en.wi
 
 ## Producing Raster Images
 
-For printing purposes, it's preferable to render your map as a high-resolution raster image. Available formats are PNG, GIF, JPG, TIFF and KMZ. The [Google Chrome](https://www.google.com/chrome/browser/desktop/index.html) browser is used for this purpose. Find the full path of the Chrome executable on your system, specifying it in your configuration as follows, along with the raster formats you wish to produce:
+For printing purposes, it's preferable to render your map as a high-resolution raster image. Available formats are PNG, GIF, JPG, TIFF and KMZ. The [Google Chrome](https://www.google.com/chrome/browser/desktop/index.html) browser is used for this purpose. Don't forget to specify the full path of the Chrome executable on your system, along with the raster formats you wish to produce:
 
-        rasterise: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
-        formats: png
+    chrome: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+    formats: png
 
-(For Windows, the path will point to a `.exe` file in one of the `Program Files` folders.) The resolution of the raster image defaults to 300 pixels per inch, but may be specified explicity as follows:
+The resolution of the raster image defaults to 300 pixels per inch, but may be specified explicity as follows:
 
-        formats:
-          png: 200
-          tif: 600
+    formats:
+      png: 200
+      tif: 600
 
 Suggested Workflow for Rogaining Maps
 =====================================

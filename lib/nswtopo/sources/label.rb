@@ -39,7 +39,7 @@ module NSWTopo
     end
 
     def add(source, map)
-      source_params = params[source.name] = YAML.load(DEFAULT_PARAMS).merge(source.params[name])
+      source_params = params[source.name] = [ YAML.load(DEFAULT_PARAMS), source.params[name] ].compact.inject(&:merge)
       sublayers = Set.new
       source.labels(map).group_by do |dimension, data, labels, categories, sublayer|
         [ dimension, [ *categories ].map(&:to_s).reject(&:empty?).map(&:to_category).to_set ]

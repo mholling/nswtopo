@@ -38,10 +38,10 @@ module NSWTopo
       @params = YAML.load(PARAMS)
     end
 
-    def add(source, map)
+    def add(source)
       source_params = params[source.name] = [ YAML.load(DEFAULT_PARAMS), source.params[name] ].compact.inject(&:merge)
       sublayers = Set.new
-      source.labels(map).group_by do |dimension, data, labels, categories, sublayer|
+      source.labels.group_by do |dimension, data, labels, categories, sublayer|
         [ dimension, [ *categories ].map(&:to_s).reject(&:empty?).map(&:to_category).to_set ]
       end.each do |(dimension, categories), features|
         transforms, attributes, *dimensioned_attributes = [ nil, nil, "point", "line", "line" ].map do |extra_category|
@@ -77,10 +77,10 @@ module NSWTopo
           end
           data = case dimension
           when 0
-            map.coords_to_mm data
+            MAP.coords_to_mm data
           when 1, 2
             data.map do |coords|
-              map.coords_to_mm coords
+              MAP.coords_to_mm coords
             end
           end
           transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (arg, *args))|
@@ -211,8 +211,8 @@ module NSWTopo
       alias eql? equal?
     end
 
-    def features(map)
-      labelling_hull, debug_features = map.mm_corners(-1), []
+    def features
+      labelling_hull, debug_features = MAP.mm_corners(-1), []
       fence_segments = fences.map.with_index do |(dimension, feature, buffer), index|
         case dimension
         when 0 then feature.map { |point| [ point ] }
@@ -234,8 +234,8 @@ module NSWTopo
             attributes[name] = attributes[name].to_i * font_size * 0.01 if /^\d+%$/ === attributes[name]
           end
           font = Font[attributes]
-          debug_features << [ dimension, [ data ], %w[debug feature] ] if map.debug
-          next [] if map.debug == "features"
+          debug_features << [ dimension, [ data ], %w[debug feature] ] if MAP.debug
+          next [] if MAP.debug == "features"
           case dimension
           when 0
             margin, line_height = attributes.values_at "margin", "line-height"
@@ -254,7 +254,7 @@ module NSWTopo
                 centre + d * f * margin
               end
               text_attributes = {
-                "transform" => "translate(#{x} #{y}) rotate(#{-map.rotation})",
+                "transform" => "translate(#{x} #{y}) rotate(#{-MAP.rotation})",
                 "text-anchor" => dx > 0 ? "start" : dx < 0 ? "end" : "middle",
               }
               text_elements = lines.map.with_index do |(line, text_length), index|
@@ -270,7 +270,7 @@ module NSWTopo
               hull = [ [ dx, width ], [ dy, height ] ].map do |d, l|
                 [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
-                corner.rotate_by_degrees(-map.rotation).plus(data)
+                corner.rotate_by_degrees(-MAP.rotation).plus(data)
               end
               next unless labelling_hull.surrounds?(hull).all?
               fence_count = fence_index.search(hull.transpose.map(&:minmax)).inject(Set[]) do |indices, (fence, (buffer, index))|
@@ -376,7 +376,7 @@ module NSWTopo
               case orientation
               when "uphill"
               when "downhill" then baseline.reverse!
-              else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(map.rotation).first > 0
+              else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(MAP.rotation).first > 0
               end
               hull = [ baseline, baseline.reverse ].map do |line|
                 [ line ].inset(0.5 * font_size, "splits" => false)
@@ -435,8 +435,8 @@ module NSWTopo
 
       candidates.each do |candidate|
         debug_features << [ 2, [ candidate.hull ], %w[debug candidate] ]
-      end if map.debug
-      return debug_features if %w[features candidates].include? map.debug
+      end if MAP.debug
+      return debug_features if %w[features candidates].include? MAP.debug
 
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices
@@ -532,7 +532,7 @@ module NSWTopo
       labels.map do |label|
         [ nil, label.elements, label.categories, label.source_name ]
       end.tap do |result|
-        result.concat debug_features if map.debug
+        result.concat debug_features if MAP.debug
       end
     end
   end

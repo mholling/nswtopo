@@ -8,26 +8,26 @@ module NSWTopo
       @path = Pathname.pwd + "#{name}.#{ext}"
     end
 
-    def resolution_for(map)
-      params["resolution"] || map.scale / 12500.0
+    def resolution
+      @resolution ||= params["resolution"] || MAP.scale / 12500.0
     end
 
-    def create(map)
+    def dimensions
+      @dimensions ||= MAP.extents.map { |extent| (extent / resolution).ceil }
+    end
+
+    def create
       return if path.exist?
-      resolution = resolution_for map
-      dimensions = map.extents.map { |extent| (extent / resolution).ceil }
       pixels = dimensions.inject(:*) > 500000 ? " (%.1fMpx)" % (0.000001 * dimensions.inject(:*)) : nil
       puts "Creating: %s, %ix%i%s @ %.1f m/px" % [ name, *dimensions, pixels, resolution]
       Dir.mktmppath do |temp_dir|
-        FileUtils.cp get_raster(map, dimensions, resolution, temp_dir), path
+        FileUtils.cp get_raster(temp_dir), path
       end
     end
 
-    def render_svg(xml, map)
-      resolution = resolution_for map
-      transform = "scale(#{1000.0 * resolution / map.scale})"
+    def render_svg(xml)
+      transform = "scale(#{1000.0 * resolution / MAP.scale})"
       opacity = params["opacity"] || 1
-      dimensions = map.extents.map { |extent| (extent / resolution).ceil }
 
       raise BadLayerError.new("#{name} raster image not found at #{path}") unless path.exist?
       href = if params["embed"]

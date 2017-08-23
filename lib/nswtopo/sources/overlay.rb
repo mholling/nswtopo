@@ -8,12 +8,12 @@ module NSWTopo
       @path = Pathname.new(params["path"]).expand_path
     end
 
-    def features(map)
+    def features
       raise BadLayerError.new("#{name} file not found at #{path}") unless path.exist?
       gps = GPS.new(path)
       [ [ :waypoints, 0 ], [ :tracks, 1 ], [ :areas, 2 ] ].map do |type, dimension|
         gps.send(type).map do |coords, name|
-          point_or_line = map.coords_to_mm map.reproject_from_wgs84(coords)
+          point_or_line = MAP.coords_to_mm MAP.reproject_from_wgs84(coords)
           [ dimension, [ point_or_line ], name ]
         end
       end.flatten(1)

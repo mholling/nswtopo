@@ -33,12 +33,12 @@ module NSWTopo
 
     attr_reader :font_size, :grid_interval, :label_spacing, :label_offset, :label_inset
 
-    def grids(map)
-      Projection.utm_zone(map.bounds.inject(&:product), map.projection).inject do |range, zone|
+    def grids
+      Projection.utm_zone(MAP.bounds.inject(&:product), MAP.projection).inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
       end.map do |zone|
         utm = Projection.utm(zone)
-        eastings, northings = map.transform_bounds_to(utm).map do |bound|
+        eastings, northings = MAP.transform_bounds_to(utm).map do |bound|
           (bound[0] / grid_interval).floor .. (bound[1] / grid_interval).ceil
         end.map do |counts|
           counts.map { |count| count * grid_interval }
@@ -50,8 +50,8 @@ module NSWTopo
       end
     end
 
-    def features(map)
-      grids(map).map do |zone, utm, grid|
+    def features
+      grids.map do |zone, utm, grid|
         wgs84_grid = grid.map do |lines|
           utm.reproject_to_wgs84 lines
         end
@@ -60,8 +60,8 @@ module NSWTopo
         end
         [ eastings, northings, [ northings.map(&:first) ] ].map do |lines|
           lines.map do |line|
-            map.coords_to_mm map.reproject_from_wgs84(line)
-          end.clip_lines(map.mm_corners)
+            MAP.coords_to_mm MAP.reproject_from_wgs84(line)
+          end.clip_lines(MAP.mm_corners)
         end
       end.transpose.map do |lines|
         lines.inject([], &:+)
@@ -70,14 +70,14 @@ module NSWTopo
       end
     end
 
-    def label_grids(map, label_interval)
-      grids(map).map do |zone, utm, grid|
+    def label_grids(label_interval)
+      grids.map do |zone, utm, grid|
         eastings, northings = [ grid, grid.transpose ].map.with_index do |lines, index|
           lines.select do |line|
             line[0][index] % label_interval == 0
           end.map do |line|
             offset_line = line.map(&:dup).each do |coords|
-              coords[index] += 0.001 * label_offset * map.scale
+              coords[index] += 0.001 * label_offset * MAP.scale
             end
             [ line[0][index], offset_line ]
           end.to_h
@@ -86,9 +86,9 @@ module NSWTopo
       end
     end
 
-    def labels(map)
+    def labels
       @font = Font[@params["labels"]]
-      label_spacing ? periodic_labels(map) : edge_labels(map)
+      label_spacing ? periodic_labels : edge_labels
     end
 
     def label(coord, label_interval)
@@ -106,23 +106,23 @@ module NSWTopo
       [ length, text_path ]
     end
 
-    def edge_labels(map)
-      edge_inset = label_inset + font_size * 0.5 * Math::sin(map.rotation.abs * Math::PI / 180)
-      corners = map.coord_corners(-edge_inset)
-      label_grids(map, grid_interval).map do |zone, utm, *lines|
+    def edge_labels
+      edge_inset = label_inset + font_size * 0.5 * Math::sin(MAP.rotation.abs * Math::PI / 180)
+      corners = MAP.coord_corners(-edge_inset)
+      label_grids(grid_interval).map do |zone, utm, *lines|
         corners.zip(corners.perps).map.with_index do |(corner, perp), index|
           outgoing = index < 2
           lines[index % 2].map do |coord, line|
-            segment = map.reproject_from(utm, line).segments.find do |points|
+            segment = MAP.reproject_from(utm, line).segments.find do |points|
               points.one? { |point| point.minus(corner).dot(perp) < 0.0 }
             end
             segment[outgoing ? 1 : 0] = segment.along(corner.minus(segment[0]).dot(perp) / segment.difference.dot(perp)) if segment
             [ coord, segment ]
           end.select(&:last).select do |coord, segment|
-            corners.surrounds?(segment).any? && Projection.in_zone?(zone, segment[outgoing ? 1 : 0], map.projection)
+            corners.surrounds?(segment).any? && Projection.in_zone?(zone, segment[outgoing ? 1 : 0], MAP.projection)
           end.map do |coord, segment|
             length, text_path = label(coord, grid_interval)
-            segment_length = 1000.0 * segment.distance / map.scale
+            segment_length = 1000.0 * segment.distance / MAP.scale
             fraction = length / segment_length
             fractions = outgoing ? [ 1.0 - fraction, 1.0 ] : [ 0.0, fraction ]
             baseline = fractions.map { |fraction| segment.along fraction }
@@ -132,9 +132,9 @@ module NSWTopo
       end.flatten(2)
     end
 
-    def periodic_labels(map)
+    def periodic_labels
       label_interval = label_spacing * grid_interval
-      label_grids(map, label_interval).map do |zone, utm, eastings, northings|
+      label_grids(label_interval).map do |zone, utm, eastings, northings|
         [ eastings, northings ].map.with_index do |lines, index|
           lines.map do |coord, line|
             line.segments.select do |segment|
@@ -142,10 +142,10 @@ module NSWTopo
             end.select do |segment|
               Projection.in_zone?(zone, segment, utm).all?
             end.map do |segment|
-              map.reproject_from utm, segment
+              MAP.reproject_from utm, segment
             end.map do |segment|
               length, text_path = label(coord, label_interval)
-              segment_length = 1000.0 * segment.distance / map.scale
+              segment_length = 1000.0 * segment.distance / MAP.scale
               fraction = length / segment_length
               baseline = [ segment.along(0.5 * (1 - fraction)), segment.along(0.5 * (1 + fraction)) ]
               [ 1, [ baseline ], text_path, index.zero? ? "eastings" : "northings" ]

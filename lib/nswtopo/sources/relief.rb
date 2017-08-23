@@ -19,10 +19,10 @@ module NSWTopo
       super name, YAML.load(PARAMS).merge(params)
     end
 
-    def get_raster(map, dimensions, resolution, temp_dir)
+    def get_raster(temp_dir)
       dem_path = temp_dir + "dem.tif"
       altitude, azimuth, exaggeration, highlights, lightsources, sigma = params.values_at *%w[altitude azimuth exaggeration highlights lightsources sigma]
-      bounds = map.bounds.map do |lower, upper|
+      bounds = MAP.bounds.map do |lower, upper|
         [ lower - 3 * sigma, upper + 3 * sigma ]
       end
 
@@ -39,7 +39,7 @@ module NSWTopo
         src_path.write paths.join(?\n)
 
         %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
-        %x[gdalwarp -t_srs "#{map.projection}" -te #{bounds.flatten.values_at(0,2,1,3).join(?\s)} -tr #{resolution} #{resolution} -r bilinear "#{vrt_path}" "#{dem_path}"]
+        %x[gdalwarp -t_srs "#{MAP.projection}" -te #{bounds.flatten.values_at(0,2,1,3).join(?\s)} -tr #{resolution} #{resolution} -r bilinear "#{vrt_path}" "#{dem_path}"]
       when params["contours"]
         attribute = params["attribute"]
         gdal_version = %x[gdalinfo --version][/\d+(\.\d+(\.\d+)?)?/].split(?.).map(&:to_i)
@@ -60,7 +60,7 @@ module NSWTopo
             srs, max_record_count = ArcGIS.get_json(URI.parse "#{$1}?f=json").values_at "spatialReference", "maxRecordCount"
             wkt, wkid = srs["wkt"], srs["latestWkid"] || srs["wkid"]
             service_projection = Projection.new wkt ? "ESRI::#{wkt}".gsub(?", '\"') : "epsg:#{wkid == 102100 ? 3857 : wkid}"
-            geometry = map.projection.transform_bounds_to(service_projection, bounds).flatten.values_at(0,2,1,3).join(?,)
+            geometry = MAP.projection.transform_bounds_to(service_projection, bounds).flatten.values_at(0,2,1,3).join(?,)
             next unless object_ids = ArcGIS.get_json(URI.parse "#{dataset}?f=json&geometryType=esriGeometryEnvelope&geometry=#{geometry}&returnIdsOnly=true")["objectIds"]
             features = object_ids.each_slice([ *max_record_count, 500 ].min).map do |object_ids|
               ArcGIS.get_json(URI.parse "#{dataset}?f=json&outFields=*&objectIds=#{object_ids.join ?,}")
@@ -68,11 +68,11 @@ module NSWTopo
               results["features"] += page["features"]
               results
             end
-            IO.popen %Q[ogr2ogr -s_srs "#{service_projection}" -t_srs "#{map.projection}" -nln #{layer} "#{shp_path}" /vsistdin/ #{DISCARD_STDERR}], "w+" do |pipe|
+            IO.popen %Q[ogr2ogr -s_srs "#{service_projection}" -t_srs "#{MAP.projection}" -nln #{layer} "#{shp_path}" /vsistdin/ #{DISCARD_STDERR}], "w+" do |pipe|
               pipe.write features.to_json
             end
           else
-            %x[ogr2ogr -spat #{spat} -spat_srs "#{map.projection}" -t_srs "#{map.projection}" -nln #{layer} "#{shp_path}" "#{dataset}" #{DISCARD_STDERR}]
+            %x[ogr2ogr -spat #{spat} -spat_srs "#{MAP.projection}" -t_srs "#{MAP.projection}" -nln #{layer} "#{shp_path}" "#{dataset}" #{DISCARD_STDERR}]
           end
           sql = case layer
           when "contours"  then "SELECT      #{attribute} FROM #{layer}"
@@ -81,7 +81,7 @@ module NSWTopo
           %x[ogr2ogr -update #{append} -nln combined -sql "#{sql}" "#{shp_path}" "#{shp_path}"]
           "-append"
         end
-        %x[gdal_grid -a linear:radius=0:nodata=-9999 -zfield #{attribute} -l combined -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
+        %x[gdal_grid -a linear:radius=0:nodata=-9999 -zfield #{attribute} -l combined -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{MAP.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
       else
         raise BadLayerError.new "online elevation data unavailable, please provide contour data or DEM path"
       end
@@ -140,10 +140,10 @@ module NSWTopo
 
       tif_path = temp_dir + "relief.combined.tif"
       tfw_path = temp_dir + "relief.combined.tfw"
-      map.write_world_file tfw_path, resolution
-      density = 0.01 * map.scale / resolution
+      MAP.write_world_file tfw_path, resolution
+      density = 0.01 * MAP.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type GrayscaleMatte -depth 8 "#{tif_path}"]
-      %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{map.projection}" -srcnodata 0 -r bilinear -dstalpha "#{relief_path}" "#{tif_path}"]
+      %x[gdalwarp -s_srs "#{MAP.projection}" -t_srs "#{MAP.projection}" -srcnodata 0 -r bilinear -dstalpha "#{relief_path}" "#{tif_path}"]
 
       filters = []
       if args = params["median"]

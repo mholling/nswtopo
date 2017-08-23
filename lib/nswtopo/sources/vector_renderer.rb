@@ -9,11 +9,11 @@ module NSWTopo
       @fences ||= []
     end
 
-    def render_svg(xml, map)
+    def render_svg(xml)
       defs = xml.elements["svg/defs"]
-      unless map.rotation.zero?
-        w, h = map.bounds.map { |bound| 1000.0 * (bound.max - bound.min) / map.scale }
-        t = Math::tan(map.rotation * Math::PI / 180.0)
+      unless MAP.rotation.zero?
+        w, h = MAP.bounds.map { |bound| 1000.0 * (bound.max - bound.min) / MAP.scale }
+        t = Math::tan(MAP.rotation * Math::PI / 180.0)
         d = (t * t - 1) * Math::sqrt(t * t + 1)
         if t >= 0
           y = (t * (h * t - w) / d).abs
@@ -22,10 +22,10 @@ module NSWTopo
           x = -(t * (h + w * t) / d).abs
           y = -(t * x).abs
         end
-        transform = "translate(#{x} #{-y}) rotate(#{map.rotation})"
+        transform = "translate(#{x} #{-y}) rotate(#{MAP.rotation})"
       end
 
-      features(map).group_by do |dimension, feature, categories, sublayer, *|
+      features.group_by do |dimension, feature, categories, sublayer, *|
         sublayer
       end.each do |sublayer, features|
         next unless group = yield(sublayer)
@@ -73,7 +73,7 @@ module NSWTopo
             when 0
               symbol_id = [ name, *sublayer, *categories, "symbol"].join(SEGMENT)
               feature.each do |x, y|
-                content.add_element "use", "transform" => "translate(#{x} #{y}) rotate(#{angle || -map.rotation})", "xlink:href" => "##{symbol_id}"
+                content.add_element "use", "transform" => "translate(#{x} #{y}) rotate(#{angle || -MAP.rotation})", "xlink:href" => "##{symbol_id}"
               end
             when 1 then
               (section ? feature.in_sections(section).zip : [ feature ]).each do |feature|
@@ -115,7 +115,7 @@ module NSWTopo
               width  = args.delete(args.find { |key, value| key == "width"  }).last
               height = args.delete(args.find { |key, value| key == "height" }).last
               pattern_id = [ *ids, "pattern"].join(SEGMENT)
-              defs.add_element("pattern", "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-map.rotation})", "width" => width, "height" => height).tap do |pattern|
+              defs.add_element("pattern", "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-MAP.rotation})", "width" => width, "height" => height).tap do |pattern|
                 args.each { |element, attributes| pattern.add_element element, attributes }
               end
               container.add_attribute "fill", "url(##{pattern_id})"

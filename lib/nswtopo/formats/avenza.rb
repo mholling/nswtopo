@@ -3,15 +3,15 @@ module NSWTopo
     extend Dither
     LEVELS = 3 # TODO: determine programmatically, or is this fixed?
 
-    def self.build(map, ppi, png_path, temp_dir, zip_path)
-      zip_dir = temp_dir + map.filename
+    def self.build(ppi, png_path, temp_dir, zip_path)
+      zip_dir = temp_dir + MAP.filename
       tiles_dir = zip_dir + "tiles"
       tiles_dir.mkpath
 
       (LEVELS - 1).downto(0).map.with_index do |level, index|
         [ level, index, ppi.to_f / 2**index ]
       end.each.in_parallel do |level, index, ppi|
-        dimensions = map.dimensions_at ppi
+        dimensions = MAP.dimensions_at ppi
         img_path = index.zero? ? png_path : temp_dir + "avenza.#{level}.png"
         tile_path = temp_dir.join("avenza.tile.#{level}.%09d.png").to_s
         %x[convert "#{png_path}" -filter Lanczos -resize #{dimensions.join ?x}! "#{img_path}"] unless img_path.exist?
@@ -21,9 +21,9 @@ module NSWTopo
         end.inject(&:product).each.with_index do |(y, x), n|
           FileUtils.cp tile_path % n, tiles_dir + "#{level}x#{y}x#{x}.png"
         end
-        zip_dir.join("#{map.filename}.ref").open("w") do |file|
-          file.puts map.projection.wkt_simple
-          file.puts map.geotransform_at(ppi).flatten.join(?,)
+        zip_dir.join("#{MAP.filename}.ref").open("w") do |file|
+          file.puts MAP.projection.wkt_simple
+          file.puts MAP.geotransform_at(ppi).flatten.join(?,)
           file << dimensions.join(?,)
         end if index == 1
       end

@@ -104,15 +104,15 @@ module NSWTopo
 
   CONFIG["include"].unshift "canvas" if Pathname.new("canvas.png").expand_path.exist?
 
-  def self.run
-    map = Map.new
+  MAP = Map.new
 
+  def self.run
     puts "Map details:"
-    puts "  name: #{map.name}"
-    puts "  size: %imm x %imm" % map.extents.map { |extent| 1000 * extent / map.scale }
-    puts "  scale: 1:%i" % map.scale
-    puts "  rotation: %.1f degrees" % map.rotation
-    puts "  extent: %.1fkm x %.1fkm" % map.extents.map { |extent| 0.001 * extent }
+    puts "  name: #{MAP.name}"
+    puts "  size: %imm x %imm" % MAP.extents.map { |extent| 1000 * extent / MAP.scale }
+    puts "  scale: 1:%i" % MAP.scale
+    puts "  rotation: %.1f degrees" % MAP.rotation
+    puts "  extent: %.1fkm x %.1fkm" % MAP.extents.map { |extent| 0.001 * extent }
 
     sources = CONFIG["include"].map do |name_or_path_or_hash|
       [ *name_or_path_or_hash ].flatten
@@ -177,7 +177,7 @@ module NSWTopo
     end
 
     CONFIG["contour-interval"].tap do |interval|
-      interval ||= map.scale < 40000 ? 10 : 20
+      interval ||= MAP.scale < 40000 ? 10 : 20
       sources.each do |name, klass, params|
         params["exclude"] = [ *params["exclude"] ]
         [ *params["intervals-contours"] ].select do |candidate, sublayers|
@@ -211,7 +211,7 @@ module NSWTopo
 
     sources.each do |source|
       begin
-        source.create(map) if source.respond_to?(:create)
+        source.create if source.respond_to?(:create)
       rescue InternetError, ServerError, BadLayerError => e
         $stderr.puts "Error: #{e.message}" and next
       end
@@ -219,11 +219,11 @@ module NSWTopo
 
     return if CONFIG["no-output"]
 
-    svg_name = "#{map.filename}.svg"
+    svg_name = "#{MAP.filename}.svg"
     svg_path = Pathname.pwd + svg_name
 
     unless CONFIG["no-update"]
-      xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : map.xml
+      xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : MAP.xml
 
       removals = CONFIG["exclude"].select do |name|
         predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}')"
@@ -257,7 +257,7 @@ module NSWTopo
             if source == label_source
               puts "Processing label data:"
               sources.each do |source|
-                label_source.add(source, map) do |sublayer|
+                label_source.add(source) do |sublayer|
                   puts "  #{[ source.name, *sublayer ].join SEGMENT}"
                 end
               end
@@ -267,7 +267,7 @@ module NSWTopo
             xml.elements.each("/svg/g[#{predicate}]/*", &:remove)
             xml.elements.each("/svg/defs/[#{predicate}]", &:remove)
             preexisting = xml.elements["/svg/g[#{predicate}]"]
-            source.render_svg(xml, map) do |sublayer|
+            source.render_svg(xml) do |sublayer|
               id = [ source.name, *sublayer ].join(SEGMENT)
               if preexisting
                 xml.elements["/svg/g[@id='#{id}']"]
@@ -329,47 +329,47 @@ module NSWTopo
     end if formats.include? "prj"
 
     outstanding = (formats.keys & %w[png tif gif jpg kmz mbtiles zip psd pdf pgw tfw gfw jgw map prj]).reject do |format|
-      FileUtils.uptodate? "#{map.filename}.#{format}", [ svg_path ]
+      FileUtils.uptodate? "#{MAP.filename}.#{format}", [ svg_path ]
     end
 
     Dir.mktmppath do |temp_dir|
       outstanding.group_by do |format|
         [ formats[format], format == "mbtiles" ]
       end.each do |(ppi, mbtiles), group|
-        png_path = temp_dir + "#{map.filename}.#{ppi}.png"
+        png_path = temp_dir + "#{MAP.filename}.#{ppi}.png"
         if (group & %w[png tif gif jpg kmz zip psd]).any? || (ppi && group.include?("pdf"))
-          Raster.build map, ppi, svg_path, temp_dir, png_path do |dimensions|
+          Raster.build ppi, svg_path, temp_dir, png_path do |dimensions|
             puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
           end
           dither png_path if CONFIG["dither"]
         end
         group.each do |format|
           begin
-            puts "Generating #{map.filename}.#{format}"
-            output_path = temp_dir + "#{map.filename}.#{format}"
+            puts "Generating #{MAP.filename}.#{format}"
+            output_path = temp_dir + "#{MAP.filename}.#{format}"
             case format
             when "png"
               FileUtils.cp png_path, output_path
             when "tif"
-              %x[gdal_translate -a_srs "#{map.projection}" -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co ZLEVEL=9 -co TILED=YES -mo TIFFTAG_RESOLUTIONUNIT=2 -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" -mo TIFFTAG_SOFTWARE=nswtopo -mo "TIFFTAG_DOCUMENTNAME=#{map.name}" "#{png_path}" "#{output_path}"]
+              %x[gdal_translate -a_srs "#{MAP.projection}" -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co ZLEVEL=9 -co TILED=YES -mo TIFFTAG_RESOLUTIONUNIT=2 -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" -mo TIFFTAG_SOFTWARE=nswtopo -mo "TIFFTAG_DOCUMENTNAME=#{MAP.name}" "#{png_path}" "#{output_path}"]
             when "gif", "jpg"
               %x[convert "#{png_path}" "#{output_path}"]
             when "kmz"
-              KMZ.build map, ppi, png_path, output_path
+              KMZ.build ppi, png_path, output_path
             when "mbtiles"
-              MBTiles.build map, ppi, svg_path, temp_dir, output_path
+              MBTiles.build ppi, svg_path, temp_dir, output_path
             when "zip"
-              Avenza.build map, ppi, png_path, temp_dir, output_path
+              Avenza.build ppi, png_path, temp_dir, output_path
             when "psd"
-              PSD.build map, ppi, svg_path, png_path, temp_dir, output_path
+              PSD.build ppi, svg_path, png_path, temp_dir, output_path
             when "pdf"
-              ppi ? %x[convert "#{png_path}" "#{output_path}"] : PDF.build(map, svg_path, temp_dir, output_path)
+              ppi ? %x[convert "#{png_path}" "#{output_path}"] : PDF.build(svg_path, temp_dir, output_path)
             when "pgw", "tfw", "gfw", "jgw"
-              map.write_world_file output_path, map.resolution_at(ppi)
+              MAP.write_world_file output_path, MAP.resolution_at(ppi)
             when "map"
-              map.write_oziexplorer_map output_path, map.name, "#{map.filename}.png", formats["png"]
+              MAP.write_oziexplorer_map output_path, MAP.name, "#{MAP.filename}.png", formats["png"]
             when "prj"
-              File.write output_path, map.projection.send(formats["prj"])
+              File.write output_path, MAP.projection.send(formats["prj"])
             end
             FileUtils.cp output_path, Dir.pwd
           rescue NoVectorPDF => e
@@ -381,7 +381,4 @@ module NSWTopo
   end
 end
 
-# TODO: switch to Open3 for shelling out?
-# TODO: remove linked images from PDF output?
 # TODO: check georeferencing of aerial-google, aerial-nokia
-# TODO: refactor NSWTopo##run

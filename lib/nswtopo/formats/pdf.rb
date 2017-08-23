@@ -1,6 +1,6 @@
 module NSWTopo
   module PDF
-    def self.build(map, svg_path, temp_dir, pdf_path)
+    def self.build(svg_path, temp_dir, pdf_path)
       case
       when inkscape = CONFIG["inkscape"]
         %x["#{inkscape}" --without-gui --file="#{svg_path}" --export-pdf="#{pdf_path}" #{DISCARD_STDERR}]

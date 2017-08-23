@@ -41,9 +41,9 @@ module NSWTopo
       end
     end
 
-    def self.build(map, ppi, image_path, kmz_path)
-      wgs84_bounds = map.wgs84_bounds
-      degrees_per_pixel = 180.0 * map.resolution_at(ppi) / Math::PI / EARTH_RADIUS
+    def self.build(ppi, image_path, kmz_path)
+      wgs84_bounds = MAP.wgs84_bounds
+      degrees_per_pixel = 180.0 * MAP.resolution_at(ppi) / Math::PI / EARTH_RADIUS
       dimensions = wgs84_bounds.map { |bound| bound.reverse.inject(:-) / degrees_per_pixel }
       max_zoom = Math::log2(dimensions.max).ceil - Math::log2(TILE_SIZE).to_i
       topleft = [ wgs84_bounds.first.min, wgs84_bounds.last.max ]
@@ -53,7 +53,7 @@ module NSWTopo
         source_path = temp_dir + file_name
         worldfile_path = temp_dir + "#{file_name}w"
         FileUtils.cp image_path, source_path
-        map.write_world_file worldfile_path, map.resolution_at(ppi)
+        MAP.write_world_file worldfile_path, MAP.resolution_at(ppi)
 
         pyramid = (0..max_zoom).map do |zoom|
           resolution = degrees_per_pixel * 2**(max_zoom - zoom)
@@ -66,7 +66,7 @@ module NSWTopo
           %x[convert -size #{dimensions.join ?x} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
           WorldFile.write topleft, resolution, 0, tfw_path
 
-          %x[gdalwarp -s_srs "#{map.projection}" -t_srs "#{Projection.wgs84}" -r bilinear -dstalpha "#{source_path}" "#{tif_path}"]
+          %x[gdalwarp -s_srs "#{MAP.projection}" -t_srs "#{Projection.wgs84}" -r bilinear -dstalpha "#{source_path}" "#{tif_path}"]
 
           indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
             boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
@@ -81,7 +81,7 @@ module NSWTopo
         end.inject({}, &:merge)
         puts
 
-        kmz_dir = temp_dir + map.filename
+        kmz_dir = temp_dir + MAP.filename
         kmz_dir.mkdir
 
         pyramid.map do |zoom, indices_bounds|
@@ -136,13 +136,13 @@ module NSWTopo
         xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
           kml.add_element("Document").tap do |document|
             document.add_element("LookAt").tap do |look_at|
-              range_x = map.extents.first / 2.0 / Math::tan(FOV) / Math::cos(TILT)
-              range_y = map.extents.last / Math::cos(FOV - TILT) / 2 / (Math::tan(FOV - TILT) + Math::sin(TILT))
-              names_values = [ %w[longitude latitude], map.projection.reproject_to_wgs84(map.centre) ].transpose
-              names_values << [ "tilt", TILT * 180.0 / Math::PI ] << [ "range", 1.2 * [ range_x, range_y ].max ] << [ "heading", -map.rotation ]
+              range_x = MAP.extents.first / 2.0 / Math::tan(FOV) / Math::cos(TILT)
+              range_y = MAP.extents.last / Math::cos(FOV - TILT) / 2 / (Math::tan(FOV - TILT) + Math::sin(TILT))
+              names_values = [ %w[longitude latitude], MAP.projection.reproject_to_wgs84(MAP.centre) ].transpose
+              names_values << [ "tilt", TILT * 180.0 / Math::PI ] << [ "range", 1.2 * [ range_x, range_y ].max ] << [ "heading", -MAP.rotation ]
               names_values.each { |name, value| look_at.add_element(name).text = value }
             end
-            document.add_element("Name").text = map.name
+            document.add_element("Name").text = MAP.name
             document.add_element("Style").tap(&style)
             document.add_element("NetworkLink").tap(&network_link(pyramid[0][[0,0]], "0/0/0.kml"))
           end
@@ -150,7 +150,7 @@ module NSWTopo
         kml_path = kmz_dir + "doc.kml"
         File.write kml_path, xml
 
-        temp_kmz_path = temp_dir + "#{map.filename}.kmz"
+        temp_kmz_path = temp_dir + "#{MAP.filename}.kmz"
         Dir.chdir(kmz_dir) { %x[#{ZIP} -r "#{temp_kmz_path}" *] }
         FileUtils.cp temp_kmz_path, kmz_path
       end

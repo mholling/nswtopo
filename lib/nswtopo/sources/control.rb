@@ -82,18 +82,18 @@ module NSWTopo
       raise BadLayerError.new("#{e.message} not a valid GPX or KML file")
     end
 
-    def features(map)
+    def features
       types_waypoints.map do |type, waypoints|
-        [ 0, map.coords_to_mm(map.reproject_from_wgs84(waypoints)), type ]
+        [ 0, MAP.coords_to_mm(MAP.reproject_from_wgs84(waypoints)), type ]
       end
     end
 
-    def labels(map)
+    def labels
       types_waypoints.reject do |type, waypoints|
         type == :water
       end.map do |type, waypoints|
         waypoints.map do |waypoint, label|
-          [ 0, [ map.reproject_from_wgs84(waypoint) ], label, type ]
+          [ 0, [ MAP.reproject_from_wgs84(waypoint) ], label, type ]
         end
       end.flatten(1)
     end

@@ -2,22 +2,22 @@ module NSWTopo
   class TiledMapServer
     include RasterRenderer
 
-    def tiles(map, raster_resolution, temp_dir)
+    def tiles(temp_dir)
       tile_sizes = params["tile_sizes"]
       tile_limit = params["tile_limit"]
       crops = params["crops"] || [ [ 0, 0 ], [ 0, 0 ] ]
 
       cropped_tile_sizes = [ tile_sizes, crops ].transpose.map { |tile_size, crop| tile_size - crop.inject(:+) }
       projection = Projection.new(params["projection"])
-      bounds = map.transform_bounds_to(projection)
+      bounds = MAP.transform_bounds_to(projection)
       extents = bounds.map { |bound| bound.max - bound.min }
       origins = bounds.transpose.first
 
-      zoom, resolution, counts = (Math::log2(Math::PI * EARTH_RADIUS / raster_resolution) - 7).ceil.downto(1).map do |zoom|
-        resolution = Math::PI * EARTH_RADIUS / 2 ** (zoom + 7)
-        counts = [ extents, cropped_tile_sizes ].transpose.map { |extent, tile_size| (extent / resolution / tile_size).ceil }
-        [ zoom, resolution, counts ]
-      end.find do |zoom, resolution, counts|
+      zoom, tile_resolution, counts = (Math::log2(Math::PI * EARTH_RADIUS / resolution) - 7).ceil.downto(1).map do |zoom|
+        tile_resolution = Math::PI * EARTH_RADIUS / 2 ** (zoom + 7)
+        counts = [ extents, cropped_tile_sizes ].transpose.map { |extent, tile_size| (extent / tile_resolution / tile_size).ceil }
+        [ zoom, tile_resolution, counts ]
+      end.find do |zoom, tile_resolution, counts|
         counts.inject(:*) < tile_limit
       end
 
@@ -27,11 +27,11 @@ module NSWTopo
         tile_path = temp_dir + "tile.#{indices.join ?.}.png"
 
         cropped_centre = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
-          origin + tile_size * (index + 0.5) * resolution
+          origin + tile_size * (index + 0.5) * tile_resolution
         end
-        centre = [ cropped_centre, crops ].transpose.map { |coord, crop| coord - 0.5 * crop.inject(:-) * resolution }
+        centre = [ cropped_centre, crops ].transpose.map { |coord, crop| coord - 0.5 * crop.inject(:-) * tile_resolution }
         bounds = [ indices, cropped_tile_sizes, origins ].transpose.map do |index, tile_size, origin|
-          [ origin + index * tile_size * resolution, origin + (index + 1) * tile_size * resolution ]
+          [ origin + index * tile_size * tile_resolution, origin + (index + 1) * tile_size * tile_resolution ]
         end
 
         longitude, latitude = projection.reproject_to_wgs84(centre)
@@ -55,17 +55,17 @@ module NSWTopo
         end
 
         $stdout << "\r  (#{count + 1} of #{counts.inject(&:*)} tiles)"
-        [ bounds, resolution, tile_path ]
+        [ bounds, tile_resolution, tile_path ]
       end.tap { puts }
     end
 
-    def get_raster(map, dimensions, resolution, temp_dir)
+    def get_raster(temp_dir)
       src_path = temp_dir + "#{name}.txt"
       vrt_path = temp_dir + "#{name}.vrt"
       tif_path = temp_dir + "#{name}.tif"
       tfw_path = temp_dir + "#{name}.tfw"
 
-      tiles(map, resolution, temp_dir).each do |tile_bounds, tile_resolution, tile_path|
+      tiles(temp_dir).each do |tile_bounds, tile_resolution, tile_path|
         topleft = [ tile_bounds.first.min, tile_bounds.last.max ]
         WorldFile.write topleft, tile_resolution, 0, Pathname.new("#{tile_path}w")
       end.map(&:last).join(?\n).tap do |path_list|
@@ -73,13 +73,13 @@ module NSWTopo
         %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"] unless path_list.empty?
       end
 
-      density = 0.01 * map.scale / resolution
+      density = 0.01 * MAP.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
       if vrt_path.exist?
-        map.write_world_file tfw_path, resolution
+        MAP.write_world_file tfw_path, resolution
         resample = params["resample"] || "cubic"
         projection = Projection.new(params["projection"])
-        %x[gdalwarp -s_srs "#{projection}" -t_srs "#{map.projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
+        %x[gdalwarp -s_srs "#{projection}" -t_srs "#{MAP.projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
       end
 
       temp_dir.join(path.basename).tap do |raster_path|

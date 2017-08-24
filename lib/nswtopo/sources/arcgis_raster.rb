@@ -42,8 +42,8 @@ module NSWTopo
 
     def tiles(margin = 0)
       cropped_tile_sizes = params["tile_sizes"].map { |tile_size| tile_size - margin }
-      download_dimensions = MAP.bounds.map { |bound| ((bound.max - bound.min) / resolution).ceil }
-      origins = [ MAP.bounds.first.min, MAP.bounds.last.max ]
+      download_dimensions = CONFIG.map.bounds.map { |bound| ((bound.max - bound.min) / resolution).ceil }
+      origins = [ CONFIG.map.bounds.first.min, CONFIG.map.bounds.last.max ]
 
       cropped_size_lists = [ download_dimensions, cropped_tile_sizes ].transpose.map do |dimension, cropped_tile_size|
         [ cropped_tile_size ] * ((dimension - 1) / cropped_tile_size) << 1 + (dimension - 1) % cropped_tile_size
@@ -67,7 +67,7 @@ module NSWTopo
       [ bound_lists, size_lists, offset_lists ].map do |axes|
         axes.inject(:product)
       end.transpose.select do |bounds, sizes, offsets|
-        MAP.overlaps? bounds
+        CONFIG.map.overlaps? bounds
       end
     end
 
@@ -84,8 +84,8 @@ module NSWTopo
 
     def get_raster(temp_dir)
       get_service
-      scale = params["scale"] || MAP.scale
-      options = { "dpi" => scale * 0.0254 / resolution, "wkt" => MAP.projection.wkt_esri, "format" => "png32" }
+      scale = params["scale"] || CONFIG.map.scale
+      options = { "dpi" => scale * 0.0254 / resolution, "wkt" => CONFIG.map.projection.wkt_esri, "format" => "png32" }
 
       tile_set = tiles()
       dataset = tile_set.map.with_index do |(tile_bounds, tile_sizes, tile_offsets), index|
@@ -99,9 +99,9 @@ module NSWTopo
       puts
 
       temp_dir.join(path.basename).tap do |raster_path|
-        density = 0.01 * MAP.scale / resolution
+        density = 0.01 * CONFIG.map.scale / resolution
         alpha = params["background"] ? %Q[-background "#{params['background']}" -alpha Remove] : nil
-        if MAP.rotation.zero?
+        if CONFIG.map.rotation.zero?
           sequence = dataset.map do |_, tile_sizes, tile_offsets, tile_path|
             %Q[#{OP} "#{tile_path}" +repage -repage +#{tile_offsets[0]}+#{tile_offsets[1]} #{CP}]
           end.join ?\s
@@ -120,8 +120,8 @@ module NSWTopo
           end
           %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
           %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:none -type TrueColorMatte -depth 8 "#{tif_path}"]
-          MAP.write_world_file tfw_path, resolution
-          %x[gdalwarp -s_srs "#{MAP.projection}" -t_srs "#{MAP.projection}" -dstalpha -r cubic "#{vrt_path}" "#{tif_path}"]
+          CONFIG.map.write_world_file tfw_path, resolution
+          %x[gdalwarp -s_srs "#{CONFIG.map.projection}" -t_srs "#{CONFIG.map.projection}" -dstalpha -r cubic "#{vrt_path}" "#{tif_path}"]
           %x[convert "#{tif_path}" -quiet #{alpha} "#{raster_path}"]
         end
       end

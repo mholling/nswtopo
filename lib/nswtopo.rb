@@ -16,6 +16,7 @@ require 'timeout'
 require_relative 'helpers'
 require_relative 'avl_tree'
 require_relative 'geometry'
+require_relative 'nswtopo/config'
 require_relative 'nswtopo/helpers'
 require_relative 'nswtopo/gps'
 require_relative 'nswtopo/projection'
@@ -46,73 +47,17 @@ module NSWTopo
   BadLayerError = Class.new(Exception)
   NoVectorPDF = Class.new(Exception)
 
-  base_config = YAML.load %Q[
-    name: map
-    scale: 25000
-    ppi: 300
-    rotation: 0
-  ]
+  CONFIG = Config.new
 
-  %w[bounds.kml bounds.gpx].map do |filename|
-    Pathname.pwd + filename
-  end.find(&:exist?).tap do |bounds_path|
-    base_config["bounds"] = bounds_path if bounds_path
-  end
+  def self.run(config)
+    CONFIG.finalise config
 
-  unless Pathname.pwd.join("nswtopo.cfg").exist?
-    if base_config["bounds"]
-      puts "No nswtopo.cfg configuration file found. Using #{base_config['bounds'].basename} as map bounds."
-    else
-      abort "Error: could not find any configuration file (nswtopo.cfg) or bounds file (bounds.kml)."
-    end
-  end
-
-  flags_config = ARGV.drop_while do |arg|
-    arg[0] != ?-
-  end.chunk_while do |arg1, arg2|
-    arg2[0] != ?-
-  end.map do |flag, *values|
-    values << true if values.empty?
-    [ flag[1..-1], values.empty? ? true : values.one? ? values[0] : values ]
-  end.to_h
-
-  CONFIG = [ Pathname.new(__dir__).parent, Pathname.pwd ].map do |dir_path|
-    dir_path + "nswtopo.cfg"
-  end.select(&:exist?).map do |config_path|
-    begin
-      YAML.load config_path.read
-    rescue ArgumentError, SyntaxError => e
-      abort "Error in configuration file: #{e.message}"
-    end
-  end.push(flags_config).inject(base_config, &:deep_merge)
-
-  CONFIG["include"] = [ *CONFIG["include"] ]
-  if CONFIG["include"].empty?
-    CONFIG["include"] << "nsw/topographic"
-    puts "No layers specified. Adding nsw/topographic by default."
-  end
-
-  %w[controls.gpx controls.kml].map do |filename|
-    Pathname.pwd + filename
-  end.find(&:file?).tap do |control_path|
-    if control_path
-      CONFIG["include"] |= [ "controls" ]
-      CONFIG["controls"] ||= {}
-      CONFIG["controls"]["path"] ||= control_path.to_s
-    end
-  end
-
-  CONFIG["include"].unshift "canvas" if Pathname.new("canvas.png").expand_path.exist?
-
-  MAP = Map.new
-
-  def self.run
     puts "Map details:"
-    puts "  name: #{MAP.name}"
-    puts "  size: %imm x %imm" % MAP.extents.map { |extent| 1000 * extent / MAP.scale }
-    puts "  scale: 1:%i" % MAP.scale
-    puts "  rotation: %.1f degrees" % MAP.rotation
-    puts "  extent: %.1fkm x %.1fkm" % MAP.extents.map { |extent| 0.001 * extent }
+    puts "  name: #{CONFIG.map.name}"
+    puts "  size: %imm x %imm" % CONFIG.map.extents.map { |extent| 1000 * extent / CONFIG.map.scale }
+    puts "  scale: 1:%i" % CONFIG.map.scale
+    puts "  rotation: %.1f degrees" % CONFIG.map.rotation
+    puts "  extent: %.1fkm x %.1fkm" % CONFIG.map.extents.map { |extent| 0.001 * extent }
 
     sources = CONFIG["include"].map do |name_or_path_or_hash|
       [ *name_or_path_or_hash ].flatten
@@ -153,12 +98,12 @@ module NSWTopo
     end
 
     sources.each do |name, klass, params|
-      CONFIG.map do |key, value|
-        [ key.match(%r{#{name}#{SEGMENT}(.+)}), value ]
-      end.select(&:first).map do |match, layer_params|
-        { match[1] => layer_params }
-      end.inject(&:merge).tap do |layers_params|
-        params.deep_merge! layers_params if layers_params
+      CONFIG.keys.map do |key|
+        [ key.match(%r[^#{name}#{SEGMENT}(.+)]), key ]
+      end.select(&:first).map do |match, key|
+        [ match[1], CONFIG[key] ]
+      end.to_h.tap do |layers_params|
+        params.deep_merge! layers_params
       end
     end
 
@@ -177,7 +122,7 @@ module NSWTopo
     end
 
     CONFIG["contour-interval"].tap do |interval|
-      interval ||= MAP.scale < 40000 ? 10 : 20
+      interval ||= CONFIG.map.scale < 40000 ? 10 : 20
       sources.each do |name, klass, params|
         params["exclude"] = [ *params["exclude"] ]
         [ *params["intervals-contours"] ].select do |candidate, sublayers|
@@ -188,13 +133,12 @@ module NSWTopo
       end
     end
 
-    CONFIG["exclude"] = [ *CONFIG["exclude"] ].map { |name| name.gsub ?/, SEGMENT }
     CONFIG["exclude"].each do |source_or_layer_name|
       sources.reject! do |name, klass, params|
         name == source_or_layer_name
       end
       sources.each do |name, klass, params|
-        match = source_or_layer_name.match(%r{^#{name}#{SEGMENT}(.+)})
+        match = source_or_layer_name.match %r[^#{name}#{SEGMENT}(.+)]
         params["exclude"] << match[1] if match
       end
     end
@@ -219,11 +163,11 @@ module NSWTopo
 
     return if CONFIG["no-output"]
 
-    svg_name = "#{MAP.filename}.svg"
+    svg_name = "#{CONFIG.map.filename}.svg"
     svg_path = Pathname.pwd + svg_name
 
     unless CONFIG["no-update"]
-      xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : MAP.xml
+      xml = svg_path.exist? ? REXML::Document.new(svg_path.read) : CONFIG.map.xml
 
       removals = CONFIG["exclude"].select do |name|
         predicate = "@id='#{name}' or starts-with(@id,'#{name}#{SEGMENT}')"
@@ -329,14 +273,14 @@ module NSWTopo
     end if formats.include? "prj"
 
     outstanding = (formats.keys & %w[png tif gif jpg kmz mbtiles zip psd pdf pgw tfw gfw jgw map prj]).reject do |format|
-      FileUtils.uptodate? "#{MAP.filename}.#{format}", [ svg_path ]
+      FileUtils.uptodate? "#{CONFIG.map.filename}.#{format}", [ svg_path ]
     end
 
     Dir.mktmppath do |temp_dir|
       outstanding.group_by do |format|
         [ formats[format], format == "mbtiles" ]
       end.each do |(ppi, mbtiles), group|
-        png_path = temp_dir + "#{MAP.filename}.#{ppi}.png"
+        png_path = temp_dir + "#{CONFIG.map.filename}.#{ppi}.png"
         if (group & %w[png tif gif jpg kmz zip psd]).any? || (ppi && group.include?("pdf"))
           Raster.build ppi, svg_path, temp_dir, png_path do |dimensions|
             puts "Generating raster: %ix%i (%.1fMpx) @ %i ppi" % [ *dimensions, 0.000001 * dimensions.inject(:*), ppi ]
@@ -345,13 +289,13 @@ module NSWTopo
         end
         group.each do |format|
           begin
-            puts "Generating #{MAP.filename}.#{format}"
-            output_path = temp_dir + "#{MAP.filename}.#{format}"
+            puts "Generating #{CONFIG.map.filename}.#{format}"
+            output_path = temp_dir + "#{CONFIG.map.filename}.#{format}"
             case format
             when "png"
               FileUtils.cp png_path, output_path
             when "tif"
-              %x[gdal_translate -a_srs "#{MAP.projection}" -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co ZLEVEL=9 -co TILED=YES -mo TIFFTAG_RESOLUTIONUNIT=2 -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" -mo TIFFTAG_SOFTWARE=nswtopo -mo "TIFFTAG_DOCUMENTNAME=#{MAP.name}" "#{png_path}" "#{output_path}"]
+              %x[gdal_translate -a_srs "#{CONFIG.map.projection}" -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co ZLEVEL=9 -co TILED=YES -mo TIFFTAG_RESOLUTIONUNIT=2 -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" -mo TIFFTAG_SOFTWARE=nswtopo -mo "TIFFTAG_DOCUMENTNAME=#{CONFIG.map.name}" "#{png_path}" "#{output_path}"]
             when "gif", "jpg"
               %x[convert "#{png_path}" "#{output_path}"]
             when "kmz"
@@ -365,11 +309,11 @@ module NSWTopo
             when "pdf"
               ppi ? %x[convert "#{png_path}" "#{output_path}"] : PDF.build(svg_path, temp_dir, output_path)
             when "pgw", "tfw", "gfw", "jgw"
-              MAP.write_world_file output_path, MAP.resolution_at(ppi)
+              CONFIG.map.write_world_file output_path, CONFIG.map.resolution_at(ppi)
             when "map"
-              MAP.write_oziexplorer_map output_path, MAP.name, "#{MAP.filename}.png", formats["png"]
+              CONFIG.map.write_oziexplorer_map output_path, CONFIG.map.name, "#{CONFIG.map.filename}.png", formats["png"]
             when "prj"
-              File.write output_path, MAP.projection.send(formats["prj"])
+              File.write output_path, CONFIG.map.projection.send(formats["prj"])
             end
             FileUtils.cp output_path, Dir.pwd
           rescue NoVectorPDF => e

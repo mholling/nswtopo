@@ -9,11 +9,11 @@ module NSWTopo
     end
 
     def resolution
-      @resolution ||= params["resolution"] || MAP.scale / 12500.0
+      @resolution ||= params["resolution"] || CONFIG.map.scale / 12500.0
     end
 
     def dimensions
-      @dimensions ||= MAP.extents.map { |extent| (extent / resolution).ceil }
+      @dimensions ||= CONFIG.map.extents.map { |extent| (extent / resolution).ceil }
     end
 
     def create
@@ -26,7 +26,7 @@ module NSWTopo
     end
 
     def render_svg(xml)
-      transform = "scale(#{1000.0 * resolution / MAP.scale})"
+      transform = "scale(#{1000.0 * resolution / CONFIG.map.scale})"
       opacity = params["opacity"] || 1
 
       raise BadLayerError.new("#{name} raster image not found at #{path}") unless path.exist?

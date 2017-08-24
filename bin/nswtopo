@@ -18,11 +18,18 @@
 start = Time.now
 begin
   require_relative "../lib/nswtopo.rb"
-  NSWTopo.run
+  flags = ARGV.drop_while do |arg|
+    arg[0] != ?-
+  end.chunk_while do |*, arg|
+    arg[0] != ?-
+  end.map do |flag, *values|
+    [ flag[1..-1], values.empty? ? true : values.one? ? YAML.load(*values) : values ]
+  end.to_h
+  NSWTopo.run(flags)
 rescue Interrupt
   abort "\r\033[KHalting execution. Run the script again to resume."
 ensure
   duration = Time.now - start
-  minutes, seconds = (duration / 60).floor, (duration % 60).ceil
+  minutes, seconds = (duration / 60).floor, (duration % 60).floor
   puts "Program completed in %s." % [ ("#{minutes} minute#{?s unless 1 == minutes}" unless 0 == minutes), ("#{seconds} second#{?s unless 1 == seconds}" unless 0 == seconds) ].compact.join(", ")
 end

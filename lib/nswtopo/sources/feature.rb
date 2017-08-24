@@ -14,8 +14,8 @@ module NSWTopo
         layer = options["name"]
         sql   = %Q[-sql "%s"] % options["sql"] if options["sql"]
         where = %Q[-where "%s"] % [ *options["where"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["where"]
-        srs   = %Q[-t_srs "#{MAP.projection}"]
-        spat  = %Q[-spat #{MAP.bounds.transpose.flatten.join ?\s} -spat_srs "#{MAP.projection}"]
+        srs   = %Q[-t_srs "#{CONFIG.map.projection}"]
+        spat  = %Q[-spat #{CONFIG.map.bounds.transpose.flatten.join ?\s} -spat_srs "#{CONFIG.map.projection}"]
         Dir.mktmppath do |temp_dir|
           json_path = temp_dir + "data.json"
           %x[ogr2ogr #{sql || where} #{srs} #{spat} -f GeoJSON "#{json_path}" "#{shape_path}" #{layer unless sql} -mapFieldType Date=Integer,DateTime=Integer -dim XY]
@@ -52,14 +52,14 @@ module NSWTopo
       end
       uri = URI.parse "#{url}?f=json"
       service = ArcGIS.get_json uri, source["headers"]
-      ring = (MAP.coord_corners << MAP.coord_corners.first).reverse
+      ring = (CONFIG.map.coord_corners << CONFIG.map.coord_corners.first).reverse
       if params["local-reprojection"] || source["local-reprojection"] || options["local-reprojection"]
         wkt  = service["spatialReference"]["wkt"]
         wkid = service["spatialReference"]["latestWkid"] || service["spatialReference"]["wkid"]
         projection = Projection.new wkt ? "ESRI::#{wkt}".gsub(?", '\"') : "epsg:#{wkid == 102100 ? 3857 : wkid}"
-        geometry = { "rings" => [ MAP.projection.reproject_to(projection, ring) ] }.to_json
+        geometry = { "rings" => [ CONFIG.map.projection.reproject_to(projection, ring) ] }.to_json
       else
-        sr = { "wkt" => MAP.projection.wkt_esri }.to_json
+        sr = { "wkt" => CONFIG.map.projection.wkt_esri }.to_json
         geometry = { "rings" => [ ring ] }.to_json
       end
       geometry_query = { "geometry" => geometry, "geometryType" => "esriGeometryPolygon" }
@@ -80,11 +80,11 @@ module NSWTopo
           uri = URI.parse "#{url}/identify"
           index_attribute = options["page-by"] || source["page-by"] || oid_field_alias || "OBJECTID"
           scale = options["scale"]
-          scale ||= max_scale.zero? ? min_scale.zero? ? MAP.scale : 2 * min_scale : (min_scale + max_scale) / 2
-          pixels = MAP.wgs84_bounds.map do |bound|
+          scale ||= max_scale.zero? ? min_scale.zero? ? CONFIG.map.scale : 2 * min_scale : (min_scale + max_scale) / 2
+          pixels = CONFIG.map.wgs84_bounds.map do |bound|
             bound.reverse.inject(&:-) * 96.0 * 110000 / scale / 0.0254
           end.map(&:ceil)
-          bounds = projection ? MAP.transform_bounds_to(projection) : MAP.bounds
+          bounds = projection ? CONFIG.map.transform_bounds_to(projection) : CONFIG.map.bounds
           query = {
             "f" => "json",
             "layers" => "all:#{layer_id}",
@@ -162,13 +162,13 @@ module NSWTopo
             data = case key
             when "x"
               point = geometry.values_at("x", "y")
-              [ projection ? MAP.reproject_from(projection, point) : point ]
+              [ projection ? CONFIG.map.reproject_from(projection, point) : point ]
             when "points"
               points = geometry[key]
-              projection ? MAP.reproject_from(projection, points) : points
+              projection ? CONFIG.map.reproject_from(projection, points) : points
             when "paths", "rings"
               geometry[key].map do |points|
-                projection ? MAP.reproject_from(projection, points) : points
+                projection ? CONFIG.map.reproject_from(projection, points) : points
               end
             end
             names_values = feature["attributes"].map do |name_or_alias, value|
@@ -231,7 +231,7 @@ module NSWTopo
       wkid = default_crs.match(/EPSG::(\d+)$/)[1]
       projection = Projection.new "epsg:#{wkid}"
 
-      points = MAP.projection.reproject_to(projection, MAP.coord_corners)
+      points = CONFIG.map.projection.reproject_to(projection, CONFIG.map.coord_corners)
       polygon = [ *points, points.first ].map { |corner| corner.reverse.join ?\s }.join ?,
       bounds_filter = "INTERSECTS(#{geometry_name},POLYGON((#{polygon})))"
 
@@ -268,7 +268,7 @@ module NSWTopo
                 string.split.map(&:to_f).each_slice(2).map(&:reverse)
               end
             end.map do |point_or_points|
-              MAP.reproject_from projection, point_or_points
+              CONFIG.map.reproject_from projection, point_or_points
             end
             yielder << [ dimension, data, attributes ]
           end.length == per_page || break
@@ -281,7 +281,7 @@ module NSWTopo
       return if path.exist?
 
       puts "Downloading: #{name}"
-      feature_hull = MAP.coord_corners(1.0)
+      feature_hull = CONFIG.map.coord_corners(1.0)
 
       %w[host instance folder service cookie].map do |key|
         { key => params.delete(key) }
@@ -419,7 +419,7 @@ module NSWTopo
           dimension, angle = feature.values_at "dimension", "angle"
           categories = feature["categories"].reject(&:empty?)
           points_or_lines = feature["data"].map do |coords|
-            MAP.coords_to_mm coords
+            CONFIG.map.coords_to_mm coords
           end
           [ dimension, points_or_lines, categories, sublayer, *angle ]
         end

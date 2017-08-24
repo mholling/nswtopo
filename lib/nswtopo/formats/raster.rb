@@ -3,12 +3,12 @@ module NSWTopo
     TILE_SIZE = 2000
 
     def self.build(ppi, svg_path, temp_dir, png_path)
-      width, height = dimensions = MAP.dimensions_at(ppi)
+      width, height = dimensions = CONFIG.map.dimensions_at(ppi)
       yield dimensions if block_given?
       zoom = ppi / 96.0
       case
       when chrome = CONFIG["chrome"] || CONFIG["chromium"]
-        src_path = temp_dir + "#{MAP.filename}.scaled.svg"
+        src_path = temp_dir + "#{CONFIG.map.filename}.scaled.svg"
         svg = %w[width height].inject(svg_path.read) do |svg, attribute|
           svg.sub(/#{attribute}='(.*?)mm'/) { %Q[#{attribute}='#{$1.to_f * zoom}mm'] }
         end
@@ -19,7 +19,7 @@ module NSWTopo
           FileUtils.mv "screenshot.png", png_path
         end
       when electron = CONFIG["electron"]
-        src_path, js_path, preload_path, tile_path = temp_dir + "#{MAP.filename}.zoomed.svg", temp_dir + "rasterise.js", temp_dir + "preload.js", temp_dir + "tile"
+        src_path, js_path, preload_path, tile_path = temp_dir + "#{CONFIG.map.filename}.zoomed.svg", temp_dir + "rasterise.js", temp_dir + "preload.js", temp_dir + "tile"
         xml = svg_path.read
         xml.sub!(/(<svg[^>]*width\s*=\s*['"])([\d\.e\+\-]+)/i) { "#{$1}#{$2.to_f * zoom}" }
         xml.sub!(/(<svg[^>]*height\s*=\s*['"])([\d\.e\+\-]+)/i) { "#{$1}#{$2.to_f * zoom}" }
@@ -73,7 +73,7 @@ module NSWTopo
         abort("Error: please specify a path to Google Chrome before creating raster output (see README).")
       end
       %x[mogrify +repage -crop #{width}x#{height}+0+0 -units PixelsPerInch -density #{ppi} -background white -alpha Remove -define PNG:exclude-chunk=bkgd "#{png_path}"]
-      MAP.write_world_file Pathname.new("#{png_path}w"), MAP.resolution_at(ppi)
+      CONFIG.map.write_world_file Pathname.new("#{png_path}w"), CONFIG.map.resolution_at(ppi)
     end
   end
 end

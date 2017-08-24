@@ -84,7 +84,7 @@ module NSWTopo
 
     def features
       types_waypoints.map do |type, waypoints|
-        [ 0, MAP.coords_to_mm(MAP.reproject_from_wgs84(waypoints)), type ]
+        [ 0, CONFIG.map.coords_to_mm(CONFIG.map.reproject_from_wgs84(waypoints)), type ]
       end
     end
 
@@ -93,7 +93,7 @@ module NSWTopo
         type == :water
       end.map do |type, waypoints|
         waypoints.map do |waypoint, label|
-          [ 0, [ MAP.reproject_from_wgs84(waypoint) ], label, type ]
+          [ 0, [ CONFIG.map.reproject_from_wgs84(waypoint) ], label, type ]
         end
       end.flatten(1)
     end

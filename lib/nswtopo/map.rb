@@ -1,53 +1,53 @@
 module NSWTopo
   class Map
-    def initialize
-      @name, @scale = CONFIG.values_at "name", "scale"
+    def initialize(config)
+      @name, @scale = config.values_at "name", "scale"
 
       wgs84_points = case
-      when CONFIG["zone"] && CONFIG["eastings"] && CONFIG["northings"]
-        utm = Projection.utm(CONFIG["zone"])
-        utm.reproject_to_wgs84 CONFIG.values_at("eastings", "northings").inject(:product)
-      when CONFIG["longitudes"] && CONFIG["latitudes"]
-        CONFIG.values_at("longitudes", "latitudes").inject(:product)
-      when CONFIG["size"] && CONFIG["zone"] && CONFIG["easting"] && CONFIG["northing"]
-        utm = Projection.utm(CONFIG["zone"])
-        [ utm.reproject_to_wgs84(CONFIG.values_at("easting", "northing")) ]
-      when CONFIG["size"] && CONFIG["longitude"] && CONFIG["latitude"]
-        [ CONFIG.values_at("longitude", "latitude") ]
-      when CONFIG["bounds"]
-        bounds_path = Pathname.new(CONFIG["bounds"]).expand_path
+      when config["zone"] && config["eastings"] && config["northings"]
+        utm = Projection.utm(config["zone"])
+        utm.reproject_to_wgs84 config.values_at("eastings", "northings").inject(:product)
+      when config["longitudes"] && config["latitudes"]
+        config.values_at("longitudes", "latitudes").inject(:product)
+      when config["size"] && config["zone"] && config["easting"] && config["northing"]
+        utm = Projection.utm(config["zone"])
+        [ utm.reproject_to_wgs84(config.values_at("easting", "northing")) ]
+      when config["size"] && config["longitude"] && config["latitude"]
+        [ config.values_at("longitude", "latitude") ]
+      when config["bounds"]
+        bounds_path = Pathname.new(config["bounds"]).expand_path
         gps = GPS.new bounds_path
         polygon = gps.areas.first
-        CONFIG["margin"] = 15 unless (gps.waypoints.none? && gps.tracks.none?) || CONFIG.key?("margin")
+        config["margin"] ||= 15 unless gps.waypoints.none? && gps.tracks.none?
         polygon ? polygon.first : gps.tracks.any? ? gps.tracks.to_a.transpose.first.inject(&:+) : gps.waypoints.to_a.transpose.first
       else
         abort "Error: map extent must be provided as a bounds file, zone/eastings/northings, zone/easting/northing/size, latitudes/longitudes or latitude/longitude/size"
       end
 
       @projection_centre = wgs84_points.transpose.map { |coords| 0.5 * (coords.max + coords.min) }
-      @projection = CONFIG["utm"] ?
-        Projection.utm(CONFIG["zone"] || Projection.utm_zone(@projection_centre, Projection.wgs84)) :
+      @projection = config["utm"] ?
+        Projection.utm(config["zone"] || Projection.utm_zone(@projection_centre, Projection.wgs84)) :
         Projection.transverse_mercator(@projection_centre.first, 1.0)
 
-      @declination = CONFIG["declination"]["angle"] if CONFIG["declination"]
-      CONFIG["rotation"] = -declination if CONFIG["rotation"] == "magnetic"
+      @declination = config["declination"]["angle"] if config["declination"]
+      config["rotation"] = -declination if config["rotation"] == "magnetic"
 
-      if CONFIG["size"]
-        sizes = CONFIG["size"].split(/[x,]/).map(&:to_f)
-        abort "Error: invalid map size: #{CONFIG["size"]}" unless sizes.length == 2 && sizes.all? { |size| size > 0.0 }
+      if config["size"]
+        sizes = config["size"].split(/[x,]/).map(&:to_f)
+        abort "Error: invalid map size: #{config["size"]}" unless sizes.length == 2 && sizes.all? { |size| size > 0.0 }
         @extents = sizes.map { |size| size * 0.001 * scale }
-        @rotation = CONFIG["rotation"]
+        @rotation = config["rotation"]
         abort "Error: cannot specify map size and auto-rotation together" if @rotation == "auto"
         abort "Error: map rotation must be between +/-45 degrees" unless @rotation.abs <= 45
         @centre = reproject_from_wgs84 @projection_centre
       else
         puts "Calculating map bounds..."
         bounding_points = reproject_from_wgs84 wgs84_points
-        if CONFIG["rotation"] == "auto"
+        if config["rotation"] == "auto"
           @centre, @extents, @rotation = bounding_points.minimum_bounding_box
           @rotation *= 180.0 / Math::PI
         else
-          @rotation = CONFIG["rotation"]
+          @rotation = config["rotation"]
           abort "Error: map rotation must be between -45 and +45 degrees" unless rotation.abs <= 45
           @centre, @extents = bounding_points.map do |point|
             point.rotate_by_degrees(-rotation)
@@ -58,7 +58,7 @@ module NSWTopo
           end.transpose
           @centre.rotate_by_degrees!(rotation)
         end
-        margins = [ *CONFIG["margin"], *CONFIG["margin"] ].take(2)
+        margins = [ *config["margin"], *config["margin"] ].take(2)
         @extents = @extents.zip(margins).map do |extent, margin|
           extent + 2 * margin * 0.001 * @scale
         end if margins.any?

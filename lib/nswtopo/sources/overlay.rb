@@ -13,7 +13,7 @@ module NSWTopo
       gps = GPS.new(path)
       [ [ :waypoints, 0 ], [ :tracks, 1 ], [ :areas, 2 ] ].map do |type, dimension|
         gps.send(type).map do |coords, name|
-          point_or_line = MAP.coords_to_mm MAP.reproject_from_wgs84(coords)
+          point_or_line = CONFIG.map.coords_to_mm CONFIG.map.reproject_from_wgs84(coords)
           [ dimension, [ point_or_line ], name ]
         end
       end.flatten(1)

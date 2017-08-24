@@ -34,11 +34,11 @@ module NSWTopo
     attr_reader :font_size, :grid_interval, :label_spacing, :label_offset, :label_inset
 
     def grids
-      Projection.utm_zone(MAP.bounds.inject(&:product), MAP.projection).inject do |range, zone|
+      Projection.utm_zone(CONFIG.map.bounds.inject(&:product), CONFIG.map.projection).inject do |range, zone|
         [ *range, zone ].min .. [ *range, zone ].max
       end.map do |zone|
         utm = Projection.utm(zone)
-        eastings, northings = MAP.transform_bounds_to(utm).map do |bound|
+        eastings, northings = CONFIG.map.transform_bounds_to(utm).map do |bound|
           (bound[0] / grid_interval).floor .. (bound[1] / grid_interval).ceil
         end.map do |counts|
           counts.map { |count| count * grid_interval }
@@ -60,8 +60,8 @@ module NSWTopo
         end
         [ eastings, northings, [ northings.map(&:first) ] ].map do |lines|
           lines.map do |line|
-            MAP.coords_to_mm MAP.reproject_from_wgs84(line)
-          end.clip_lines(MAP.mm_corners)
+            CONFIG.map.coords_to_mm CONFIG.map.reproject_from_wgs84(line)
+          end.clip_lines(CONFIG.map.mm_corners)
         end
       end.transpose.map do |lines|
         lines.inject([], &:+)
@@ -77,7 +77,7 @@ module NSWTopo
             line[0][index] % label_interval == 0
           end.map do |line|
             offset_line = line.map(&:dup).each do |coords|
-              coords[index] += 0.001 * label_offset * MAP.scale
+              coords[index] += 0.001 * label_offset * CONFIG.map.scale
             end
             [ line[0][index], offset_line ]
           end.to_h
@@ -107,22 +107,22 @@ module NSWTopo
     end
 
     def edge_labels
-      edge_inset = label_inset + font_size * 0.5 * Math::sin(MAP.rotation.abs * Math::PI / 180)
-      corners = MAP.coord_corners(-edge_inset)
+      edge_inset = label_inset + font_size * 0.5 * Math::sin(CONFIG.map.rotation.abs * Math::PI / 180)
+      corners = CONFIG.map.coord_corners(-edge_inset)
       label_grids(grid_interval).map do |zone, utm, *lines|
         corners.zip(corners.perps).map.with_index do |(corner, perp), index|
           outgoing = index < 2
           lines[index % 2].map do |coord, line|
-            segment = MAP.reproject_from(utm, line).segments.find do |points|
+            segment = CONFIG.map.reproject_from(utm, line).segments.find do |points|
               points.one? { |point| point.minus(corner).dot(perp) < 0.0 }
             end
             segment[outgoing ? 1 : 0] = segment.along(corner.minus(segment[0]).dot(perp) / segment.difference.dot(perp)) if segment
             [ coord, segment ]
           end.select(&:last).select do |coord, segment|
-            corners.surrounds?(segment).any? && Projection.in_zone?(zone, segment[outgoing ? 1 : 0], MAP.projection)
+            corners.surrounds?(segment).any? && Projection.in_zone?(zone, segment[outgoing ? 1 : 0], CONFIG.map.projection)
           end.map do |coord, segment|
             length, text_path = label(coord, grid_interval)
-            segment_length = 1000.0 * segment.distance / MAP.scale
+            segment_length = 1000.0 * segment.distance / CONFIG.map.scale
             fraction = length / segment_length
             fractions = outgoing ? [ 1.0 - fraction, 1.0 ] : [ 0.0, fraction ]
             baseline = fractions.map { |fraction| segment.along fraction }
@@ -142,10 +142,10 @@ module NSWTopo
             end.select do |segment|
               Projection.in_zone?(zone, segment, utm).all?
             end.map do |segment|
-              MAP.reproject_from utm, segment
+              CONFIG.map.reproject_from utm, segment
             end.map do |segment|
               length, text_path = label(coord, label_interval)
-              segment_length = 1000.0 * segment.distance / MAP.scale
+              segment_length = 1000.0 * segment.distance / CONFIG.map.scale
               fraction = length / segment_length
               baseline = [ segment.along(0.5 * (1 - fraction)), segment.along(0.5 * (1 + fraction)) ]
               [ 1, [ baseline ], text_path, index.zero? ? "eastings" : "northings" ]

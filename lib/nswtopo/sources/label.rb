@@ -77,10 +77,10 @@ module NSWTopo
           end
           data = case dimension
           when 0
-            MAP.coords_to_mm data
+            CONFIG.map.coords_to_mm data
           when 1, 2
             data.map do |coords|
-              MAP.coords_to_mm coords
+              CONFIG.map.coords_to_mm coords
             end
           end
           transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (arg, *args))|
@@ -212,7 +212,7 @@ module NSWTopo
     end
 
     def features
-      labelling_hull, debug_features = MAP.mm_corners(-1), []
+      labelling_hull, debug_features = CONFIG.map.mm_corners(-1), []
       fence_segments = fences.map.with_index do |(dimension, feature, buffer), index|
         case dimension
         when 0 then feature.map { |point| [ point ] }
@@ -254,7 +254,7 @@ module NSWTopo
                 centre + d * f * margin
               end
               text_attributes = {
-                "transform" => "translate(#{x} #{y}) rotate(#{-MAP.rotation})",
+                "transform" => "translate(#{x} #{y}) rotate(#{-CONFIG.map.rotation})",
                 "text-anchor" => dx > 0 ? "start" : dx < 0 ? "end" : "middle",
               }
               text_elements = lines.map.with_index do |(line, text_length), index|
@@ -270,7 +270,7 @@ module NSWTopo
               hull = [ [ dx, width ], [ dy, height ] ].map do |d, l|
                 [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
-                corner.rotate_by_degrees(-MAP.rotation).plus(data)
+                corner.rotate_by_degrees(-CONFIG.map.rotation).plus(data)
               end
               next unless labelling_hull.surrounds?(hull).all?
               fence_count = fence_index.search(hull.transpose.map(&:minmax)).inject(Set[]) do |indices, (fence, (buffer, index))|
@@ -376,7 +376,7 @@ module NSWTopo
               case orientation
               when "uphill"
               when "downhill" then baseline.reverse!
-              else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(MAP.rotation).first > 0
+              else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(CONFIG.map.rotation).first > 0
               end
               hull = [ baseline, baseline.reverse ].map do |line|
                 [ line ].inset(0.5 * font_size, "splits" => false)

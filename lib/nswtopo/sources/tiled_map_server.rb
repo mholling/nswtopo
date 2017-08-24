@@ -9,7 +9,7 @@ module NSWTopo
 
       cropped_tile_sizes = [ tile_sizes, crops ].transpose.map { |tile_size, crop| tile_size - crop.inject(:+) }
       projection = Projection.new(params["projection"])
-      bounds = MAP.transform_bounds_to(projection)
+      bounds = CONFIG.map.transform_bounds_to(projection)
       extents = bounds.map { |bound| bound.max - bound.min }
       origins = bounds.transpose.first
 
@@ -73,13 +73,13 @@ module NSWTopo
         %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"] unless path_list.empty?
       end
 
-      density = 0.01 * MAP.scale / resolution
+      density = 0.01 * CONFIG.map.scale / resolution
       %x[convert -size #{dimensions.join ?x} -units PixelsPerCentimeter -density #{density} canvas:black -type TrueColor -depth 8 "#{tif_path}"]
       if vrt_path.exist?
-        MAP.write_world_file tfw_path, resolution
+        CONFIG.map.write_world_file tfw_path, resolution
         resample = params["resample"] || "cubic"
         projection = Projection.new(params["projection"])
-        %x[gdalwarp -s_srs "#{projection}" -t_srs "#{MAP.projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
+        %x[gdalwarp -s_srs "#{projection}" -t_srs "#{CONFIG.map.projection}" -r #{resample} "#{vrt_path}" "#{tif_path}"]
       end
 
       temp_dir.join(path.basename).tap do |raster_path|

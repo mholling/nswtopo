@@ -184,7 +184,7 @@ module NSWTopo
         end || removals.any? do |name|
           xml.elements["/svg/g[@id='labels#{SEGMENT}#{name}']"]
         end then
-          label_source = LabelSource.new
+          label_source = LabelSource.new unless CONFIG["no-labels"]
         end
 
         CONFIG["exclude"].map do |name|

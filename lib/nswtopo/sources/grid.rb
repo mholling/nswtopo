@@ -103,6 +103,7 @@ module NSWTopo
       length = parts.map do |text, percent|
         [ @font.glyph_length(?\s, "font-size" => font_size), @font.glyph_length(text, "font-size" => font_size * percent / 100.0) ]
       end.flatten.drop(1).inject(&:+)
+      text_path.add_attribute "textLength", length
       [ length, text_path ]
     end
 

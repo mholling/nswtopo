@@ -258,7 +258,7 @@ module NSWTopo
                 "text-anchor" => dx > 0 ? "start" : dx < 0 ? "end" : "middle",
               }
               text_elements = lines.map.with_index do |(line, text_length), index|
-                y = (lines.one? ? 0 : dy == 0 ? index - 0.5 : index * dy) * line_height
+                y = (lines.one? ? 0 : dy == 0 ? index - 0.5 : index + 0.5 * (dy - 1)) * line_height
                 y += (CENTRELINE_FRACTION + 0.5 * dy) * font_size
                 REXML::Element.new("text").tap do |text|
                   text.add_attributes text_attributes

@@ -402,7 +402,11 @@ module StraightSkeleton
         nodes.map do |node|
           node.project(travel).to_f
         end
-      end
+      end.map do |points|
+        points.segments.reject do |segment|
+          segment.inject(&:==)
+        end.map(&:last).unshift(points.first)
+      end.reject(&:one?)
     end
 
     def index(node)

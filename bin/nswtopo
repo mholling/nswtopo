@@ -31,5 +31,8 @@ rescue Interrupt
 ensure
   duration = Time.now - start
   minutes, seconds = (duration / 60).floor, (duration % 60).floor
-  puts "Program completed in %s." % [ ("#{minutes} minute#{?s unless 1 == minutes}" unless 0 == minutes), ("#{seconds} second#{?s unless 1 == seconds}" unless 0 == seconds) ].compact.join(", ")
+  parts = []
+  parts << "#{minutes} minute#{?s unless 1 == minutes}" unless 0 == minutes
+  parts << "#{seconds} second#{?s unless 1 == seconds}" unless 0 == seconds
+  puts "Program completed in %s." % parts.join(", ") if parts.any?
 end

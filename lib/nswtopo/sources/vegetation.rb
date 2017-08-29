@@ -4,6 +4,7 @@ module NSWTopo
 
     def initialize(name, params)
       super name, { "embed" => true }.merge(params)
+      @sourcedir = params["sourcedir"]
     end
 
     def get_raster(temp_dir)
@@ -16,8 +17,10 @@ module NSWTopo
       %x[convert -size #{dimensions.join ?x} canvas:white -type Grayscale -depth 8 "#{tif_path}"]
 
       [ *params["path"] ].map do |path|
+        Pathname.new(path).expand_path(@sourcedir)
+      end.map do |path|
         Pathname.glob path
-      end.inject([], &:+).map(&:expand_path).tap do |paths|
+      end.inject([], &:+).tap do |paths|
         raise BadLayerError.new("no vegetation data file specified") if paths.empty?
       end.group_by do |path|
         %x[gdalsrsinfo -o proj4 "#{path}"]

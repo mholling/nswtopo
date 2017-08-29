@@ -72,19 +72,19 @@ module NSWTopo
         path = Pathname.new(name_or_path).expand_path
         [ path.basename(path.extname).to_s, OverlaySource, params.merge("path" => path) ]
       when /\.yml$/i
-        path = Pathname.new(name_or_path)
+        path = Pathname.new(name_or_path).expand_path
+        abort "Error: couldn't find source for '#{name_or_path}'" unless path.exist?
         params = YAML.load(path.read).merge(params) rescue nil
-        abort "Error: couldn't find source for '#{name_or_path}'" unless params
-        [ path.basename(path.extname).to_s, NSWTopo.const_get(params.delete "class"), params ]
+        abort "Error: couldn't process source for '#{name_or_path}'" unless params
+        [ path.basename(path.extname).to_s, NSWTopo.const_get(params.delete "class"), params.merge("sourcedir" => path.parent) ]
       else
-        yaml = [ Pathname.pwd, Pathname.new(__dir__).parent + "sources" ].map do |root|
+        path = [ Pathname.pwd, Pathname.new(__dir__).parent + "sources" ].map do |root|
           root + "#{name_or_path}.yml"
-        end.inject(nil) do |memo, path|
-          memo ||= path.read rescue nil
-        end
-        abort "Error: couldn't find source for '#{name_or_path}'" unless yaml
-        params = YAML.load(yaml).merge(params)
-        [ name_or_path.gsub(?/, SEGMENT), NSWTopo.const_get(params.delete "class"), params ]
+        end.find(&:exist?)
+        abort "Error: couldn't find source for '#{name_or_path}'" unless path
+        params = YAML.load(path.read).merge(params) rescue nil
+        abort "Error: couldn't process source for '#{name_or_path}'" unless params
+        [ name_or_path.gsub(?/, SEGMENT), NSWTopo.const_get(params.delete "class"), params.merge("sourcedir" => path.parent) ]
       end
     end
 

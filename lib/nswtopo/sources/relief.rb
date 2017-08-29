@@ -17,6 +17,7 @@ module NSWTopo
 
     def initialize(name, params)
       super name, YAML.load(PARAMS).merge(params)
+      @sourcedir = params["sourcedir"]
     end
 
     def get_raster(temp_dir)
@@ -32,8 +33,10 @@ module NSWTopo
         vrt_path = temp_dir + "dem.vrt"
 
         paths = [ *params["path"] ].map do |path|
+          Pathname.new(path).expand_path(@sourcedir)
+        end.map do |path|
           Pathname.glob path
-        end.inject([], &:+).map(&:expand_path).tap do |paths|
+        end.inject([], &:+).tap do |paths|
           raise BadLayerError.new("no dem data files at specified path") if paths.empty?
         end
         src_path.write paths.join(?\n)
@@ -72,6 +75,7 @@ module NSWTopo
               pipe.write features.to_json
             end
           else
+            dataset = Pathname.new(dataset).expand_path(@sourcedir)
             %x[ogr2ogr -spat #{spat} -spat_srs "#{CONFIG.map.projection}" -t_srs "#{CONFIG.map.projection}" -nln #{layer} "#{shp_path}" "#{dataset}" #{DISCARD_STDERR}]
           end
           sql = case layer

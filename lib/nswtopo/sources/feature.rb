@@ -6,11 +6,12 @@ module NSWTopo
     def initialize(name, params)
       @name, @params = name, params
       @path = Pathname.pwd + "#{name}.json"
+      @sourcedir = params["sourcedir"]
     end
 
     def shapefile_features(source, options)
       Enumerator.new do |yielder|
-        shape_path = Pathname.new source["path"]
+        shape_path = Pathname.new(source["path"]).expand_path(@sourcedir)
         layer = options["name"]
         sql   = %Q[-sql "%s"] % options["sql"] if options["sql"]
         where = %Q[-where "%s"] % [ *options["where"] ].map { |clause| "(#{clause})" }.join(" AND ") if options["where"]

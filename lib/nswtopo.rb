@@ -295,7 +295,7 @@ module NSWTopo
             when "png"
               FileUtils.cp png_path, output_path
             when "tif"
-              %x[gdal_translate -a_srs "#{CONFIG.map.projection}" -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co ZLEVEL=9 -co TILED=YES -mo TIFFTAG_RESOLUTIONUNIT=2 -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" -mo TIFFTAG_SOFTWARE=nswtopo -mo "TIFFTAG_DOCUMENTNAME=#{CONFIG.map.name}" "#{png_path}" "#{output_path}"]
+              %x[gdal_translate -a_srs "#{CONFIG.map.projection}" -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co ZLEVEL=9 -co TILED=YES -mo TIFFTAG_RESOLUTIONUNIT=2 -mo "TIFFTAG_XRESOLUTION=#{ppi}" -mo "TIFFTAG_YRESOLUTION=#{ppi}" -mo TIFFTAG_SOFTWARE=nswtopo -mo "TIFFTAG_DOCUMENTNAME=#{CONFIG.map.name}" "#{png_path}" "#{output_path}" #{DISCARD_STDERR}]
             when "gif", "jpg"
               %x[convert "#{png_path}" "#{output_path}"]
             when "kmz"
@@ -307,7 +307,7 @@ module NSWTopo
             when "psd"
               PSD.build ppi, svg_path, png_path, temp_dir, output_path
             when "pdf"
-              ppi ? %x[convert "#{png_path}" "#{output_path}"] : PDF.build(svg_path, temp_dir, output_path)
+              PDF.build ppi, ppi ? png_path : svg_path, temp_dir, output_path
             when "pgw", "tfw", "gfw", "jgw"
               CONFIG.map.write_world_file output_path, CONFIG.map.resolution_at(ppi)
             when "map"

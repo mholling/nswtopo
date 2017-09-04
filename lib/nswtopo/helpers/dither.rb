@@ -3,7 +3,7 @@ module NSWTopo
     def dither(*png_paths)
       case
       when pngquant = CONFIG["pngquant"]
-        %x["#{pngquant}" --quiet --force --ext .png "#{png_paths.join '" "'}"]
+        %x["#{pngquant}" --quiet --force --ext .png --speed 1 --nofs "#{png_paths.join '" "'}"]
       when gimp = CONFIG["gimp"]
         script = %Q[
           (map

@@ -133,7 +133,7 @@ def show_shapefile(*args, values, where)
   end
   where = %Q[WHERE #{where}] if where
   attribute_list = attributes.join ?,
-  sql = %Q[SELECT #{attribute_list}, COUNT(*) AS count FROM #{layer} #{where} GROUP BY #{attribute_list} ORDER BY #{attribute_list}]
+  sql = %Q[SELECT #{attribute_list}, COUNT(*) AS count FROM '#{layer}' #{where} GROUP BY #{attribute_list} ORDER BY #{attribute_list}]
   json = %x[ogr2ogr -f GeoJSON -dialect sqlite -sql "#{sql}" /vsistdout/ "#{path}"]
   rows = JSON.parse(json)["features"].map do |feature|
     OpenStruct.new feature["properties"]

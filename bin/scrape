@@ -42,7 +42,9 @@ rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser:
 end
 
 begin
-  options.name ||= get_json(options.url).fetch("name").gsub(/[^\w]+/, ?_)
+  layer = get_json(options.url)
+  options.name ||= layer.fetch("name").gsub(/[^\w]+/, ?_)
+  options.paginate ||= layer.fetch("maxRecordCount", 1000)
   error, object_ids = get_json(options.url, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
   raise ServerError, "%s (%s)" % error.values_at("message", "code") if error
   raise ServerError, "no results returned" unless object_ids

@@ -1,0 +1,83 @@
+#!/usr/bin/env ruby
+
+require 'uri'
+require 'json'
+require 'ostruct'
+require 'optparse'
+
+FORMATS = %w[shp tab gpkg sqlite]
+ServerError = Class.new StandardError
+
+def get_json(url, path = nil, query = {})
+  query = query.merge(f: "json").map do |key, value|
+    "#{key}=#{URI.escape value.to_s}"
+  end.join(?&)
+  url = url + "#{path}?#{query}"
+  JSON.parse %x[curl -s "#{url}"]
+end
+
+options = OpenStruct.new(format: "shp", where: "OBJECTID IS NOT NULL", paginate: 1000, fields: ?*, epsg: 4326)
+begin
+  opts = OptionParser.new("Scrape data from an ArcGIS REST endpoint.\nUsage: scrape [options] url path") do |opts|
+    opts.on "-n", "--name     NAME", /^\w+$/, "name of saved dataset"
+    opts.on "-f", "--format   FORMAT", FORMATS, "output file format [#{FORMATS.join ?|}]"
+    opts.on "-w", "--where    WHERE", "filtering clause"
+    opts.on "-p", "--paginate PAGINATE", Integer, "number of records per request"
+    opts.on       "--fields   FIELDS", "comma-separated list of fields"
+    opts.on "-e", "--epsg     EPSG", "EPSG number for saved dataset"
+    opts.on "-a", "--append", "append to existing data"
+  end
+  opts.order!(into: options) do |arg|
+    case
+    when !options.url then options.url = URI.parse(/^https?:\/\// === arg ? arg : "http://#{arg}")
+    when !options.path then options.path = arg
+    else raise OptionParser::InvalidArgument.new(arg)
+    end
+  end
+  abort opts.to_s unless options.url && options.path
+rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => e
+  abort e.message
+end
+
+begin
+  options.name ||= get_json(options.url).fetch("name").gsub!(/[^\w]+/, ?_)
+  error, object_ids = get_json(options.url, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
+  raise ServerError, "%s (%s)" % error.values_at("message", "code") if error
+  count, total, data = 0, object_ids.length, nil
+  progress = "\rretrieving %s: %6.2f%% of #{total} features"
+  $stdout << progress % [ options.name, 0.0 ]
+  while object_ids.any?
+    begin
+      ids = object_ids.take options.paginate
+      page = get_json(options.url, "query", objectIds: ids.join(?,), outSR: options.epsg, outFields: options.fields)
+      raise ServerError, "%s (%s)" % page["error"].values_at("message", "code") if page["error"]
+    rescue ServerError => error
+      raise error unless page["error"]["code"] == 500
+      options.paginate > 1 ? options.paginate /= 2 : sleep(10)
+      $stderr.puts "\nWARNING: retrying at #{options.paginate} features per request"
+      retry
+    end
+    count += object_ids.shift(options.paginate).length
+    $stdout << progress % [ options.name, 100.0 * count / total ]
+    data ? data["features"] += page["features"] : data = page
+  end
+  $stdout.puts
+  update = options.append ? "-update -append" : "-update -overwrite"
+  format = case options.format
+  when "shp"    then %Q[-f "ESRI Shapefile"]
+  when "tab"    then %Q[-f "MapInfo File"]
+  when "gpkg"   then %Q[-f GPKG]
+  when "sqlite" then %Q[-f SQLite]
+  end
+  IO.popen %Q[ogr2ogr -skipfailures #{format} -nln #{options.name} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
+    pipe.write data.to_json
+  end
+  exit $?.exitstatus
+rescue JSON::ParserError => error
+  message =  $?.success? ? "JSON: #{error.message}" : "curl failed with #{options.url}"
+  abort "\nERROR: #{message}"
+rescue ServerError => error
+  abort "\nERROR: #{error.message}"
+rescue Interrupt
+  abort "\nInterrupted."
+end

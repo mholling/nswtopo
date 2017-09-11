@@ -45,6 +45,7 @@ begin
   options.name ||= get_json(options.url).fetch("name").gsub(/[^\w]+/, ?_)
   error, object_ids = get_json(options.url, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
   raise ServerError, "%s (%s)" % error.values_at("message", "code") if error
+  raise ServerError, "no results returned" unless object_ids
   count, total, data = 0, object_ids.length, nil
   progress = "\rretrieving %s: %6.2f%% of #{total} features"
   $stdout << progress % [ options.name, 0.0 ]

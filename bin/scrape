@@ -29,7 +29,9 @@ begin
   end
   opts.order!(into: options) do |arg|
     case
-    when !options.url then options.url = URI.parse(/^https?:\/\// === arg ? arg : "http://#{arg}")
+    when !options.url
+      options.url = (/^https?:\/\// === arg ? arg : "http://#{arg}").chomp(?/)
+      raise OptionParser::InvalidArgument.new(arg) unless /.*\/(MapServer|FeatureServer)\/\d+$/ === options.url
     when !options.path then options.path = arg
     else raise OptionParser::InvalidArgument.new(arg)
     end
@@ -51,6 +53,7 @@ begin
       ids = object_ids.take options.paginate
       page = get_json(options.url, "query", objectIds: ids.join(?,), outSR: options.epsg, outFields: options.fields)
       raise ServerError, "%s (%s)" % page["error"].values_at("message", "code") if page["error"]
+      page["spatialReference"]["wkid"] = page["spatialReference"]["latestWkid"] if page["spatialReference"]["latestWkid"]
     rescue ServerError => error
       raise error unless page["error"]["code"] == 500
       options.paginate > 1 ? options.paginate /= 2 : sleep(10)

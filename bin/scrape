@@ -40,7 +40,7 @@ rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser:
 end
 
 begin
-  options.name ||= get_json(options.url).fetch("name").gsub!(/[^\w]+/, ?_)
+  options.name ||= get_json(options.url).fetch("name").gsub(/[^\w]+/, ?_)
   error, object_ids = get_json(options.url, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
   raise ServerError, "%s (%s)" % error.values_at("message", "code") if error
   count, total, data = 0, object_ids.length, nil

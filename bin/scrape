@@ -12,8 +12,8 @@ def get_json(url, path = nil, query = {})
   query = query.merge(f: "json").map do |key, value|
     "#{key}=#{URI.escape value.to_s}"
   end.join(?&)
-  url = url + "#{path}?#{query}"
-  JSON.parse %x[curl -s "#{url}"]
+  url = path ? "#{url}/#{path}?#{query}" : "#{url}?#{query}"
+  JSON.parse %x[curl -A "Ruby/#{RUBY_VERSION}" -s "#{url}"]
 end
 
 options = OpenStruct.new(format: "shp", where: "OBJECTID IS NOT NULL", paginate: 1000, fields: ?*, epsg: 4326)

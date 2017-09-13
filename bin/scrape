@@ -8,12 +8,15 @@ require 'optparse'
 FORMATS = %w[shp tab gpkg sqlite]
 ServerError = Class.new StandardError
 
-def get_json(url, path = nil, query = {})
+def get_json(options, path = nil, query = {})
   query = query.merge(f: "json").map do |key, value|
     "#{key}=#{URI.escape value.to_s}"
   end.join(?&)
-  url = "#{url}/#{path}" if path
-  JSON.parse %x[curl -A "Ruby/#{RUBY_VERSION}" -e "#{url}" -s "#{url}?#{query}"]
+  url = [ options.url, path ].compact.join ?/
+  user = %Q[-u "#{options.user}"] if options.user
+  agent = %Q[-A "Ruby/#{RUBY_VERSION}"]
+  referer = %Q[-e "#{url}"]
+  JSON.parse %x[curl #{user} #{agent} #{referer} -s --netrc-optional "#{url}?#{query}"]
 end
 
 options = OpenStruct.new(format: "shp", where: "OBJECTID IS NOT NULL", paginate: 1000, fields: ?*, epsg: 4326)
@@ -26,6 +29,7 @@ begin
     opts.on       "--fields   FIELDS", "comma-separated list of fields"
     opts.on "-e", "--epsg     EPSG", "EPSG number for saved dataset"
     opts.on "-a", "--append", "append to existing data"
+    opts.on "-u", "--user     USER:PASSWORD", "username and password for authentication"
   end
   opts.order!(into: options) do |arg|
     case
@@ -42,10 +46,10 @@ rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser:
 end
 
 begin
-  layer = get_json(options.url)
+  layer = get_json(options)
   options.name ||= layer.fetch("name").gsub(/[^\w]+/, ?_)
   options.paginate ||= layer.fetch("maxRecordCount", 1000)
-  error, object_ids = get_json(options.url, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
+  error, object_ids = get_json(options, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
   raise ServerError, "%s (%s)" % error.values_at("message", "code") if error
   raise ServerError, "no results returned" unless object_ids
   count, total, data = 0, object_ids.length, nil
@@ -54,7 +58,7 @@ begin
   while object_ids.any?
     begin
       ids = object_ids.take options.paginate
-      page = get_json(options.url, "query", objectIds: ids.join(?,), outSR: options.epsg, outFields: options.fields)
+      page = get_json(options, "query", objectIds: ids.join(?,), outSR: options.epsg, outFields: options.fields)
       raise ServerError, "%s (%s)" % page["error"].values_at("message", "code") if page["error"]
       page["spatialReference"]["wkid"] = page["spatialReference"]["latestWkid"] if page["spatialReference"]["latestWkid"]
     rescue ServerError => error

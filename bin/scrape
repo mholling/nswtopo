@@ -19,7 +19,7 @@ def get_json(options, path = nil, query = {})
   JSON.parse %x[curl #{user} #{agent} #{referer} -s --netrc-optional "#{url}?#{query}"]
 end
 
-options = OpenStruct.new(format: "shp", where: "OBJECTID IS NOT NULL", paginate: 1000, fields: ?*, epsg: 4326)
+options = OpenStruct.new(format: "shp", fields: ?*, epsg: 4326)
 begin
   opts = OptionParser.new("Scrape data from an ArcGIS REST endpoint.\nUsage: scrape [options] url path") do |opts|
     opts.on "-n", "--name     NAME", /^\w+$/, "name of saved dataset"
@@ -47,7 +47,10 @@ end
 
 begin
   layer = get_json(options)
-  options.name ||= layer.fetch("name").gsub(/[^\w]+/, ?_)
+  options.name ||= layer["name"].gsub(/[^\w]+/, ?_)
+  options.where ||= layer["fields"].find do |field|
+    "esriFieldTypeOID" == field["type"]
+  end.fetch("name") + " IS NOT NULL"
   options.paginate ||= layer.fetch("maxRecordCount", 1000)
   error, object_ids = get_json(options, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
   raise ServerError, "%s (%s)" % error.values_at("message", "code") if error

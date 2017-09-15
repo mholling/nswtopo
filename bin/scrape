@@ -17,7 +17,7 @@ def get_json(options, path = nil, query = {})
   user = %Q[-u "#{options.user}"] if options.user
   agent = %Q[-A "Ruby/#{RUBY_VERSION}"]
   referer = %Q[-e "#{url}"]
-  json = %x[curl #{user} #{agent} #{referer} -s --netrc-optional "#{url}?#{query}"]
+  json = %x[curl #{user} #{agent} #{referer} -s --netrc-optional --compressed "#{url}?#{query}"]
   raise EmptyError if json.empty? && $?.success?
   JSON.parse json
 end

@@ -43,7 +43,7 @@ def show_arcgis(url, *args, dynamic, where, referer)
       response["layers"].map do |layer|
         layer.values_at *%w[id parentLayerId name]
       end.each do |id, parent, name|
-        indent[id] = parent == -1 ? 0 : 2 + indent[parent]
+        indent[id] = !parent ? 0 : parent == -1 ? 0 : 2 + indent[parent]
       end.each do |id, parent, name|
         puts "%4d:#{?\s * indent[id]} %s" % [ id, name ]
       end

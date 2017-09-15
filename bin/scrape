@@ -7,7 +7,6 @@ require 'optparse'
 
 FORMATS = %w[shp tab gpkg sqlite]
 ServerError = Class.new StandardError
-ServerError500 = Class.new StandardError
 EmptyError = Class.new StandardError
 
 def get_json(options, path = nil, query = {})
@@ -23,7 +22,7 @@ def get_json(options, path = nil, query = {})
   JSON.parse json
 end
 
-options = OpenStruct.new(format: "shp", fields: ?*, epsg: 4326)
+options = OpenStruct.new(format: "shp", fields: ?*, epsg: 4326, tries: 5)
 begin
   opts = OptionParser.new("Scrape data from an ArcGIS REST endpoint.\nUsage: scrape [options] url path") do |opts|
     opts.on "-n", "--name     NAME", /^\w+$/, "name of saved dataset"
@@ -34,6 +33,7 @@ begin
     opts.on "-e", "--epsg     EPSG", "EPSG number for saved dataset"
     opts.on "-a", "--append", "append to existing data"
     opts.on "-u", "--user     USER:PASSWORD", "username and password for authentication"
+    opts.on "-t", "--tries    TRIES", "number of tries before reducing request size"
   end
   opts.order!(into: options) do |arg|
     case
@@ -63,17 +63,22 @@ begin
   progress = "\rretrieving %s: %6.2f%% of #{total} features"
   $stdout << progress % [ options.name, 0.0 ]
   while object_ids.any?
-    begin
-      ids = object_ids.take options.paginate
-      page = get_json(options, "query", objectIds: ids.join(?,), outSR: options.epsg, outFields: options.fields)
-      raise ServerError500 if page.dig("error", "code") == 500
-      raise ServerError, "%s (%s)" % page["error"].values_at("message", "code") if page["error"]
-      page["spatialReference"]["wkid"] = page["spatialReference"]["latestWkid"] if page["spatialReference"]["latestWkid"]
-    rescue ServerError500, EmptyError
+    ids = object_ids.take options.paginate
+    page = options.tries.times do
+      page = begin
+        get_json(options, "query", objectIds: ids.join(?,), outSR: options.epsg, outFields: options.fields)
+      rescue EmptyError
+        next
+      end
+      break page unless page.dig("error", "code") == 500
+    end
+    unless page
       options.paginate > 1 ? options.paginate /= 2 : sleep(10)
       $stderr.puts "\nWARNING: retrying at #{options.paginate} features per request"
-      retry
+      next
     end
+    raise ServerError, "%s (%s)" % page["error"].values_at("message", "code") if page["error"]
+    page["spatialReference"]["wkid"] = page["spatialReference"]["latestWkid"] if page["spatialReference"]["latestWkid"]
     count += object_ids.shift(options.paginate).length
     $stdout << progress % [ options.name, 100.0 * count / total ]
     data ? data["features"] += page["features"] : data = page

@@ -7,6 +7,8 @@ require 'optparse'
 
 FORMATS = %w[shp tab gpkg sqlite]
 ServerError = Class.new StandardError
+ServerError500 = Class.new StandardError
+EmptyError = Class.new StandardError
 
 def get_json(options, path = nil, query = {})
   query = query.merge(f: "json").map do |key, value|
@@ -16,7 +18,9 @@ def get_json(options, path = nil, query = {})
   user = %Q[-u "#{options.user}"] if options.user
   agent = %Q[-A "Ruby/#{RUBY_VERSION}"]
   referer = %Q[-e "#{url}"]
-  JSON.parse %x[curl #{user} #{agent} #{referer} -s --netrc-optional "#{url}?#{query}"]
+  json = %x[curl #{user} #{agent} #{referer} -s --netrc-optional "#{url}?#{query}"]
+  raise EmptyError if json.empty? && $?.success?
+  JSON.parse json
 end
 
 options = OpenStruct.new(format: "shp", fields: ?*, epsg: 4326)
@@ -62,10 +66,10 @@ begin
     begin
       ids = object_ids.take options.paginate
       page = get_json(options, "query", objectIds: ids.join(?,), outSR: options.epsg, outFields: options.fields)
+      raise ServerError500 if page.dig("error", "code") == 500
       raise ServerError, "%s (%s)" % page["error"].values_at("message", "code") if page["error"]
       page["spatialReference"]["wkid"] = page["spatialReference"]["latestWkid"] if page["spatialReference"]["latestWkid"]
-    rescue ServerError => error
-      raise error unless page["error"]["code"] == 500
+    rescue ServerError500, EmptyError
       options.paginate > 1 ? options.paginate /= 2 : sleep(10)
       $stderr.puts "\nWARNING: retrying at #{options.paginate} features per request"
       retry
@@ -91,6 +95,8 @@ rescue JSON::ParserError => error
   abort "\nERROR: #{message}"
 rescue ServerError => error
   abort "\nERROR: #{error.message}"
+rescue EmptyError
+  abort "\NERROR: empty response"
 rescue Interrupt
   abort "\nInterrupted."
 end

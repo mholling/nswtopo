@@ -14,10 +14,17 @@ def get_json(options, path = nil, query = {})
     "#{key}=#{URI.escape value.to_s}"
   end.join(?&)
   url = [ options.url, path ].compact.join ?/
-  user = %Q[-u "#{options.user}"] if options.user
-  agent = %Q[-A "Ruby/#{RUBY_VERSION}"]
-  referer = %Q[-e "#{url}"]
-  json = %x[curl #{user} #{agent} #{referer} -s --netrc-optional --compressed "#{url}?#{query}"]
+  json = IO.popen %Q[curl --config -], "r+" do |pipe|
+    pipe.puts %Q[--user "#{options.user}"] if options.user
+    pipe.puts %Q[--user-agent "Ruby/#{RUBY_VERSION}"]
+    pipe.puts %Q[--referer "#{url}"]
+    pipe.puts %Q[--silent]
+    pipe.puts %Q[--netrc-optional]
+    pipe.puts %Q[--compressed]
+    pipe.puts %Q[--url "#{url}?#{query}"]
+    pipe.close_write
+    pipe.read
+  end
   raise EmptyError if json.empty? && $?.success?
   JSON.parse json
 end
@@ -63,14 +70,14 @@ begin
   progress = "\rretrieving %s: %6.2f%% of #{total} features"
   $stdout << progress % [ options.name, 0.0 ]
   while object_ids.any?
-    ids = object_ids.take options.paginate
-    page = options.tries.times do
+    page, ids = nil, object_ids.take(options.paginate)
+    options.tries.times do
       page = begin
         get_json(options, "query", objectIds: ids.join(?,), outSR: options.epsg, outFields: options.fields)
       rescue EmptyError
         next
       end
-      break page unless page.dig("error", "code") == 500
+      page.dig("error", "code") == 500 ? page = nil : break
     end
     unless page
       options.paginate > 1 ? options.paginate /= 2 : sleep(10)

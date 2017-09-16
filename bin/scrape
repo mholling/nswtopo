@@ -67,6 +67,14 @@ begin
   error, object_ids = get_json(options, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
   raise ServerError, "%s (%s)" % error.values_at("message", "code") if error
   raise ServerError, "no results returned" unless object_ids
+  update = options.append ? "-update -append" : "-update -overwrite"
+  format = case options.format
+  when "shp"    then %Q[-f "ESRI Shapefile"]
+  when "tab"    then %Q[-f "MapInfo File"]
+  when "gpkg"   then %Q[-f GPKG]
+  when "sqlite" then %Q[-f SQLite]
+  end
+  reproject = %Q[-t_srs epsg:#{options.reproject}] if options.reproject
   query = options.epsg ? { outFields: options.fields, outSR: options.epsg } : { outFields: options.fields }
   count, total, data = 0, object_ids.length, nil
   progress = "\rretrieving %s: %6.2f%% of #{total} features"
@@ -89,21 +97,20 @@ begin
     raise ServerError, "%s (%s)" % page["error"].values_at("message", "code") if page["error"]
     page["spatialReference"]["wkid"] = page["spatialReference"]["latestWkid"] if page["spatialReference"]["latestWkid"]
     count += object_ids.shift(options.paginate).length
+    if options.format == "shp"
+      data ? data["features"] += page["features"] : data = page
+    else
+      IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
+        pipe.write page.to_json
+      end
+      update = "-update -append"
+    end
     $stdout << progress % [ options.name, 100.0 * count / total ]
-    data ? data["features"] += page["features"] : data = page
   end
   $stdout.puts
-  update = options.append ? "-update -append" : "-update -overwrite"
-  format = case options.format
-  when "shp"    then %Q[-f "ESRI Shapefile"]
-  when "tab"    then %Q[-f "MapInfo File"]
-  when "gpkg"   then %Q[-f GPKG]
-  when "sqlite" then %Q[-f SQLite]
-  end
-  reproject = %Q[-t_srs epsg:#{options.reproject}] if options.reproject
   IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
     pipe.write data.to_json
-  end
+  end unless options.format == "shp"
   exit $?.exitstatus
 rescue JSON::ParserError => error
   message =  $?.success? ? "JSON: #{error.message}" : "curl failed with #{options.url}"

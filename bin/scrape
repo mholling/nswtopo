@@ -29,18 +29,19 @@ def get_json(options, path = nil, query = {})
   JSON.parse json
 end
 
-options = OpenStruct.new(format: "shp", fields: ?*, epsg: 4326, tries: 5)
+options = OpenStruct.new(format: "shp", fields: ?*, tries: 5)
 begin
   opts = OptionParser.new("Scrape data from an ArcGIS REST endpoint.\nUsage: scrape [options] url path") do |opts|
-    opts.on "-n", "--name     NAME", /^\w+$/, "name of saved dataset"
-    opts.on "-f", "--format   FORMAT", FORMATS, "output file format [#{FORMATS.join ?|}]"
-    opts.on "-w", "--where    WHERE", "filtering clause"
-    opts.on "-p", "--paginate PAGINATE", Integer, "number of records per request"
-    opts.on       "--fields   FIELDS", "comma-separated list of fields"
-    opts.on "-e", "--epsg     EPSG", "EPSG number for saved dataset"
-    opts.on "-a", "--append", "append to existing data"
-    opts.on "-u", "--user     USER:PASSWORD", "username and password for authentication"
-    opts.on "-t", "--tries    TRIES", "number of tries before reducing request size"
+    opts.on "-n", "--name       NAME", /^\w+$/, "name of saved dataset"
+    opts.on "-f", "--format     FORMAT", FORMATS, "output file format [#{FORMATS.join ?|}]"
+    opts.on "-w", "--where      WHERE", "filtering clause"
+    opts.on       "--fields     FIELDS", "comma-separated list of fields"
+    opts.on "-p", "--paginate   PAGINATE", Integer, "number of records per request"
+    opts.on "-a", "--append",   "append to existing data"
+    opts.on "-u", "--user       USER:PASSWORD", "username and password for authentication"
+    opts.on "-t", "--tries      TRIES", "number of tries before reducing request size"
+    opts.on "-e", "--epsg       EPSG", "EPSG number for data retrieval"
+    opts.on "-r", "--reproject  EPSG", "EPSG number for local reprojection"
   end
   opts.order!(into: options) do |arg|
     case
@@ -66,6 +67,7 @@ begin
   error, object_ids = get_json(options, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
   raise ServerError, "%s (%s)" % error.values_at("message", "code") if error
   raise ServerError, "no results returned" unless object_ids
+  query = options.epsg ? { outFields: options.fields, outSR: options.epsg } : { outFields: options.fields }
   count, total, data = 0, object_ids.length, nil
   progress = "\rretrieving %s: %6.2f%% of #{total} features"
   $stdout << progress % [ options.name, 0.0 ]
@@ -73,7 +75,7 @@ begin
     page, ids = nil, object_ids.take(options.paginate)
     options.tries.times do
       page = begin
-        get_json(options, "query", objectIds: ids.join(?,), outSR: options.epsg, outFields: options.fields)
+        get_json(options, "query", query.merge(objectIds: ids.join(?,)))
       rescue EmptyError
         next
       end
@@ -98,7 +100,8 @@ begin
   when "gpkg"   then %Q[-f GPKG]
   when "sqlite" then %Q[-f SQLite]
   end
-  IO.popen %Q[ogr2ogr -skipfailures #{format} -nln #{options.name} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
+  reproject = %Q[-t_srs epsg:#{options.reproject}] if options.reproject
+  IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
     pipe.write data.to_json
   end
   exit $?.exitstatus

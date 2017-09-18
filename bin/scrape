@@ -14,7 +14,7 @@ def get_json(options, path = nil, query = {})
     "#{key}=#{URI.escape value.to_s}"
   end.join(?&)
   url = [ options.url, path ].compact.join ?/
-  json = IO.popen %Q[curl --config -], "r+" do |pipe|
+  IO.popen %Q[curl --config -], "r+" do |pipe|
     pipe.puts %Q[--user "#{options.user}"] if options.user
     pipe.puts %Q[--user-agent "Ruby/#{RUBY_VERSION}"]
     pipe.puts %Q[--referer "#{url}"]
@@ -24,9 +24,13 @@ def get_json(options, path = nil, query = {})
     pipe.puts %Q[--url "#{url}?#{query}"]
     pipe.close_write
     pipe.read
+  end.tap do |json|
+    raise EmptyError if json.empty? && $?.success?
   end
-  raise EmptyError if json.empty? && $?.success?
-  JSON.parse json
+end
+
+def parse_json(*args)
+  JSON.parse get_json(*args)
 end
 
 options = OpenStruct.new(format: "shp", fields: ?*, tries: 5)
@@ -42,6 +46,7 @@ begin
     opts.on "-t", "--tries      TRIES", "number of tries before reducing request size"
     opts.on "-e", "--epsg       EPSG", "EPSG number for data retrieval"
     opts.on "-r", "--reproject  EPSG", "EPSG number for local reprojection"
+    opts.on "-c", "--concat",   "concatenate paged results before saving"
   end
   opts.order!(into: options) do |arg|
     case
@@ -58,13 +63,13 @@ rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser:
 end
 
 begin
-  layer = get_json(options)
+  layer = parse_json options
   options.name ||= layer["name"].gsub(/[^\w]+/, ?_)
   options.where ||= layer["fields"].find do |field|
     "esriFieldTypeOID" == field["type"]
   end.fetch("name") + " IS NOT NULL"
   options.paginate ||= [ 1000, layer.fetch("maxRecordCount", 1000) ].min
-  error, object_ids = get_json(options, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
+  error, object_ids = parse_json(options, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
   raise ServerError, "%s (%s)" % error.values_at("message", "code") if error
   raise ServerError, "no results returned" unless object_ids
   update = options.append ? "-update -append" : "-update -overwrite"
@@ -80,37 +85,43 @@ begin
   progress = "\rretrieving %s: %6.2f%% of #{total} features"
   $stdout << progress % [ options.name, 0.0 ]
   while object_ids.any?
-    page, ids = nil, object_ids.take(options.paginate)
+    json, ids = nil, object_ids.take(options.paginate)
     options.tries.times do
-      page = begin
-        get_json(options, "query", query.merge(objectIds: ids.join(?,)))
+      json = begin
+        get_json options, "query", query.merge(objectIds: ids.join(?,))
       rescue EmptyError
         next
       end
-      page.dig("error", "code") == 500 ? page = nil : break
+      error = JSON.parse(json)["error"]
+      case
+      when error && error["code"] == 500 then json = nil
+      when error then raise ServerError, "%s (%s)" % error.values_at("message", "code")
+      else break
+      end
     end
-    unless page
-      options.paginate > 1 ? options.paginate /= 2 : sleep(10)
-      $stderr.puts "\nWARNING: retrying at #{options.paginate} features per request"
+    case
+    when !json && options.paginate > 1
+      $stderr.puts "\nWARNING: retrying at #{options.paginate /= 2} features per request"
       next
-    end
-    raise ServerError, "%s (%s)" % page["error"].values_at("message", "code") if page["error"]
-    page["spatialReference"]["wkid"] = page["spatialReference"]["latestWkid"] if page["spatialReference"]["latestWkid"]
-    count += object_ids.shift(options.paginate).length
-    if options.format == "shp"
+    when !json
+      raise ServerError, "failed at one feature per request"
+    when options.concat
+      page = JSON.parse json
       data ? data["features"] += page["features"] : data = page
     else
       IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
-        pipe.write page.to_json
+        pipe.write json
       end
+      exit $?.exitstatus unless $?.success?
       update = "-update -append"
     end
+    count += object_ids.shift(options.paginate).length
     $stdout << progress % [ options.name, 100.0 * count / total ]
   end
   $stdout.puts
   IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
     pipe.write data.to_json
-  end unless options.format == "shp"
+  end if options.concat
   exit $?.exitstatus
 rescue JSON::ParserError => error
   message =  $?.success? ? "JSON: #{error.message}" : "curl failed with #{options.url}"

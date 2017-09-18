@@ -7,7 +7,6 @@ require 'optparse'
 
 FORMATS = %w[shp tab gpkg sqlite]
 ServerError = Class.new StandardError
-EmptyError = Class.new StandardError
 
 def get_json(options, path = nil, query = {})
   query = query.merge(f: "json").map do |key, value|
@@ -19,13 +18,15 @@ def get_json(options, path = nil, query = {})
     pipe.puts %Q[--user-agent "Ruby/#{RUBY_VERSION}"]
     pipe.puts %Q[--referer "#{url}"]
     pipe.puts %Q[--silent]
+    pipe.puts %Q[--fail]
     pipe.puts %Q[--netrc-optional]
     pipe.puts %Q[--compressed]
     pipe.puts %Q[--url "#{url}?#{query}"]
     pipe.close_write
     pipe.read
   end.tap do |json|
-    raise EmptyError if json.empty? && $?.success?
+    raise ServerError, "curl reports server error" if $?.exitstatus == 22
+    raise ServerError, "empty response" if json.empty? && $?.success?
   end
 end
 
@@ -33,7 +34,7 @@ def parse_json(*args)
   JSON.parse get_json(*args)
 end
 
-options = OpenStruct.new(format: "shp", fields: ?*, tries: 5)
+options = OpenStruct.new(format: "shp", fields: ?*, tries: 10)
 begin
   opts = OptionParser.new("Scrape data from an ArcGIS REST endpoint.\nUsage: scrape [options] url path") do |opts|
     opts.on "-n", "--name       NAME", /^\w+$/, "name of saved dataset"
@@ -43,7 +44,7 @@ begin
     opts.on "-p", "--paginate   PAGINATE", Integer, "number of records per request"
     opts.on "-a", "--append",   "append to existing data"
     opts.on "-u", "--user       USER:PASSWORD", "username and password for authentication"
-    opts.on "-t", "--tries      TRIES", "number of tries before reducing request size"
+    opts.on "-t", "--tries      TRIES", Integer, "number of tries before reducing request size"
     opts.on "-e", "--epsg       EPSG", "EPSG number for data retrieval"
     opts.on "-r", "--reproject  EPSG", "EPSG number for local reprojection"
     opts.on "-c", "--concat",   "concatenate paged results before saving"
@@ -89,12 +90,12 @@ begin
     options.tries.times do
       json = begin
         get_json options, "query", query.merge(objectIds: ids.join(?,))
-      rescue EmptyError
+      rescue ServerError
         next
       end
       error = JSON.parse(json)["error"]
       case
-      when error && error["code"] == 500 then json = nil
+      when error && /5\d\d/ === error["code"].to_s then json = nil
       when error then raise ServerError, "%s (%s)" % error.values_at("message", "code")
       else break
       end
@@ -128,8 +129,6 @@ rescue JSON::ParserError => error
   abort "\nERROR: #{message}"
 rescue ServerError => error
   abort "\nERROR: #{error.message}"
-rescue EmptyError
-  abort "\NERROR: empty response"
 rescue Interrupt
   abort "\nInterrupted."
 end

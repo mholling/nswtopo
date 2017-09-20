@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-require 'uri'
+require 'cgi'
 require 'json'
 require 'ostruct'
 require 'optparse'
@@ -10,7 +10,7 @@ ServerError = Class.new StandardError
 
 def get_json(options, path = nil, query = {})
   query = query.merge(f: "json").map do |key, value|
-    "#{key}=#{URI.escape value.to_s}"
+    "#{key}=#{CGI.escape value.to_s}"
   end.join(?&)
   url = [ options.url, path ].compact.join ?/
   IO.popen %Q[curl --config -], "r+" do |pipe|

@@ -42,7 +42,6 @@ begin
     opts.on "-w", "--where      WHERE", "filtering clause"
     opts.on       "--fields     FIELDS", "comma-separated list of fields"
     opts.on "-p", "--paginate   PAGINATE", Integer, "number of records per request"
-    opts.on "-a", "--append",   "append to existing data"
     opts.on "-u", "--user       USER:PASSWORD", "username and password for authentication"
     opts.on "-t", "--tries      TRIES", Integer, "number of tries before reducing request size"
     opts.on "-e", "--epsg       EPSG", "EPSG number for data retrieval"
@@ -73,13 +72,14 @@ begin
   error, object_ids = parse_json(options, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
   raise ServerError, "%s (%s)" % error.values_at("message", "code") if error
   raise ServerError, "no results returned" unless object_ids
-  update = options.append ? "-update -append" : "-update -overwrite"
   format = case options.format
   when "shp"    then %Q[-f "ESRI Shapefile"]
   when "tab"    then %Q[-f "MapInfo File"]
   when "gpkg"   then %Q[-f GPKG]
-  when "sqlite" then %Q[-f SQLite]
+  when "sqlite" then %Q[-f SQLite -nlt PROMOTE_TO_MULTI]
   end
+  update = %Q[-update -overwrite] if File.exists?(options.path)
+  create = File.exists?(options.path) ? %Q[-lco SPATIAL_INDEX=YES] : %Q[-dsco SPATIALITE=YES -lco SPATIAL_INDEX=YES] if options.format == "sqlite"
   reproject = %Q[-t_srs epsg:#{options.reproject}] if options.reproject
   query = options.epsg ? { outFields: options.fields, outSR: options.epsg } : { outFields: options.fields }
   count, total, data = 0, object_ids.length, nil
@@ -110,17 +110,17 @@ begin
       page = JSON.parse json
       data ? data["features"] += page["features"] : data = page
     else
-      IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
+      IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{create} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
         pipe.write json
       end
       exit $?.exitstatus unless $?.success?
-      update = "-update -append"
+      create, update = nil, "-update -append"
     end
     count += object_ids.shift(options.paginate).length
     $stdout << progress % [ options.name, 100.0 * count / total ]
   end
   $stdout.puts
-  IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
+  IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{create} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
     pipe.write data.to_json
   end if options.concat
   exit $?.exitstatus

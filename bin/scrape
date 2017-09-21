@@ -83,7 +83,7 @@ begin
   reproject = %Q[-t_srs epsg:#{options.reproject}] if options.reproject
   query = options.epsg ? { outFields: options.fields, outSR: options.epsg } : { outFields: options.fields }
   count, total, data = 0, object_ids.length, nil
-  progress = "\rretrieving %s: %6.2f%% of #{total} features"
+  progress = " retrieving %s: %6.2f%% of #{total} features\r"
   $stdout << progress % [ options.name, 0.0 ]
   while object_ids.any?
     json, ids = nil, object_ids.take(options.paginate)

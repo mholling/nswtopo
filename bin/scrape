@@ -67,7 +67,7 @@ begin
   layer = parse_json options
   options.name ||= layer["name"].gsub(/[^\w]+/, ?_)
   options.where ||= layer["fields"].find do |field|
-    "esriFieldTypeOID" == field["type"]
+    "esriFieldTypeGeometry" == field["type"]
   end.fetch("name") + " IS NOT NULL"
   options.paginate ||= [ 1000, layer.fetch("maxRecordCount", 1000) ].min
   error, object_ids = parse_json(options, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"

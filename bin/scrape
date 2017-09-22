@@ -97,7 +97,7 @@ begin
       end
       error = JSON.parse(json)["error"]
       case
-      when error && [4, 5].include?(error["code"].to_i % 100) then json = nil
+      when error && [4, 5].include?(error["code"].to_i / 100) then json = nil
       when error then raise ServerError, "%s (%s)" % error.values_at("message", "code")
       else break
       end

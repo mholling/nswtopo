@@ -92,6 +92,7 @@ begin
       json = begin
         get_json options, "query", query.merge(objectIds: ids.join(?,))
       rescue ServerError
+        sleep 1
         next
       end
       error = JSON.parse(json)["error"]
@@ -100,6 +101,7 @@ begin
       when error then raise ServerError, "%s (%s)" % error.values_at("message", "code")
       else break
       end
+      sleep 1
     end
     case
     when !json && options.paginate > 1

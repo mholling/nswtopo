@@ -47,6 +47,7 @@ begin
     opts.on "-e", "--epsg       EPSG", "EPSG number for data retrieval"
     opts.on "-r", "--reproject  EPSG", "EPSG number for local reprojection"
     opts.on "-c", "--concat",   "concatenate paged results before saving"
+    opts.on "-q", "--quiet",    "no diagnostic output"
   end
   opts.order!(into: options) do |arg|
     case
@@ -84,7 +85,7 @@ begin
   query = options.epsg ? { outFields: options.fields, outSR: options.epsg } : { outFields: options.fields }
   count, total, data = 0, object_ids.length, nil
   progress = " retrieving %s: %6.2f%% of #{total} features\r"
-  $stdout << progress % [ options.name, 0.0 ]
+  $stdout << progress % [ options.name, 0.0 ] unless options.quiet
   while object_ids.any?
     json, ids = nil, object_ids.take(options.paginate)
     options.tries.times do
@@ -102,7 +103,8 @@ begin
     end
     case
     when !json && options.paginate > 1
-      $stderr.puts "\nWARNING: retrying at #{options.paginate /= 2} features per request"
+      $stdout.puts unless options.quiet
+      $stderr.puts "WARNING: retrying #{options.name} at #{options.paginate /= 2} features per request"
       next
     when !json
       raise ServerError, "failed at one feature per request"
@@ -117,9 +119,9 @@ begin
       create, update = nil, "-update -append"
     end
     count += object_ids.shift(options.paginate).length
-    $stdout << progress % [ options.name, 100.0 * count / total ]
+    $stdout << progress % [ options.name, 100.0 * count / total ] unless options.quiet
   end
-  $stdout.puts
+  $stdout.puts unless options.quiet
   IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{create} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
     pipe.write data.to_json
   end if options.concat

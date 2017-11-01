@@ -128,7 +128,7 @@ def show_shapefile(*args, values, where)
   path, layer, *attributes = args
   if attributes.none?
     where = %Q[-where "#{where}"] if where
-    puts %x[ogrinfo #{where} -so "#{path}" #{layer}]
+    puts %x[ogrinfo #{where} -ro -so "#{path}" #{layer}]
     return
   end
   where = %Q[WHERE #{where}] if where

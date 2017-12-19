@@ -32,13 +32,13 @@ end
 def show_arcgis(url, *args, dynamic, where, referer)
   open "#{url}?f=json", "Referer" => referer || url do |json|
     response = JSON.parse(json.read)
-    case url
-    when /\d+$/ # inspect layer
+    case
+    when response["fields"] # inspect layer
       puts "%s (%s)" % response.values_at("name", "geometryType")
       response["fields"].each do |field|
         puts "  %25s (type: %s, alias: %s)" % field.values_at("name", "type", "alias")
       end
-    else # inspect service
+    when response["layers"] # inspect service
       indent = {}
       response["layers"].map do |layer|
         layer.values_at *%w[id parentLayerId name]
@@ -46,6 +46,13 @@ def show_arcgis(url, *args, dynamic, where, referer)
         indent[id] = !parent ? 0 : parent == -1 ? 0 : 2 + indent[parent]
       end.each do |id, parent, name|
         puts "%4d:#{?\s * indent[id]} %s" % [ id, name ]
+      end
+    when response["folders"] || response["services"] # inspect services
+      [ *response["folders"] ].each do |folder|
+        puts [ url, folder ].join ?/
+      end
+      [ *response["services"] ].each do |service|
+        puts [ url, service["name"].split(?/).last, service["type"] ].join ?/
       end
     end
   end and return unless args.any?
@@ -159,7 +166,7 @@ referer = ARGV.each_cons(2).find.with_index do |(flag, argument), index|
 end&.last
 
 case
-when ARGV[0] =~ /\/MapServer|\/FeatureServer/ then show_arcgis(*ARGV, dynamic, where, referer)
+when ARGV[0] =~ /\/MapServer|\/FeatureServer|\/rest\/services/ then show_arcgis(*ARGV, dynamic, where, referer)
 when ARGV[0] =~ /wfs/i then show_wfs(*ARGV, [], where && "(#{where})")
 else show_shapefile(*ARGV, [], where)
 end

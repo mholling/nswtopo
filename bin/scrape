@@ -76,7 +76,7 @@ begin
   format = case options.format
   when "shp"    then %Q[-f "ESRI Shapefile"]
   when "tab"    then %Q[-f "MapInfo File"]
-  when "gpkg"   then %Q[-f GPKG]
+  when "gpkg"   then %Q[-f GPKG -nlt PROMOTE_TO_MULTI]
   when "sqlite" then %Q[-f SQLite -nlt PROMOTE_TO_MULTI]
   end
   update = %Q[-update -overwrite] if File.exists?(options.path)

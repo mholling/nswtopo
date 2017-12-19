@@ -46,7 +46,7 @@ module NSWTopo
       when params["contours"]
         attribute = params["attribute"]
         gdal_version = %x[gdalinfo --version][/\d+(\.\d+(\.\d+)?)?/].split(?.).map(&:to_i)
-        raise BadLayerError.new "no elevation attibute specified" unless attribute
+        raise BadLayerError.new "no elevation attribute specified" unless attribute
         raise BadLayerError.new "GDAL version 2.1 or greater required for shaded relief" if ([ 2, 1 ] <=> gdal_version) == 1
 
         shp_path = temp_dir + "dem.contours"
@@ -75,8 +75,9 @@ module NSWTopo
               pipe.write features.to_json
             end
           else
+            dataset, name = *dataset
             dataset = Pathname.new(dataset).expand_path(@sourcedir)
-            %x[ogr2ogr -spat #{spat} -spat_srs "#{CONFIG.map.projection}" -t_srs "#{CONFIG.map.projection}" -nln #{layer} "#{shp_path}" "#{dataset}" #{DISCARD_STDERR}]
+            %x[ogr2ogr -spat #{spat} -spat_srs "#{CONFIG.map.projection}" -t_srs "#{CONFIG.map.projection}" -nln #{layer} "#{shp_path}" "#{dataset}" #{name} #{DISCARD_STDERR}]
           end
           sql = case layer
           when "contours"  then "SELECT      #{attribute} FROM #{layer}"

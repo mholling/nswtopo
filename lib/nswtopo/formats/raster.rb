@@ -7,7 +7,7 @@ module NSWTopo
       yield dimensions if block_given?
       zoom = ppi / 96.0
       case
-      when chrome = CONFIG["chrome"] || CONFIG["chromium"]
+      when browser = CONFIG["firefox"] || CONFIG["chrome"]
         src_path = temp_dir + "#{CONFIG.map.filename}.scaled.svg"
         svg = %w[width height].inject(svg_path.read) do |svg, attribute|
           svg.sub(/#{attribute}='(.*?)mm'/) { %Q[#{attribute}='#{$1.to_f * zoom}mm'] }
@@ -15,7 +15,12 @@ module NSWTopo
         svg.gsub!(/xlink:href='(.*?\.(png|jpg))'/) { %Q[xlink:href='#{Pathname.new($1).expand_path}'] }
         src_path.write svg
         Dir.chdir(temp_dir) do
-          %x["#{chrome}" --headless --enable-logging --log-level=1 --disable-lcd-text --disable-extensions --hide-scrollbars --window-size=#{width},#{height} --screenshot "file://#{src_path}"]
+          case
+          when CONFIG["firefox"]
+            %x["#{browser}" --window-size=#{width},#{height} -screenshot "file://#{src_path}"]
+          when CONFIG["chrome"]
+            %x["#{browser}" --headless --enable-logging --log-level=1 --disable-lcd-text --disable-extensions --hide-scrollbars --window-size=#{width},#{height} --screenshot "file://#{src_path}"]
+          end
           FileUtils.mv "screenshot.png", png_path
         end
       when electron = CONFIG["electron"]

@@ -8,19 +8,25 @@ module NSWTopo
       zoom = ppi / 96.0
       case
       when browser = CONFIG["firefox"] || CONFIG["chrome"]
-        src_path = temp_dir + "#{CONFIG.map.filename}.scaled.svg"
-        svg = %w[width height].inject(svg_path.read) do |svg, attribute|
-          svg.sub(/#{attribute}='(.*?)mm'/) { %Q[#{attribute}='#{$1.to_f * zoom}mm'] }
-        end
-        svg.gsub!(/xlink:href='(.*?\.(png|jpg))'/) { %Q[xlink:href='#{Pathname.new($1).expand_path}'] }
-        src_path.write svg
-        Dir.chdir(temp_dir) do
+        # as of January 2018, Firefox doesn't exit after screenshot on Mac (anti-aliasing is also inconsistent)
+        src_path = temp_dir + "browser.svg"
+        render = lambda do |width, height|
           case
           when CONFIG["firefox"]
             %x["#{browser}" --window-size=#{width},#{height} -screenshot "file://#{src_path}"]
           when CONFIG["chrome"]
             %x["#{browser}" --headless --enable-logging --log-level=1 --disable-lcd-text --disable-extensions --hide-scrollbars --window-size=#{width},#{height} --screenshot "file://#{src_path}"]
           end
+        end
+        Dir.chdir(temp_dir) do
+          src_path.write %Q[<?xml version='1.0' encoding='UTF-8'?><svg version='1.1' baseProfile='full' xmlns='http://www.w3.org/2000/svg'></svg>]
+          render.call 1000, 1000
+          scaling = %x[identify -format '%w' screenshot.png].to_f / 1000
+          svg = %w[width height].inject(svg_path.read) do |svg, attribute|
+            svg.sub(/#{attribute}='(.*?)mm'/) { %Q[#{attribute}='#{$1.to_f * zoom / scaling}mm'] }
+          end.gsub(/xlink:href='(.*?\.(png|jpg))'/) { %Q[xlink:href='#{Pathname.new($1).expand_path}'] }
+          src_path.write svg
+          render.call (width / scaling).ceil, (height / scaling).ceil
           FileUtils.mv "screenshot.png", png_path
         end
       when electron = CONFIG["electron"]

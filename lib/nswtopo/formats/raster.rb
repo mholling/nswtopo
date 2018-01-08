@@ -15,7 +15,7 @@ module NSWTopo
           when CONFIG["firefox"]
             %x["#{browser}" --window-size=#{width},#{height} -screenshot "file://#{src_path}"]
           when CONFIG["chrome"]
-            %x["#{browser}" --headless --enable-logging --log-level=1 --disable-lcd-text --disable-extensions --hide-scrollbars --window-size=#{width},#{height} --screenshot "file://#{src_path}"]
+            %x["#{browser}" --headless --enable-logging --log-level=1 --disable-lcd-text --disable-extensions --hide-scrollbars --disable-gpu-rasterization --window-size=#{width},#{height} --screenshot "file://#{src_path}"]
           end
         end
         Dir.chdir(temp_dir) do

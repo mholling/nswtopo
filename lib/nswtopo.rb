@@ -12,6 +12,8 @@ require 'base64'
 require 'set'
 require 'etc'
 require 'timeout'
+require 'pty'
+require 'expect'
 
 require_relative 'helpers'
 require_relative 'avl_tree'

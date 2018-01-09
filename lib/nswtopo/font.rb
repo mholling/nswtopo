@@ -23,40 +23,44 @@ module NSWTopo
       Dir.mktmppath do |temp_dir|
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new(1.0, "utf-8")
-        xml.add_element("svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg").tap do |svg|
-          svg.add_element("rect", "width" => "1mm", "height" => "1mm", "id" => "scale")
-          GLYPHS.each.with_index do |glyph, index|
-            text_attributes = attributes.merge("font-size" => "1mm", "id" => index, "text-anchor" => "middle")
-            svg.add_element("text", text_attributes).add_text(glyph == ?\s ? "! !" : glyph)
-          end
+        svg = xml.add_element("svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg")
+        svg.add_element("rect", "width" => "1mm", "height" => "1mm", "id" => "scale")
+        commands = [ %Q[document.getElementById("scale").getBoundingClientRect().width] ]
+        (GLYPHS.zip + GLYPHS.product(GLYPHS)).each.with_index do |glyphs, index|
+          text_attributes = attributes.merge("font-size" => "1mm", "id" => index, "text-anchor" => "middle", "style" => "white-space: pre")
+          svg.add_element("text", text_attributes).add_text(glyphs.join)
+          commands << %Q[document.getElementById("#{index}").getBoundingClientRect().width]
         end
-        svg_path = temp_dir / "glyphs.svg"
+        svg_path = temp_dir + "glyphs.svg"
         svg_path.write xml
-        IO.popen %Q["#{chrome}" --headless --enable-logging --log-level=1 --repl "file://#{svg_path}"], "r+" do |pipe|
-          pipe.puts %Q[document.getElementById("scale").getBoundingClientRect().width]
-          GLYPHS.each.with_index do |glyph, index|
-            pipe.puts %Q[document.getElementById("#{index}").getBoundingClientRect().width]
+        PTY.spawn %Q["#{chrome}" --headless --enable-logging --log-level=1 --repl "file://#{svg_path}"] do |output, input, pid|
+          scale, *widths = commands.map do |command|
+            input.puts command
+            response, match = output.expect /(\{.*)\n/
+            JSON.parse(match)["result"]["value"].to_f
           end
-          pipe.puts "quit"
-          pipe.close_write
-          scale, *widths = pipe.each_line.grep(/(\{.*\})/) do
-            JSON.parse($1)["result"]["value"].to_f
-          end
-          @widths = GLYPHS.zip(widths).map do |glyph, width|
-            [ glyph, width / scale ]
+          input.puts "quit"
+          @widths = GLYPHS.map do |glyph|
+            [ glyph, widths.shift / scale ]
           end.to_h
-          @widths[?\s] -= 2 * @widths[?!]
+          @kernings = GLYPHS.product(GLYPHS).map do |glyphs|
+            [ glyphs, widths.shift / scale - @widths.values_at(*glyphs).inject(&:+) ]
+          end.to_h
         end
       end if chrome
       @widths ||= GENERIC_WIDTHS
       @widths.default = @widths[?M]
+      @kernings ||= {}
+      @kernings.default = 0
     end
 
     def glyph_length(string, attributes)
       font_size, letter_spacing, word_spacing = attributes.values_at("font-size", "letter-spacing", "word-spacing").map(&:to_f)
-      string.chars.map do |glyph|
-        @widths[glyph]
-      end.inject(0, &:+) * font_size + [ string.length - 1, 0 ].max * letter_spacing + string.count(?\s) * word_spacing
+      string.chars.each_cons(2).inject(@widths[string[0]] * font_size) do |sum, pair|
+        next sum + (@widths[pair[1]] + @kernings[pair]) * font_size + letter_spacing                unless pair[0] == ?\s
+        next sum + (@widths[pair[1]] + @kernings[pair]) * font_size + letter_spacing + word_spacing unless pair[1] == ?\s
+        sum
+      end
     end
 
     def in_two(string, attributes)

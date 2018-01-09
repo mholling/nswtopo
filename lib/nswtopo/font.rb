@@ -23,12 +23,12 @@ module NSWTopo
       Dir.mktmppath do |temp_dir|
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new(1.0, "utf-8")
-        svg = xml.add_element("svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg")
-        svg.add_element("rect", "width" => "1mm", "height" => "1mm", "id" => "scale")
+        svg = xml.add_element "svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg"
+        svg.add_element "rect", "width" => "1mm", "height" => "1mm", "id" => "scale", "stroke" => "none"
+        group = svg.add_element "g", attributes.merge("font-size" => "1mm")
         commands = [ %Q[document.getElementById("scale").getBoundingClientRect().width] ]
         (GLYPHS.zip + GLYPHS.product(GLYPHS)).each.with_index do |glyphs, index|
-          text_attributes = attributes.merge("font-size" => "1mm", "id" => index, "text-anchor" => "middle", "style" => "white-space: pre")
-          svg.add_element("text", text_attributes).add_text(glyphs.join)
+          group.add_element("text", "id" => index, "style" => "white-space: pre").add_text(glyphs.join)
           commands << %Q[document.getElementById("#{index}").getBoundingClientRect().width]
         end
         svg_path = temp_dir + "glyphs.svg"

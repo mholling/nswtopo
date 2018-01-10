@@ -18,6 +18,18 @@ module NSWTopo
       @fonts[attributes] ||= new(attributes)
     end
 
+    def self.warn_missing
+      @fonts.select do |attributes, font|
+        font.missing
+      end.keys.group_by do |attributes|
+        attributes["font-family"]
+      end.keys.each do |family|
+        puts "Warning: font '#{family}' doesn't appear to be present"
+      end
+    end
+
+    attr_reader :missing
+
     def initialize(attributes)
       chrome = CONFIG["chrome"] || CONFIG["chromium"]
       Dir.mktmppath do |temp_dir|
@@ -25,27 +37,30 @@ module NSWTopo
         xml << REXML::XMLDecl.new(1.0, "utf-8")
         svg = xml.add_element "svg", "version" => 1.1, "baseProfile" => "full", "xmlns" => "http://www.w3.org/2000/svg"
         svg.add_element "rect", "width" => "1mm", "height" => "1mm", "id" => "scale", "stroke" => "none"
-        group = svg.add_element "g", attributes.merge("font-size" => "1mm")
-        commands = [ %Q[document.getElementById("scale").getBoundingClientRect().width] ]
-        (GLYPHS.zip + GLYPHS.product(GLYPHS)).each.with_index do |glyphs, index|
-          group.add_element("text", "id" => index, "style" => "white-space: pre").add_text(glyphs.join)
-          commands << %Q[document.getElementById("#{index}").getBoundingClientRect().width]
-        end
+        svg.add_element "text", attributes.merge("font-size" => "1mm", "style" => "white-space: pre", "id" => "text")
         svg_path = temp_dir + "glyphs.svg"
         svg_path.write xml
         PTY.spawn %Q["#{chrome}" --headless --enable-logging --log-level=1 --repl "file://#{svg_path}"] do |output, input, pid|
-          scale, *widths = commands.map do |command|
-            input.puts command
+          command = lambda do |text|
+            input.puts text
             response, match = output.expect /(\{.*)\n/
-            JSON.parse(match)["result"]["value"].to_f
+            JSON.parse(match)["result"]["value"]
           end
-          input.puts "quit"
+          scale = command.call %Q[document.getElementById("scale").getBoundingClientRect().width]
           @widths = GLYPHS.map do |glyph|
-            [ glyph, widths.shift / scale ]
+            width = command.call %Q[document.getElementById("text").textContent=#{glyph.inspect}; document.getElementById("text").getBoundingClientRect().width]
+            [ glyph, width / scale ]
           end.to_h
-          @kernings = GLYPHS.product(GLYPHS).map do |glyphs|
-            [ glyphs, widths.shift / scale - @widths.values_at(*glyphs).inject(&:+) ]
+          @kernings = GLYPHS.product(GLYPHS).map do |pair|
+            width = command.call %Q[document.getElementById("text").textContent=#{pair.join.inspect}; document.getElementById("text").getBoundingClientRect().width]
+            [ pair, width / scale - @widths.values_at(*pair).inject(&:+) ]
           end.to_h
+          command.call %Q[document.getElementById("text").textContent="abcdefghijklmnopqrstuvwxyz"]
+          width1 = command.call %Q[document.getElementById("text").getBoundingClientRect().width]
+          command.call %Q[document.getElementById("text").removeAttribute("font-family")]
+          width2 = command.call %Q[document.getElementById("text").getBoundingClientRect().width]
+          @missing = width1 == width2
+          input.puts "quit"
         end
       end if chrome
       @widths ||= GENERIC_WIDTHS

@@ -149,10 +149,6 @@ By default a map's contour interval is chosen according to its scale: 20 metres 
 
     contour-interval: 10
 
-You can check the fonts used in the map against those installed on your system by adding the following line:
-
-    check-fonts: true
-
 Available Map Layers
 ====================
 

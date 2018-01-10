@@ -240,26 +240,14 @@ module NSWTopo
 
         xml.elements.each("/svg/g[*]") { |group| group.add_attribute("inkscape:groupmode", "layer") }
 
-        if CONFIG["check-fonts"]
-          fonts_needed = xml.elements.collect("//[@font-family]") do |element|
-            element.attributes["font-family"].gsub(/[\s\-\'\"]/, "")
-          end.uniq
-          fonts_present = %x[identify -list font].scan(/(family|font):(.*)/i).map(&:last).flatten.map do |family|
-            family.gsub(/[\s\-]/, "")
-          end.uniq
-          fonts_missing = fonts_needed - fonts_present
-          if fonts_missing.any?
-            puts "Your system does not include some fonts used in #{svg_name}. (Inkscape will not render these fonts correctly.)"
-            fonts_missing.sort.each { |family| puts "  #{family}" }
-          end
-        end
-
         tmp_svg_path = temp_dir + svg_name
         tmp_svg_path.open("w") do |file|
           formatter = REXML::Formatters::Pretty.new
           formatter.compact = true
           formatter.write xml, file
         end
+
+        Font.warn_missing
         FileUtils.cp tmp_svg_path, svg_path
       end if updates.any? || removals.any?
     end

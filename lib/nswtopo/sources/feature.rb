@@ -353,12 +353,6 @@ module NSWTopo
             rescue InternetError, ServerError => error
               next error
             end.each do |dimension, data, attributes|
-              case dimension
-              when 0 then data.clip_points! feature_hull
-              when 1 then data.clip_lines!  feature_hull
-              when 2 then data.clip_polys!  feature_hull
-              end
-              next if data.empty?
               categories = substitutions.map do |name, substitutes|
                 value = attributes.fetch(name, name)
                 substitutes.fetch(value, value).to_s.to_category
@@ -374,6 +368,25 @@ module NSWTopo
                 else                   90 - attributes[options["rotate"]].to_f
                 end
               end if options["rotate"]
+              options["size-category"].tap do |mm, max = 9|
+                unit = 0.001 * (mm == true ? 5 : mm) * CONFIG.map.scale
+                case dimension
+                when 1
+                  length = data.map(&:length).inject(0, &:+)
+                  size = (Math::log2(length) - Math::log2(unit)).ceil rescue 0
+                  categories << [ [ 0, size ].max, max ].min.to_s
+                when 2
+                  area = data.map(&:signed_area).inject(0, &:-)
+                  size = (0.5 * Math::log2(area) - Math::log2(unit)).ceil rescue 0
+                  categories << [ [ 0, size ].max, max ].min.to_s
+                end
+              end if options["size-category"]
+              case dimension
+              when 0 then data.clip_points! feature_hull
+              when 1 then data.clip_lines!  feature_hull
+              when 2 then data.clip_polys!  feature_hull
+              end
+              next if data.empty?
               features << { "dimension" => dimension, "data" => data, "categories" => categories }.tap do |feature|
                 feature["label-only"] = options["label-only"] if options["label-only"]
                 feature["angle"] = angle if angle

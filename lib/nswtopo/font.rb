@@ -1,5 +1,6 @@
 module NSWTopo
   class Font
+    ChromeError = Class.new Exception
     ATTRIBUTES = %w[font-family font-variant font-style font-weight]
     GENERIC_WIDTHS = {
       ?A => 0.732, ?B => 0.678, ?C => 0.682, ?D => 0.740, ?E => 0.583, ?F => 0.558, ?G => 0.728, ?H => 0.761, ?I => 0.256, ?J => 0.331, ?K => 0.641, ?L => 0.542, ?M => 0.843,
@@ -18,7 +19,7 @@ module NSWTopo
       @fonts[attributes] ||= new(attributes)
     end
 
-    def self.warn_missing
+    def self.warnings
       @fonts.select do |attributes, font|
         font.missing
       end.keys.group_by do |attributes|
@@ -26,9 +27,10 @@ module NSWTopo
       end.keys.each do |family|
         puts "Warning: font '#{family}' doesn't appear to be present"
       end
+      puts "Warning: couldn't get font metrics from Chrome; generic values used" if @fonts.values.any?(&:generic)
     end
 
-    attr_reader :missing
+    attr_reader :missing, :generic
 
     def initialize(attributes)
       chrome = CONFIG["chrome"] || CONFIG["chromium"]
@@ -43,8 +45,14 @@ module NSWTopo
         PTY.spawn %Q["#{chrome}" --headless --enable-logging --log-level=1 --repl "file://#{svg_path}"] do |output, input, pid|
           command = lambda do |text|
             input.puts text
-            response, match = output.expect /(\{.*)\n/
-            JSON.parse(match)["result"]["value"]
+            lines, match = output.expect /(\{.*)\n/
+            begin
+              response = JSON.parse match
+              raise ChromeError if response["exceptionDetails"]
+              response.fetch("result").fetch("value", nil)
+            rescue TypeError, JSON::ParserError, KeyError
+              raise ChromeError
+            end
           end
           scale = command.call %Q[document.getElementById("scale").getBoundingClientRect().width]
           @widths = GLYPHS.map do |glyph|
@@ -63,6 +71,9 @@ module NSWTopo
           input.puts "quit"
         end
       end if chrome
+    rescue ChromeError
+      @widths, @kernings, @generic = nil, nil, true
+    ensure
       @widths ||= GENERIC_WIDTHS
       @widths.default = @widths[?M]
       @kernings ||= {}

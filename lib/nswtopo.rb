@@ -247,7 +247,7 @@ module NSWTopo
           formatter.write xml, file
         end
 
-        Font.warn_missing
+        Font.warnings
         FileUtils.cp tmp_svg_path, svg_path
       end if updates.any? || removals.any?
     end

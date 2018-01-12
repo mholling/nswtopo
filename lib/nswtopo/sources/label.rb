@@ -514,7 +514,7 @@ module NSWTopo
         end
         labels << label
         counts[feature] += 1
-      end
+      end if CONFIG["allow-overlaps"]
 
       grouped = candidates.group_by do |candidate|
         [ candidate.feature, candidate.component ]

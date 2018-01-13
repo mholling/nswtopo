@@ -372,7 +372,7 @@ module NSWTopo
                 unit = 0.001 * (mm == true ? 5 : mm) * CONFIG.map.scale
                 case dimension
                 when 1
-                  length = data.map(&:length).inject(0, &:+)
+                  length = data.map(&:path_length).inject(0, &:+)
                   size = (Math::log2(length) - Math::log2(unit)).ceil rescue 0
                   categories << [ [ 0, size ].max, max ].min.to_s
                 when 2

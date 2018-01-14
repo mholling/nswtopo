@@ -75,6 +75,7 @@ module NSWTopo
       end
 
       def validate(family)
+        return unless family
         @families ||= Set[]
         @families.add?(family) || return
         command %Q[text.textContent="abcdefghijklmnopqrstuvwxyz"]

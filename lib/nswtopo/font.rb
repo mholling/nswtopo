@@ -4,7 +4,6 @@ module NSWTopo
     # TODO: fall back to generic when Chrome::Error occurs
 
     def self.configure
-      @families = Set[]
       extend CONFIG["chrome"] ? Chrome : Generic
     end
 
@@ -41,9 +40,6 @@ module NSWTopo
           sum
         end
       end
-
-      def warnings
-      end
     end
 
     module Chrome
@@ -78,16 +74,15 @@ module NSWTopo
         instance.start_chrome
       end
 
-      def warnings
-        @families.select do |family|
-          command %Q[text.textContent="abcdefghijklmnopqrstuvwxyz"]
-          [ "font-family:#{family}", nil ].map do |style|
-            command %Q[text.setAttribute("style", "#{style}")]
-            command %Q[text.getBoundingClientRect().width]
-          end.inject(&:==)
-        end.each do |family|
-          puts "Warning: font '#{family}' doesn't appear to be present"
-        end
+      def validate(family)
+        @families ||= Set[]
+        @families.add?(family) || return
+        command %Q[text.textContent="abcdefghijklmnopqrstuvwxyz"]
+        [ "font-family:#{family}", nil ].map do |style|
+          command %Q[text.setAttribute("style", "#{style}")]
+          command %Q[text.getBoundingClientRect().width]
+        end.inject(&:==) || return
+        puts "Warning: font '#{family}' doesn't appear to be present"
       end
 
       def glyph_length(string, attributes)
@@ -95,7 +90,7 @@ module NSWTopo
           pair.join ?:
         end.join(?;)
         style << ";white-space:pre" if ?\s == string
-        @families << attributes["font-family"]
+        validate attributes["font-family"]
         command %Q[text.setAttribute("style", #{style.inspect})]
         command %Q[text.textContent=#{string.inspect}]
         command(%Q[text.getBoundingClientRect().width]) / @mm

@@ -108,13 +108,13 @@ module NSWTopo
                   next [ [ 0, data.reject(&:hole?).map(&:centroid) ] ] if closed
                 when "intervals"
                   interval = args[0] || DEFAULT_SAMPLE
-                  next [ [ 0, data.sample_at(interval) ] ] if dimension > 0
+                  next [ [ 0, data.sample_outwards(interval) ] ] if dimension > 0
                 end
               when "fallback"
                 case arg
                 when "intervals"
                   interval = args[0] || DEFAULT_SAMPLE
-                  next [ [ 1, data ], [ 0, data.sample_at(interval) ] ] if dimension == 1
+                  next [ [ 1, data ], [ 0, data.sample_outwards(interval) ] ] if dimension == 1
                 end
               when "outset"
                 data.outset(arg, opts) if dimension > 0

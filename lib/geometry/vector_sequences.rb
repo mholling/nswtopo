@@ -9,20 +9,18 @@ module VectorSequences
     end.flatten(1)
   end
 
-  def sample_at(interval, angles = false)
-    [].tap do |result|
-      map(&:segments).each do |segments|
-        segments.inject(0.5) do |alpha, segment|
-          angle = segment.difference.angle if angles
-          while alpha * interval < segment.distance
-            segment[0] = segment.along(alpha * interval / segment.distance)
-            angles ? result << [ segment[0], angle ] : result << segment[0]
-            alpha = 1.0
-          end
-          alpha - segment.distance / interval
-        end
+  def sample_at(interval, extra = nil)
+    map do |sequence|
+      sequence.periodically(interval, extra).to_a
+    end.inject([], &:+)
+  end
+
+  def sample_outwards(interval)
+    map(&:path_length).zip(self).map do |distance, line|
+      line.periodically(interval, :along).map do |point, along|
+        [ point, (2 * along - distance).abs - distance ]
       end
-    end
+    end.inject([], &:+).sort_by(&:last).map(&:first)
   end
 end
 

@@ -129,7 +129,7 @@ module NSWTopo
                 end
               end
               features.each do |dimension, feature, *|
-                feature.sample_at(interval, true).each do |point, angle|
+                feature.sample_at(interval, :angle).each do |point, angle|
                   translate = point.round(MM_DECIMAL_DIGITS).join ?\s
                   rotate = (180.0 * angle / Math::PI).round(2)
                   content.add_element "use", "transform" => "translate(#{translate}) rotate(#{rotate})", "xlink:href" => "##{symbol_ids.sample}"

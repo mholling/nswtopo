@@ -233,13 +233,12 @@ module NSWTopo
           SCALABLE_ATTRIBUTES.each do |name|
             attributes[name] = attributes[name].to_i * font_size * 0.01 if /^\d+%$/ === attributes[name]
           end
-          font = Font[attributes]
           debug_features << [ dimension, [ data ], %w[debug feature] ] if CONFIG["debug"]
           next [] if CONFIG["debug"] == "features"
           case dimension
           when 0
             margin, line_height = attributes.values_at "margin", "line-height"
-            lines = font.in_two text, attributes
+            lines = Font.in_two text, attributes
             lines = [ lines.join(?\s) ] if lines.map(&:length).min == 1
             width = lines.map(&:last).max
             height = lines.map { font_size }.inject { |total| total + line_height }
@@ -298,7 +297,7 @@ module NSWTopo
             separation  = attributes["separation-along"]
             text_length = case text
             when REXML::Element then data.path_length
-            when String then font.glyph_length text, attributes
+            when String then Font.glyph_length text, attributes
             end
             points = data.segments.inject([]) do |memo, segment|
               steps = REXML::Element === text ? 1 : (segment.distance / sample).ceil

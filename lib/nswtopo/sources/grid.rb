@@ -87,7 +87,6 @@ module NSWTopo
     end
 
     def labels
-      @font = Font[@params["labels"]]
       label_spacing ? periodic_labels : edge_labels
     end
 
@@ -101,7 +100,7 @@ module NSWTopo
         tspan.add_text text
       end
       length = parts.map do |text, percent|
-        [ @font.glyph_length(?\s, "font-size" => font_size), @font.glyph_length(text, "font-size" => font_size * percent / 100.0) ]
+        [ Font.glyph_length(?\s, @params["labels"]), Font.glyph_length(text, @params["labels"].merge("font-size" => font_size * percent / 100.0)) ]
       end.flatten.drop(1).inject(&:+)
       text_path.add_attribute "textLength", length
       [ length, text_path ]

@@ -202,6 +202,7 @@ module NSWTopo
           begin
             if source == label_source
               puts "Processing label data:"
+              Font.configure
               sources.each do |source|
                 label_source.add(source) do |sublayer|
                   puts "  #{[ source.name, *sublayer ].join SEGMENT}"

@@ -80,7 +80,7 @@ module NSWTopo
             %x[ogr2ogr -spat #{spat} -spat_srs "#{CONFIG.map.projection}" -t_srs "#{CONFIG.map.projection}" -nln #{layer} "#{shp_path}" "#{dataset}" #{name} #{DISCARD_STDERR}]
           end
           sql = case layer
-          when "contours"  then "SELECT      #{attribute} FROM #{layer}"
+          when "contours"  then "SELECT      #{attribute} FROM #{layer} WHERE #{attribute} IS NOT NULL"
           when "coastline" then "SELECT 0 AS #{attribute} FROM #{layer}"
           end
           %x[ogr2ogr -update #{append} -nln combined -sql "#{sql}" "#{shp_path}" "#{shp_path}"]

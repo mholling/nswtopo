@@ -3,7 +3,7 @@ module NSWTopo
     include VectorRenderer
 
     CENTRELINE_FRACTION = 0.35
-    ATTRIBUTES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase shield]
+    ATTRIBUTES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height strip upcase shield curved]
     TRANSFORMS = %w[reduce fallback outset inset offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
     SCALABLE_ATTRIBUTES = %w[letter-spacing word-spacing line-height]
     DEFAULT_SAMPLE = 5
@@ -293,6 +293,7 @@ module NSWTopo
             max_turn    = attributes["max-turn"] * Math::PI / 180
             min_radius  = attributes["min-radius"]
             max_angle   = attributes["max-angle"] * Math::PI / 180
+            curved      = attributes["curved"]
             sample      = attributes["sample"]
             separation  = attributes["separation-along"]
             text_length = case text
@@ -300,9 +301,17 @@ module NSWTopo
             when String then Font.glyph_length text, attributes
             end
             points = data.segments.inject([]) do |memo, segment|
-              steps = REXML::Element === text ? 1 : (segment.distance / sample).ceil
-              memo += steps.times.map do |step|
-                segment.along(step.to_f / steps)
+              distance = segment.distance
+              case
+              when REXML::Element === text
+                memo << segment[0]
+              when curved && distance >= text_length
+                memo << segment[0]
+              else
+                steps = (distance / sample).ceil
+                memo += steps.times.map do |step|
+                  segment.along(step.to_f / steps)
+                end
               end
             end
             points << data.last unless closed
@@ -351,6 +360,7 @@ module NSWTopo
                 end && break
                 while distance >= text_length
                   case
+                  when indices.length == 2 && curved
                   when indices.length == 2 then yielder << indices.dup
                   when distance - distances[indices.first] >= text_length
                   when bad_indices.any?

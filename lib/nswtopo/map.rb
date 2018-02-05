@@ -73,7 +73,7 @@ module NSWTopo
     attr_reader :name, :scale, :projection, :bounds, :centre, :extents, :rotation, :debug
 
     def filename
-      @filename ||= @name.gsub(/\s+/, ?-).gsub(/[^-\w\.]/, '')
+      @filename ||= @name.gsub(/[^\w\.]+/, ?-)
     end
 
     def reproject_from(projection, point_or_points)

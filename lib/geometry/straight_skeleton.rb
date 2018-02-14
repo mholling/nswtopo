@@ -134,7 +134,12 @@ module StraightSkeleton
 
     def initialize(data)
       @active, @indices = Set[], Hash.new.compare_by_identity
-      data.to_d.map.with_index do |(*points, point), index|
+      data.to_d.map do |points|
+        next points unless points.length > 2
+        points.inject [] do |points, point|
+          points.last == point ? points : points << point
+        end
+      end.map.with_index do |(*points, point), index|
         points.first == point ? [ points, :ring, (index unless points.hole?) ] : [ points << point, :segments, nil ]
       end.each do |points, pair, index|
         normals = points.send(pair).map(&:difference).map(&:normalised).map(&:perp)

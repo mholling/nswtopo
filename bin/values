@@ -16,19 +16,6 @@ class Hash
   end
 end
 
-def show_hierarchy(values, nn = values.transpose.length, n = nn)
-  if n == 1
-    values.each do |value, *nothing|
-      puts "   " * (nn - n) + (value.nil? || value.to_s.strip.empty? ? value.inspect : value.to_s)
-    end
-  else
-    values.group_by(&:first).each do |value, values|
-      puts "   " * (nn - n) + (value.nil? || value.to_s.strip.empty? ? value.inspect : value.to_s)
-      show_hierarchy values.map { |value, *args| args }, nn, n-1
-    end
-  end
-end
-
 def show_arcgis(url, *args, dynamic, where, referer)
   open "#{url}?f=json", "Referer" => referer || url do |json|
     response = JSON.parse(json.read)
@@ -83,8 +70,20 @@ def show_arcgis(url, *args, dynamic, where, referer)
       info["value"].split(?|).map do |value|
         value && value =~ /\s*[\n\r]+|\s+$/ ? value.inspect : value
       end
-    end.sort
-    show_hierarchy(values)
+    end
+    counts = response["uniqueValueInfos"].map do |info|
+      info["count"]
+    end
+    show = lambda do |values_counts = values.zip(counts), index = 0, indent = 0|
+      values_counts.group_by do |tuple, count|
+        tuple.take(index + 1)
+      end.sort_by(&:first).each do |(*, value), values_counts|
+        count = values_counts.transpose.last.inject(0, &:+)
+        puts "%8d: %s%s" % [ count, ?\s * indent, value || "(NULL)" ]
+        show.call values_counts, index + 1, indent + 2 unless values_counts.one?
+      end
+    end
+    show.call
   end
 end
 

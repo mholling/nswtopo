@@ -74,13 +74,13 @@ def show_arcgis(url, *args, dynamic, where, referer)
     counts = response["uniqueValueInfos"].map do |info|
       info["count"]
     end
-    show = lambda do |values_counts = values.zip(counts), index = 0, indent = 0|
+    show = lambda do |values_counts = values.zip(counts), level = 1, indent = 0|
       values_counts.group_by do |tuple, count|
-        tuple.take(index + 1)
+        tuple.take level
       end.sort_by(&:first).each do |(*, value), values_counts|
         count = values_counts.transpose.last.inject(0, &:+)
         puts "%8d: %s%s" % [ count, ?\s * indent, value || "(NULL)" ]
-        show.call values_counts, index + 1, indent + 2 unless values_counts.one?
+        show.call values_counts, level + 1, indent + 2 if level < args.length
       end
     end
     show.call

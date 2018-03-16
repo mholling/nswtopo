@@ -4,17 +4,16 @@ require 'cgi'
 require 'json'
 require 'ostruct'
 require 'optparse'
+require 'rexml/document'
 
-FORMATS = %w[shp tab gpkg sqlite]
+FORMATS, TILE = %w[shp tab gpkg sqlite], 1000
 ServerError = Class.new StandardError
 
-def get_json(options, path = nil, query = {})
-  query = query.merge(f: "json").map do |key, value|
+def get_response(url, query = {})
+  query = query.map do |key, value|
     "#{key}=#{CGI.escape value.to_s}"
   end.join(?&)
-  url = [ options.url, path ].compact.join ?/
-  IO.popen %Q[curl --config -], "r+" do |pipe|
-    pipe.puts %Q[--user "#{options.user}"] if options.user
+  IO.popen %Q[curl --config -], 'r+' do |pipe|
     pipe.puts %Q[--user-agent "Ruby/#{RUBY_VERSION}"]
     pipe.puts %Q[--referer "#{url}"]
     pipe.puts %Q[--silent]
@@ -24,110 +23,257 @@ def get_json(options, path = nil, query = {})
     pipe.puts %Q[--url "#{url}?#{query}"]
     pipe.close_write
     pipe.read
-  end.tap do |json|
-    raise ServerError, "curl reports server error" if $?.exitstatus == 22
-    raise ServerError, "empty response" if json.empty? && $?.success?
+  end.tap do |response|
+    raise ServerError, 'server error' if $?.exitstatus == 22
+    raise ServerError, 'empty response' if response.empty? && $?.success?
   end
 end
 
-def parse_json(*args)
-  JSON.parse get_json(*args)
+def get_json(url, query = {})
+  get_response url, query.merge(f: 'json')
 end
 
-options = OpenStruct.new(format: "shp", fields: ?*, tries: 10)
+options = OpenStruct.new(format: 'shp', tries: 10)
 begin
-  opts = OptionParser.new("Scrape data from an ArcGIS REST endpoint.\nUsage: scrape [options] url path") do |opts|
-    opts.on "-n", "--name       NAME", /^\w+$/, "name of saved dataset"
-    opts.on "-f", "--format     FORMAT", FORMATS, "output file format [#{FORMATS.join ?|}]"
-    opts.on "-w", "--where      WHERE", "filtering clause"
-    opts.on       "--fields     FIELDS", "comma-separated list of fields"
-    opts.on "-p", "--paginate   PAGINATE", Integer, "number of records per request"
-    opts.on "-u", "--user       USER:PASSWORD", "username and password for authentication"
-    opts.on "-t", "--tries      TRIES", Integer, "number of tries before reducing request size"
-    opts.on "-e", "--epsg       EPSG", "EPSG number for data retrieval"
-    opts.on "-r", "--reproject  EPSG", "EPSG number for local reprojection"
-    opts.on "-c", "--concat",   "concatenate paged results before saving"
-    opts.on "-q", "--quiet",    "no diagnostic output"
+  parser = OptionParser.new("Scrape data from an ArcGIS REST endpoint.\nUsage: scrape [options] url path") do |parser|
+    parser.on '-n', '--name       NAME', /^\w+$/, 'name of saved layer'
+    parser.on '-f', '--format     FORMAT', FORMATS, "output file format [#{FORMATS.join ?|}]"
+    parser.on '-w', '--where      WHERE', String, 'filtering clause'
+    parser.on       '--fields     FIELDS', Array, 'comma-separated list of fields'
+    parser.on '-p', '--paginate   PAGINATE', Integer, 'number of records per request'
+    parser.on '-t', '--tries      TRIES', Integer, 'number of tries before reducing request size'
+    parser.on '-e', '--epsg       EPSG', Integer, 'EPSG number for data retrieval'
+    parser.on '-r', '--reproject  EPSG', Integer, 'EPSG number for local reprojection'
+    parser.on '-s', '--svg', 'scrape from SVG export instead of query'
+    parser.on '-u', '--unique     FIELD', String, 'field for counting features'
+    parser.on '-c', '--concat', 'concatenate paged results before saving'
+    parser.on '-q', '--quiet', "don't show progress"
   end
-  opts.order!(into: options) do |arg|
+  parser.order!(into: options) do |arg|
     case
-    when !options.url
-      options.url = (/^https?:\/\// === arg ? arg : "http://#{arg}").chomp(?/)
-      raise OptionParser::InvalidArgument.new(arg) unless /.*\/(MapServer|FeatureServer)\/\d+$/ === options.url
+    when !options.url then options.url = (/^https?:\/\// === arg ? arg : "http://#{arg}").chomp(?/)
     when !options.path then options.path = arg
-    else raise OptionParser::InvalidArgument.new(arg)
+    else raise OptionParser::InvalidArgument, arg
     end
   end
-  abort opts.to_s unless options.url && options.path
+  raise OptionParser::InvalidOption, "--svg and --epsg are incompatible" if options.svg && options.epsg
+  abort parser.to_s unless options.url && options.path
+  case
+  when /.*\/MapServer\/\d+$/ === options.url
+  when /.*\/FeatureServer\/\d+$/ === options.url && !options.svg
+  else raise OptionParser::InvalidArgument, options.url
+  end
 rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => e
   abort e.message
 end
 
 begin
-  layer = parse_json options
-  options.name ||= layer["name"].gsub(/[^\w]+/, ?_)
-  options.where ||= layer["fields"].find do |field|
-    "esriFieldTypeGeometry" == field["type"]
-  end.fetch("name") + " IS NOT NULL"
-  options.paginate ||= [ 1000, layer.fetch("maxRecordCount", 1000) ].min
-  error, object_ids = parse_json(options, "query", returnIdsOnly: true, where: options.where).values_at "error", "objectIds"
-  raise ServerError, "%s (%s)" % error.values_at("message", "code") if error
-  raise ServerError, "no results returned" unless object_ids
-  format = case options.format
-  when "shp"    then %Q[-f "ESRI Shapefile"]
-  when "tab"    then %Q[-f "MapInfo File"]
-  when "gpkg"   then %Q[-f GPKG -nlt PROMOTE_TO_MULTI]
-  when "sqlite" then %Q[-f SQLite -nlt PROMOTE_TO_MULTI]
+  layer = JSON.parse get_json(options.url)
+  name = options.name || layer['name'].gsub(/[^\w]+/, ?_)
+  format = case
+  when File.exists?(options.path) then %Q[-update -overwrite]
+  when options.format == 'shp'    then %Q[-f "ESRI Shapefile"]
+  when options.format == 'tab'    then %Q[-f "MapInfo File"]
+  when options.format == 'gpkg'   then %Q[-f GPKG]
+  when options.format == 'sqlite' then %Q[-f SQLite -dsco SPATIALITE=YES]
   end
-  update = %Q[-update -overwrite] if File.exists?(options.path)
-  create = File.exists?(options.path) ? %Q[-lco SPATIAL_INDEX=YES] : %Q[-dsco SPATIALITE=YES -lco SPATIAL_INDEX=YES] if options.format == "sqlite"
+  type = case
+  when options.svg
+  when options.concat
+  when options.format == 'sqlite' then %Q[-nlt PROMOTE_TO_MULTI]
+  when options.format == 'gpkg'   then %Q[-nlt PROMOTE_TO_MULTI]
+  end
   reproject = %Q[-t_srs epsg:#{options.reproject}] if options.reproject
-  query = options.epsg ? { outFields: options.fields, outSR: options.epsg } : { outFields: options.fields }
-  count, total, data = 0, object_ids.length, nil
-  progress = " retrieving %s: %6.2f%% of #{total} features\r"
-  $stdout << progress % [ options.name, 0.0 ] unless options.quiet
-  while object_ids.any?
-    json, ids = nil, object_ids.take(options.paginate)
-    options.tries.times do
-      json = begin
-        get_json options, "query", query.merge(objectIds: ids.join(?,))
-      rescue ServerError
-        sleep 1
-        next
+
+  Enumerator.new do |yielder|
+    if options.svg
+      wkid = layer['extent']['spatialReference']['latestWkid']
+      reproject = %Q[-s_srs epsg:#{wkid} -t_srs epsg:#{options.reproject || wkid}]
+      url = options.url.match(/(.*)\/(\d+)$/)[1]
+
+      parent = layer
+      scale = loop do
+        break parent['minScale'] if parent['minScale']&.nonzero?
+        break parent['effectiveMinScale'] if parent['effectiveMinScale']&.nonzero?
+        break unless parent_id = parent['parentLayer']&.id
+        parent = JSON.parse get_json("#{url}/#{parent_id}")
+      end || begin
+        service = JSON.parse get_json(url)
+        case service['units']
+        when 'esriMeters' then 100000
+        else raise ServerError, "can't handle epsg:#{wkid}"
+        end
       end
-      error = JSON.parse(json)["error"]
-      case
-      when error && [4, 5].include?(error["code"].to_i / 100) then json = nil
-      when error then raise ServerError, "%s (%s)" % error.values_at("message", "code")
-      else break
+
+      renderer = case layer['geometryType']
+      when 'esriGeometryPoint'
+        { type: 'simple', symbol: { color: [0,0,0,255], size: 1, type: 'esriSMS', style: 'esriSMSSquare' } }
+      when 'esriGeometryPolyline'
+        { type: 'simple', symbol: { color: [0,0,0,255], width: 1, type: 'esriSLS', style: 'esriSLSSolid' } }
+      when 'esriGeometryPolygon'
+        { type: 'simple', symbol: { color: [0,0,0,255], width: 0, type: 'esriSFS', style: 'esriSFSSolid' } }
+      else
+        abort "unable to process '%s' geometry type" % layer['geometryType']
       end
-      sleep 1
-    end
-    case
-    when !json && options.paginate > 1
-      $stdout.puts unless options.quiet
-      $stderr.puts "WARNING: retrying #{options.name} at #{options.paginate /= 2} features per request"
-      next
-    when !json
-      raise ServerError, "failed at one feature per request"
-    when options.concat
-      page = JSON.parse json
-      data ? data["features"] += page["features"] : data = page
+      dynamic_layer = { source: { type: 'mapLayer', mapLayerId: layer['id'] }, drawingInfo: { showLabels: false, renderer: renderer } }
+
+      objectid_field = layer['fields'].find do |field|
+        'esriFieldTypeOID' == field['type']
+      end.fetch('name')
+
+      unique = options.unique || objectid_field
+      json = get_json "#{url}/dynamicLayer/generateRenderer", where: options.where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ unique, unique ] }.to_json
+      total = JSON.parse(json).fetch('uniqueValueInfos').map do |info|
+        info['count']
+      end.sum
+
+      bounds = layer['extent'].values_at('xmin', 'xmax', 'ymin', 'ymax').each_slice(2)
+      cx, cy = bounds.map { |bound| 0.5 * bound.sum }
+      dpi = bounds.map { |b0, b1| 0.0254 * TILE * scale / (b1 - b0) }.min
+
+      max, count = 0, 0
+      while count < total
+        min, max = max, max + (options.paginate || 10000)
+        features = Hash.new do |hash, objectid|
+          hash[objectid] = { type: 'Feature', properties: { objectid_field => objectid }, geometry: { } }
+        end
+
+        layer['fields'].map do |field|
+          field.values_at 'name', 'type'
+        end.select do |field, type|
+          %W[esriFieldTypeInteger esriFieldTypeSmallInteger esriFieldTypeDouble esriFieldTypeSingle esriFieldTypeString esriFieldTypeGUID esriFieldTypeDate].include? type
+        end.select do |field, type|
+          !options.fields || options.fields.include?(field)
+        end.each_slice(2).yield_self do |pairs|
+          pairs.any? ? pairs.map(&:transpose) : [[[],[]]]
+        end.each do |fields, types|
+          where = [ "#{objectid_field}>=#{min}", "#{objectid_field}<#{max}", options.where ].compact.map do |clause|
+            "(#{clause})"
+          end.join(' AND ')
+          json = get_json "#{url}/dynamicLayer/generateRenderer", where: where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ objectid_field, *fields ], fieldDelimiter: ?| }.to_json
+          response = JSON.parse json
+          abort [ response['error']['message'], *response['error']['details'] ].join(?\n) if response['error']
+          response['uniqueValueInfos'].each do |info|
+            objectid, *values = info['value'].split(?|).map(&:strip)
+            feature = features[objectid.to_i]
+            values.zip(types, fields).each do |value, type, field|
+              feature[:properties][field] = case
+              when value == '<Null>' then nil
+              when type == 'esriFieldTypeInteger' then Integer(value)
+              when type == 'esriFieldTypeSmallInteger' then Integer(value)
+              when type == 'esriFieldTypeDouble' then Float(value)
+              when type == 'esriFieldTypeSingle' then Float(value)
+              when type == 'esriFieldTypeString' then String(value)
+              when type == 'esriFieldTypeGUID' then String(value)
+              when type == 'esriFieldTypeDate' then String(value)
+              end
+            end
+          end
+        end
+
+        features.each do |objectid, feature|
+          $stderr << "retrieving feature #{count += 1} of #{total}\r" unless options.quiet
+          dynamic_layers = [ dynamic_layer.merge(definitionExpression: "#{objectid_field}=#{objectid}") ]
+          json = get_json "#{url}/export", format: 'svg', dynamicLayers: dynamic_layers.to_json, bbox: "#{cx},#{cy},#{cx},#{cy}", size: "#{TILE},#{TILE}", mapScale: scale, dpi: dpi
+          href, extent = JSON.parse(json).values_at 'href', 'extent'
+          xmin, xmax, ymin, ymax = extent.values_at 'xmin', 'xmax', 'ymin', 'ymax'
+          xml = get_response href
+          svg = REXML::Document.new(xml).elements['svg']
+          a, b, c, d, e, f =  svg.elements['g[@transform]//g[@transform]'].attributes['transform'].match(/matrix\((.*)\)/)[1].split(?\s).map(&:to_f)
+          rings, parts = [], svg.elements['g[@transform]//g[@transform]/path[@d]'].attributes['d'].gsub(/ *M */, ' M ').gsub(/ *L */, ' L ').gsub(/ *Z */, ' Z ').strip.split(?\s)
+          while parts.any?
+            command, *parts = parts
+            case command
+            when ?Z then next
+            when ?M then rings << []
+            when ?L
+            else raise ServerError, 'unexpected SVG path data format'
+            end
+            x, y, *parts = parts
+            fx, fy = [ (a * Float(x) + c * Float(y) + e) / TILE, (b * Float(x) + d * Float(y) + f) / TILE ]
+            rings.last << [ fx * xmax + (1 - fx) * xmin, fy * ymin + (1 - fy) * ymax ]
+          end
+          case layer['geometryType']
+          when 'esriGeometryPoint'
+            raise ServerError, 'unexpected multiple linestring' unless rings.one?
+            feature[:geometry][:type] = 'Point'
+            feature[:geometry][:coordinates] = rings[0].take(4).transpose.map do |coords|
+              coords.sum / coords.length
+            end
+          when 'esriGeometryPolyline'
+            raise ServerError, 'unexpected multiple linestring' unless rings.one?
+            feature[:geometry][:type] = 'LineString'
+            feature[:geometry][:coordinates] = rings[0]
+          when 'esriGeometryPolygon'
+            feature[:geometry][:type] = 'Polygon'
+            feature[:geometry][:coordinates] = rings
+          end
+        end.any? || next
+        yielder << { type: 'FeatureCollection', features: features.values }
+      end
+      $stderr.puts
     else
-      IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{create} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
-        pipe.write json
+      where = options.where || layer['fields'].find do |field|
+        'esriFieldTypeGeometry' == field['type']
+      end.fetch('name') + ' IS NOT NULL'
+      paginate = options.paginate || [ 1000, layer.fetch('maxRecordCount', 1000) ].min
+      fields = options.fields ? options.fields.join(?,) : ?*
+      json = get_json "#{options.url}/query", returnIdsOnly: true, where: where
+      error, object_ids = JSON.parse(json).values_at 'error', 'objectIds'
+      raise ServerError, '%s (%s)' % error.values_at('message', 'code') if error
+      raise ServerError, 'no results returned' unless object_ids
+      query = options.epsg ? { outFields: fields, outSR: options.epsg } : { outFields: fields }
+
+      count, total = 0, object_ids.length
+      progress = " retrieving %s: %6.2f%% of #{total} features\r"
+      $stderr << progress % [ name, 0.0 ] unless options.quiet
+      while object_ids.any?
+        json, ids = nil, object_ids.take(paginate)
+        options.tries.times do
+          json = begin
+            get_json "#{options.url}/query", query.merge(objectIds: ids.join(?,))
+          rescue ServerError
+            sleep 1
+            next
+          end
+          error = JSON.parse(json)['error']
+          case
+          when error && [4, 5].include?(error['code'].to_i / 100) then json = nil
+          when error then raise ServerError, '%s (%s)' % error.values_at('message', 'code')
+          else break
+          end
+          sleep 1
+        end
+        case
+        when !json && paginate > 1
+          $stderr.puts "\nWARNING: retrying #{name} at #{paginate /= 2} features per request" unless options.quiet
+          next
+        when !json
+          raise ServerError, 'failed at one feature per request'
+        else
+          yielder << json
+        end
+        count += object_ids.shift(paginate).length
+        $stderr << progress % [ name, 100.0 * count / total ] unless options.quiet
       end
-      exit $?.exitstatus unless $?.success?
-      create, update = nil, "-update -append"
+      $stderr.puts unless options.quiet
     end
-    count += object_ids.shift(options.paginate).length
-    $stdout << progress % [ options.name, 100.0 * count / total ] unless options.quiet
+  end.yield_self do |pages|
+    next pages unless options.concat
+    collection = pages.map do |page|
+      String === page ? JSON.parse(page) : page
+    end.inject do |collection, page|
+      collection['features'] += page['features']
+      collection
+    end
+    [ collection ]
+  end.inject(format) do |flags, page|
+    IO.popen %Q[ogr2ogr -skipfailures #{flags} #{reproject} #{type} -nln #{name} "#{options.path}" /vsistdin/], 'w' do |pipe|
+      pipe.write String === page ? page : page.to_json
+    end
+    exit $?.exitstatus unless $?.success?
+    '-update -append'
   end
-  $stdout.puts unless options.quiet
-  IO.popen %Q[ogr2ogr -skipfailures #{reproject} #{format} -nln #{options.name} #{create} #{update} "#{options.path}" /vsistdin/], "w" do |pipe|
-    pipe.write data.to_json
-  end if options.concat
-  exit $?.exitstatus
 rescue JSON::ParserError => error
   message =  $?.success? ? "JSON: #{error.message}" : "curl failed with #{options.url}"
   abort "\nERROR: #{message}"

@@ -57,6 +57,7 @@ begin
     end
   end
   raise OptionParser::InvalidOption, "--svg and --epsg are incompatible" if options.svg && options.epsg
+  raise OptionParser::InvalidOption, "--unique requires --svg" if options.unique && !options.svg
   abort parser.to_s unless options.url && options.path
   case
   when /.*\/MapServer\/\d+$/ === options.url

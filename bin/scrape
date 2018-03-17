@@ -241,8 +241,25 @@ begin
             when ?Z then next
             when ?M then rings << coordinates
             when ?L then rings.last.concat coordinates
-            # TODO: for bezier curves (?C), we can discretise by selecting ds (delta arc length)
-            # then step t by dt = ds / |p'(t)| to generate intermediate points
+            when ?C
+              coordinates.each_slice(3) do |points|
+                raise ServerError, 'unexpected SVG response' unless points.length == 3
+                curves = [ [ rings.last.last, *points ] ]
+                while curve = curves.shift
+                  next if curve.first == curve.last
+                  if curve.values_at(0,-1).distance < 0.99 * curve.segments.map(&:distance).sum
+                    reduced = 3.times.inject [ curve ] do |reduced|
+                      reduced << reduced.last.each_cons(2).map do |v0, v1|
+                        v0.plus(v1).times(0.5)
+                      end
+                    end
+                    curves.unshift reduced.map(&:last).reverse
+                    curves.unshift reduced.map(&:first)
+                  else
+                    rings.last << curve.last
+                  end
+                end
+              end
             else raise ServerError, "can't handle SVG path data command '#{command}'"
             end
           end
@@ -263,7 +280,7 @@ begin
         end.any? || next
         yielder << { type: 'FeatureCollection', features: features.values }
       end
-      $stderr.puts
+      $stderr.puts unless options.quiet
     else
       abort "can't scrape data from #{options.url}"
     end

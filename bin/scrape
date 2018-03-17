@@ -258,7 +258,7 @@ begin
             feature[:geometry][:coordinates] = rings
           when 'esriGeometryPolygon'
             feature[:geometry][:type] = 'MultiPolygon'
-            feature[:geometry][:coordinates] = rings.slice_before(&:clockwise?)
+            feature[:geometry][:coordinates] = rings.slice_before(&:clockwise?).to_a
           end
         end.any? || next
         yielder << { type: 'FeatureCollection', features: features.values }

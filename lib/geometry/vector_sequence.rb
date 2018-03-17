@@ -10,6 +10,7 @@ module VectorSequence
   def hole?
     signed_area < 0
   end
+  alias clockwise? hole?
 
   def centroid
     ring.map do |p1, p2|

@@ -5,6 +5,7 @@ require 'json'
 require 'ostruct'
 require 'optparse'
 require 'rexml/document'
+require_relative '../lib/geometry'
 
 FORMATS, TILE = %w[shp tab gpkg sqlite], 1000
 ServerError = Class.new StandardError
@@ -205,12 +206,11 @@ begin
               coords.sum / coords.length
             end
           when 'esriGeometryPolyline'
-            raise ServerError, 'unexpected multiple linestring' unless rings.one?
-            feature[:geometry][:type] = 'LineString'
-            feature[:geometry][:coordinates] = rings[0]
-          when 'esriGeometryPolygon'
-            feature[:geometry][:type] = 'Polygon'
+            feature[:geometry][:type] = 'MultiLineString'
             feature[:geometry][:coordinates] = rings
+          when 'esriGeometryPolygon'
+            feature[:geometry][:type] = 'MultiPolygon'
+            feature[:geometry][:coordinates] = rings.slice_before(&:clockwise?)
           end
         end.any? || next
         yielder << { type: 'FeatureCollection', features: features.values }

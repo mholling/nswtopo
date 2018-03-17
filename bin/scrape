@@ -189,7 +189,7 @@ begin
           xml = get_response href
           svg = REXML::Document.new(xml).elements['svg']
           group, *unexpected = svg.elements.collect('g[@transform]//g[@transform][path[@d]]', &:itself)
-          raise ServerError, 'unexpected SVG response' if unexpected.any?
+          raise ServerError, 'unexpected SVG response' unless group && unexpected.none?
           a, b, c, d, e, f =  group.attributes['transform'].match(/matrix\((.*)\)/)[1].split(?\s).map(&:to_f)
           rings = []
           parts = group.elements['path[@d]'].attributes['d'].gsub(/\ *([a-zA-Z])\ */) do

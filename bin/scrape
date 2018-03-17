@@ -71,6 +71,13 @@ end
 
 begin
   layer = JSON.parse get_json(options.url)
+
+  [ *options.fields, *options.unique ].each do |name|
+    abort "invalid field: #{name}" unless layer['fields'].any? do |field|
+      field['name'] == name
+    end
+  end
+
   name = options.name || layer['name'].gsub(/[^\w]+/, ?_)
   format = case
   when File.exists?(options.path) then %Q[-update -overwrite]

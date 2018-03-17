@@ -229,22 +229,22 @@ begin
           raise ServerError, 'unexpected SVG response' unless group && unexpected.none?
           a, b, c, d, e, f =  group.attributes['transform'].match(/matrix\((.*)\)/)[1].split(?\s).map(&:to_f)
           rings = []
-          parts = group.elements['path[@d]'].attributes['d'].gsub(/\ *([a-zA-Z])\ */) do
+          group.elements['path[@d]'].attributes['d'].gsub(/\ *([a-zA-Z])\ */) do
             ?\s + $1 + ?\s
-          end.strip.split(?\s)
-          while parts.any?
-            command, *parts = parts
+          end.strip.split(?\s).slice_before(/[a-zA-Z]/).each do |command, *numbers|
+            raise ServerError, "can't handle SVG path data command '#{command}'" unless numbers.length.even?
+            coordinates = numbers.each_slice(2).map do |x, y|
+              fx, fy = [ (a * Float(x) + c * Float(y) + e) / TILE, (b * Float(x) + d * Float(y) + f) / TILE ]
+              [ fx * xmax + (1 - fx) * xmin, fy * ymin + (1 - fy) * ymax ]
+            end
             case command
             when ?Z then next
-            when ?M then rings << []
-            when ?L
+            when ?M then rings << coordinates
+            when ?L then rings.last.concat coordinates
             # TODO: for bezier curves (?C), we can discretise by selecting ds (delta arc length)
             # then step t by dt = ds / |p'(t)| to generate intermediate points
             else raise ServerError, "can't handle SVG path data command '#{command}'"
             end
-            x, y, *parts = parts
-            fx, fy = [ (a * Float(x) + c * Float(y) + e) / TILE, (b * Float(x) + d * Float(y) + f) / TILE ]
-            rings.last << [ fx * xmax + (1 - fx) * xmin, fy * ymin + (1 - fy) * ymax ]
           end
           case layer['geometryType']
           when 'esriGeometryPoint'

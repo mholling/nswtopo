@@ -130,7 +130,7 @@ begin
 
       bounds = layer['extent'].values_at('xmin', 'xmax', 'ymin', 'ymax').each_slice(2)
       cx, cy = bounds.map { |bound| 0.5 * bound.sum }
-      dpi = bounds.map { |b0, b1| 0.0254 * TILE * scale / (b1 - b0) }.min
+      dpi = bounds.map { |b0, b1| 0.0254 * TILE * scale / (b1 - b0) }.min * 0.999
 
       max, count = 0, 0
       while count < total

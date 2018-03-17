@@ -248,9 +248,9 @@ begin
           end
           case layer['geometryType']
           when 'esriGeometryPoint'
-            raise ServerError, 'unexpected SVG response' unless rings.one?
+            raise ServerError, 'unexpected SVG response' unless rings.map(&:length) == [ 4 ]
             feature[:geometry][:type] = 'Point'
-            feature[:geometry][:coordinates] = rings[0].take(4).transpose.map do |coords|
+            feature[:geometry][:coordinates] = rings[0].transpose.map do |coords|
               coords.sum / coords.length
             end
           when 'esriGeometryPolyline'

@@ -96,7 +96,7 @@ begin
       scale = loop do
         break parent['minScale'] if parent['minScale']&.nonzero?
         break parent['effectiveMinScale'] if parent['effectiveMinScale']&.nonzero?
-        break unless parent_id = parent['parentLayer']&.id
+        break unless parent_id = parent.dig('parentLayer', 'id')
         parent = JSON.parse get_json("#{url}/#{parent_id}")
       end || begin
         service = JSON.parse get_json(url)

@@ -34,8 +34,8 @@ def get_json(url, query = {})
   get_response url, query.merge(f: 'json')
 end
 
-options = OpenStruct.new(format: 'shp', tries: 10)
 begin
+  options = OpenStruct.new(format: 'shp', tries: 10)
   parser = OptionParser.new("Scrape data from an ArcGIS REST endpoint.\nUsage: scrape [options] url path") do |parser|
     parser.on '-n', '--name       NAME', /^\w+$/, 'name of saved layer'
     parser.on '-f', '--format     FORMAT', FORMATS, "output file format [#{FORMATS.join ?|}]"
@@ -45,7 +45,6 @@ begin
     parser.on '-t', '--tries      TRIES', Integer, 'number of tries before reducing request size'
     parser.on '-e', '--epsg       EPSG', Integer, 'EPSG number for data retrieval'
     parser.on '-r', '--reproject  EPSG', Integer, 'EPSG number for local reprojection'
-    parser.on '-s', '--svg', 'scrape from SVG export instead of query'
     parser.on '-u', '--unique     FIELD', String, 'field for counting features'
     parser.on '-c', '--concat', 'concatenate paged results before saving'
     parser.on '-q', '--quiet', "don't show progress"
@@ -57,19 +56,9 @@ begin
     else raise OptionParser::InvalidArgument, arg
     end
   end
-  raise OptionParser::InvalidOption, "--svg and --epsg are incompatible" if options.svg && options.epsg
-  raise OptionParser::InvalidOption, "--unique requires --svg" if options.unique && !options.svg
   abort parser.to_s unless options.url && options.path
-  case
-  when /.*\/MapServer\/\d+$/ === options.url
-  when /.*\/FeatureServer\/\d+$/ === options.url && !options.svg
-  else raise OptionParser::InvalidArgument, options.url
-  end
-rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => e
-  abort e.message
-end
+  raise OptionParser::InvalidArgument, options.url unless /.*\/(FeatureServer|MapServer)\/\d+$/ === options.url
 
-begin
   layer = JSON.parse get_json(options.url)
 
   [ *options.fields, *options.unique ].each do |name|
@@ -94,8 +83,60 @@ begin
   end
   reproject = %Q[-t_srs epsg:#{options.reproject}] if options.reproject
 
+
+  objectid_field, geometry_field = %w[esriFieldTypeOID esriFieldTypeGeometry].map do |type|
+    layer['fields'].find do |field|
+      type == field['type']
+    end.fetch('name')
+  end
+
   Enumerator.new do |yielder|
-    if options.svg
+    case layer['capabilities']
+    when /Query|Data/
+      where = options.where || "#{geometry_field} IS NOT NULL"
+      paginate = options.paginate || [ 1000, layer.fetch('maxRecordCount', 1000) ].min
+      fields = options.fields ? options.fields.join(?,) : ?*
+      json = get_json "#{options.url}/query", returnIdsOnly: true, where: where
+      error, object_ids = JSON.parse(json).values_at 'error', 'objectIds'
+      raise ServerError, '%s (%s)' % error.values_at('message', 'code') if error
+      raise ServerError, 'no results returned' unless object_ids
+      query = options.epsg ? { outFields: fields, outSR: options.epsg } : { outFields: fields }
+
+      count, total = 0, object_ids.length
+      progress = " retrieving %s: %6.2f%% of #{total} features\r"
+      $stderr << progress % [ name, 0.0 ] unless options.quiet
+      while object_ids.any?
+        json, ids = nil, object_ids.take(paginate)
+        options.tries.times do
+          json = begin
+            get_json "#{options.url}/query", query.merge(objectIds: ids.join(?,))
+          rescue ServerError
+            sleep 1
+            next
+          end
+          error = JSON.parse(json)['error']
+          case
+          when error && [4, 5].include?(error['code'].to_i / 100) then json = nil
+          when error then raise ServerError, '%s (%s)' % error.values_at('message', 'code')
+          else break
+          end
+          sleep 1
+        end
+        case
+        when !json && paginate > 1
+          $stderr.puts "\nWARNING: retrying #{name} at #{paginate /= 2} features per request" unless options.quiet
+          next
+        when !json
+          raise ServerError, 'failed at one feature per request'
+        else
+          yielder << json
+        end
+        count += object_ids.shift(paginate).length
+        $stderr << progress % [ name, 100.0 * count / total ] unless options.quiet
+      end
+      $stderr.puts unless options.quiet
+    when /Map/
+      raise OptionParser::InvalidOption, "can't use --epsg with this server" if options.epsg
       wkid = layer['extent']['spatialReference']['latestWkid']
       reproject = %Q[-s_srs epsg:#{wkid} -t_srs epsg:#{options.reproject || wkid}]
       url = options.url.match(/(.*)\/(\d+)$/)[1]
@@ -125,10 +166,6 @@ begin
         abort "unable to process '%s' geometry type" % layer['geometryType']
       end
       dynamic_layer = { source: { type: 'mapLayer', mapLayerId: layer['id'] }, drawingInfo: { showLabels: false, renderer: renderer } }
-
-      objectid_field = layer['fields'].find do |field|
-        'esriFieldTypeOID' == field['type']
-      end.fetch('name')
 
       unique = options.unique || objectid_field
       json = get_json "#{url}/dynamicLayer/generateRenderer", where: options.where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ unique, unique ] }.to_json
@@ -201,6 +238,8 @@ begin
             when ?Z then next
             when ?M then rings << []
             when ?L
+            # TODO: for bezier curves (?C), we can discretise by selecting ds (delta arc length)
+            # then step t by dt = ds / |p'(t)| to generate intermediate points
             else raise ServerError, "can't handle SVG path data command '#{command}'"
             end
             x, y, *parts = parts
@@ -226,50 +265,7 @@ begin
       end
       $stderr.puts
     else
-      where = options.where || layer['fields'].find do |field|
-        'esriFieldTypeGeometry' == field['type']
-      end.fetch('name') + ' IS NOT NULL'
-      paginate = options.paginate || [ 1000, layer.fetch('maxRecordCount', 1000) ].min
-      fields = options.fields ? options.fields.join(?,) : ?*
-      json = get_json "#{options.url}/query", returnIdsOnly: true, where: where
-      error, object_ids = JSON.parse(json).values_at 'error', 'objectIds'
-      raise ServerError, '%s (%s)' % error.values_at('message', 'code') if error
-      raise ServerError, 'no results returned' unless object_ids
-      query = options.epsg ? { outFields: fields, outSR: options.epsg } : { outFields: fields }
-
-      count, total = 0, object_ids.length
-      progress = " retrieving %s: %6.2f%% of #{total} features\r"
-      $stderr << progress % [ name, 0.0 ] unless options.quiet
-      while object_ids.any?
-        json, ids = nil, object_ids.take(paginate)
-        options.tries.times do
-          json = begin
-            get_json "#{options.url}/query", query.merge(objectIds: ids.join(?,))
-          rescue ServerError
-            sleep 1
-            next
-          end
-          error = JSON.parse(json)['error']
-          case
-          when error && [4, 5].include?(error['code'].to_i / 100) then json = nil
-          when error then raise ServerError, '%s (%s)' % error.values_at('message', 'code')
-          else break
-          end
-          sleep 1
-        end
-        case
-        when !json && paginate > 1
-          $stderr.puts "\nWARNING: retrying #{name} at #{paginate /= 2} features per request" unless options.quiet
-          next
-        when !json
-          raise ServerError, 'failed at one feature per request'
-        else
-          yielder << json
-        end
-        count += object_ids.shift(paginate).length
-        $stderr << progress % [ name, 100.0 * count / total ] unless options.quiet
-      end
-      $stderr.puts unless options.quiet
+      abort "can't scrape data from #{options.url}"
     end
   end.yield_self do |pages|
     next pages unless options.concat
@@ -287,6 +283,8 @@ begin
     exit $?.exitstatus unless $?.success?
     '-update -append'
   end
+rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => e
+  abort e.message
 rescue JSON::ParserError => error
   message =  $?.success? ? "JSON: #{error.message}" : "curl failed with #{options.url}"
   abort "\nERROR: #{message}"

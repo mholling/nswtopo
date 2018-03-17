@@ -181,9 +181,11 @@ begin
           xmin, xmax, ymin, ymax = extent.values_at 'xmin', 'xmax', 'ymin', 'ymax'
           xml = get_response href
           svg = REXML::Document.new(xml).elements['svg']
-          a, b, c, d, e, f =  svg.elements['g[@transform]//g[@transform]'].attributes['transform'].match(/matrix\((.*)\)/)[1].split(?\s).map(&:to_f)
+          group, *unexpected = svg.elements.collect('g[@transform]//g[@transform][path[@d]]', &:itself)
+          raise ServerError, 'unexpected SVG response' if unexpected.any?
+          a, b, c, d, e, f =  group.attributes['transform'].match(/matrix\((.*)\)/)[1].split(?\s).map(&:to_f)
           rings = []
-          parts = svg.elements['g[@transform]//g[@transform]/path[@d]'].attributes['d'].gsub(/\ *([a-zA-Z])\ */) do
+          parts = group.elements['path[@d]'].attributes['d'].gsub(/\ *([a-zA-Z])\ */) do
             ?\s + $1 + ?\s
           end.strip.split(?\s)
           while parts.any?
@@ -200,7 +202,7 @@ begin
           end
           case layer['geometryType']
           when 'esriGeometryPoint'
-            raise ServerError, 'unexpected multiple linestring' unless rings.one?
+            raise ServerError, 'unexpected SVG response' unless rings.one?
             feature[:geometry][:type] = 'Point'
             feature[:geometry][:coordinates] = rings[0].take(4).transpose.map do |coords|
               coords.sum / coords.length

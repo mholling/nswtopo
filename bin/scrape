@@ -181,14 +181,17 @@ begin
           xml = get_response href
           svg = REXML::Document.new(xml).elements['svg']
           a, b, c, d, e, f =  svg.elements['g[@transform]//g[@transform]'].attributes['transform'].match(/matrix\((.*)\)/)[1].split(?\s).map(&:to_f)
-          rings, parts = [], svg.elements['g[@transform]//g[@transform]/path[@d]'].attributes['d'].gsub(/ *M */, ' M ').gsub(/ *L */, ' L ').gsub(/ *Z */, ' Z ').strip.split(?\s)
+          rings = []
+          parts = svg.elements['g[@transform]//g[@transform]/path[@d]'].attributes['d'].gsub(/\ *([a-zA-Z])\ */) do
+            ?\s + $1 + ?\s
+          end.strip.split(?\s)
           while parts.any?
             command, *parts = parts
             case command
             when ?Z then next
             when ?M then rings << []
             when ?L
-            else raise ServerError, 'unexpected SVG path data format'
+            else raise ServerError, "can't handle SVG path data command '#{command}'"
             end
             x, y, *parts = parts
             fx, fy = [ (a * Float(x) + c * Float(y) + e) / TILE, (b * Float(x) + d * Float(y) + f) / TILE ]

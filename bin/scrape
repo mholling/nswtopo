@@ -226,7 +226,7 @@ begin
           xml = get_response href
           svg = REXML::Document.new(xml).elements['svg']
           group, *unexpected = svg.elements.collect('g[@transform]//g[@transform][path[@d]]', &:itself)
-          raise ServerError, 'unexpected SVG response' unless group && unexpected.none?
+          raise ServerError, 'unexpected SVG response (no content)' unless group && unexpected.none?
           a, b, c, d, e, f =  group.attributes['transform'].match(/matrix\((.*)\)/)[1].split(?\s).map(&:to_f)
           rings = []
           group.elements['path[@d]'].attributes['d'].gsub(/\ *([a-zA-Z])\ */) do
@@ -243,7 +243,7 @@ begin
             when ?L then rings.last.concat coordinates
             when ?C
               coordinates.each_slice(3) do |points|
-                raise ServerError, 'unexpected SVG response' unless points.length == 3
+                raise ServerError, 'unexpected SVG response (bad path data)' unless points.length == 3
                 curves = [ [ rings.last.last, *points ] ]
                 while curve = curves.shift
                   next if curve.first == curve.last

@@ -229,9 +229,9 @@ begin
           raise ServerError, 'unexpected SVG response (no content)' unless group && unexpected.none?
           a, b, c, d, e, f =  group.attributes['transform'].match(/matrix\((.*)\)/)[1].split(?\s).map(&:to_f)
           rings = []
-          group.elements['path[@d]'].attributes['d'].gsub(/\ *([a-zA-Z])\ */) do
+          group.elements['path[@d]'].attributes['d'].gsub(/\ *([MmZzLlHhVvCcSsQqTtAa])\ */) do
             ?\s + $1 + ?\s
-          end.strip.split(?\s).slice_before(/[a-zA-Z]/).each do |command, *numbers|
+          end.strip.split(?\s).slice_before(/[MmZzLlHhVvCcSsQqTtAa]/).each do |command, *numbers|
             raise ServerError, "can't handle SVG path data command '#{command}'" unless numbers.length.even?
             coordinates = numbers.each_slice(2).map do |x, y|
               fx, fy = [ (a * Float(x) + c * Float(y) + e) / TILE, (b * Float(x) + d * Float(y) + f) / TILE ]

@@ -91,6 +91,7 @@ begin
   end
 
   Enumerator.new do |yielder|
+    progress = "retrieving #{name}: %6.2f%% of %i features\r"
     case layer['capabilities']
     when /Query|Data/
       where = options.where || "#{geometry_field} IS NOT NULL"
@@ -103,8 +104,7 @@ begin
       query = options.epsg ? { outFields: fields, outSR: options.epsg } : { outFields: fields }
 
       count, total = 0, object_ids.length
-      progress = " retrieving %s: %6.2f%% of #{total} features\r"
-      $stderr << progress % [ name, 0.0 ] unless options.quiet
+      $stderr << progress % [ 0.0, total ] unless options.quiet
       while object_ids.any?
         json, ids = nil, object_ids.take(paginate)
         options.tries.times do
@@ -134,9 +134,8 @@ begin
           yielder << json
         end
         count += object_ids.shift(paginate).length
-        $stderr << progress % [ name, 100.0 * count / total ] unless options.quiet
+        $stderr << progress % [ 100.0 * count / total, total ] unless options.quiet
       end
-      $stderr.puts unless options.quiet
     when /Map/
       raise OptionParser::InvalidOption, "can't use --epsg with this server" if options.epsg
       wkid = layer['extent']['spatialReference']['latestWkid']
@@ -220,7 +219,8 @@ begin
         end
 
         features.each do |objectid, feature|
-          $stderr << "retrieving feature #{count += 1} of #{total}\r" unless options.quiet
+          count += 1
+          $stderr << progress % [ 100.0 * count / total, total ] unless options.quiet
           dynamic_layers = [ dynamic_layer.merge(definitionExpression: "#{objectid_field}=#{objectid}") ]
           json = get_json "#{url}/export", format: 'svg', dynamicLayers: dynamic_layers.to_json, bbox: "#{cx},#{cy},#{cx},#{cy}", size: "#{TILE},#{TILE}", mapScale: scale, dpi: dpi
           href, extent = JSON.parse(json).values_at 'href', 'extent'
@@ -278,10 +278,10 @@ begin
         end.any? || next
         yielder << { type: 'FeatureCollection', features: features.values }
       end
-      $stderr.puts unless options.quiet
     else
       abort "can't scrape data from #{options.url}"
     end
+    $stderr.puts unless options.quiet
   end.yield_self do |pages|
     next pages unless options.concat
     collection = pages.map do |page|

@@ -181,7 +181,7 @@ begin
       while count < total
         min, max = max, max + (options.paginate || 10000)
         features = Hash.new do |hash, objectid|
-          hash[objectid] = { type: 'Feature', properties: { objectid_field => objectid }, geometry: { } }
+          hash[objectid] = { type: 'Feature', properties: { objectid_field => objectid } }
         end
 
         layer['fields'].map do |field|
@@ -265,17 +265,13 @@ begin
           end
           case layer['geometryType']
           when 'esriGeometryPoint'
-            raise ServerError, 'unexpected SVG response' unless rings.map(&:length) == [ 4 ]
-            feature[:geometry][:type] = 'Point'
-            feature[:geometry][:coordinates] = rings[0].transpose.map do |coords|
-              coords.sum / coords.length
-            end
+            raise ServerError, 'unexpected SVG response (bad point symbol)' unless rings.map(&:length) == [ 4 ]
+            point = rings[0].transpose.map { |coords| coords.sum / coords.length }
+            feature[:geometry] = { type: 'Point', coordinates: point }
           when 'esriGeometryPolyline'
-            feature[:geometry][:type] = 'MultiLineString'
-            feature[:geometry][:coordinates] = rings
+            feature[:geometry] = { type: 'MultiLineString', coordinates: rings }
           when 'esriGeometryPolygon'
-            feature[:geometry][:type] = 'MultiPolygon'
-            feature[:geometry][:coordinates] = rings.slice_before(&:clockwise?).to_a
+            feature[:geometry] = { type: 'MultiPolygon', coordinates: rings.slice_before(&:clockwise?).to_a }
           end
         end.any? || next
         yielder << { type: 'FeatureCollection', features: features.values }

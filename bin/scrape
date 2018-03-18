@@ -35,7 +35,7 @@ def get_json(url, query = {})
 end
 
 begin
-  options = OpenStruct.new(format: 'shp', tries: 10)
+  options = OpenStruct.new(format: 'shp', tries: 2)
   parser = OptionParser.new("Scrape data from an ArcGIS REST endpoint.\nUsage: scrape [options] url path") do |parser|
     parser.on '-n', '--name       NAME', /^\w+$/, 'name of saved layer'
     parser.on '-f', '--format     FORMAT', FORMATS, "output file format [#{FORMATS.join ?|}]"
@@ -108,9 +108,11 @@ begin
       while object_ids.any?
         json, ids = nil, object_ids.take(paginate)
         options.tries.times do
-          json = begin
-            get_json "#{options.url}/query", query.merge(objectIds: ids.join(?,))
+          begin
+            json = get_json "#{options.url}/query", query.merge(objectIds: ids.join(?,))
+            raise ServerError if json['<title>Request Rejected</title>']
           rescue ServerError
+            json = nil
             sleep 1
             next
           end

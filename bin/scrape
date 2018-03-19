@@ -142,7 +142,7 @@ begin
       end
     when /Map/
       raise OptionParser::InvalidOption, "can't use --epsg with this server" if options.epsg
-      wkid = layer['extent']['spatialReference']['latestWkid']
+      wkid = layer['extent']['spatialReference']['latestWkid'] || layer['extent']['spatialReference']['wkid']
       service_url = options.url.match(/(.*)\/(\d+)$/)[1]
 
       parent = layer

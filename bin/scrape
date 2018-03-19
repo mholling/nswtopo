@@ -51,7 +51,7 @@ def try_repeatedly(tries)
 end
 
 begin
-  options = OpenStruct.new(format: 'shp', tries: 5)
+  options = OpenStruct.new(tries: 5)
   parser = OptionParser.new("Scrape data from an ArcGIS REST endpoint.\nUsage: scrape [options] url path") do |parser|
     parser.on '-n', '--name       NAME', /^\w+$/, 'name of saved layer'
     parser.on '-f', '--format     FORMAT', FORMATS, "output file format [#{FORMATS.join ?|}]"
@@ -74,6 +74,12 @@ begin
   end
   abort parser.to_s unless options.url && options.path
   raise OptionParser::InvalidArgument, options.url unless /.*\/(FeatureServer|MapServer)\/\d+$/ === options.url
+  options.format ||= case options.path
+  when /\.db$/       then 'sqlite'
+  when /\.sqlite3?$/ then 'sqlite'
+  when /\.gpkg/      then 'gpkg'
+  else 'shp'
+  end
   options.concat = true if options.format == 'shp'
 
   layer = get_json options.url

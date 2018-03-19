@@ -221,6 +221,8 @@ begin
               when type == 'esriFieldTypeGUID' then String(value)
               when type == 'esriFieldTypeDate' then String(value)
               end
+            rescue ArgumentError
+              raise ServerError, "could not interpret #{value.inspect} as '#{type}'"
             end
           end
         end

@@ -143,16 +143,16 @@ begin
     when /Map/
       raise OptionParser::InvalidOption, "can't use --epsg with this server" if options.epsg
       wkid = layer['extent']['spatialReference']['latestWkid']
-      url = options.url.match(/(.*)\/(\d+)$/)[1]
+      service_url = options.url.match(/(.*)\/(\d+)$/)[1]
 
       parent = layer
       scale = loop do
         break parent['minScale'] if parent['minScale']&.nonzero?
         break parent['effectiveMinScale'] if parent['effectiveMinScale']&.nonzero?
         break unless parent_id = parent.dig('parentLayer', 'id')
-        parent = get_json "#{url}/#{parent_id}"
+        parent = get_json "#{service_url}/#{parent_id}"
       end || begin
-        service = get_json url
+        service = get_json service_url
         case service['units']
         when 'esriMeters' then 100000
         else raise ServerError, "can't handle epsg:#{wkid}"
@@ -172,7 +172,7 @@ begin
       dynamic_layer = { source: { type: 'mapLayer', mapLayerId: layer['id'] }, drawingInfo: { showLabels: false, renderer: renderer } }
 
       unique = options.unique || objectid_field
-      renderer = get_json "#{url}/dynamicLayer/generateRenderer", where: options.where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ unique, unique ] }.to_json
+      renderer = get_json "#{service_url}/dynamicLayer/generateRenderer", where: options.where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ unique, unique ] }.to_json
       total = renderer.fetch('uniqueValueInfos').map do |info|
         info['count']
       end.sum
@@ -205,7 +205,7 @@ begin
           where = [ "#{objectid_field}>=#{min}", "#{objectid_field}<#{max}", options.where ].compact.map do |clause|
             "(#{clause})"
           end.join(' AND ')
-          response = get_json "#{url}/dynamicLayer/generateRenderer", where: where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ objectid_field, *names ], fieldDelimiter: ?| }.to_json
+          response = get_json "#{service_url}/dynamicLayer/generateRenderer", where: where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ objectid_field, *names ], fieldDelimiter: ?| }.to_json
           response['uniqueValueInfos'].each do |info|
             objectid, *values = info['value'].split(?|).map(&:strip)
             attributes = table[objectid.to_i]
@@ -239,7 +239,7 @@ begin
           ids = objectids.take paginate
           dynamic_layers = [ dynamic_layer.merge(definitionExpression: "#{objectid_field} IN (#{ids.join ?,})") ]
           export = try_repeatedly(options.tries) do
-            get_json "#{url}/export", format: 'svg', dynamicLayers: dynamic_layers.to_json, bbox: "#{cx},#{cy},#{cx},#{cy}", size: "#{TILE},#{TILE}", mapScale: scale, dpi: dpi
+            get_json "#{service_url}/export", format: 'svg', dynamicLayers: dynamic_layers.to_json, bbox: "#{cx},#{cy},#{cx},#{cy}", size: "#{TILE},#{TILE}", mapScale: scale, dpi: dpi
           end
           case
           when export

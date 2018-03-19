@@ -212,6 +212,7 @@ begin
             values.zip(types, names).each do |value, type, name|
               attributes[name] = case
               when value == '<Null>' then nil
+              when value == '' then nil
               when type == 'esriFieldTypeOID' then Integer(value)
               when type == 'esriFieldTypeInteger' then Integer(value)
               when type == 'esriFieldTypeSmallInteger' then Integer(value)

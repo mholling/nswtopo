@@ -74,6 +74,7 @@ begin
   end
   abort parser.to_s unless options.url && options.path
   raise OptionParser::InvalidArgument, options.url unless /.*\/(FeatureServer|MapServer)\/\d+$/ === options.url
+  options.concat = true if options.format == 'shp'
 
   layer = get_json options.url
 
@@ -83,22 +84,22 @@ begin
     end
   end
 
-  name = options.name || layer['name'].gsub(/[^\w]+/, ?_)
-  format = case
+  geometry_type = layer['geometryType']
+  options.name ||= layer['name'].gsub(/[^\w]+/, ?_)
+  format_flags = case
   when File.exists?(options.path) then %Q[-update -overwrite]
   when options.format == 'shp'    then %Q[-f "ESRI Shapefile"]
   when options.format == 'tab'    then %Q[-f "MapInfo File"]
   when options.format == 'gpkg'   then %Q[-f GPKG]
   when options.format == 'sqlite' then %Q[-f SQLite -dsco SPATIALITE=YES]
   end
-  type = case
-  when options.svg
+  type_flag = case
   when options.concat
+  when geometry_type == 'esriGeometryPoint'
   when options.format == 'sqlite' then %Q[-nlt PROMOTE_TO_MULTI]
   when options.format == 'gpkg'   then %Q[-nlt PROMOTE_TO_MULTI]
   end
-  reproject = %Q[-t_srs epsg:#{options.reproject}] if options.reproject
-
+  srs_flag = %Q[-t_srs epsg:#{options.reproject}] if options.reproject
 
   objectid_field, geometry_field = %w[esriFieldTypeOID esriFieldTypeGeometry].map do |type|
     layer['fields'].find do |field|
@@ -107,15 +108,15 @@ begin
   end
 
   Enumerator.new do |yielder|
-    progress = "retrieving #{name} %s: %6.2f%% of %i features\r"
+    progress = "retrieving #{options.name} %s: %6.2f%% of %i features\r"
     paginate = options.paginate || [ 1000, layer.fetch('maxRecordCount', 1000) ].min
     case layer['capabilities']
     when /Query|Data/
       where = options.where || "#{geometry_field} IS NOT NULL"
-      fields = options.fields ? options.fields.join(?,) : ?*
+      out_fields = options.fields ? options.fields.join(?,) : ?*
       objectids = get_json("#{options.url}/query", returnIdsOnly: true, where: where)['objectIds']
       raise ServerError, 'no results returned' unless objectids
-      query = options.epsg ? { outFields: fields, outSR: options.epsg } : { outFields: fields }
+      query = options.epsg ? { outFields: out_fields, outSR: options.epsg } : { outFields: out_fields }
       total = objectids.length
       $stderr << progress % [ 'features', 0.0, total ] unless options.quiet
       while objectids.any?
@@ -129,17 +130,13 @@ begin
           $stderr << progress % [ 'features', 100.0 * (total - objectids.length) / total, total ] unless options.quiet
         when paginate > 1
           paginate /= 2
-          $stderr.puts "WARNING: retrying #{name} at #{paginate} features per request" unless options.quiet
+          $stderr.puts "WARNING: retrying #{options.name} at #{paginate} features per request" unless options.quiet
         else raise ServerError, 'failed at one feature per request'
         end
       end
     when /Map/
-      # TODO: need to set column schema for the output database before we begin, otherwise we risk the first page
-      # having null values which will default to String type, even if later non-null values are Integer, Float, etc.
-      # (easiest way to solve this might be to just generate esri JSON instead of GeoJSON)
       raise OptionParser::InvalidOption, "can't use --epsg with this server" if options.epsg
       wkid = layer['extent']['spatialReference']['latestWkid']
-      reproject = %Q[-s_srs epsg:#{wkid} -t_srs epsg:#{options.reproject || wkid}]
       url = options.url.match(/(.*)\/(\d+)$/)[1]
 
       parent = layer
@@ -156,7 +153,7 @@ begin
         end
       end
 
-      renderer = case layer['geometryType']
+      renderer = case geometry_type
       when 'esriGeometryPoint'
         { type: 'simple', symbol: { color: [0,0,0,255], size: 1, type: 'esriSMS', style: 'esriSMSSquare' } }
       when 'esriGeometryPolyline'
@@ -164,7 +161,7 @@ begin
       when 'esriGeometryPolygon'
         { type: 'simple', symbol: { color: [0,0,0,255], width: 0, type: 'esriSFS', style: 'esriSFSSolid' } }
       else
-        abort "unable to process '%s' geometry type" % layer['geometryType']
+        abort "unable to process '%s' geometry type" % geometry_type
       end
       dynamic_layer = { source: { type: 'mapLayer', mapLayerId: layer['id'] }, drawingInfo: { showLabels: false, renderer: renderer } }
 
@@ -178,31 +175,36 @@ begin
       cx, cy = bounds.map { |bound| 0.5 * bound.sum }
       dpi = bounds.map { |b0, b1| 0.0254 * TILE * scale / (b1 - b0) }.min * 0.999
 
-      attributes = Hash.new do |hash, objectid|
+      table = Hash.new do |hash, objectid|
         hash[objectid] = { }
       end
 
+      fields = layer['fields'].select do |field|
+        %W[esriFieldTypeOID esriFieldTypeInteger esriFieldTypeSmallInteger esriFieldTypeDouble esriFieldTypeSingle esriFieldTypeString esriFieldTypeGUID esriFieldTypeDate].include? field['type']
+      end.select do |field|
+        !options.fields || options.fields.include?(field['name'])
+      end.map do |field|
+        field.slice 'name', 'type', 'length'
+      end
+      collection = { geometryType: geometry_type, spatialReference: { wkid: wkid }, fields: fields }
+
       max = 0
-      while attributes.length < total
+      while table.length < total
         min, max = max, max + 10000
-        layer['fields'].map do |field|
+        fields.map do |field|
           field.values_at 'name', 'type'
-        end.select do |field, type|
-          %W[esriFieldTypeOID esriFieldTypeInteger esriFieldTypeSmallInteger esriFieldTypeDouble esriFieldTypeSingle esriFieldTypeString esriFieldTypeGUID esriFieldTypeDate].include? type
-        end.select do |field, type|
-          !options.fields || options.fields.include?(field)
         end.each_slice(2).yield_self do |pairs|
           pairs.any? ? pairs.map(&:transpose) : [[[],[]]]
-        end.each do |fields, types|
+        end.each do |names, types|
           where = [ "#{objectid_field}>=#{min}", "#{objectid_field}<#{max}", options.where ].compact.map do |clause|
             "(#{clause})"
           end.join(' AND ')
-          response = get_json "#{url}/dynamicLayer/generateRenderer", where: where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ objectid_field, *fields ], fieldDelimiter: ?| }.to_json
+          response = get_json "#{url}/dynamicLayer/generateRenderer", where: where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ objectid_field, *names ], fieldDelimiter: ?| }.to_json
           response['uniqueValueInfos'].each do |info|
             objectid, *values = info['value'].split(?|).map(&:strip)
-            properties = attributes[objectid.to_i]
-            values.zip(types, fields).each do |value, type, field|
-              properties[field] = case
+            attributes = table[objectid.to_i]
+            values.zip(types, names).each do |value, type, name|
+              attributes[name] = case
               when value == '<Null>' then nil
               when type == 'esriFieldTypeOID' then Integer(value)
               when type == 'esriFieldTypeInteger' then Integer(value)
@@ -216,17 +218,17 @@ begin
             end
           end
         end
-        $stderr << progress % [ 'properties', 100.0 * attributes.length / total, total ] unless options.quiet
+        $stderr << progress % [ 'properties', 100.0 * table.length / total, total ] unless options.quiet
       end
       $stderr.puts unless options.quiet
 
       count = 0
-      attributes.group_by do |objectid, properties|
-        properties
-      end.sort_by do |properties, objectids_properties|
-        -objectids_properties.length
-      end.each do |properties, objectids_properties|
-        objectids = objectids_properties.transpose.first
+      table.group_by do |objectid, attributes|
+        attributes
+      end.sort_by do |attributes, objectids_attributes|
+        objectids_attributes.length
+      end.each do |attributes, objectids_attributes|
+        objectids = objectids_attributes.transpose.first
         while objectids.any?
           ids = objectids.take paginate
           dynamic_layers = [ dynamic_layer.merge(definitionExpression: "#{objectid_field} IN (#{ids.join ?,})") ]
@@ -237,7 +239,7 @@ begin
           when export
           when paginate > 1
             paginate /= 2
-            $stderr.puts "WARNING: retrying #{name} at #{paginate} features per request" unless options.quiet
+            $stderr.puts "WARNING: retrying #{options.name} at #{paginate} features per request" unless options.quiet
             next
           else raise ServerError, 'failed at one feature per request'
           end
@@ -246,7 +248,7 @@ begin
           xml = get_response href
           geometries = REXML::Document.new(xml).elements.collect('svg//g[@transform]//g[@transform][path[@d]]') do |group|
             a, b, c, d, e, f =  group.attributes['transform'].match(/matrix\((.*)\)/)[1].split(?\s).map(&:to_f)
-            rings = []
+            lines = []
             group.elements['path[@d]'].attributes['d'].gsub(/\ *([MmZzLlHhVvCcSsQqTtAa])\ */) do
               ?\s + $1 + ?\s
             end.strip.split(?\s).slice_before(/[MmZzLlHhVvCcSsQqTtAa]/).each do |command, *numbers|
@@ -257,12 +259,12 @@ begin
               end
               case command
               when ?Z then next
-              when ?M then rings << coordinates
-              when ?L then rings.last.concat coordinates
+              when ?M then lines << coordinates
+              when ?L then lines.last.concat coordinates
               when ?C
                 coordinates.each_slice(3) do |points|
                   raise ServerError, 'unexpected SVG response (bad path data)' unless points.length == 3
-                  curves = [ [ rings.last.last, *points ] ]
+                  curves = [ [ lines.last.last, *points ] ]
                   while curve = curves.shift
                     next if curve.first == curve.last
                     if curve.values_at(0,-1).distance < 0.99 * curve.segments.map(&:distance).sum
@@ -274,29 +276,29 @@ begin
                       curves.unshift reduced.map(&:last).reverse
                       curves.unshift reduced.map(&:first)
                     else
-                      rings.last << curve.last
+                      lines.last << curve.last
                     end
                   end
                 end
               else raise ServerError, "can't handle SVG path data command '#{command}'"
               end
             end
-            case layer['geometryType']
+            case geometry_type
             when 'esriGeometryPoint'
-              raise ServerError, 'unexpected SVG response (bad point symbol)' unless rings.map(&:length) == [ 4 ]
-              point = rings[0].transpose.map { |coords| coords.sum / coords.length }
-              { type: 'Point', coordinates: point }
+              raise ServerError, 'unexpected SVG response (bad point symbol)' unless lines.map(&:length) == [ 4 ]
+              point = lines[0].transpose.map { |coords| coords.sum / coords.length }
+              { x: point[0], y: point[1] }
             when 'esriGeometryPolyline'
-              { type: 'MultiLineString', coordinates: rings }
+              { paths: lines }
             when 'esriGeometryPolygon'
-              { type: 'MultiPolygon', coordinates: rings.slice_before(&:clockwise?).to_a }
+              { rings: lines }
             end
           end
           raise ServerError, 'unexpected SVG response (extra content)' if geometries.length > ids.length
           features = ids.zip(geometries).map do |objectid, geometry|
-            { properties: properties, geometry: geometry }
+            { attributes: attributes, geometry: geometry }
           end
-          yielder << { type: 'FeatureCollection', features: features }
+          yielder << collection.merge(features: features)
           objectids.shift paginate
           count += ids.length
           $stderr << progress % [ 'geometries', 100.0 * count / total, total ] unless options.quiet
@@ -315,8 +317,8 @@ begin
       collection
     end
     [ collection ]
-  end.inject(format) do |flags, page|
-    IO.popen %Q[ogr2ogr -skipfailures #{flags} #{reproject} #{type} -nln #{name} "#{options.path}" /vsistdin/], 'w' do |pipe|
+  end.inject(format_flags) do |flags, page|
+    IO.popen %Q[ogr2ogr -skipfailures #{flags} #{srs_flag} #{type_flag} -nln #{options.name} "#{options.path}" /vsistdin/], 'w' do |pipe|
       pipe.write String === page ? page : page.to_json
     end
     exit $?.exitstatus unless $?.success?
@@ -324,9 +326,6 @@ begin
   end
 rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => e
   abort e.message
-rescue JSON::ParserError => error
-  message =  $?.success? ? "JSON: #{error.message}" : "curl failed with #{options.url}"
-  abort "\nERROR: #{message}"
 rescue ServerError => error
   abort "\nERROR: #{error.message}"
 rescue Interrupt

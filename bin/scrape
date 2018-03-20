@@ -333,7 +333,7 @@ begin
     IO.popen %Q[ogr2ogr -skipfailures #{flags} #{srs_flag} #{type_flag} -nln #{options.name} "#{options.path}" /vsistdin/], 'w' do |pipe|
       pipe.write String === page ? page : page.to_json
     end
-    exit $?.exitstatus unless $?.success?
+    abort 'ogr2ogr failed' unless $?.success?
     '-update -append'
   end
 rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => e

@@ -194,7 +194,7 @@ begin
       end
       collection = { geometryType: geometry_type, spatialReference: { wkid: wkid }, fields: fields }
 
-      max = 0
+      max, delimiters = 0, %w[| ~ ^]
       while table.length < total
         min, max = max, max + 10000
         fields.map do |field|
@@ -205,9 +205,12 @@ begin
           where = [ "#{objectid_field}>=#{min}", "#{objectid_field}<#{max}", options.where ].compact.map do |clause|
             "(#{clause})"
           end.join(' AND ')
-          response = get_json "#{service_url}/dynamicLayer/generateRenderer", where: where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ objectid_field, *names ], fieldDelimiter: ?| }.to_json
-          response['uniqueValueInfos'].each do |info|
-            objectid, *values = info['value'].split(?|).map(&:strip)
+          response = get_json "#{service_url}/dynamicLayer/generateRenderer", where: where, layer: dynamic_layer.to_json, classificationDef: { type: 'uniqueValueDef', uniqueValueFields: [ objectid_field, *names ], fieldDelimiter: delimiters.first }.to_json
+          rows = response['uniqueValueInfos'].map do |info|
+            info['value'].split(delimiters.first).map(&:strip)
+          end
+          delimiters.rotate! and redo if rows.map(&:length).max > 1 + names.length
+          rows.each do |objectid, *values|
             attributes = table[objectid.to_i]
             values.zip(types, names).each do |value, type, name|
               attributes[name] = case
@@ -223,7 +226,7 @@ begin
               when type == 'esriFieldTypeDate' then String(value)
               end
             rescue ArgumentError
-              raise ServerError, "could not interpret #{value.inspect} as '#{type}'"
+              raise ServerError, "could not interpret #{value.inspect} as #{type}"
             end
           end
         end

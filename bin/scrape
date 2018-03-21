@@ -209,7 +209,7 @@ begin
           rows = response['uniqueValueInfos'].map do |info|
             info['value'].split(delimiters.first).map(&:strip)
           end
-          delimiters.rotate! and redo if rows.map(&:length).max > 1 + names.length
+          delimiters.rotate! and redo if rows.any? { |row| row.length > 1 + names.length }
           rows.each do |objectid, *values|
             attributes = table[objectid.to_i]
             values.zip(types, names).each do |value, type, name|

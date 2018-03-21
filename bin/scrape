@@ -114,7 +114,6 @@ begin
   end
 
   Enumerator.new do |yielder|
-    progress = "retrieving #{options.name} %s: %6.2f%% of %i features\r"
     paginate = options.paginate || [ 1000, layer.fetch('maxRecordCount', 1000) ].min
     case layer['capabilities']
     when /Query|Data/
@@ -123,20 +122,23 @@ begin
       objectids = get_json("#{options.url}/query", returnIdsOnly: true, where: where)['objectIds']
       raise ServerError, 'no results returned' unless objectids
       query = options.epsg ? { outFields: out_fields, outSR: options.epsg } : { outFields: out_fields }
-      total = objectids.length
-      $stderr << progress % [ 'features', 0.0, total ] unless options.quiet
+      total, requests, start = objectids.length, 0, Time.now
       while objectids.any?
         json = try_repeatedly(options.tries) do
+          requests += 1
           get_json "#{options.url}/query", query.merge(objectIds: objectids.take(paginate).join(?,)), false
         end
         case
         when json
           yielder << json
           objectids.shift paginate
-          $stderr << progress % [ 'features', 100.0 * (total - objectids.length) / total, total ] unless options.quiet
+          next if options.quiet
+          seconds = ((objectids.length.to_f / paginate).ceil * (Time.now - start) / requests).to_i
+          estimate = ('%i:%02i:%02is' % [ seconds / 3600, (seconds % 3600) / 60, seconds % 60 ]).sub(/^0:(0(0:0?)?)?/, '')
+          $stderr << "retrieving %s features: %6.2f%% of %i features, %s remaining    \r" % [ options.name, 100.0 * (total - objectids.length) / total, total, estimate ]
         when paginate > 1
           paginate /= 2
-          $stderr.puts "WARNING: retrying #{options.name} at #{paginate} features per request" unless options.quiet
+          $stderr.puts "WARNING: retrying #{options.name} at #{paginate} features per request                             " unless options.quiet
         else raise ServerError, 'failed at one feature per request'
         end
       end
@@ -230,28 +232,31 @@ begin
             end
           end
         end
-        $stderr << progress % [ 'properties', 100.0 * table.length / total, total ] unless options.quiet
+        $stderr << "retrieving %s attributes: %6.2f%% of %i features\r" % [ options.name, 100.0 * table.length / total, total ] unless options.quiet
       end
       $stderr.puts unless options.quiet
 
-      count = 0
-      table.group_by do |objectid, attributes|
+      count, requests, start = 0, 0, Time.now
+      sets = table.group_by do |objectid, attributes|
         attributes
       end.sort_by do |attributes, objectids_attributes|
         objectids_attributes.length
-      end.each do |attributes, objectids_attributes|
+      end
+      while sets.any?
+        attributes, objectids_attributes = sets.shift
         objectids = objectids_attributes.transpose.first
         while objectids.any?
           ids = objectids.take paginate
           dynamic_layers = [ dynamic_layer.merge(definitionExpression: "#{objectid_field} IN (#{ids.join ?,})") ]
           export = try_repeatedly(options.tries) do
+            requests += 1
             get_json "#{service_url}/export", format: 'svg', dynamicLayers: dynamic_layers.to_json, bbox: "#{cx},#{cy},#{cx},#{cy}", size: "#{TILE},#{TILE}", mapScale: scale, dpi: dpi
           end
           case
           when export
           when paginate > 1
             paginate /= 2
-            $stderr.puts "WARNING: retrying #{options.name} at #{paginate} features per request" unless options.quiet
+            $stderr.puts "WARNING: retrying #{options.name} at #{paginate} features per request                             " unless options.quiet
             next
           else raise ServerError, 'failed at one feature per request'
           end
@@ -312,8 +317,14 @@ begin
           end
           yielder << collection.merge(features: features)
           objectids.shift paginate
+          next if options.quiet
           count += ids.length
-          $stderr << progress % [ 'geometries', 100.0 * count / total, total ] unless options.quiet
+          remaining = sets.map(&:last).map(&:length).push(objectids.length).map do |length|
+            (length.to_f / paginate).ceil
+          end.inject(&:+)
+          seconds = (remaining * (Time.now - start) / requests).to_i
+          estimate = ('%i:%02i:%02is' % [ seconds / 3600, (seconds % 3600) / 60, seconds % 60 ]).sub(/^0:(0(0:0?)?)?/, '')
+          $stderr << "retrieving %s geometries: %6.2f%% of %i features, %s remaining    \r" % [ options.name, 100.0 * count / total, total, estimate ]
         end
       end
     else

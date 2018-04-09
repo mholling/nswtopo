@@ -194,7 +194,7 @@ begin
       end.map do |field|
         field.slice 'name', 'type', 'length'
       end
-      collection = { geometryType: geometry_type, spatialReference: { wkid: wkid }, fields: fields }
+      collection = { 'geometryType' => geometry_type, 'spatialReference' => { 'wkid' => wkid }, 'fields' => fields }
 
       max, delimiters = 0, %w[| ~ ^]
       while table.length < total
@@ -304,18 +304,18 @@ begin
             when 'esriGeometryPoint'
               raise ServerError, 'unexpected SVG response (bad point symbol)' unless lines.map(&:length) == [ 4 ]
               point = lines[0].transpose.map { |coords| coords.sum / coords.length }
-              { x: point[0], y: point[1] }
+              { 'x' => point[0], 'y' => point[1] }
             when 'esriGeometryPolyline'
-              { paths: lines }
+              { 'paths' => lines }
             when 'esriGeometryPolygon'
-              { rings: lines }
+              { 'rings' => lines }
             end
           end
           raise ServerError, 'unexpected SVG response (extra content)' if geometries.length > ids.length
           features = ids.zip(geometries).map do |objectid, geometry|
-            { attributes: attributes, geometry: geometry }
+            { 'attributes' => attributes, 'geometry' => geometry }
           end
-          yielder << collection.merge(features: features)
+          yielder << collection.merge('features' => features)
           objectids.shift paginate
           next if options.quiet
           count += ids.length

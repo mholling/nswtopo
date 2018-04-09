@@ -32,14 +32,14 @@ module NSWTopo
         %x[gdalwarp -t_srs "#{CONFIG.map.projection}" "#{vrt_path}" "#{tif_path}"]
       end
 
-      low, high, factor = { "low" => 0, "high" => 100, "factor" => 0.0 }.merge(params["contrast"] || {}).values_at("low", "high", "factor")
+      low, high, factor, centre = { "low" => 0, "high" => 100, "factor" => 0.0, "centre" => 50 }.merge(params["contrast"] || {}).values_at("low", "high", "factor", "centre")
       %x[convert -size 1x256 canvas:black "#{clut_path}"]
       params["mapping"].map do |key, value|
         "j==#{key} ? %.5f : u" % (value < low ? 0.0 : value > high ? 1.0 : (value - low).to_f / (high - low))
       end.each do |fx|
         %x[mogrify -fx "#{fx}" "#{clut_path}"]
       end
-      %x[mogrify -sigmoidal-contrast #{factor}x50% "#{clut_path}"]
+      %x[mogrify -sigmoidal-contrast #{factor}x#{centre}% "#{clut_path}"]
       %x[convert "#{tif_path}" "#{clut_path}" -clut "#{mask_path}"]
 
       woody, nonwoody = params["colour"].values_at("woody", "non-woody")

@@ -63,6 +63,7 @@ begin
     parser.on '-r', '--reproject  EPSG', Integer, 'EPSG number for local reprojection'
     parser.on '-u', '--unique     FIELD', String, 'field for counting features'
     parser.on '-c', '--concat', 'concatenate paged results before saving'
+    parser.on '-d', '--decode', 'convert coded field values where possible'
     parser.on '-q', '--quiet', "don't show progress"
   end
   parser.order!(into: options) do |arg|
@@ -112,6 +113,15 @@ begin
       type == field['type']
     end.fetch('name')
   end
+
+  coded_values = layer['fields'].select do |field|
+    field.dig('domain', 'type') == 'codedValue'
+  end.map do |field|
+    codes = field['domain']['codedValues'].map do |pair|
+      pair.values_at 'code', 'name'
+    end.to_h
+    [ field['name'], codes ]
+  end.to_h
 
   Enumerator.new do |yielder|
     paginate = options.paginate || [ 1000, layer.fetch('maxRecordCount', 1000) ].min
@@ -341,6 +351,20 @@ begin
     end
     [ collection ]
   end.inject(format_flags) do |flags, page|
+    if options.decode && coded_values.any? && (!options.fields || (options.fields & coded_values.keys).any?)
+      page = JSON.parse(page) if String === page
+      page['fields'].each do |field|
+        field['type'] = 'esriFieldTypeString' if coded_values[field['name']]
+      end
+      page['features'].map do |feature|
+        feature['attributes']
+      end.each do |attributes|
+        coded_values.each do |name, codes|
+          next unless attributes.key?(name)
+          attributes[name] = codes[attributes[name]]
+        end
+      end
+    end
     IO.popen %Q[ogr2ogr -skipfailures #{flags} #{srs_flag} #{type_flag} -nln #{options.name} "#{options.path}" /vsistdin/], 'w' do |pipe|
       pipe.write String === page ? page : page.to_json
     end

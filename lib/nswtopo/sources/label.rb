@@ -108,7 +108,10 @@ module NSWTopo
                   next [ [ 0, data.reject(&:hole?).map(&:centroid) ] ] if closed
                 when "intervals"
                   interval = args[0] || DEFAULT_SAMPLE
-                  next [ [ 0, data.sample_outwards(interval) ] ] if dimension > 0
+                  case dimension
+                  when 1 then next [ [ 0, data.sample_outwards(interval) ] ]
+                  when 2 then next [ [ 0, data.sample_at(interval) ] ]
+                  end
                 end
               when "fallback"
                 case arg
@@ -239,7 +242,7 @@ module NSWTopo
           when 0
             margin, line_height = attributes.values_at "margin", "line-height"
             lines = Font.in_two text, attributes
-            lines = [ lines.join(?\s) ] if lines.map(&:length).min == 1
+            lines = [ [ text, Font.glyph_length(text, attributes) ] ] if lines.map(&:first).map(&:length).min == 1
             width = lines.map(&:last).max
             height = lines.map { font_size }.inject { |total| total + line_height }
             if attributes["shield"]

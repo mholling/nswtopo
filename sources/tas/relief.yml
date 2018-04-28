@@ -1,7 +1,7 @@
 class: ReliefSource
-contours: http://services.thelist.tas.gov.au/arcgis/rest/services/Public/OpenDataWFS/MapServer/16/query
-coastline: http://services.thelist.tas.gov.au/arcgis/rest/services/Public/OpenDataWFS/MapServer/15/query
-attribute: ELEVATION
+contours:
+  http://services.thelist.tas.gov.au/arcgis/rest/services/Public/OpenDataWFS/MapServer/16/query: ELEVATION
+  http://services.thelist.tas.gov.au/arcgis/rest/services/Public/OpenDataWFS/MapServer/15/query: 0
 resolution: 15
 lightsources: 3
 exaggeration: 2.0

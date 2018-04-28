@@ -44,9 +44,7 @@ module NSWTopo
         %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
         %x[gdalwarp -t_srs "#{CONFIG.map.projection}" -te #{bounds.flatten.values_at(0,2,1,3).join(?\s)} -tr #{resolution} #{resolution} -r bilinear "#{vrt_path}" "#{dem_path}"]
       when params["contours"]
-        attribute = params["attribute"]
         gdal_version = %x[gdalinfo --version][/\d+(\.\d+(\.\d+)?)?/].split(?.).map(&:to_i)
-        raise BadLayerError.new "no elevation attribute specified" unless attribute
         raise BadLayerError.new "GDAL version 2.1 or greater required for shaded relief" if ([ 2, 1 ] <=> gdal_version) == 1
 
         shp_path = temp_dir + "dem.contours"
@@ -56,8 +54,11 @@ module NSWTopo
         end.map(&:ceil).join(?\s)
         txe, tye = bounds[0].join(?\s), bounds[1].reverse.join(?\s)
 
-        %w[contours coastline].inject(nil) do |append, layer|
-          next append unless dataset = params[layer]
+        contours, attribute, coastline = params.values_at *%w[contours attribute coastline]
+        contours = [ [ contours, attribute ], [ coastline, 0 ] ].select(&:first).to_h unless Hash === contours
+
+        contours.inject(nil) do |append, (dataset, attribute)|
+          raise BadLayerError.new "no elevation attribute specified" unless attribute
           case dataset
           when /^(https?:\/\/.*)\/\d+\/query$/
             srs, max_record_count = ArcGIS.get_json(URI.parse "#{$1}?f=json").values_at "spatialReference", "maxRecordCount"
@@ -71,22 +72,18 @@ module NSWTopo
               results["features"] += page["features"]
               results
             end
-            IO.popen %Q[ogr2ogr -s_srs "#{service_projection}" -t_srs "#{CONFIG.map.projection}" -nln #{layer} "#{shp_path}" /vsistdin/ #{DISCARD_STDERR}], "w+" do |pipe|
+            IO.popen %Q[ogr2ogr -s_srs "#{service_projection}" -t_srs "#{CONFIG.map.projection}" -nln layer -update -overwrite "#{shp_path}" /vsistdin/ #{DISCARD_STDERR}], "w+" do |pipe|
               pipe.write features.to_json
             end
           else
             dataset, name = *dataset
             dataset = Pathname.new(dataset).expand_path(@sourcedir)
-            %x[ogr2ogr -spat #{spat} -spat_srs "#{CONFIG.map.projection}" -t_srs "#{CONFIG.map.projection}" -nln #{layer} "#{shp_path}" "#{dataset}" #{name} #{DISCARD_STDERR}]
+            %x[ogr2ogr -spat #{spat} -spat_srs "#{CONFIG.map.projection}" -t_srs "#{CONFIG.map.projection}" -nln layer -update -overwrite "#{shp_path}" "#{dataset}" #{name} #{DISCARD_STDERR}]
           end
-          sql = case layer
-          when "contours"  then "SELECT      #{attribute} FROM #{layer} WHERE #{attribute} IS NOT NULL"
-          when "coastline" then "SELECT 0 AS #{attribute} FROM #{layer}"
-          end
-          %x[ogr2ogr -update #{append} -nln combined -sql "#{sql}" "#{shp_path}" "#{shp_path}"]
+          %x[ogr2ogr -update #{append} -nln combined -sql "SELECT #{attribute} AS elevation FROM layer WHERE #{attribute} IS NOT NULL" "#{shp_path}" "#{shp_path}"]
           "-append"
         end
-        %x[gdal_grid -a linear:radius=0:nodata=-9999 -zfield #{attribute} -l combined -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{CONFIG.map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
+        %x[gdal_grid -a linear:radius=0:nodata=-9999 -zfield elevation -l combined -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{CONFIG.map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
       else
         raise BadLayerError.new "online elevation data unavailable, please provide contour data or DEM path"
       end

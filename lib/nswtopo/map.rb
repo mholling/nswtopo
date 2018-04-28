@@ -185,7 +185,7 @@ IWH,Map Image Width/Height,#{dimensions.join ?,}
       @declination ||= begin
         today = Date.today
         easting, northing = @projection_centre
-        query = { "lat1" => northing.abs, "lat1Hemisphere" => northing < 0 ? ?S : ?N, "lon1" => easting.abs, "lon1Hemisphere" => easting < 0 ?W : ?E, "model" => "WMM", "startYear" => today.year, "startMonth" => today.month, "startDay" => today.day, "resultFormat" => "xml" }
+        query = { "lat1" => northing.abs, "lat1Hemisphere" => northing < 0 ? ?S : ?N, "lon1" => easting.abs, "lon1Hemisphere" => easting < 0 ? ?W : ?E, "model" => "WMM", "startYear" => today.year, "startMonth" => today.month, "startDay" => today.day, "resultFormat" => "xml" }
         uri = URI::HTTPS.build :host => "www.ngdc.noaa.gov", :path => "/geomag-web/calculators/calculateDeclination"
         HTTP.post(uri, query.to_query) do |response|
           begin

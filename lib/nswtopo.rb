@@ -1,3 +1,4 @@
+require 'date'
 require 'uri'
 require 'net/http'
 require 'rexml/document'

@@ -1,0 +1,7 @@
+require_relative 'helpers/hash'
+require_relative 'helpers/array'
+require_relative 'helpers/dir'
+require_relative 'helpers/string'
+require_relative 'helpers/svg_path'
+require_relative 'helpers/glyph_length'
+require_relative 'helpers/in_parallel'

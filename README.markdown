@@ -1,9 +1,11 @@
-Summary (Version 1.2.1)
+Summary (Version 1.4)
 =======================
 
-This software allows you to download and compile high-resolution vector topographic maps from the NSW geospatial data servers, covering much of NSW and the ACT. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. Other map formats including raster, KMZ and GeoTIFF can also be produced.
+This software allows you to download and compile high-resolution vector topographic maps from the NSW and TAS geospatial data servers, covering the states of NSW, ACT and Tasmania. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. Other map formats including raster, KMZ and GeoTIFF can also be produced.
 
 This software was originally designed for the production of rogaining maps and as such includes several extra features (such as aerial imagery overlays, marker layers for control checkpoints, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation.
+
+**Notice for users of earlier versions:** The _nswtopo_ software is no longer contained in a single file, meaning it must be kept in its own directory. I recommend installing the software using [git](http://git-scm.com/) and running it as `ruby /path/to/nswtopo/bin/nswtopo` (or by adding `/path/to/nswtopo/bin/` to your path). See the [usage](#usage) section. Also, a minimum Ruby version of 2.1 is now required.
 
 Pre-Requisites
 ==============
@@ -14,7 +16,7 @@ If you prefer, [you can run the script via a docker container](#docker-install) 
 
 The following open-source packages are required in order to run the script:
 
-* The [Ruby programming language](http://ruby-lang.org). You'll need at least Ruby 1.9.3, or better yet the latest stable release (2.2.1 as oj August 2015).
+* The [Ruby programming language](http://ruby-lang.org). You'll need at least Ruby 2.1, or better yet the latest stable release (2.3.1 as of October 2016).
 * [ImageMagick](http://imagemagick.org), a command-line image manipulation tool. Only the 8-bit (Q8) version is needed and will work faster and with less memory than the 16-bit version, particularly for larger maps.
 * The [GDAL](http://gdal.org) command-line utilities. These are utilities for processing geospatial raster data. Version 1.9.x (January 2012) or later is needed.
 * [Inkscape](http://inkscape.org/) (a vector graphics editing program), if you wish to make manual edits or additions to your map.
@@ -27,7 +29,7 @@ For printing, it is best to produce a [raster](http://en.wikipedia.org/wiki/Rast
 Finally, a geographic viewing or mapping program such as [Google Earth](http://earth.google.com) is very useful for easily specifying the area you wish to create a map for, and for viewing your resulting map in conjunction with GPS data.
 
 * _Windows_:
-  * A complete Ruby 2.2.1 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
+  * A complete Ruby 2.3.1 installation for Windows can be [downloaded here](http://rubyinstaller.org/) (be sure to select 'Add Ruby executables to your PATH' when installing).
   * Download a pre-built [ImageMagick binary](http://www.imagemagick.org/script/binary-releases.php#windows) for Windows. The Q8 version is preferred for speed, but either will work. Be sure to select 'Add application directory to your system path' when installing.
   * Install the GDAL utilities using the [OSGeo4W](http://trac.osgeo.org/osgeo4w/) installer. Unless you want all the software offered by the installer, use the 'advanced install' option to install only GDAL. When presented with packages to install, select 'All -> Uninstall' to deselect everything, then open 'Commandline Utilites', choose 'Install' for the gdal package (some other required packages will also be selected), and install. Subsequently you should use the 'OSGeo4w Shell' as your command line when running nswtopo.rb.
   * (Other ways of obtaining Windows GDAL utilities are listed [here](http://trac.osgeo.org/gdal/wiki/DownloadingGdalBinaries#Windows), however not all of them include GDAL 1.9.x or above, including FWTools which was formerly recommended.)
@@ -36,7 +38,7 @@ Finally, a geographic viewing or mapping program such as [Google Earth](http://e
 * _Mac OS X_:
   * ImageMagick and GDAL can obtained for Mac OS by first setting up [MacPorts](http://www.macports.org/), a package manager for Mac OS; follow [these instructions](http://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install gdal` and `sudo port install imagemagick +q8`
   * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software:frameworks#gdal_complete) for GDAL, and the instructions [here](http://www.imagemagick.org/script/binary-releases.php#macosx) for ImageMagick. (This may or may not be quicker/easier than installing XCode and MacPorts!)
-  * Type `ruby -v` in a terminal window to see whether a version 1.9.3 or greater Ruby already exists. If not, you can install Ruby a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/). (If you are using MacPorts, `sudo port install ruby22 +nosuffix` should also work.)
+  * Type `ruby -v` in a terminal window to see whether a version 2.1 or greater Ruby already exists. If not, you can install Ruby a number of ways, as explained [here](http://www.ruby-lang.org/en/downloads/). (If you are using MacPorts, `sudo port install ruby22 +nosuffix` should also work.)
   * Download and install Inkscape [here](http://inkscape.org/download/), or install it using MacPorts: `sudo port install inkscape`
 * _Linux_: You should be able to install the appropriate Ruby, ImageMagick, GDAL, Inkscape and zip packages using your distro's package manager (Pacman, RPM, Aptitude, etc).
 
@@ -66,7 +68,7 @@ To run the script use the following command (replace /tmp/data with the path to 
 Usage
 =====
 
-The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. You only need to download the script itself, `nswtopo.rb`. Download by clicking the 'ZIP' button, or simply copying and pasting the script out of your browser. More experienced users can install the [git](http://git-scm.com/) command and clone the entire repository with `git clone https://github.com/mholling/nswtopo.git`; update to the latest code at any time with `git pull` from within the `nswtopo` directory.
+The software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. Download by clicking the 'ZIP' button. For more experienced or frequent users, I suggest installing the [git](http://git-scm.com/) command and cloning the entire repository with `git clone https://github.com/mholling/nswtopo.git`; update to the latest code at any time with `git pull` from within the `nswtopo` directory.
 
 You will first need to create a directory for the map you are building. Running the script will result in a various image and data files being downloaded, so a directory is needed to contain them.
 
@@ -121,7 +123,7 @@ or,
 
 ## Running the Script
 
-Once you have created your configuration file, run the script in the directory to create your map. The script itself is the `nswtopo.rb` file. The easiest way is to copy this file into your folder and run it from there thusly: `ruby nswtopo.rb`. Alternatively, keep the script elsewhere and run it as `ruby /path/to/nswtopo.rb`. By giving the script exec privileges (`chmod +x nswtopo.rb` or equivalent), you can run it directly with `./nswtopo.rb` (you may need to modify the hash-bang on line 1 to reflect the location of your Ruby binary). For advanced users, add the script location to your path so you can run it anywhere.
+Once you have created your configuration file, run the script in the directory to create your map. The script can be run as `ruby /path/to/nswtopo/bin/nswtopo` (where `/path/to/nswtopo` is the location where you downloaded or cloned the program). On Mac and Linux system, I recommend adding `/path/to/nswtopo/bin` to your executables path variable. (How to do this will vary by operating system, [Mac OS](https://www.google.com/search?q=max+add+path) or [Linux](https://www.google.com/search?q=linux+add+path).) You should then be able run it simply as the command `nswtopo`.
 
 When the script starts it will list the scale of your map (e.g. 1:25000), its rotation, physical size and on-the-ground extent. The script will then proceed to download topographic data. Depending on your connection and the size of your map, many minutes may be required. (I suggest starting with a small map, say 80mm x 80mm, just to familiarize yourself with the software; this should only take a few minutes.) It is best not to interrupt the program while the topographic data is downloading, as you will have to start over.
 
@@ -129,7 +131,7 @@ You can ctrl-c at any point to stop the script. Files which have already downloa
 
 After all files have been downloaded, the script will then compile them into a final map image in `.svg` format. The map image is easily viewed in a modern web browser such as Chrome or Firefox, or edited in a vector imaging tool like Inkscape or Illustrator.
 
-Labelling of the map is performed locally. Depending on the size and complexity of the map, this can potentially take many minutes; have patience. (Very occasionally, a map can take an hour or more to label. I would like to improve labelling performance in the future, however it is a hard problem to solve well.)
+Labelling of the map is performed locally. Depending on the size and complexity of the map, this can potentially take many minutes; have patience.
 
 You will likely want to tinker with the configuration file to change the appearance of your final map. To rebuild your map after changing the configuration, you can simply delete `map.svg` (or whatever name you've configured) and run the script again. The map will be recreated from the intermediate files which have been downloaded. You can also add or remove layers without deleting the map; more on this later.
 
@@ -169,7 +171,7 @@ A number of different map layers are available for your map, each obtained from 
 
     include:
     - nsw/topographic
-    - relief
+    - nsw/relief
     - grid
 
 Viewing the map in Inkscape allows you to toggle individual layers on and off. This if helpful, for example, if you wish to view the aerial imagery superimposed against the topographic feature layers for comparison.
@@ -180,21 +182,22 @@ Generic layers depicting shaded relief, UTM grid and magnetic declination are al
 
 ## Relief
 
-By including the `relief` layer in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layer is automatically generated from the [SRTM](http://en.wikipedia.org/wiki/Shuttle_Radar_Topography_Mission) digital elevation model, available online.
+By including a layer such as `nsw/relief` in your map, you can include an intuitive [shaded-relief](http://en.wikipedia.org/wiki/Cartographic_relief_depiction#Shaded_relief) depiction. This can be a helpful addition for quickly assessing the topography represented in a map. The shaded relief layers for NSW and TAS are automatically generated from contour data.
 
 You can specify the azimuthal angle, altitude and terrain exaggeration used to generate the shaded relief layer. (The conventional azimuth angle of 315 is set as default, should probably be left as is.) You can also specify the opacity of the layer to change the aggressiveness of the effect.
-  
-    relief:
+
+    nsw.relief:
       azimuth: 315            # azimuth angle for shaded relief layers (degrees clockwise from North)
       altitude: 45            # angle of illumination from horizon (45 is standard)
       exaggeration: 1         # vertical exaggeration factor
       opacity: 0.3            # opacity of the shaded relief; determines how subtle the effect is
+      lightsources: 3         # number of light sources to use (change to 1 for conventional hillshade)
 
-The shaded relief is derived from smoothed, one-arcsecond SRTM elevation data. (The dataset, `dem_s_1s`, is provided online by Geoscience Australia and it's no longer necessary to obtain the data manually). Shaded relief is embedded directly into the map at a default of 30 metre/pixel resolution. Most SVG rendering engines correctly scale up such low-resolution data, producing a natural-looking, smooth gradient. However some software (Inkscape in particular) renders this data in a blocky, pixelated fashion. This is not an issue unless you also use Inkscape to rasterise your map. (PhantomJS is a better option for this; see below.)
+By default, a [multi-directional](https://pubs.usgs.gov/of/1992/of92-422/) hillshade is produced. This simulates the combined effect of light sources at three different azimuthal angles. It emphasises local terrain variation more while being less overbearing. (Single-direction relief shading is still available by changing the `lightsources` parameter.)
 
-You can also provide your own elevation data from a _DEM_ (Digital Elevation Model). This allows you to obtain higher-resolution data for a better shaded relief depiction. DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows:
+Although contour-generated shaded relief is superior, it's still possible provide your own elevation data from a _DEM_ (Digital Elevation Model). DEM data takes the form of a geo-referenced data file (such as a GeoTIFF, or ESRI grid with `hdr.adf` as the filename). Specify the location of the file as follows, and set its resolution appropriately:
 
-    relief:
+    nsw.relief:
       path: /path/to/my/dem.tif  # path for the GeoTIFF or hdr.adf file
       resolution: 30             # render the relief data at 30 metres/pixel
 
@@ -293,7 +296,7 @@ Specify the colour, width and/or opacity of the overlays as follows:
     tracks:
       stroke: red           # mark tracks in red...
       stroke-width: 0.2     # ...with a width of 0.2mm
-      dash: 4 2             # add a 4mm/2mm dash to the track, if desired
+      stroke-dasharray: 4 2 # add a 4mm/2mm dash to the track, if desired
 
 For waypoints, specify a symbol using a [path](http://www.w3.org/TR/SVG/paths.html#PathElement):
 
@@ -313,10 +316,11 @@ For each type of overlay (area, track or waypoint), multiple styles can be appli
       day2:       # applied to track with name 'day2'
         ...
     waypoints:
-      symbols:
-        fishing:  # applied to waypoints with name 'fishing'
+      fishing:
+        symbol:   # applied to waypoints with name 'fishing'
           ...
-        camping:  # applied to waypoints with name 'camping'
+      camping:
+        symbol:   # applied to waypoints with name 'camping'
           ...
 
 Build or rebuild your map by running the script to add the overlays.
@@ -354,6 +358,7 @@ Once your master map file has been created in SVG format, you can create other o
     - jpg
     - tif
     - kmz
+    - mbtiles
     - pdf
     - map
     - prj
@@ -363,6 +368,7 @@ These file extensions produce the following file formats:
 * `png`, `gif` and `jpg` are common raster image formats. PNG is recommended. JPG is not recommended, as it not suited to line art and produces ugly artefacts.
 * `tif` yields a TIFF image, a raster format commonly required by print shops. Additional [GeoTIFF](http://en.wikipedia.org/wiki/GeoTIFF) metadata is also included in the image, allowing it to be used in any GIS software which supports GeoTIFF.
 * `kmz` is a map format used with [Google Earth](http://earth.google.com) and for publishing interactive maps on the web. (This would be useful for publishing a rogaine map with NavLight data.)
+* `mbtiles` is a tiled map format commonly used for online maps and mobile mapping apps.
 * `pdf` is the well-known document format. Map data will be preserved in vector form within the PDF.
 * `map` specifies the [OziExplorer](http://www.oziexplorer.com/) map file format (using the PNG image as the companion raster).
 * `prj` produces a simple text file containing the map's projection as a [PROJ.4](http://trac.osgeo.org/proj/) string.
@@ -374,6 +380,15 @@ The raster image formats (PNG, GIF, JPG, TIFF and KMZ) will render at 300 pixels
     formats:
     - tif: 600
     - kmz: 200
+
+For the `mbtiles` format, a maximum zoom level (normally 15 or 16) can be specified:
+
+    formats:
+    - mbtiles: 16
+
+For significanly smaller `mbtiles` file size, I recommend installing the `pngquant` utility and specifying tile dithering as follows:
+
+    dither: /path/to/pngquant
 
 You can also specify an output resolution for the PDF format, in which case the PDF will render as an embedded raster image (instead of vector data):
 
@@ -391,21 +406,27 @@ If you select `prj` as an output, a corresponding [ESRI world file](http://en.wi
 
 ## Producing Raster Images
 
-There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). To produce a raster map image, install either [PhantomJS](http://phantomjs.org/download.html) or [Inkscape](http://inkscape.org/). (PhantomJS is recommended for best results.) Then set your configuration file as follows:
+There are a few options for producing your map in PDF or any raster format (PNG, GIF, JPG, TIFF, KMZ). To produce a raster map image, install either [Electron](http://electron.atom.io/) (via [Node.js](https://nodejs.org)), [PhantomJS](http://phantomjs.org/download.html) or [Inkscape](http://inkscape.org/). (Electron or PhantomJS is recommended for best results.) Then set your configuration file as follows:
 
 * To use PhantomJS for rasterising, specify the path of the PhantomJS binary you downloaded. e.g. for Windows:
 
         rasterise: C:/Users/Matthew/phantomjs-1.9.8-windows/phantomjs.exe
 
+* To use Electron for rasterising:
+
+        rasterise: electron
+
 * To use Inkscape for rasterising:
 
         rasterise: inkscape
 
-  If your command line does not recognise the `inkscape` command, you may need to specify the full path. e.g. for Mac:
+If your command line does not recognise the `inkscape` or `electron` command, you may need to specify the full path. e.g. for Mac:
 
         rasterise: /Applications/Inkscape.app/Contents/Resources/bin/inkscape
 
-  (Or the corresponding `C:/Program Files/Inkscape/inkscape.exe` path in Windows.)
+(Or the corresponding `C:/Program Files/Inkscape/inkscape.exe` path in Windows.)
+
+If your map uses shaded relief, it will not render correctly in PhantomJS version 2.0 and above; in this case version 1.9.8 is recommended (although it may crash if your map is too large). Electron is the quickest and most accurate rendering option, however installation (via Node.js and npm) may be less straightforward for the unititiated.
 
 Suggested Workflow for Rogaining Maps
 =====================================
@@ -485,12 +506,12 @@ In the following example, we change the colour of contours to black, and give a 
     - nsw/topographic
     - route.kml
     nsw.topographic.contours-10m:
-      stroke: black      # change contour colour to black
+      stroke: black         # change contour colour to black
     route:
-      opacity: 0.5       # set the route overlay to 50% opacity ...
-      stroke: "#0000CC"  # ... with a blue colour ...
-      stroke-width: 1.0  # ... a 1.0 millimetre width ...
-      dash: 4 1          # ... and dashed with 4mm dash and 1mm space.
+      opacity: 0.5          # set the route overlay to 50% opacity ...
+      stroke: "#0000CC"     # ... with a blue colour ...
+      stroke-width: 1.0     # ... a 1.0 millimetre width ...
+      stroke-dasharray: 4 1 # ... and dashed with 4mm dash and 1mm space.
 
 If a topographic layer contains several different colours or feature categories, you may need to override the colours according to category. For example, to change the colour of sealed and unsealed roads:
 
@@ -537,5 +558,9 @@ Release History
   * 5/2/2016: version 1.1.5: add template for NSW map sheets; update ACT server details; read gx:Track elements in KML files
   * 4/3/2016: version 1.1.6: bugfix for some changed NSW map servers
   * 18/6/2016: version 1.1.7: update NSW data sources
-* 22/8/2019: version 1.2: improve labeling quality and speed; update various map sources accordingly
-  * 25/8/2019: version 1.2.1: bugfix for stack overflow
+* 22/8/2016: version 1.2: improve labeling quality and speed; update various map sources accordingly
+  * 25/8/2016: version 1.2.1: bugfix for stack overflow
+* 23/9/2016: version 1.3: improvements to labelling algorithm; remove old NSW server references
+* 5/10/2016: version 1.4: further labelling improvements; break out code into multiple files
+  * 2/11/2016: version 1.4.1: add Electron as rasterising option; add multi-point shaded relief option; miscellaneous small fixes and refactoring
+* 6/5/2017: version 1.5: calculate shaded relief from contour data instead of DEM; fix bug in rotated maps where shaded relief mask was not rotated; fix magnetic declination calculator; add mbtiles output format; improve Electron raster reliability (sorta)

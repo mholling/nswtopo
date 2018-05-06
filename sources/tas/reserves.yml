@@ -1,6 +1,5 @@
-min-version: '1.2.1'
+min-version: '1.4'
 class: ArcGISVector
-local-reprojection: true
 sources:
   cadastre-administrative:
     host: services.thelist.tas.gov.au
@@ -33,11 +32,7 @@ labels:
     stroke-opacity: 0.5
   boundaries:
     minimum-area: 800
-    offset: -6.5
-    simplify: [ 1.0, 15 ]
-    densify: 10.0
-    smooth: [ 15, 30 ]
-    deviation: 10.0
+    buffer: [ -6.5, 0 ]
     separation: 150
     font-size: 2.5
     letter-spacing: 0.3

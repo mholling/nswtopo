@@ -15,12 +15,6 @@ This map is a derived from the NSW [*Digital Topographic Database*](http://www.l
 
 This map source retrieves and renders additional layers for pipelines, electricity transmission lines and cableways (mostly gondolas and ski chairlifts). They are not incorporated in the main topographic map since the server is unreliable and subject to discontinuation. Include `nsw/topo-extras` after `nsw/topographic` to add these extra layers.
 
-## Holdings
-
-The `nsw/holdings` layer overlays property boundaries and the names of landowners. This information may be useful to rogainers when planning a course. (No information is available for the ACT.) 
-
-**Layer not available as of June 2016**
-
 ## Reserves
 
 Include the `nsw/reserves` layer to add boundaries and labels for NSW national parks, natures reserves, state conservation areas and state forests.
@@ -28,6 +22,10 @@ Include the `nsw/reserves` layer to add boundaries and labels for NSW national p
 ## Trig Stations
 
 The `nsw/survey` layer adds symbols for trig stations which are found on various NSW summits. (n.b. The trig stations found on this layer are not always present on the ground!)
+
+## Relief
+
+Generates a shaded relief overlay derived from contours used in the map.
 
 ## Aerial Imagery
 

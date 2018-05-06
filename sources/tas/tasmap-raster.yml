@@ -1,4 +1,4 @@
-min-version: '1.2.1'
+min-version: '1.4'
 class: ArcGISRaster
 host: services.thelist.tas.gov.au
 folder: Basemaps

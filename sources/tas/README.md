@@ -56,6 +56,10 @@ Or, to colour all vegetation in the *Native grassland* group:
       Native-grassland:
         fill: "#F6DFBA"
 
+## Relief
+
+Generates a shaded relief overlay derived from contours used in the map.
+
 ## Aerial Imagery
 
 High-resolution aerial imagery, also available from *theLIST* is available by including the `tas/orthophoto` layer. (The orthophoto layer defaults to 2.0 metres per pixel.)

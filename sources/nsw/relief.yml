@@ -1,0 +1,9 @@
+class: ReliefSource
+contours: http://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer/69/query
+coastline: http://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer/45/query
+attribute: elevation
+resolution: 15
+lightsources: 3
+exaggeration: 2.5
+altitude: 35
+opacity: 0.25

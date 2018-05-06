@@ -1,0 +1,155 @@
+#!/usr/bin/env ruby
+
+# dodgy utility for extracting attribute values from various server protocols
+require 'uri'
+require 'open-uri'
+require 'json'
+require 'net/http'
+require 'uri'
+require 'cgi'
+require 'pathname'
+require 'tempfile'
+
+SQL_PATH = Pathname.new Tempfile.new('sql')
+
+class Hash
+  def to_query
+    reject { |key, value| value.nil? }.map { |args| args.map(&:to_s).map { |text| CGI.escape text }.join ?= }.join ?&
+  end
+end
+
+def show_hierarchy(values, nn = values.transpose.length, n = nn)
+  if n == 1
+    values.each do |value, *nothing|
+      puts "   " * (nn - n) + (value.nil? || value.to_s.strip.empty? ? value.inspect : value.to_s)
+    end
+  else
+    values.group_by(&:first).each do |value, values|
+      puts "   " * (nn - n) + (value.nil? || value.to_s.strip.empty? ? value.inspect : value.to_s)
+      show_hierarchy values.map { |value, *args| args }, nn, n-1
+    end
+  end
+end
+
+def show_arcgis(url, *args, dynamic)
+  open "#{url}?f=json", "Referer" => url do |json|
+    response = JSON.parse(json.read)
+    case url
+    when /\d+$/ # inspect layer
+      puts "%s (%s)" % response.values_at("name", "geometryType")
+      response["fields"].each do |field|
+        puts "  %25s (type: %s, alias: %s)" % field.values_at("name", "type", "alias")
+      end
+    else # inspect service
+      indent = {}
+      response["layers"].map do |layer|
+        layer.values_at *%w[id parentLayerId name]
+      end.each do |id, parent, name|
+        indent[id] = parent == -1 ? 0 : 2 + indent[parent]
+      end.each do |id, parent, name|
+        puts "%4d:#{?\s * indent[id]} %s" % [ id, name ]
+      end
+    end
+  end and return unless args.any?
+  query = {
+    "f" => "json",
+    "where" => "1=0) OR (1=1",
+    "classificationDef" => {
+      "type" => "uniqueValueDef",
+      "uniqueValueFields" => [ *args ],
+      "fieldDelimiter" => ?|,
+    }.to_json
+  }
+  if dynamic
+    layer = {
+      "source" => {
+        "type" => "mapLayer",
+        "mapLayerId" => url[/\d+$/]
+      },
+      "definitionExpression" => query.delete("where")
+    }
+    url = url.sub /\d+$/, "dynamicLayer"
+    query.merge! "layer" => layer.to_json
+  end
+  open "#{url}/generateRenderer?#{query.to_query}", "Referer" => url do |json|
+    response = JSON.parse(json.read)
+    abort [ response["error"]["message"], *response["error"]["details"] ].join(?\n) if response["error"]
+    values = response["uniqueValueInfos"].map do |info|
+      info["value"].split(?|).map do |value|
+        value && value =~ /\s*[\n\r]+|\s+$/ ? value.inspect : value
+      end
+    end.sort
+    show_hierarchy(values)
+  end
+end
+
+def show_wfs(url, name, field, *fields, values, filter)
+  uri = URI.parse url
+  query = {
+    "service" => "wfs",
+    "version" => "2.0.0",
+    "request" => "GetFeature",
+    "typeNames" => name,
+    "count" => 1,
+    "startIndex" => 0,
+    "outputFormat" => "application/json",
+  }
+  
+  filters = []
+  loop do
+    cql_filter = [ *filter, *filters ].join " AND "
+    cql_filter.empty? ? query.delete("cql_filter") : query.merge!("cql_filter" => cql_filter)
+    uri.query = query.to_query
+    post = Net::HTTP::Get.new(uri.request_uri)
+    use_ssl = uri.scheme == "https"
+    json = Net::HTTP.start(uri.host, uri.port, :use_ssl => use_ssl, :read_timeout => 600) { |http| http.request(post).body }
+    feature = JSON.parse(json)["features"][0]
+    break unless feature
+
+    value = feature["properties"][field]
+    filters << case value
+    when nil    then "(#{field} IS NOT NULL)"
+    when String then "(#{field} NOT IN ('#{value}'))"
+    else             "(#{field} NOT IN (#{value}))"
+    end
+    
+    value_filter = case value
+    when nil    then "(#{field} IS NULL)"
+    when String then "(#{field} IN ('#{value}'))"
+    else             "(#{field} IN (#{value}))"
+    end
+    
+    puts "%s%s" % [ "   " * values.length, value || "(null)" ]
+    if fields.any?
+      show_wfs(url, name, *fields, [ *values, value ], [ *filter, value_filter ].join(" AND "))
+    end
+  end
+end
+
+
+def show_shapefile(dir, layer, attribute, *attributes, values, where, stats)
+  where_clause = %Q[where #{where}] if where
+  SQL_PATH.write %Q[select distinct #{attribute} from "#{layer}" #{where_clause} order by #{attribute}]
+  json = %x[ogr2ogr -f GeoJSON -sql @"#{SQL_PATH}" /vsistdout "#{dir}"]
+  JSON.parse(json)["features"].map do |feature|
+    feature["properties"][attribute]
+  end.each do |value|
+    predicate = [ *where, value.nil? ? "(#{attribute} IS NULL)" : "(#{attribute} = '#{value}')" ].join(" AND ")
+    if stats
+      SQL_PATH.write %Q[select #{attribute} from "#{layer}" where #{predicate} order by #{attribute}]
+      count = "%8s: " % %x[ogrinfo -so -sql @"#{SQL_PATH}" "#{dir}"].match(/^Feature Count: (\d+)$/)[1]
+    end
+    puts "%s%s%s" % [ count, ?\s * values.length * 2, value.nil? ? '(NULL)' : value]
+    show_shapefile dir, layer, *attributes, [ value, *values ], predicate, stats if attributes.any?
+  end
+end
+
+dynamic = ARGV.delete "dynamic"
+stats   = ARGV.delete "stats"
+
+case
+when ARGV[0] =~ /\/services\/.*\/MapServer/ then show_arcgis(*ARGV, dynamic)
+when ARGV[0] =~ /wfs/i then show_wfs(*ARGV, [], nil)
+when ARGV[2] then show_shapefile(*ARGV, [], nil, stats)
+else puts %x[ogrinfo -so "#{ARGV[0]}" #{ARGV[1]}]
+end

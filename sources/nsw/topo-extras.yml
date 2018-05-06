@@ -1,4 +1,4 @@
-min-version: '1.2.1'
+min-version: '1.4'
 class: ArcGISVector
 sources:
   edmark:
@@ -80,9 +80,5 @@ labels:
     word-spacing: 2.0
     font-size: 1.5
     collate: true
-    deviation: 3.0
     separation: 150
-    buffer: 3.0
-    simplify: [ 1.0, 15 ]
-    densify: 10
-    smooth: [ 20, 90 ]
+    buffer: 2.5

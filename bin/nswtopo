@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+
+# Copyright 2011-2016 Matthew Hollingworth
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+require_relative "../lib/nswtopo.rb"
+
+start = Time.now
+begin
+  NSWTopo.run
+rescue Interrupt
+  abort "\r\033[KHalting execution. Run the script again to resume."
+ensure
+  duration = Time.now - start
+  minutes, seconds = (duration / 60).floor, (duration % 60).ceil
+  puts "Program completed in %s." % [ ("#{minutes} minute#{?s unless 1 == minutes}" unless 0 == minutes), ("#{seconds} second#{?s unless 1 == seconds}" unless 0 == seconds) ].compact.join(", ")
+end

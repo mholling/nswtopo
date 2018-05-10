@@ -128,7 +128,7 @@ begin
     paginate = options.paginate || [ 1000, layer.fetch('maxRecordCount', 1000) ].min
     case layer['capabilities']
     when /Query|Data/
-      query = { returnIdsOnly: true, where: options.where || "#{geometry_field} IS NOT NULL" }
+      query = { returnIdsOnly: true, where: options.where || '1=1' }
       if options.geometry
         raise OptionParser::InvalidOption, "argument for --geometry must be in x0,y0,x1,y1 format" unless options.geometry.length == 4
         query.merge!(inSR: 4326, geometry: options.geometry.map(&:to_f).each_slice(2).to_a.transpose.map(&:sort).transpose.flatten.join(?,))

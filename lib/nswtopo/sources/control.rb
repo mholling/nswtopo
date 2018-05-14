@@ -23,6 +23,7 @@ module NSWTopo
         fill: "#880088"
     ]
     SCALING_PARAMS = %q[
+      fence: 2.0
       control:
         symbol:
         - circle:

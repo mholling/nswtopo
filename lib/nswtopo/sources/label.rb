@@ -253,13 +253,14 @@ module NSWTopo
               dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
               f = dx * dy == 0 ? 1 : 0.707
-              x, y = [ dx, dy ].zip(data).map do |d, centre|
-                centre + d * f * margin
+              offset = [ dx, dy ].map do |d|
+                d * margin * f
               end
               text_attributes = {
-                "transform" => "translate(#{x} #{y}) rotate(#{-CONFIG.map.rotation})",
+                "transform" => "translate(#{data.join ?\s}) rotate(#{-CONFIG.map.rotation}) translate(#{offset.join ?\s})",
                 "text-anchor" => dx > 0 ? "start" : dx < 0 ? "end" : "middle",
               }
+
               text_elements = lines.map.with_index do |(line, text_length), index|
                 y = (lines.one? ? 0 : dy == 0 ? index - 0.5 : index + 0.5 * (dy - 1)) * line_height
                 y += (CENTRELINE_FRACTION + 0.5 * dy) * font_size

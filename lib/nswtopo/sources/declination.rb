@@ -4,6 +4,7 @@ module NSWTopo
 
     PARAMS = %q[
       spacing: 1000
+      offset: 0.0
       arrows: 150
       stroke: darkred
       stroke-width: 0.1
@@ -24,9 +25,10 @@ module NSWTopo
       width, height = CONFIG.map.extents
       margin = height * Math::tan((CONFIG.map.rotation + CONFIG.map.declination) * Math::PI / 180.0)
       spacing = params["spacing"] / Math::cos((CONFIG.map.rotation + CONFIG.map.declination) * Math::PI / 180.0)
+      offset = params["spacing"] * (1.0 - params["offset"])
       lines = [ [ bl, br ], [ tl, tr ] ].map.with_index do |edge, index|
-        [ [ 0, 0 - margin ].min, [ width, width - margin ].max ].map do |extension|
-          edge.along (extension + margin * index) / width
+        [ [ 0, 0 - margin ].min - offset, [ width, width - margin ].max ].map do |extension|
+          edge.along((extension + margin * index) / width)
         end
       end.map do |edge|
         (edge.distance / spacing).ceil.times.map do |n|

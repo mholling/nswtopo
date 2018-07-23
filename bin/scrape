@@ -115,6 +115,15 @@ begin
     end.fetch('name')
   end
 
+  if layer['typeIdField']
+    typeid_field = layer['fields'].find do |field|
+      field.values_at('alias', 'name').include? layer['typeIdField']
+    end.fetch('name')
+    type_values = layer['types'].map do |type|
+      type.values_at 'id', 'name'
+    end.to_h
+  end
+
   coded_values = layer['fields'].select do |field|
     field.dig('domain', 'type') == 'codedValue'
   end.map do |field|
@@ -357,6 +366,17 @@ begin
     end
     [ collection ]
   end.inject(format_flags) do |flags, page|
+    if options.decode && typeid_field && (!options.fields || options.fields.include?(typeid_field))
+      page = JSON.parse(page) if String === page
+      page['fields'].find do |field|
+        field['name'] == typeid_field
+      end.store('type', 'esriFieldTypeString')
+      page['features'].map do |feature|
+        feature['attributes']
+      end.each do |attributes|
+        attributes[typeid_field] = type_values[attributes[typeid_field]]
+      end
+    end
     if options.decode && coded_values.any? && (!options.fields || (options.fields & coded_values.keys).any?)
       page = JSON.parse(page) if String === page
       page['fields'].each do |field|

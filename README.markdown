@@ -1,4 +1,4 @@
-Summary (Version 1.5)
+Summary (Version 1.6)
 =======================
 
 This software allows you to download and compile high-resolution vector topographic maps from the NSW and TAS geospatial data servers, covering the states of NSW, ACT and Tasmania. The resulting maps include many of the features found in the printed NSW topographic map series and are well-suited for printing. You can specify the exact extent of the area which you wish to map, as well as your desired scale (typically 1:25000). The topographic map is output in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. Other map formats including raster, KMZ and GeoTIFF can also be produced.
@@ -538,4 +538,4 @@ Release History
 * 5/10/2016: version 1.4: further labelling improvements; break out code into multiple files
   * 2/11/2016: version 1.4.1: add Electron as rasterising option; add multi-point shaded relief option; miscellaneous small fixes and refactoring
 * 6/5/2017: version 1.5: calculate shaded relief from contour data instead of DEM; fix bug in rotated maps where shaded relief mask was not rotated; fix magnetic declination calculator; add mbtiles output format; improve Electron raster reliability (sorta)
-  * 6/8/2017: HEAD: fix bug with shaded relief when coastline is present; switch to Google Chrome as preferred rasterising method
+* 11/8/2018: version 1.6: fix bug with shaded relief when coastline is present; switch to Google Chrome as preferred rasterising method; more accurate font sizing when using Chrome; add ACT map source for 5-metre contours; numerous internal changes and fixes

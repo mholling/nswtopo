@@ -29,7 +29,7 @@ require_relative 'nswtopo/font'
 require_relative 'nswtopo/formats'
 require_relative 'nswtopo/sources'
 
-NSWTOPO_VERSION = "1.5"
+NSWTOPO_VERSION = "1.6"
 
 module NSWTopo
   extend Dither

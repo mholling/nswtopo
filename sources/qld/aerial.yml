@@ -1,8 +1,0 @@
-min-version: '1.4'
-class: ArcGISRaster
-url: http://qtopo.dnrm.qld.gov.au/sl_proxy/proxy.ashx?http://sirgis7:6080
-folder: Imagery
-service: QldImageryWebM
-ext: jpg
-resolution: 2.0
-image: true

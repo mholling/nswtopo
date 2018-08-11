@@ -17,6 +17,10 @@ sources:
     host: maps.six.nsw.gov.au
     folder: sixmaps
     service: RFS
+  guras:
+    host: maps.six.nsw.gov.au
+    folder: sixmaps
+    service: Guras
   hydrography:
     host: maps.six.nsw.gov.au
     folder: public
@@ -251,6 +255,9 @@ features:
     - classsubtype
     - functionhierarchy
     - roadontype
+  - fallback: true
+    source: guras
+    name: RoadSegment
   - source: raster-labels
     name: Raster_Road_Labels
     where:

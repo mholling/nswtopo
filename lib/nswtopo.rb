@@ -13,8 +13,11 @@ require 'base64'
 require 'set'
 require 'etc'
 require 'timeout'
-require 'pty'
-require 'expect'
+begin
+  require 'pty'
+  require 'expect'
+rescue LoadError
+end
 
 require_relative 'helpers'
 require_relative 'avl_tree'

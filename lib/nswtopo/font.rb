@@ -4,7 +4,7 @@ module NSWTopo
     # TODO: fall back to generic when Chrome::Error occurs
 
     def self.configure
-      extend CONFIG["chrome"] ? Chrome : Generic
+      extend CONFIG["chrome"] ? defined?(PTY) ? Chrome : Generic : Generic
     end
 
     def self.in_two(string, attributes)

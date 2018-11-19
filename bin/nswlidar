@@ -1,0 +1,297 @@
+#!/usr/bin/env ruby
+
+require 'ostruct'
+require 'optparse'
+require 'pathname'
+require 'open3'
+require 'json'
+require 'tmpdir'
+require 'rexml/document'
+
+# TODO add help text
+
+# TODO gdal_contour -p is unreliable for mask poly generation;
+#      obtain polygon from raster a different way?
+# TODO use spatial index to optimise slope mask appliction?
+
+# TODO speed up blurring?
+
+# TODO add depression category?
+# TODO filter out small closed depression contours?
+# TODO filter out tiny knolls?
+
+# TODO extract spot heights? (from DEMs? from point clouds?)
+# TODO option to save DEM?
+
+INDEX, INTERMEDIATE = %w[Index Intermediate]
+
+GDAL_VERSION = begin
+  stdout, stderr, status = Open3.capture3 'gdal-config', '--version'
+  stdout.split(/\D+/).take(3).map(&:to_i)
+rescue Errno::ENOENT
+  abort 'error: GDAL not installed'
+end
+GEOS_VERSION = Open3.popen3 'ogr2ogr', '-f', 'GeoJSON', '-dialect', 'SQLite', '-sql', 'SELECT geos_version() AS geos_version', '/vsistdout/', '/vsistdin/' do |stdin, stdout, stderr, wait|
+  stdin.puts %Q[{"type":"FeatureCollection","features":[]}]
+  stdin.close
+  break [ ] unless wait.value.success?
+  JSON.parse(stdout.read)['features'][0]['properties']['geos_version'].split(/\D+/).take(3).map(&:to_i)
+end
+
+begin
+  parser = OptionParser.new("Generate contours from zipped DEM tiles downloaded from http://elevation.fsdf.org.au\nUsage: nswlidar [options] dem_path* output_path") do |parser|
+    parser.on '-i', '--interval    INTERVAL',    Integer,  'contour interval in metres'
+    parser.on '-x', '--index       INDEX',       Integer,  'multiplier for index contours'
+    parser.on '-s', '--scale       SCALE',       Integer,  'target map scale'
+    parser.on '-r', '--radius      RADIUS',      Float,    'DEM smoothing radius in mm'
+    parser.on '-e', '--tolerance   TOLERANCE',   Float,    'contour simplification tolerance in metres'
+    parser.on '-t', '--thin',                              'thin intermediate contours in steep areas'
+    parser.on '-d', '--density     DENSITY',     Float,    '  maximum contour density in lines/mm'
+    parser.on '-m', '--minlength   MINLENGTH',   Float,    '  minimum contour removal length in mm'
+    parser.on '-f', '--format      FORMAT',      String,   'OGR format string for output data'
+    parser.on '-n', '--name        NAME',        String,   'name for output contour layer'
+    parser.on '-p', '--projection  PROJECTION',  String,   'projection for output contour layer'
+    parser.on '-l', '--list',                              'list DEM tiles when processing'
+    parser.on '-q', '--quiet',                             "don't show progress"
+    parser.on '-h', '--help',                              'show help'
+  end
+
+  config = OpenStruct.new(interval: 5, index: 5, scale: 25000, radius: 0.2, density: 4.0, minlength: 2.0, name: 'contour')
+  parser.order!(into: config) do |arg|
+    *config.src_paths, config.dst_path = *config.src_paths, *config.dst_path, arg
+  end
+
+  case
+  when config.help
+    $stderr.puts parser.to_s
+    exit
+  when (RUBY_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,5]) < 0
+    abort 'error: ruby 2.5.0 or greater required'
+  when (GDAL_VERSION <=> [2,2]) < 0
+    abort 'error: GDAL 2.2.0 or greater required'
+  when !config.src_paths&.any?
+    abort parser.to_s
+  when File.exist?(config.dst_path) && !Open3.capture3('ogrinfo', '-ro', '-so', config.dst_path).last.success?
+    raise OptionParser::InvalidArgument, '%s not an OGR-compatible dataset' % config.dst_path
+  when config.interval <= 0
+    raise OptionParser::InvalidArgument, 'contour interval must be positive'
+  when !(4..10).include?(config.index)
+    raise OptionParser::InvalidArgument, 'contour index multiplier must be between 4 and 10'
+  when config.radius < 0
+    raise OptionParser::InvalidArgument, 'DEM smoothing radius must be positive or zero'
+  when config.scale <= 0
+    raise OptionParser::InvalidArgument, 'map scale must be positive'
+  when config.density <= 0
+    raise OptionParser::InvalidArgument, 'maximum contour density must be positive'
+  when config.minlength <= 0
+    raise OptionParser::InvalidArgument, 'minimum contour removal length must be positive'
+  when (config.tolerance &.< 0)
+    raise OptionParser::InvalidArgument, 'contour simplification tolerance must be positive'
+  when !(/^[a-zA-Z]\w*$/ === config.name)
+    raise OptionParser::InvalidArgument, 'alphanumeric characters only for contour layer name'
+  when config.projection && Open3.capture3(*%w[gdalsrsinfo -o proj4], config.projection).first.empty?
+    raise OptionParser::InvalidArgument, 'invalid output projection'
+  when config.thin && (GDAL_VERSION <=> [2,4]) < 0
+    abort 'error: contour thinning require GDAL 2.4.0 or greater'
+  when config.thin && (GEOS_VERSION <=> [3,3]) < 0
+    abort 'error: contour thinning requires GDAL with SQLite, SpatiaLite and GEOS support'
+  end
+
+  log = config.quiet ? File.open(File::NULL, 'w') : $stderr
+
+  log.puts 'inspecting DEM tiles'
+  tiles = Enumerator.new do |yielder|
+    while path = config.src_paths.pop
+      case path
+      when /\.zip$/i
+        stdout, stderr, status = Open3.capture3 'gdalinfo', "/vsizip/#{path}"
+        config.src_paths += stdout.each_line.grep(/\.(zip|asc|tif)$/i).map(&:lstrip).map(&:chomp)
+      when /\.(asc|tif)$/i
+        yielder << path
+      end
+    end
+  end.map do |path|
+    log.puts 'inspecting %s' % path.sub(/^(\/vsizip\/)+/, '') if config.list
+    json, stderr, status = Open3.capture3 'gdalinfo', '-json', path
+    raise OptionParser::InvalidArgument, "#{path} (couldn't open tile)" unless status.success?
+    info = JSON.parse json
+    resolutions, wkt = info['geoTransform'].values_at(1,5), info['coordinateSystem']['wkt']
+    area = info['cornerCoordinates'].values_at('upperLeft','lowerLeft','lowerRight','upperRight','upperLeft').each_cons(2).map do |(x0, y0), (x1, y1)|
+      x0 * y1 - x1 * y0
+    end.inject(&:+).abs * 0.5
+    proj4, stderr, status = Open3.capture3 *%w[gdalsrsinfo -e -o proj4], wkt
+    abort 'error: DEM tiles must be in planar projection with metre units' unless /\+units=m/ === proj4
+    OpenStruct.new path: path, proj4: proj4, resolutions: resolutions, area: area
+  rescue JSON::ParserError
+    raise OptionParser::InvalidArgument, "#{path} (couldn't open tile)"
+  end
+  raise OptionParser::InvalidArgument, 'no DEM tiles found' if tiles.none?
+
+  proj4 = tiles.group_by(&:proj4).max_by do |proj4, group|
+    group.map(&:area).inject(&:+)
+  end.first
+  config.resolutions = tiles.map(&:resolutions).min
+  config.tolerance ||= [ 0.5 * config.interval / Math::tan(Math::PI * 85 / 180), 0.001 * 0.05 * config.scale ].min
+
+  log.puts 'number of DEM tiles: %s' % tiles.length
+  log.puts 'total area: %.4gkm²' % (tiles.map(&:area).inject(&:+) * 0.000001)
+  log.puts 'contour interval: %sm' % config.interval
+  log.puts 'index interval: %sm' % (config.interval * config.index)
+  log.puts 'DEM resolution: %.2gm' % config.resolutions.map(&:abs).max
+  log.puts 'target map scale: 1:%s' % config.scale
+  log.puts 'DEM smoothing radius: %s' % (config.radius.zero? ? 'none' : '%.2gmm' % config.radius)
+  log.puts 'maximum contour density: %s lines/mm' % config.density if config.thin
+  log.puts 'minimum contour removal length: %smm' % config.minlength if config.thin
+  log.puts 'contour simplification tolerance: %s' % (config.tolerance.zero? ? 'none' : '%.2gm' % config.tolerance)
+  log.puts 'output projection: %s' % (config.projection || proj4)
+
+  Dir.mktmpdir do |tmp|
+    txt_path = Pathname(tmp) / 'tiles.txt'
+    vrt_path = Pathname(tmp) / 'tiles.vrt'
+    dem_path = Pathname(tmp) / 'dem.tif'
+    db_path =  Pathname(tmp) / 'contour'
+
+    log.puts 'building tile mosaic'
+    tiles.group_by do |tile|
+      [ tile.resolutions, tile.proj4 ]
+    end.sort_by(&:first).reverse.map(&:last).map.with_index do |tiles, index|
+      Pathname(tmp).join("mosaic.#{index}.tif").tap do |tif_path|
+        txt_path.write tiles.map(&:path).join(?\n)
+        stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-overwrite', '-input_file_list', txt_path.to_s, vrt_path.to_s
+        abort 'error building DEM tile mosaic' unless status.success?
+        stdout, stderr, status = Open3.capture3 'gdalwarp', '-r', 'bilinear', '-t_srs', proj4, '-tr', *config.resolutions.map(&:to_s), vrt_path.to_s, tif_path.to_s
+        # TODO use gdal_translate if no reprojection or scaling?
+        abort 'error transforming DEM tiles' unless status.success?
+      end
+    end.join(?\n).tap do |list|
+      txt_path.write list
+    end
+    stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-overwrite', '-input_file_list', txt_path.to_s, vrt_path.to_s
+    abort 'error building tile mosaic' unless status.success?
+
+    unless config.radius.zero?
+      sigma = 0.001 * config.radius * config.scale
+      half = (3 * sigma / config.resolutions.map(&:abs).min).ceil
+      window = -half .. half
+      coeffs = config.resolutions.map do |resolution|
+        window.map do |n|
+          n * resolution / sigma
+        end.map do |x|
+          Math::exp(-x**2)
+        end
+      end.inject(&:product).map do |pair|
+        pair.inject(&:*)
+      end
+
+      stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-q', '/vsistdout/', vrt_path.to_s
+      xml = REXML::Document.new(stdout)
+      xml.elements.each('//ComplexSource') do |complex_source|
+        kernel_filtered_source = complex_source.parent.add_element('KernelFilteredSource')
+        complex_source.elements.each('SourceFilename|OpenOptions|SourceBand|SourceProperties|SrcRect|DstRect') do |element|
+          kernel_filtered_source.add_element element
+        end
+        kernel = kernel_filtered_source.add_element('Kernel', 'normalized' => 1)
+        kernel.add_element('Size').text = window.size
+        kernel.add_element('Coefs').text = coeffs.join ?\s
+        complex_source.parent.delete complex_source
+      end
+      vrt_path = Pathname(tmp) / 'smoothed.vrt'
+      vrt_path.write xml
+      log.puts 'smoothing DEM'
+    end
+
+    stdout, stderr, status = Open3.capture3 'gdal_translate', '-q', vrt_path.to_s, dem_path.to_s
+    abort 'error creating DEM' unless status.success?
+
+    log.puts 'generating contours'
+    db_flags = config.thin ? [ '-f', 'SQLite', '-dsco', 'SPATIALITE=YES' ] : [ '-f', 'ESRI Shapefile' ]
+    stdout, stderr, status = Open3.capture3 'gdal_contour', '-nln', 'contour', '-a', 'elevation', '-i', config.interval.to_s, '-q', *db_flags, dem_path.to_s, db_path.to_s
+    abort 'error creating contours'  unless status.success?
+
+    if config.thin
+      slope_path = Pathname(tmp) / 'slope.tif'
+      min_length = 0.001 * config.minlength * config.scale
+
+      log.puts 'generating slope raster'
+      stdout, stderr, status = Open3.capture3 'gdaldem', 'slope', dem_path.to_s, slope_path.to_s, '-compute_edges'
+      abort 'error generating slope raster' unless status.success?
+
+      case config.index
+      when  4 then [ [1,3], 2 ]
+      when  5 then [ [1,4], [2,3] ]
+      when  6 then [ [1,4], [2,5], 3 ]
+      when  7 then [ [2,5], [1,3,6], 4 ]
+      when  8 then [ [1,3,5,7], [2,6], 4 ]
+      when  9 then [ [1,4,7], [2,5,8], [3,6] ]
+      when 10 then [ [2,5,8], [1,4,6,9], [3,7] ]
+      end.inject(config.index) do |count, (*drop)|
+        angle = Math::atan(1000.0 * config.interval * config.index * config.density / config.scale / count) * 180.0 / Math::PI
+        mask_path = Pathname(tmp) / "mask.#{count}.sqlite"
+        log.puts "creating #{angle.round}° slope mask"
+        stdout, stderr, status = Open3.capture3 'gdal_contour', '-nln', 'mask', '-p', '-amin', 'angle', '-fl', angle.to_s, '-q', '-f', 'SQLite', '-dsco', 'SPATIALITE=YES', slope_path.to_s, mask_path.to_s
+        abort 'error creating slope masks' unless status.success?
+        drop.each do |index|
+          stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'mask', '-update', '-append', '-q', db_path.to_s, mask_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+            SELECT ST_Buffer(ST_Buffer(geometry, #{0.5 * min_length}, 6), #{-0.5 * min_length}, 6) AS geometry, #{index * config.interval} AS modulo FROM mask WHERE angle > 0
+          SQL
+          abort 'error creating slope masks' unless status.success?
+        end
+        count - drop.count
+      end
+
+      log.puts 'masking contours'
+      stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'masked', '-update', '-explodecollections', db_path.to_s, db_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+        SELECT contour.geometry, contour.id, contour.elevation, 1 AS keep
+        FROM contour LEFT JOIN mask ON mask.modulo = contour.elevation % #{config.index * config.interval}
+        WHERE mask.modulo IS NULL
+        UNION ALL
+        SELECT ExtractMultiLinestring(ST_Difference(contour.geometry, mask.geometry)), contour.id, contour.elevation, 1 AS keep
+        FROM contour INNER JOIN mask ON mask.modulo = contour.elevation % #{config.index * config.interval}
+        WHERE ST_Relate(contour.geometry, mask.geometry, '**T******')
+        UNION ALL
+        SELECT ExtractMultiLinestring(ST_Intersection(contour.geometry, mask.geometry)), contour.id, contour.elevation, 0 AS keep
+        FROM contour INNER JOIN mask ON mask.modulo = contour.elevation % #{config.index * config.interval}
+        WHERE ST_Relate(contour.geometry, mask.geometry, 'T********')
+      SQL
+      abort 'error masking contours' unless status.success?
+
+      db_path, old_path = Pathname(tmp) / 'thinned', db_path
+      stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'contour', '-explodecollections', *db_flags, db_path.to_s, old_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+        SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, elevation
+        FROM masked
+        WHERE keep OR ST_Length(geometry) < #{min_length}
+        GROUP BY id, elevation
+      SQL
+      abort 'error masking contours' unless status.success?
+    end
+
+    out_flags = [ '-f', config.format ] if config.format
+    out_flags = [ '-t_srs', config.projection, *out_flags ] if config.projection
+    out_flags = [ '-simplify', config.tolerance.to_s, *out_flags ] unless config.tolerance.zero?
+
+    log.puts 'simplifying contours' unless config.tolerance.zero?
+    stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', config.name, '-update', '-overwrite', '-explodecollections', *out_flags, config.dst_path.to_s, db_path.to_s, '-dialect', 'OGRSQL', '-sql', <<-SQL
+      SELECT elevation, '#{INTERMEDIATE}' AS type FROM contour
+      WHERE 0 <> elevation AND 0 <> elevation % #{config.index * config.interval}
+      UNION ALL
+      SELECT elevation, '#{INDEX}'        AS type FROM contour
+      WHERE 0 <> elevation AND 0 =  elevation % #{config.index * config.interval}
+    SQL
+    abort 'error finalising contours' unless status.success?
+  end
+rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => e
+  abort e.message
+rescue Interrupt
+  abort "\nInterrupted."
+end
+
+
+# collection = JSON.load json_path
+# collection['features'].map do |feature|
+#   feature.values_at 'properties', 'geometry'
+# end.each do |properties, geometry|
+#   properties['type'] = geometry['coordinates'].first == geometry['coordinates'].last && geometry['coordinates'].each_cons(2).map do |(x0, y0), (x1, y1)|
+#     x0 * y1 - x1 * y0
+#   end.inject(&:+) > 0 ? 'Depression' : 'Standard'
+# end
+# json_path.write collection.to_json

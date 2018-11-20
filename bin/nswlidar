@@ -9,11 +9,7 @@ require 'tmpdir'
 require 'rexml/document'
 
 # TODO add help text
-
-# TODO gdal_contour -p is unreliable for mask poly generation;
-#      obtain polygon from raster a different way?
 # TODO use spatial index to optimise slope mask appliction?
-
 # TODO speed up blurring?
 
 # TODO add depression category?
@@ -91,8 +87,6 @@ begin
     raise OptionParser::InvalidArgument, 'alphanumeric characters only for contour layer name'
   when config.projection && Open3.capture3(*%w[gdalsrsinfo -o proj4], config.projection).first.empty?
     raise OptionParser::InvalidArgument, 'invalid output projection'
-  when config.thin && (GDAL_VERSION <=> [2,4]) < 0
-    abort 'error: contour thinning require GDAL 2.4.0 or greater'
   when config.thin && (GEOS_VERSION <=> [3,3]) < 0
     abort 'error: contour thinning requires GDAL with SQLite, SpatiaLite and GEOS support'
   end
@@ -112,9 +106,9 @@ begin
     end
   end.map do |path|
     log.puts 'inspecting %s' % path.sub(/^(\/vsizip\/)+/, '') if config.list
-    json, stderr, status = Open3.capture3 'gdalinfo', '-json', path
+    stdout, stderr, status = Open3.capture3 'gdalinfo', '-json', path
     raise OptionParser::InvalidArgument, "#{path} (couldn't open tile)" unless status.success?
-    info = JSON.parse json
+    info = JSON.parse stdout
     resolutions, wkt = info['geoTransform'].values_at(1,5), info['coordinateSystem']['wkt']
     area = info['cornerCoordinates'].values_at('upperLeft','lowerLeft','lowerRight','upperRight','upperLeft').each_cons(2).map do |(x0, y0), (x1, y1)|
       x0 * y1 - x1 * y0
@@ -147,26 +141,27 @@ begin
 
   Dir.mktmpdir do |tmp|
     txt_path = Pathname(tmp) / 'tiles.txt'
-    vrt_path = Pathname(tmp) / 'tiles.vrt'
-    dem_path = Pathname(tmp) / 'dem.tif'
-    db_path =  Pathname(tmp) / 'contour'
+    dem_vrt_path = Pathname(tmp) / 'dem.vrt'
+    dem_tif_path = Pathname(tmp) / 'dem.tif'
+    *db_flags, db_path = config.thin ? [ '-f', 'SQLite', '-dsco', 'SPATIALITE=YES', Pathname(tmp) / 'contour.sqlite' ] : [ '-f', 'ESRI Shapefile', Pathname(tmp) / 'contour' ]
 
     log.puts 'building tile mosaic'
     tiles.group_by do |tile|
       [ tile.resolutions, tile.proj4 ]
     end.sort_by(&:first).reverse.map(&:last).map.with_index do |tiles, index|
-      Pathname(tmp).join("mosaic.#{index}.tif").tap do |tif_path|
-        txt_path.write tiles.map(&:path).join(?\n)
-        stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-overwrite', '-input_file_list', txt_path.to_s, vrt_path.to_s
-        abort 'error building DEM tile mosaic' unless status.success?
-        stdout, stderr, status = Open3.capture3 'gdalwarp', '-r', 'bilinear', '-t_srs', proj4, '-tr', *config.resolutions.map(&:to_s), vrt_path.to_s, tif_path.to_s
-        # TODO use gdal_translate if no reprojection or scaling?
-        abort 'error transforming DEM tiles' unless status.success?
-      end
+      tif_path = Pathname(tmp) / "mosaic.#{index}.tif"
+      vrt_path = Pathname(tmp) / "mosaic.#{index}.vrt"
+      txt_path.write tiles.map(&:path).join(?\n)
+      stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-input_file_list', txt_path.to_s, vrt_path.to_s
+      abort 'error building DEM tile mosaic' unless status.success?
+      stdout, stderr, status = Open3.capture3 'gdalwarp', '-r', 'bilinear', '-t_srs', proj4, '-tr', *config.resolutions.map(&:to_s), vrt_path.to_s, tif_path.to_s
+      # TODO use gdal_translate if no reprojection or scaling?
+      abort 'error transforming DEM tiles' unless status.success?
+      tif_path
     end.join(?\n).tap do |list|
       txt_path.write list
     end
-    stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-overwrite', '-input_file_list', txt_path.to_s, vrt_path.to_s
+    stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-overwrite', '-input_file_list', txt_path.to_s, dem_vrt_path.to_s
     abort 'error building tile mosaic' unless status.success?
 
     unless config.radius.zero?
@@ -183,7 +178,7 @@ begin
         pair.inject(&:*)
       end
 
-      stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-q', '/vsistdout/', vrt_path.to_s
+      stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-q', '/vsistdout/', dem_vrt_path.to_s
       xml = REXML::Document.new(stdout)
       xml.elements.each('//ComplexSource') do |complex_source|
         kernel_filtered_source = complex_source.parent.add_element('KernelFilteredSource')
@@ -195,25 +190,31 @@ begin
         kernel.add_element('Coefs').text = coeffs.join ?\s
         complex_source.parent.delete complex_source
       end
-      vrt_path = Pathname(tmp) / 'smoothed.vrt'
-      vrt_path.write xml
+      dem_vrt_path = Pathname(tmp) / 'dem.smoothed.vrt'
+      dem_vrt_path.write xml
       log.puts 'smoothing DEM'
     end
 
-    stdout, stderr, status = Open3.capture3 'gdal_translate', '-q', vrt_path.to_s, dem_path.to_s
+    stdout, stderr, status = Open3.capture3 'gdal_translate', '-q', dem_vrt_path.to_s, dem_tif_path.to_s
     abort 'error creating DEM' unless status.success?
 
     log.puts 'generating contours'
-    db_flags = config.thin ? [ '-f', 'SQLite', '-dsco', 'SPATIALITE=YES' ] : [ '-f', 'ESRI Shapefile' ]
-    stdout, stderr, status = Open3.capture3 'gdal_contour', '-nln', 'contour', '-a', 'elevation', '-i', config.interval.to_s, '-q', *db_flags, dem_path.to_s, db_path.to_s
-    abort 'error creating contours'  unless status.success?
+    stdout, stderr, status = Open3.capture3 'gdal_contour', '-nln', 'contour', '-a', 'elevation', '-i', config.interval.to_s, '-q', *db_flags, dem_tif_path.to_s, db_path.to_s
+    abort 'error generating contours'  unless status.success?
 
     if config.thin
-      slope_path = Pathname(tmp) / 'slope.tif'
+      slope_tif_path = Pathname(tmp) / 'slope.tif'
+      slope_vrt_path = Pathname(tmp) / 'slope.vrt'
       min_length = 0.001 * config.minlength * config.scale
 
       log.puts 'generating slope raster'
-      stdout, stderr, status = Open3.capture3 'gdaldem', 'slope', dem_path.to_s, slope_path.to_s, '-compute_edges'
+      stdout, stderr, status = Open3.capture3 'gdaldem', 'slope', dem_tif_path.to_s, slope_tif_path.to_s, '-compute_edges'
+      abort 'error generating slope raster' unless status.success?
+      stdout, stderr, status = Open3.capture3 'gdalinfo', '-json', slope_tif_path.to_s
+      abort 'error generating slope raster' unless status.success?
+      width, height = JSON.parse(stdout)['size']
+      srcwin = [ -2, -2, width + 4, height + 4 ].map(&:to_s)
+      stdout, stderr, status = Open3.capture3 'gdal_translate', '-srcwin', *srcwin, '-a_nodata', 'none', '-of', 'VRT', slope_tif_path.to_s, slope_vrt_path.to_s
       abort 'error generating slope raster' unless status.success?
 
       case config.index
@@ -227,14 +228,18 @@ begin
       end.inject(config.index) do |count, (*drop)|
         angle = Math::atan(1000.0 * config.interval * config.index * config.density / config.scale / count) * 180.0 / Math::PI
         mask_path = Pathname(tmp) / "mask.#{count}.sqlite"
-        log.puts "creating #{angle.round}° slope mask"
-        stdout, stderr, status = Open3.capture3 'gdal_contour', '-nln', 'mask', '-p', '-amin', 'angle', '-fl', angle.to_s, '-q', '-f', 'SQLite', '-dsco', 'SPATIALITE=YES', slope_path.to_s, mask_path.to_s
-        abort 'error creating slope masks' unless status.success?
+        log.puts "generating #{angle.round}° slope mask"
+        stdout, stderr, status = Open3.capture3 'gdal_contour', '-nln', 'ring', '-a', 'angle', '-fl', angle.to_s, '-q', *db_flags, slope_vrt_path.to_s, mask_path.to_s
+        abort 'error generating slope masks' unless status.success?
+        stdout, stderr, status = Open3.capture3 'ogr2ogr', '-update', '-nln', 'mask', '-nlt', 'MULTIPOLYGON', '-q', mask_path.to_s, mask_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+          SELECT ST_Buffer(ST_Buffer(ST_Polygonize(geometry), #{0.5 * min_length}, 6), #{-0.5 * min_length}, 6) AS geometry FROM ring
+        SQL
+        abort 'error generating slope masks' unless status.success?
         drop.each do |index|
           stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'mask', '-update', '-append', '-q', db_path.to_s, mask_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
-            SELECT ST_Buffer(ST_Buffer(geometry, #{0.5 * min_length}, 6), #{-0.5 * min_length}, 6) AS geometry, #{index * config.interval} AS modulo FROM mask WHERE angle > 0
+            SELECT geometry, #{index * config.interval} AS modulo FROM mask
           SQL
-          abort 'error creating slope masks' unless status.success?
+          abort 'error generating slope masks' unless status.success?
         end
         count - drop.count
       end

@@ -199,7 +199,15 @@ begin
     abort 'error creating DEM' unless status.success?
 
     log.puts 'generating contours'
-    stdout, stderr, status = Open3.capture3 'gdal_contour', '-nln', 'contour', '-a', 'elevation', '-i', config.interval.to_s, '-q', *db_flags, dem_tif_path.to_s, db_path.to_s
+    stdout, stderr, status = Open3.capture3 'gdal_contour', '-nln', 'raw', '-a', 'elevation', '-i', config.interval.to_s, '-q', *db_flags, dem_tif_path.to_s, db_path.to_s
+    abort 'error generating contours'  unless status.success?
+
+    simplify_flags = [ '-simplify', config.tolerance.to_s ] unless config.tolerance.zero?
+    stdout, stderr, status = Open3.capture3 'ogr2ogr', '-update', '-nln', 'contour', *simplify_flags, db_path.to_s, db_path.to_s, '-dialect', 'OGRSQL', '-sql', <<-SQL
+      SELECT elevation, id, elevation % #{config.index * config.interval} AS modulo
+      FROM raw
+      WHERE 0 <> elevation
+    SQL
     abort 'error generating contours'  unless status.success?
 
     if config.thin
@@ -246,41 +254,38 @@ begin
 
       log.puts 'masking contours'
       stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'masked', '-update', '-explodecollections', db_path.to_s, db_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
-        SELECT contour.geometry, contour.id, contour.elevation, 1 AS keep
-        FROM contour LEFT JOIN mask ON mask.modulo = contour.elevation % #{config.index * config.interval}
+        SELECT contour.geometry, contour.id, contour.elevation, contour.modulo, 1 AS keep
+        FROM contour LEFT JOIN mask ON mask.modulo = contour.modulo
         WHERE mask.modulo IS NULL
         UNION ALL
-        SELECT ExtractMultiLinestring(ST_Difference(contour.geometry, mask.geometry)), contour.id, contour.elevation, 1 AS keep
-        FROM contour INNER JOIN mask ON mask.modulo = contour.elevation % #{config.index * config.interval}
+        SELECT ExtractMultiLinestring(ST_Difference(contour.geometry, mask.geometry)), contour.id, contour.elevation, contour.modulo, 1 AS keep
+        FROM contour INNER JOIN mask ON mask.modulo = contour.modulo
         WHERE ST_Relate(contour.geometry, mask.geometry, '**T******')
         UNION ALL
-        SELECT ExtractMultiLinestring(ST_Intersection(contour.geometry, mask.geometry)), contour.id, contour.elevation, 0 AS keep
-        FROM contour INNER JOIN mask ON mask.modulo = contour.elevation % #{config.index * config.interval}
+        SELECT ExtractMultiLinestring(ST_Intersection(contour.geometry, mask.geometry)), contour.id, contour.elevation, contour.modulo, 0 AS keep
+        FROM contour INNER JOIN mask ON mask.modulo = contour.modulo
         WHERE ST_Relate(contour.geometry, mask.geometry, 'T********')
       SQL
       abort 'error masking contours' unless status.success?
 
       db_path, old_path = Pathname(tmp) / 'thinned', db_path
       stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'contour', '-explodecollections', *db_flags, db_path.to_s, old_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
-        SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, elevation
+        SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, elevation, modulo
         FROM masked
         WHERE keep OR ST_Length(geometry) < #{min_length}
-        GROUP BY id, elevation
+        GROUP BY id, elevation, modulo
       SQL
       abort 'error masking contours' unless status.success?
     end
 
     out_flags = [ '-f', config.format ] if config.format
     out_flags = [ '-t_srs', config.projection, *out_flags ] if config.projection
-    out_flags = [ '-simplify', config.tolerance.to_s, *out_flags ] unless config.tolerance.zero?
 
-    log.puts 'simplifying contours' unless config.tolerance.zero?
+    log.puts 'finalising contours'
     stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', config.name, '-update', '-overwrite', '-explodecollections', *out_flags, config.dst_path.to_s, db_path.to_s, '-dialect', 'OGRSQL', '-sql', <<-SQL
-      SELECT elevation, '#{INTERMEDIATE}' AS type FROM contour
-      WHERE 0 <> elevation AND 0 <> elevation % #{config.index * config.interval}
+      SELECT elevation, '#{INTERMEDIATE}' AS type FROM contour WHERE modulo <> 0
       UNION ALL
-      SELECT elevation, '#{INDEX}'        AS type FROM contour
-      WHERE 0 <> elevation AND 0 =  elevation % #{config.index * config.interval}
+      SELECT elevation, '#{INDEX}'        AS type FROM contour WHERE modulo = 0
     SQL
     abort 'error finalising contours' unless status.success?
   end

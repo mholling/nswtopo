@@ -252,7 +252,7 @@ begin
       end
 
       log.puts 'masking contours'
-      stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'masked', '-update', '-explodecollections', db_path.to_s, db_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+      stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'divided', '-update', '-explodecollections', db_path.to_s, db_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
         WITH intersecting(contour, mask) AS (
           SELECT contour.rowid, mask.rowid
           FROM contour
@@ -267,19 +267,19 @@ begin
             ) AND
             ST_Relate(contour.geometry, mask.geometry, 'T********')
         )
-        SELECT contour.geometry, contour.id, contour.elevation, contour.modulo, 1 AS keep
+        SELECT contour.geometry, contour.id, contour.elevation, contour.modulo, 1 AS unmasked, 1 AS unaltered
         FROM contour
         LEFT JOIN intersecting ON intersecting.contour = contour.rowid
         WHERE intersecting.contour IS NULL
         UNION
-        SELECT ExtractMultiLinestring(ST_Difference(contour.geometry, ST_Collect(mask.geometry))) AS geometry, contour.id, contour.elevation, contour.modulo, 1 AS keep
+        SELECT ExtractMultiLinestring(ST_Difference(contour.geometry, ST_Collect(mask.geometry))) AS geometry, contour.id, contour.elevation, contour.modulo, 1 AS unmasked, 0 AS unaltered
         FROM contour
         INNER JOIN intersecting ON intersecting.contour = contour.rowid
         INNER JOIN mask ON intersecting.mask = mask.rowid
         GROUP BY contour.rowid
         HAVING min(ST_Relate(contour.geometry, mask.geometry, '**T******'))
         UNION
-        SELECT ExtractMultiLinestring(ST_Intersection(contour.geometry, ST_Collect(mask.geometry))) AS geometry, contour.id, contour.elevation, contour.modulo, 0 AS keep
+        SELECT ExtractMultiLinestring(ST_Intersection(contour.geometry, ST_Collect(mask.geometry))) AS geometry, contour.id, contour.elevation, contour.modulo, 0 AS unmasked, 0 AS unaltered
         FROM contour
         INNER JOIN intersecting ON intersecting.contour = contour.rowid
         INNER JOIN mask ON intersecting.mask = mask.rowid
@@ -287,13 +287,18 @@ begin
       SQL
       abort 'error masking contours' unless status.success?
 
-      # TODO: remove non-closed contours less than min_length which are adjacent to masked areas?
-      db_path, old_path = Pathname(tmp) / 'thinned', db_path
-      stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'contour', '-explodecollections', *db_flags, db_path.to_s, old_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
-        SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, elevation, modulo
-        FROM masked
-        WHERE keep OR ST_Length(geometry) < #{min_length}
-        GROUP BY id, elevation, modulo
+      stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'thinned', '-update', '-explodecollections', db_path.to_s, db_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+        SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, elevation, modulo, unaltered
+        FROM divided
+        WHERE unmasked OR ST_Length(geometry) < #{min_length}
+        GROUP BY id, elevation, modulo, unaltered
+      SQL
+      abort 'error masking contours' unless status.success?
+
+      stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'contour', '-update', '-overwrite', db_path.to_s, db_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+        SELECT geometry, elevation, modulo
+        FROM thinned
+        WHERE unaltered OR ST_Length(geometry) > #{min_length}
       SQL
       abort 'error masking contours' unless status.success?
     end

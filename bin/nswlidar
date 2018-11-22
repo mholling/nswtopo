@@ -9,7 +9,6 @@ require 'tmpdir'
 require 'rexml/document'
 
 # TODO add help text
-# TODO use spatial index to optimise slope mask appliction?
 # TODO speed up blurring?
 
 # TODO add depression category?
@@ -244,7 +243,7 @@ begin
         SQL
         abort 'error generating slope masks' unless status.success?
         drop.each do |index|
-          stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'mask', '-update', '-append', '-q', db_path.to_s, mask_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+          stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'mask', '-update', '-append', '-explodecollections', '-q', db_path.to_s, mask_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
             SELECT geometry, #{index * config.interval} AS modulo FROM mask
           SQL
           abort 'error generating slope masks' unless status.success?
@@ -254,20 +253,41 @@ begin
 
       log.puts 'masking contours'
       stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'masked', '-update', '-explodecollections', db_path.to_s, db_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+        WITH intersecting(contour, mask) AS (
+          SELECT contour.rowid, mask.rowid
+          FROM contour
+          INNER JOIN mask
+          ON
+            mask.modulo = contour.modulo AND
+            contour.rowid IN (
+              SELECT rowid FROM SpatialIndex
+              WHERE
+                f_table_name = 'contour' AND
+                search_frame = mask.geometry
+            ) AND
+            ST_Relate(contour.geometry, mask.geometry, 'T********')
+        )
         SELECT contour.geometry, contour.id, contour.elevation, contour.modulo, 1 AS keep
-        FROM contour LEFT JOIN mask ON mask.modulo = contour.modulo
-        WHERE mask.modulo IS NULL
-        UNION ALL
-        SELECT ExtractMultiLinestring(ST_Difference(contour.geometry, mask.geometry)), contour.id, contour.elevation, contour.modulo, 1 AS keep
-        FROM contour INNER JOIN mask ON mask.modulo = contour.modulo
-        WHERE ST_Relate(contour.geometry, mask.geometry, '**T******')
-        UNION ALL
-        SELECT ExtractMultiLinestring(ST_Intersection(contour.geometry, mask.geometry)), contour.id, contour.elevation, contour.modulo, 0 AS keep
-        FROM contour INNER JOIN mask ON mask.modulo = contour.modulo
-        WHERE ST_Relate(contour.geometry, mask.geometry, 'T********')
+        FROM contour
+        LEFT JOIN intersecting ON intersecting.contour = contour.rowid
+        WHERE intersecting.contour IS NULL
+        UNION
+        SELECT ExtractMultiLinestring(ST_Difference(contour.geometry, ST_Collect(mask.geometry))) AS geometry, contour.id, contour.elevation, contour.modulo, 1 AS keep
+        FROM contour
+        INNER JOIN intersecting ON intersecting.contour = contour.rowid
+        INNER JOIN mask ON intersecting.mask = mask.rowid
+        GROUP BY contour.rowid
+        HAVING min(ST_Relate(contour.geometry, mask.geometry, '**T******'))
+        UNION
+        SELECT ExtractMultiLinestring(ST_Intersection(contour.geometry, ST_Collect(mask.geometry))) AS geometry, contour.id, contour.elevation, contour.modulo, 0 AS keep
+        FROM contour
+        INNER JOIN intersecting ON intersecting.contour = contour.rowid
+        INNER JOIN mask ON intersecting.mask = mask.rowid
+        GROUP BY contour.rowid
       SQL
       abort 'error masking contours' unless status.success?
 
+      # TODO: remove non-closed contours less than min_length which are adjacent to masked areas?
       db_path, old_path = Pathname(tmp) / 'thinned', db_path
       stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'contour', '-explodecollections', *db_flags, db_path.to_s, old_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
         SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, elevation, modulo

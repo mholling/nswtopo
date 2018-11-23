@@ -9,6 +9,8 @@ require 'tmpdir'
 require 'rexml/document'
 
 # TODO add help text
+# TODO show default values in help
+
 # TODO speed up blurring?
 
 # TODO add depression category?
@@ -31,6 +33,12 @@ GEOS_VERSION = Open3.popen3 'ogr2ogr', '-f', 'GeoJSON', '-dialect', 'SQLite', '-
   stdin.close
   break [ ] unless wait.value.success?
   JSON.parse(stdout.read)['features'][0]['properties']['geos_version'].split(/\D+/).take(3).map(&:to_i)
+end
+
+def command(*args)
+  stdout, stderr, status = Open3.capture3 *args.map(&:to_s)
+  abort 'unexpected error' unless status.success?
+  stdout
 end
 
 begin
@@ -84,7 +92,7 @@ begin
     raise OptionParser::InvalidArgument, 'contour simplification tolerance must be positive'
   when !(/^[a-zA-Z]\w*$/ === config.name)
     raise OptionParser::InvalidArgument, 'alphanumeric characters only for contour layer name'
-  when config.projection && Open3.capture3(*%w[gdalsrsinfo -o proj4], config.projection).first.empty?
+  when config.projection && Open3.capture3('gdalsrsinfo', '-o', 'proj4', config.projection).first.empty?
     raise OptionParser::InvalidArgument, 'invalid output projection'
   when config.thin && (GEOS_VERSION <=> [3,3]) < 0
     abort 'error: contour thinning requires GDAL with SQLite, SpatiaLite and GEOS support'
@@ -112,7 +120,7 @@ begin
     area = info['cornerCoordinates'].values_at('upperLeft','lowerLeft','lowerRight','upperRight','upperLeft').each_cons(2).map do |(x0, y0), (x1, y1)|
       x0 * y1 - x1 * y0
     end.inject(&:+).abs * 0.5
-    proj4, stderr, status = Open3.capture3 *%w[gdalsrsinfo -e -o proj4], wkt
+    proj4 = command 'gdalsrsinfo', '-e', '-o', 'proj4', wkt
     abort 'error: DEM tiles must be in planar projection with metre units' unless /\+units=m/ === proj4
     OpenStruct.new path: path, proj4: proj4, resolutions: resolutions, area: area
   rescue JSON::ParserError
@@ -151,17 +159,13 @@ begin
       tif_path = Pathname(tmp) / "mosaic.#{index}.tif"
       vrt_path = Pathname(tmp) / "mosaic.#{index}.vrt"
       txt_path.write tiles.map(&:path).join(?\n)
-      stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-input_file_list', txt_path.to_s, vrt_path.to_s
-      abort 'error building DEM tile mosaic' unless status.success?
-      stdout, stderr, status = Open3.capture3 'gdalwarp', '-r', 'bilinear', '-t_srs', proj4, '-tr', *config.resolutions.map(&:to_s), vrt_path.to_s, tif_path.to_s
-      # TODO use gdal_translate if no reprojection or scaling?
-      abort 'error transforming DEM tiles' unless status.success?
+      command 'gdalbuildvrt', '-input_file_list', txt_path, vrt_path
+      command 'gdalwarp', '-r', 'bilinear', '-t_srs', proj4, '-tr', *config.resolutions, vrt_path, tif_path
       tif_path
     end.join(?\n).tap do |list|
       txt_path.write list
     end
-    stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-overwrite', '-input_file_list', txt_path.to_s, dem_vrt_path.to_s
-    abort 'error building tile mosaic' unless status.success?
+    command 'gdalbuildvrt', '-overwrite', '-input_file_list', txt_path, dem_vrt_path
 
     unless config.radius.zero?
       sigma = 0.001 * config.radius * config.scale
@@ -177,7 +181,7 @@ begin
         pair.inject(&:*)
       end
 
-      stdout, stderr, status = Open3.capture3 'gdalbuildvrt', '-q', '/vsistdout/', dem_vrt_path.to_s
+      stdout = command 'gdalbuildvrt', '-q', '/vsistdout/', dem_vrt_path
       xml = REXML::Document.new(stdout)
       xml.elements.each('//ComplexSource') do |complex_source|
         kernel_filtered_source = complex_source.parent.add_element('KernelFilteredSource')
@@ -194,35 +198,28 @@ begin
       log.puts 'smoothing DEM'
     end
 
-    stdout, stderr, status = Open3.capture3 'gdal_translate', '-q', dem_vrt_path.to_s, dem_tif_path.to_s
-    abort 'error creating DEM' unless status.success?
+    command 'gdal_translate', '-q', dem_vrt_path, dem_tif_path
 
     log.puts 'generating contours'
-    stdout, stderr, status = Open3.capture3 'gdal_contour', '-nln', 'raw', '-a', 'elevation', '-i', config.interval.to_s, '-q', *db_flags, dem_tif_path.to_s, db_path.to_s
-    abort 'error generating contours'  unless status.success?
-
-    simplify_flags = [ '-simplify', config.tolerance.to_s ] unless config.tolerance.zero?
-    stdout, stderr, status = Open3.capture3 'ogr2ogr', '-update', '-nln', 'contour', *simplify_flags, db_path.to_s, db_path.to_s, '-dialect', 'OGRSQL', '-sql', <<-SQL
+    simplify_flags = [ '-simplify', config.tolerance ] unless config.tolerance.zero?
+    command 'gdal_contour', '-nln', 'raw', '-a', 'elevation', '-i', config.interval, '-q', *db_flags, dem_tif_path, db_path
+    command 'ogr2ogr', '-update', '-nln', 'contour', *simplify_flags, db_path, db_path, '-dialect', 'OGRSQL', '-sql', <<-SQL
       SELECT elevation, id, elevation % #{config.index * config.interval} AS modulo
       FROM raw
       WHERE 0 <> elevation
     SQL
-    abort 'error generating contours'  unless status.success?
 
     if config.thin
       slope_tif_path = Pathname(tmp) / 'slope.tif'
       slope_vrt_path = Pathname(tmp) / 'slope.vrt'
       min_length = 0.001 * config.minlength * config.scale
 
-      log.puts 'generating slope raster'
-      stdout, stderr, status = Open3.capture3 'gdaldem', 'slope', dem_tif_path.to_s, slope_tif_path.to_s, '-compute_edges'
-      abort 'error generating slope raster' unless status.success?
-      stdout, stderr, status = Open3.capture3 'gdalinfo', '-json', slope_tif_path.to_s
-      abort 'error generating slope raster' unless status.success?
+      log.puts 'generating slope masks'
+      command 'gdaldem', 'slope', dem_tif_path, slope_tif_path, '-compute_edges'
+      stdout = command 'gdalinfo', '-json', slope_tif_path
       width, height = JSON.parse(stdout)['size']
-      srcwin = [ -2, -2, width + 4, height + 4 ].map(&:to_s)
-      stdout, stderr, status = Open3.capture3 'gdal_translate', '-srcwin', *srcwin, '-a_nodata', 'none', '-of', 'VRT', slope_tif_path.to_s, slope_vrt_path.to_s
-      abort 'error generating slope raster' unless status.success?
+      srcwin = [ -2, -2, width + 4, height + 4 ]
+      command 'gdal_translate', '-srcwin', *srcwin, '-a_nodata', 'none', '-of', 'VRT', slope_tif_path, slope_vrt_path
 
       case config.index
       when  4 then [ [1,3], 2 ]
@@ -235,24 +232,20 @@ begin
       end.inject(config.index) do |count, (*drop)|
         angle = Math::atan(1000.0 * config.interval * config.index * config.density / config.scale / count) * 180.0 / Math::PI
         mask_path = Pathname(tmp) / "mask.#{count}.sqlite"
-        log.puts "generating #{angle.round}° slope mask"
-        stdout, stderr, status = Open3.capture3 'gdal_contour', '-nln', 'ring', '-a', 'angle', '-fl', angle.to_s, '-q', *db_flags, slope_vrt_path.to_s, mask_path.to_s
-        abort 'error generating slope masks' unless status.success?
-        stdout, stderr, status = Open3.capture3 'ogr2ogr', '-update', '-nln', 'mask', '-nlt', 'MULTIPOLYGON', '-q', mask_path.to_s, mask_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+        command 'gdal_contour', '-nln', 'ring', '-a', 'angle', '-fl', angle, '-q', *db_flags, slope_vrt_path, mask_path
+        command 'ogr2ogr', '-update', '-nln', 'mask', '-nlt', 'MULTIPOLYGON', '-q', mask_path, mask_path, '-dialect', 'SQLite', '-sql', <<-SQL
           SELECT ST_Buffer(ST_Buffer(ST_Polygonize(geometry), #{0.5 * min_length}, 6), #{-0.5 * min_length}, 6) AS geometry FROM ring
         SQL
-        abort 'error generating slope masks' unless status.success?
         drop.each do |index|
-          stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'mask', '-update', '-append', '-explodecollections', '-q', db_path.to_s, mask_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+          command 'ogr2ogr', '-nln', 'mask', '-update', '-append', '-explodecollections', '-q', db_path, mask_path, '-dialect', 'SQLite', '-sql', <<-SQL
             SELECT geometry, #{index * config.interval} AS modulo FROM mask
           SQL
-          abort 'error generating slope masks' unless status.success?
         end
         count - drop.count
       end
 
-      log.puts 'masking contours'
-      stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'divided', '-update', '-explodecollections', db_path.to_s, db_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+      log.puts 'thinning contours'
+      command 'ogr2ogr', '-nln', 'divided', '-update', '-explodecollections', db_path, db_path, '-dialect', 'SQLite', '-sql', <<-SQL
         WITH intersecting(contour, mask) AS (
           SELECT contour.rowid, mask.rowid
           FROM contour
@@ -285,34 +278,29 @@ begin
         INNER JOIN mask ON intersecting.mask = mask.rowid
         GROUP BY contour.rowid
       SQL
-      abort 'error masking contours' unless status.success?
 
-      stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'thinned', '-update', '-explodecollections', db_path.to_s, db_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+      command 'ogr2ogr', '-nln', 'thinned', '-update', '-explodecollections', db_path, db_path, '-dialect', 'SQLite', '-sql', <<-SQL
         SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, elevation, modulo, unaltered
         FROM divided
         WHERE unmasked OR ST_Length(geometry) < #{min_length}
         GROUP BY id, elevation, modulo, unaltered
       SQL
-      abort 'error masking contours' unless status.success?
 
-      stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', 'contour', '-update', '-overwrite', db_path.to_s, db_path.to_s, '-dialect', 'SQLite', '-sql', <<-SQL
+      command 'ogr2ogr', '-nln', 'contour', '-update', '-overwrite', db_path, db_path, '-dialect', 'SQLite', '-sql', <<-SQL
         SELECT geometry, elevation, modulo
         FROM thinned
         WHERE unaltered OR ST_Length(geometry) > #{min_length}
       SQL
-      abort 'error masking contours' unless status.success?
     end
 
     out_flags = [ '-f', config.format ] if config.format
     out_flags = [ '-t_srs', config.projection, *out_flags ] if config.projection
 
-    log.puts 'finalising contours'
-    stdout, stderr, status = Open3.capture3 'ogr2ogr', '-nln', config.name, '-update', '-overwrite', '-explodecollections', *out_flags, config.dst_path.to_s, db_path.to_s, '-dialect', 'OGRSQL', '-sql', <<-SQL
+    command 'ogr2ogr', '-nln', config.name, '-update', '-overwrite', '-explodecollections', *out_flags, config.dst_path, db_path, '-dialect', 'OGRSQL', '-sql', <<-SQL
       SELECT elevation, '#{INTERMEDIATE}' AS type FROM contour WHERE modulo <> 0
       UNION ALL
       SELECT elevation, '#{INDEX}'        AS type FROM contour WHERE modulo = 0
     SQL
-    abort 'error finalising contours' unless status.success?
   end
 rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => e
   abort e.message

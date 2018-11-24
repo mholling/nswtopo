@@ -20,8 +20,6 @@ require 'rexml/document'
 # TODO extract spot heights? (from DEMs? from point clouds?)
 # TODO option to save DEM?
 
-INDEX, INTERMEDIATE = %w[Index Intermediate]
-
 GDAL_VERSION = begin
   stdout, stderr, status = Open3.capture3 'gdal-config', '--version'
   stdout.split(/\D+/).take(3).map(&:to_i)
@@ -48,6 +46,8 @@ begin
     parser.on '-s', '--scale       SCALE',       Integer,  'target map scale'
     parser.on '-r', '--radius      RADIUS',      Float,    'DEM smoothing radius in mm'
     parser.on '-e', '--tolerance   TOLERANCE',   Float,    'contour simplification tolerance in metres'
+    parser.on '-b', '--boolean',                           'use booleans for index and depression attributes'
+    parser.on '-c', '--clean',                             'remove depression contours'
     parser.on '-t', '--thin',                              'thin intermediate contours in steep areas'
     parser.on '-d', '--density     DENSITY',     Float,    '  maximum contour density in lines/mm'
     parser.on '-m', '--minlength   MINLENGTH',   Float,    '  minimum contour removal length in mm'
@@ -209,6 +209,17 @@ begin
       WHERE 0 <> elevation
     SQL
 
+    stdout = command 'ogr2ogr', '-f', 'GeoJSON', '/vsistdout/', db_path, 'contour'
+    depression = JSON.parse(stdout)['features'].map do |feature|
+      [ feature['properties']['ID'] || feature['properties']['id'], feature['geometry']['coordinates'] ]
+    end.select do |id, coordinates|
+      coordinates.first == coordinates.last
+    end.select do |id, coordinates|
+      coordinates.each_cons(2).map do |(x0, y0), (x1, y1)|
+        x0 * y1 - x1 * y0
+      end.inject(&:+) > 0
+    end.map(&:first)
+
     if config.thin
       slope_tif_path = Pathname(tmp) / 'slope.tif'
       slope_vrt_path = Pathname(tmp) / 'slope.vrt'
@@ -280,14 +291,14 @@ begin
       SQL
 
       command 'ogr2ogr', '-nln', 'thinned', '-update', '-explodecollections', db_path, db_path, '-dialect', 'SQLite', '-sql', <<-SQL
-        SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, elevation, modulo, unaltered
+        SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, id, elevation, modulo, unaltered
         FROM divided
         WHERE unmasked OR ST_Length(geometry) < #{min_length}
         GROUP BY id, elevation, modulo, unaltered
       SQL
 
       command 'ogr2ogr', '-nln', 'contour', '-update', '-overwrite', db_path, db_path, '-dialect', 'SQLite', '-sql', <<-SQL
-        SELECT geometry, elevation, modulo
+        SELECT geometry, id, elevation, modulo
         FROM thinned
         WHERE unaltered OR ST_Length(geometry) > #{min_length}
       SQL
@@ -296,25 +307,20 @@ begin
     out_flags = [ '-f', config.format ] if config.format
     out_flags = [ '-t_srs', config.projection, *out_flags ] if config.projection
 
-    command 'ogr2ogr', '-nln', config.name, '-update', '-overwrite', '-explodecollections', *out_flags, config.dst_path, db_path, '-dialect', 'OGRSQL', '-sql', <<-SQL
-      SELECT elevation, '#{INTERMEDIATE}' AS type FROM contour WHERE modulo <> 0
-      UNION ALL
-      SELECT elevation, '#{INDEX}'        AS type FROM contour WHERE modulo = 0
-    SQL
+    where = 'id NOT IN (%s)' % depression.join(?,) if config.clean
+    depression_clauses = [ [ config.boolean ? 0 : %q['Standard'], 'NOT IN' ], [ config.boolean ? 1 : %q['Depression'], 'IN' ] ].map do |value, relation|
+      [ "#{value} AS depression", "id #{relation} (#{depression.join ?,})" ]
+    end.take(config.clean ? 1 : 2)
+    type_clauses = [ [ config.boolean ? 0 : %q['Intermediate'], '<>' ], [ config.boolean ? 1 : %q['Index'], '=' ] ].map do |value, relation|
+      [ "#{value} AS isindex", "0 #{relation} modulo" ]
+    end
+    sql = type_clauses.product(depression_clauses).map(&:transpose).map do |selects, wheres|
+      "SELECT elevation, #{selects.join ', '} FROM contour WHERE #{wheres.join ' AND '}"
+    end.join(' UNION ALL ')
+    command 'ogr2ogr', '-nln', config.name, '-update', '-overwrite', '-explodecollections', '-dialect', 'OGRSQL', '-sql', sql, *out_flags, config.dst_path, db_path
   end
 rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => e
   abort e.message
 rescue Interrupt
   abort "\nInterrupted."
 end
-
-
-# collection = JSON.load json_path
-# collection['features'].map do |feature|
-#   feature.values_at 'properties', 'geometry'
-# end.each do |properties, geometry|
-#   properties['type'] = geometry['coordinates'].first == geometry['coordinates'].last && geometry['coordinates'].each_cons(2).map do |(x0, y0), (x1, y1)|
-#     x0 * y1 - x1 * y0
-#   end.inject(&:+) > 0 ? 'Depression' : 'Standard'
-# end
-# json_path.write collection.to_json

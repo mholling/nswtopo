@@ -48,7 +48,7 @@ These layers (`nsw/reference-topo-current` and `nsw/reference-topo-s1`) contain 
 
 The vegetation layer in standard NSW printed topo sheets appears to be derived from a dataset called *NSW Interim Native Vegetation Extent (2008-v2)*, which is a 25-metre resolution raster representation of NSW, categorised into 'woody' and 'non-woody' vegetation. For our purposes this generally corresponds to forested and open areas on our map.
 
-This vegetation data is not available from a map server, but the entire 162 MB dataset may be downloaded from [here](http://mapdata.environment.nsw.gov.au/geonetwork/srv/en/metadata.show?id=246) (you will need to provide your name and email address). You need only download this once as the same data is used for any maps you create.
+This vegetation data is not available from a map server, but the entire 162 MB dataset may be downloaded from [here](https://search.data.gov.au/dataset/ds-nsw-0f84bdba-26cd-4a3c-91e7-19ef13e382e3/). You need only download this once as the same data is used for any maps you create.
 
 Once you have downloaded the data, unzip the file to a suitable location, locate the file named `hdr.adf` and add its path (relative or absolute) to your configuration file. (You can also modify the default colours for woody and non-woody vegetation, should you wish.)
 

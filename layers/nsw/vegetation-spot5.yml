@@ -1,0 +1,12 @@
+type: Vegetation
+mapping:
+  min: 100
+  max: 200
+resolution: 5.0
+colour:
+  non-woody: "#FFFFFF"
+  woody: "#A6F1A6"
+contrast:
+  low: 10
+  high: 75
+  factor: 4.0

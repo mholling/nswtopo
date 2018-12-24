@@ -1,19 +1,20 @@
 module HashHelpers
-  def deep_merge(hash)
-    hash.inject(self.dup) do |result, (key, value)|
-      result.merge(key => result[key].is_a?(Hash) && value.is_a?(Hash) ? result[key].deep_merge(value) : value)
+  def deep_merge(other)
+    merge(other) do |key, old_value, new_value|
+      Hash === old_value ? Hash == new_value ? old_value.deep_merge(new_value) : new_value : new_value
     end
   end
 
-  def deep_merge!(hash)
-    hash.each do |key, value|
-      self[key].is_a?(Hash) && value.is_a?(Hash) ? self[key].deep_merge!(value) : self[key] = value
+  def deep_merge!(other)
+    merge!(other) do |key, old_value, new_value|
+      Hash === old_value ? Hash == new_value ? old_value.deep_merge!(new_value) : new_value : new_value
     end
-    self
   end
 
   def to_query
-    URI.escape reject { |key, value| value.nil? }.map { |key, value| "#{key}=#{value}" }.join(?&)
+    # URI.escape reject { |key, value| value.nil? }.map { |key, value| "#{key}=#{value}" }.join(?&)
+    # TODO: remove eventually
+    URI.encode_www_form self
   end
 end
 

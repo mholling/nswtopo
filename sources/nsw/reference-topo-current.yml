@@ -1,8 +1,0 @@
-min-version: '1.4'
-class: ArcGISRaster
-host: maps.six.nsw.gov.au
-folder: sixmaps
-service: LPITopoMap
-ext: png
-resolution: 2.0
-background: white

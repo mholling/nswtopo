@@ -133,7 +133,7 @@ Set the scale of the map as follows:
 
     scale: 25000              # desired map scale (1:25000 in this case)
 
-Set the map rotation angle as an angle between +/- 45 degrees anticlockwise from true north (e.g. for a rotation angle of 20, true north on the map will be 20 degrees to the right of vertical). There is no degradation in quality in a rotated map (although horizontal labels will no longer be horizontal). The special value `magnetic` will cause the map to be aligned with magnetic north.
+Set the map rotation angle as an angle between +/- 45 degrees clockwise from true north (e.g. for a rotation angle of 20, true north on the map will be 20 degrees to the left of vertical). The special value `magnetic` will cause the map to be aligned with magnetic north.
 
     rotation: 0               # angle of rotation of map (or 'magnetic' to align with magnetic north)
 
@@ -230,14 +230,6 @@ Drop a control waypoints file (`controls.kml` or `controls.gpx`) into the direct
         font-size: 4.9        # font size (in mm) for control labels
         fill: "#880088"       # colour for the control labels
 
-## Canvas
-
-If you include a PNG image named `canvas.png` in the map directory, it will be automatically detected and used as an underlay for the map. It is intended that this map canvas should be derived from one of the aerial images using an image editing tool such as Photoshop or GIMP, in order to represent vegetation cover. This is useful in case you are not satisfied with the vegetation layer provided above.
-
-Generating your own vegetation layer can be accomplished using the 'color range' selection tool in Photoshop, for example, or other similar selection tools. (Selecting on a single channel, such as green or magenta, may be helpful.) You can also create additional vegetation markings (e.g. for the distinctive, nasty heath that sometimes appears in ACT rogaines) using the aerial imagery.
-
-If you wish to create your canvas at a lower resolution, it is fine to resample (resize) the aerial image to smaller pixel count before selecting and colouring the vegetation. However, it is important that you *resample the image by changing its resolution* (usually shown in pixels/inch), rather than by changing the width and height.
-
 Excluding & Reordering Layers
 =============================
 
@@ -313,15 +305,10 @@ Build or rebuild your map by running the script to add the overlays.
 Importing Layers
 ================
 
-You can also embed other georeferenced image files into your map as layers. Most [GDAL-supported formats](http://www.gdal.org/formats_list.html) should work. For example, if you have some OziExplorer raster maps which you would like to include, add them in your configuration file as follows:
+You can also embed other georeferenced image files into your map as layers. Georeferenced TIF, PNG and JPG files are supported. For example, to embed a geotiff baselayer, add it in your configuration file in the required layer position as follows:
 
     import:
-    - /Users/matthew/maps/DVD/25k/8626-4S-RULES-POINT.map  # path of a georeferenced image
-    - /Users/matthew/maps/DVD/25k/8626-3N-TANTANGARA.map   # path of another image
-
-Run the script to embed the new map images. A local PNG file will be stored containing the relevant portion of the map. (The original source files should not be stored in the same folder, to avoid accidentally overwriting them.)
-
-The embedded images will be stored as layers at the bottom of the layer stack; they will not be visible if you have included other opaque layers (vegetation, aerial imagery). Use Inkscape to view the layers and/or change their order.
+    - /Users/matthew/maps/DVD/25k/8626-4S-RULES-POINT.tif  # path of a georeferenced image
 
 Updating Your Map
 =================
@@ -436,7 +423,7 @@ Here is a suggested workflow for producing a rogaine map using this software (al
         margin: 15                 # ... with a 15mm margin around the outer-most controls
         rotation: magnetic         # align the map to magnetic north (optional)
         include:
-        - nsw/vegetation-2008-v2   # show vegetation layer (or use a canvas)
+        - nsw/vegetation-2008-v2   # show vegetation layer
         - nsw/topographic          # show topographic layers
         - boundaries.kml           # show out-of-bounds areas
         - declination              # show magnetic declination lines

@@ -1,9 +1,0 @@
-class: ReliefSource
-contours:
-  http://data.actmapi.act.gov.au/arcgis/rest/services/actmapi/contours_2015/MapServer/0/query: Contour
-  http://data.actmapi.act.gov.au/arcgis/rest/services/actmapi/contours_2015/MapServer/1/query: Contour
-resolution: 5
-lightsources: 3
-exaggeration: 2.5
-altitude: 35
-opacity: 0.25

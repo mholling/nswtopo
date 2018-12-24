@@ -1,0 +1,3 @@
+type: ArcGISRaster
+url: http://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPI_Imagery_Best/MapServer
+resolution: 2.0

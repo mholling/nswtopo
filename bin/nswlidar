@@ -319,8 +319,8 @@ begin
     end.join(' UNION ALL ')
     command 'ogr2ogr', '-nln', config.name, '-update', '-overwrite', '-explodecollections', '-dialect', 'OGRSQL', '-sql', sql, *out_flags, config.dst_path, db_path
   end
-rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => e
-  abort e.message
+rescue OptionParser::InvalidOption, OptionParser::MissingArgument, OptionParser::InvalidArgument => error
+  abort error.message
 rescue Interrupt
   abort "\nInterrupted."
 end

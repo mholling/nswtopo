@@ -7,10 +7,14 @@ module VectorSequence
     0.5 * ring.map { |p1, p2| p1.cross p2 }.inject(&:+)
   end
 
-  def hole?
+  def clockwise?
     signed_area < 0
   end
-  alias clockwise? hole?
+  alias hole? clockwise?
+
+  def anticlockwise?
+    signed_area >= 0
+  end
 
   def centroid
     ring.map do |p1, p2|
@@ -34,7 +38,7 @@ module VectorSequence
 
   def convex_hull
     start = min_by(&:reverse)
-    hull, remaining = partition { |point| point == start }
+    hull, remaining = uniq.partition { |point| point == start }
     remaining.sort_by do |point|
       [ point.minus(start).angle, point.minus(start).norm ]
     end.inject(hull) do |memo, p3|
@@ -48,6 +52,7 @@ module VectorSequence
 
   def minimum_bounding_box
     polygon = convex_hull
+    return polygon[0], [ 0, 0 ], 0 if polygon.one?
     indices = [ [ :min_by, :max_by ], [ 0, 1 ] ].inject(:product).map do |min, axis|
       polygon.map.with_index.send(min) { |point, index| point[axis] }.last
     end

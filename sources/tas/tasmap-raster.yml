@@ -1,8 +1,0 @@
-min-version: '1.4'
-class: ArcGISRaster
-host: services.thelist.tas.gov.au
-folder: Basemaps
-service: TasmapRaster
-ext: png
-image: true
-resolution: 2.0

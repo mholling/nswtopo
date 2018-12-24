@@ -1,7 +1,0 @@
-min-version: '1.4'
-class: ArcGISRaster
-host: maps.six.nsw.gov.au
-folder: sixmaps
-service: LPI_Imagery_Best
-ext: jpg
-resolution: 1.0

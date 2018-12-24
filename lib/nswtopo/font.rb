@@ -43,7 +43,7 @@ module NSWTopo
     end
 
     module Chrome
-      Error = Class.new StandardError
+      Error = Class.new RuntimeError
 
       def command(string)
         @input.puts string

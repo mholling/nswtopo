@@ -60,6 +60,8 @@ module NSWTopo
           yielder << [ path.basename(path.extname), "type" => "Overlay", "path" => path ]
         when /\.(tiff?|png|jpg)$/i
           yielder << [ path.basename(path.extname), "type" => "Import", "path" => path ]
+        when "Grid", "Declination"
+          yielder << [ layer.downcase, "type" => layer ]
         when /\.yml$/i
           basedir ||= path.parent
           raise "couldn't find '#{layer}'" unless path.file?
@@ -106,19 +108,11 @@ module NSWTopo
   end
 
   def self.grid(options, config, &block)
-    params = options.merge "type" => "Grid"
-    params.merge! config["grid"] if config["grid"]
-    map = Map.load(&block)
-    Layer.new("grid", map, params).create(&block)
-    map.save(&block)
+    add("Grid", options, config, &block)
   end
 
   def self.declination(options, config, &block)
-    params = options.merge "type" => "Declination"
-    params.merge! config["declination"] if config["declination"]
-    map = Map.load(&block)
-    Layer.new("declination", map, params).create(&block)
-    map.save(&block)
+    add("Declination", options, config, &block)
   end
 
   def self.remove(name, options, config, &block)

@@ -8,13 +8,12 @@ module NSWTopo
       raise Error, "no resolution specified for #{@name}" unless Numeric === @resolution
       txt_path = temp_dir / "mosaic.txt"
       vrt_path = temp_dir / "mosaic.vrt"
-      uri = URI.parse @url
 
-      ArcGISServer.start uri do |connection, service, projection|
+      ArcGISServer.start @url do |connection, service, projection|
         target_resolution = get_projected_resolution(@resolution, projection)
         target_bbox = @map.bounding_box.reproject_to(projection)
 
-        raise Error, "not a tiled map or image server: #{uri}" unless tile_info = service["tileInfo"]
+        raise Error, "not a tiled map or image server: #{@url}" unless tile_info = service["tileInfo"]
         lods = tile_info["lods"]
         origin = tile_info["origin"].values_at "x", "y"
         tile_sizes = tile_info.values_at "cols", "rows"

@@ -41,17 +41,18 @@ module NSWTopo
         features = @contours.map do |url_or_path, attribute|
           raise Error, "no elevation attribute specified for #{url_or_path}" unless attribute
           case url_or_path
-          when /^https?:\/\//
-            get_layer url_or_path, margin: margin do |index, total|
+          when ArcGISServer
+            arcgis_layer url_or_path, margin: margin do |index, total|
               print "\r\033[K#{@name}: retrieved #{index} of #{total} contours"
             end.tap do |collection|
               puts "\r\033[K#{@name}: retrieved #{collection.count} contours" if collection.any?
             end.reproject_to(@map.projection).each do |feature|
               feature.properties.replace "elevation" => feature.properties.fetch(attribute, attribute).to_f
             end
+          # when Shapefile
+            # TODO: add contour importing from shapefile path + layer name
           else
             raise Error, "not implemented"
-            # TODO: add contour importing from shapefile path + layer name
           end
         end.inject([], &:+)
 

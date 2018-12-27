@@ -6,8 +6,8 @@ module NSWTopo
     class Connection
       Error = Class.new RuntimeError
 
-      def initialize(http, path)
-        @http, @path, @headers = http, path, { "User-Agent" => "Ruby/#{RUBY_VERSION}", "Referer" => "%s://%s" % [ http.use_ssl? ? "https" : "http", http.address ] }
+      def initialize(http, service_path)
+        @http, @service_path, @headers = http, service_path, { "User-Agent" => "Ruby/#{RUBY_VERSION}", "Referer" => "%s://%s" % [ http.use_ssl? ? "https" : "http", http.address ] }
         http.max_retries = 0
       end
 
@@ -23,14 +23,14 @@ module NSWTopo
       end
 
       def get(relative_path, **query, &block)
-        path = Pathname(@path).join(relative_path).to_s
+        path = Pathname(@service_path).join(relative_path).to_s
         path << ?? << URI.encode_www_form(query) unless query.empty?
         request = Net::HTTP::Get.new(path, @headers)
         repeatedly_request(request, &block)
       end
 
       def post(relative_path, **query, &block)
-        path = Pathname(@path).join(relative_path).to_s
+        path = Pathname(@service_path).join(relative_path).to_s
         request = Net::HTTP::Post.new(path, @headers)
         request.body = URI.encode_www_form(query)
         repeatedly_request(request, &block)
@@ -53,12 +53,26 @@ module NSWTopo
       end
     end
 
-    def self.start(uri, &block)
+    def self.check_uri(url)
+      uri = URI.parse url
+      return unless URI::HTTP === uri
       instance, (layer_id, *) = uri.path.split(?/).slice_after(SERVICE).take(2)
-      raise Error, "invalid ArcGIS service URL: #{uri}" unless SERVICE === instance.last
-      use_ssl = uri.scheme == "https"
+      return unless SERVICE === instance.last
+      return unless !layer_id || /^\d+$/ === layer_id
+      return uri, instance.join(?/), layer_id
+    rescue URI::Error
+    end
+
+    def self.===(string)
+      uri, service_path, layer_id = check_uri string
+      uri != nil
+    end
+
+    def self.start(url, &block)
+      uri, service_path, layer_id = check_uri url
+      raise Error, "invalid ArcGIS server URL: #{url}" unless uri
       Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: 600) do |http|
-        connection = Connection.new http, instance.join(?/)
+        connection = Connection.new http, service_path
         service = connection.get_json
         projection = case
         when wkt  = service.dig("spatialReference", "wkt") then Projection.new(wkt)
@@ -70,13 +84,11 @@ module NSWTopo
       end
     end
 
-    def get_layer(url, where: nil, margin: {}, per_page: nil)
-      ArcGISServer.start URI.parse(url) do |connection, service, projection, layer_id|
+    def arcgis_layer(url, where: nil, margin: {}, per_page: nil)
+      ArcGISServer.start url do |connection, service, projection, layer_id|
         layer = connection.get_json layer_id
         query_path = "#{layer_id}/query"
         max_record_count, fields, types, type_id_field, geometry_type, capabilities = layer.values_at "maxRecordCount", "fields", "types", "typeIdField", "geometryType", "capabilities"
-
-        raise Error, "invalid ArcGIS layer URL: #{url}" unless /^\d+$/ === layer_id
         raise Error, "no query capability available: #{url}" unless /Query|Data/ === capabilities
 
         if type_id_field && types

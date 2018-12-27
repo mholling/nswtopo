@@ -46,7 +46,11 @@ module NSWTopo
   end
 
   def self.add(layer, options, config, &block)
-    overwrite = options.delete "overwrite"
+    create_options = {
+      after: options.delete("after")&.gsub(?/, ?.),
+      before: options.delete("before")&.gsub(?/, ?.),
+      overwrite: options.delete("overwrite")
+    }
     map = Map.load(&block)
     Enumerator.new do |yielder|
       layers = [ layer ]
@@ -55,11 +59,11 @@ module NSWTopo
         path = Pathname(layer).expand_path(*basedir)
         case layer
         when /^controls\.(gpx|kml)$/i
-          yielder << [ path.basename(path.extname), "type" => "Control", "path" => path ]
+          yielder << [ path.basename(path.extname).to_s, "type" => "Control", "path" => path ]
         when /\.(gpx|kml)$/i
-          yielder << [ path.basename(path.extname), "type" => "Overlay", "path" => path ]
+          yielder << [ path.basename(path.extname).to_s, "type" => "Overlay", "path" => path ]
         when /\.(tiff?|png|jpg)$/i
-          yielder << [ path.basename(path.extname), "type" => "Import", "path" => path ]
+          yielder << [ path.basename(path.extname).to_s, "type" => "Import", "path" => path ]
         when "Grid", "Declination"
           yielder << [ layer.downcase, "type" => layer ]
         when /\.yml$/i
@@ -91,19 +95,11 @@ module NSWTopo
     rescue YAML::Exception
       raise "couldn't parse #{path}"
     end.map do |name, params|
-      # TODO: insert each layer after preceeding one
       params.merge! options
       params.merge! config[name] if config[name]
       Layer.new(name, map, params)
-    end.select do |layer|
-      next true if overwrite
-      next true unless layer.uptodate?(&block)
-      puts "skipping pre-existing layer: #{layer.name}"
-      next false
-    end.each do |layer|
-      layer.create(&block)
     end.tap do |layers|
-      map.save(&block) if layers.any?
+      map.add(*layers, **create_options, &block)
     end
   end
 

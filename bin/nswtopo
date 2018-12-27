@@ -134,8 +134,8 @@ begin
         usage: nswtopo info [options] <map.tgz>
         options:
       EOF
-      parser.on "-e", "--empty", "show empty layers"
       # TODO:
+      # parser.on "-e", "--empty", "show empty layers"
       # parser.on "-a", "--all",   "show details for all layers"
       #   usage: nswtopo info [options] <map.tgz> [<layer> ...]
 
@@ -147,6 +147,8 @@ begin
       EOF
       parser.on "-r", "--resolution  <resolution>", PositiveFloat, "raster layer resolution in metres"
       parser.on "-p", "--path        <path>",       Pathname,      "source data path for layer"
+      parser.on "-a", "--after       <layer>",                     "insert after specified layer"
+      parser.on "-b", "--before      <layer>",                     "insert before specified layer"
       parser.on "-o", "--overwrite",                               "overwrite layer if it already exists"
       parser.on "-q", "--quiet",                                   "don't report progress"
     when "grid"

@@ -48,8 +48,8 @@ module NSWTopo
       when Import       == @type then 1
       when ArcGISRaster == @type then 1
       # when Feature      == @type then 2
-      when Relief       == @type then 3
-      when Overlay      == @type then 4
+      when Overlay      == @type then 3
+      when Relief       == @type then 4
       when Grid         == @type then 5
       when Declination  == @type then 6
       when Control      == @type then 7
@@ -58,6 +58,10 @@ module NSWTopo
 
     def <=>(other)
       [ self, other ].map(&:level).inject(&:<=>)
+    end
+
+    def ==(other)
+      Layer === other && self.name == other.name
     end
 
     def uptodate?(&block)

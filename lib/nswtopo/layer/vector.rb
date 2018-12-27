@@ -8,7 +8,6 @@ module NSWTopo
       collection = features.reproject_to(@map.projection).clip!(@map.bounding_box(mm: 1.0).coordinates.first)
 
       yield filename, collection.to_json
-      @map.add_layer self
     end
   end
 end

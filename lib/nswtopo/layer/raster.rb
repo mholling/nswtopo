@@ -22,7 +22,6 @@ module NSWTopo
       end
 
       yield filename, tif
-      @map.add_layer self
     end
 
     def get_resolution(path)

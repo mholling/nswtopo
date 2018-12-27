@@ -91,27 +91,38 @@ module NSWTopo
     end
 
     def layers
-      Enumerator.new do |yielder|
-        @properties.layers.each do |name, params|
-          yielder << Layer.new(name, self, params)
-        end
+      @properties.layers.map do |name, params|
+        Layer.new(name, self, params)
       end
     end
 
-    def add_layer(layer)
-      layers.inject [ layer ] do |ordered, other|
-        index = case
-        when ordered.last != layer then -1
-        when (other <=> layer) < 0 then -2
-        when (other <=> layer) > 0 then -1
-        when other.name != layer.name then -2
+    def add(*layers, after: nil, before: nil, overwrite: false, &block)
+      layers.inject [ self.layers, after ] do |(layers, follow), layer|
+        index = layers.index layer unless after || before
+        layers.delete layer
+        case
+        when index
+        when follow
+          index = layers.index { |other| other.name == follow }
+          raise "no such layer: #{follow}" unless index
+          index += 1
+        when before
+          index = layers.index { |other| other.name == before }
+          raise "no such layer: #{before}" unless index
+        else
+          index = layers.index { |other| (other <=> layer) > 0 } || -1
         end
-        ordered.insert index, other if index
-        ordered
-      end.map do |layer|
+        if overwrite || !layer.uptodate?(&block)
+          layer.create(&block)
+        else
+          puts "keeping pre-existing layer: #{layer.name}"
+        end
+        next layers.insert(index, layer), layer.name
+      end.first.map do |layer|
         [ layer.name, layer.params ]
       end.to_h.tap do |layers|
         @properties.layers.replace layers
+        save(&block)
       end
     end
 

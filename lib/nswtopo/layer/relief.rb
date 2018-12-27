@@ -50,7 +50,8 @@ module NSWTopo
               feature.properties.replace "elevation" => feature.properties.fetch(attribute, attribute).to_f
             end
           else
-            raise Error, "not implemented" # TODO
+            raise Error, "not implemented"
+            # TODO: add contour importing from shapefile path + layer name
           end
         end.inject([], &:+)
 

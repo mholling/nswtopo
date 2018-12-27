@@ -43,18 +43,6 @@ module NSWTopo
 
     %w[GDAL ImageMagick].each do |package|
       OS.const_get(package).each do |command|
-        # # TODO: which is better?
-
-        # define_singleton_method command do |*args, &block|
-        #   args.map!(&:to_s)
-        #   args << { stdin_data: StringIO.new.tap(&block).string } if block
-        #   stdout, stderr, status = Open3.capture3 command, *args
-        #   raise Error, "#{command}: #{stderr.empty? ? stdout : stderr}" unless status.success?
-        #   stdout
-        # rescue Errno::ENOENT
-        #   raise Error, "error: #{package} not installed"
-        # end
-
         define_singleton_method command do |*args, &block|
           Open3.popen3 command, *args.map(&:to_s) do |stdin, stdout, stderr, thread|
             block.call(stdin) if block

@@ -119,7 +119,7 @@ module NSWTopo
 
   def self.render(format, *formats, options, config, &block)
     map = Map.load(&block)
-    # TODO
+    # TODO: render various output formats
   end
 end
 

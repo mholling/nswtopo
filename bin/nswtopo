@@ -109,6 +109,7 @@ begin
   end
   base_parser.order!
 
+  # TODO: rearrange order? e.g. nswtopo map.tgz add [options] <layer>
   command, options = ARGV.shift, Hash.new
   command_parser = OptionParser.new do |parser|
     case command
@@ -174,6 +175,7 @@ begin
       parser.on "-o", "--offset   <offset>",  Float,         "horizontal offset of declination lines in mm"
       parser.on "-r", "--arrows   <arrows>",  PositiveFloat, "spacing of directional arrows in mm (default %i)" % options[:arrows]
 
+    # TODO: remove multiple layers at once? match layer-name stems?
     when "remove"
       parser.banner = <<~EOF
         nswtopo remove - remove map layer

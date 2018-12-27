@@ -70,10 +70,10 @@ module NSWTopo
           query["inSR"] = sr if sr
           query["where"] = where if where
           field_names = [ *oid_field_name, *type_field_name, *options["category"], *options["rotate"], *options["label"] ] & fields.keys
-          ArcGIS.post_json(uri, query.to_query, source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
+          ArcGIS.post_json(uri, URI.encode_www_form(query), source["headers"]).fetch("objectIds").to_a.each_slice(per_page) do |object_ids|
             query = base_query.merge("objectIds" => object_ids.join(?,), "returnGeometry" => true, "outFields" => field_names.join(?,))
             query["outSR"] = sr if sr
-            page = ArcGIS.post_json(uri, query.to_query, source["headers"]).fetch("features", [])
+            page = ArcGIS.post_json(uri, URI.encode_www_form(query), source["headers"]).fetch("features", [])
             yielder << page
           end
         end

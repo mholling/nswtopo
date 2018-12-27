@@ -150,7 +150,7 @@ module NSWTopo
     def self.declination(longitude, latitude)
       today = Date.today
       query = { lat1: latitude.abs, lat1Hemisphere: latitude < 0 ? ?S : ?N, lon1: longitude.abs, lon1Hemisphere: longitude < 0 ? ?W : ?E, model: "WMM", startYear: today.year, startMonth: today.month, startDay: today.day, resultFormat: "xml" }
-      uri = URI::HTTPS.build host: "www.ngdc.noaa.gov", path: "/geomag-web/calculators/calculateDeclination", query: query.to_query
+      uri = URI::HTTPS.build host: "www.ngdc.noaa.gov", path: "/geomag-web/calculators/calculateDeclination", query: URI.encode_www_form(query)
       xml = Net::HTTP.get uri
       text = REXML::Document.new(xml).elements["//declination"]&.text
       text ? text.to_f : raise

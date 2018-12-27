@@ -10,12 +10,6 @@ require 'cgi'
 require 'pathname'
 require 'ostruct'
 
-class Hash
-  def to_query
-    reject { |key, value| value.nil? }.map { |args| args.map(&:to_s).map { |text| CGI.escape text }.join ?= }.join ?&
-  end
-end
-
 def show_arcgis(url, *args, dynamic, where, referer)
   open "#{url}?f=json", "Referer" => referer || url do |json|
     response = JSON.parse(json.read)
@@ -64,7 +58,7 @@ def show_arcgis(url, *args, dynamic, where, referer)
       url = url.sub /\d+$/, "dynamicLayer"
       query.merge! "layer" => layer.to_json
     end
-    open "#{url}/generateRenderer?#{query.to_query}", "Referer" => referer || url do |json|
+    open "#{url}/generateRenderer?#{URI.encode_www_form(query)}", "Referer" => referer || url do |json|
       response = JSON.parse(json.read)
       abort [ response["error"]["message"], *response["error"]["details"] ].join(?\n) if response["error"]
       values = response["uniqueValueInfos"].map do |info|
@@ -106,7 +100,7 @@ def show_wfs(url, name, field, *fields, values, filter)
   loop do
     cql_filter = [ *filter, *filters ].join " AND "
     cql_filter.empty? ? query.delete("cql_filter") : query.merge!("cql_filter" => cql_filter)
-    uri.query = query.to_query
+    uri.query = URI.encode_www_form query
     post = Net::HTTP::Get.new(uri.request_uri)
     use_ssl = uri.scheme == "https"
     json = Net::HTTP.start(uri.host, uri.port, :use_ssl => use_ssl, :read_timeout => 600) { |http| http.request(post).body }

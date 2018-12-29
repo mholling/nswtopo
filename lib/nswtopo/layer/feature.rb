@@ -4,7 +4,6 @@ module NSWTopo
     include ArcGISServer
     include Shapefile
     CREATE = %w[features]
-    MARGIN = { mm: 1.0 }
 
     def features
       (Array === @features ? @features : [ @features ]).map do |args|

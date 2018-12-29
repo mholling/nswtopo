@@ -1,11 +1,13 @@
 module NSWTopo
   module Vector
+    MARGIN = { mm: 1.0 }
+
     def filename
       "#{@name}.json"
     end
 
     def create
-      collection = features.reproject_to(@map.projection).clip!(@map.bounding_box(mm: 1.0).coordinates.first)
+      collection = features.reproject_to(@map.projection).clip!(@map.bounding_box(MARGIN).coordinates.first)
       # TODO: enforce conditions for labels and categories? convert labels to string here?
 
       @map.write filename, collection.to_json

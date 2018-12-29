@@ -126,10 +126,15 @@ module NSWTopo
       end
     end
 
-    def remove(name)
-      params = @properties.layers.delete name
-      raise "no such layer: #{name}" unless params
-      delete Layer.new(name, self, params).filename
+    def remove(*names)
+      names.inject Set[] do |matched, name|
+        matches = @properties.layers.keys.grep(name)
+        raise "no such layer: #{name}" if String === name && matches.none?
+        matched.merge matches
+      end.each do |name|
+        params = @properties.layers.delete name
+        delete Layer.new(name, self, params).filename
+      end.any?
     end
 
     def to_s

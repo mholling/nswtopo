@@ -177,11 +177,10 @@ begin
       parser.on "-o", "--offset   <offset>",  Float,         "horizontal offset of declination lines in mm"
       parser.on "-r", "--arrows   <arrows>",  PositiveFloat, "spacing of directional arrows in mm (default %i)" % options[:arrows]
 
-    # TODO: remove multiple layers at once? match layer-name stems?
     when "remove"
       parser.banner = <<~EOF
-        nswtopo remove - remove map layer
-        usage: nswtopo remove [options] <map.tgz> <layer>
+        nswtopo remove - remove map layers
+        usage: nswtopo remove [options] <map.tgz> <layer> [<layer> ...]
         options:
       EOF
 

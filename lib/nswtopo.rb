@@ -114,9 +114,15 @@ module NSWTopo
     add archive, "Declination", options, config
   end
 
-  def self.remove(archive, name, options, config)
+  def self.remove(archive, *names, options, config)
     map = Map.new(archive)
-    map.remove name.gsub(?/, ?.)
+    names.uniq.map do |name|
+      name.gsub ?/, ?.
+    end.map do |name|
+      name[?*] ? %r[^#{name.gsub ?*, '.*'}$] : name
+    end.tap do |names|
+      raise "no matching layers found" unless map.remove(*names)
+    end
     map.save
   end
 

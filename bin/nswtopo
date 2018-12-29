@@ -80,6 +80,11 @@ begin
     directory / ".nswtopo"
   end.select(&:file?)
 
+  # TODO: use \e[1m, \e[m for boldface on/off, use colours, etc.
+  # ANSI escape codes:
+  # + https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences)
+  # + https://en.wikipedia.org/wiki/ANSI_escape_code
+
   base_parser = OptionParser.new do |parser|
     parser.banner = <<~EOF
       nswtopo - download and create vector topographic maps

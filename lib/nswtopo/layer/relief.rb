@@ -121,10 +121,6 @@ module NSWTopo
 
       tif_path = temp_dir / "relief.tif"
       OS.gdalwarp "-co", "TFW=YES", "-s_srs", @map.projection, "-srcnodata", 0, "-dstalpha", bil_path, tif_path
-      # TODO: check if we missed anything
-      # OS.gdal_translate "-co", "TFW=YES", bil_path, tif_path
-      # OS.convert "-size", dimensions.join(?x), "-units", "PixelsPerCentimeter", "-density", #{density} canvas:none -type GrayscaleMatte -depth 8 tif_path
-      # OS.gdalwarp "-s_srs", "#{CONFIG.map.projection}" -t_srs "#{CONFIG.map.projection}" -srcnodata 0 -r bilinear -dstalpha relief_path tif_path
 
       filters = []
       if @median

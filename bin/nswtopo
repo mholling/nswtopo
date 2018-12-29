@@ -81,6 +81,7 @@ begin
   # ANSI escape codes:
   # + https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences)
   # + https://en.wikipedia.org/wiki/ANSI_escape_code
+  # TODO: use consistent error message format
 
   base_parser = OptionParser.new do |parser|
     parser.banner = <<~EOF

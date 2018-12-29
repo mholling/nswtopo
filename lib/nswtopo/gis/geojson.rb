@@ -26,7 +26,7 @@ module NSWTopo
           }
         end
 
-        def flatten
+        def to_points
           case self
           when Point then [ @coordinates ]
           when MultiPoint, LineString then @coordinates

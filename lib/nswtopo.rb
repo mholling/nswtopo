@@ -34,6 +34,7 @@ require_relative 'nswtopo/map'
 require_relative 'nswtopo/layer'
 
 module NSWTopo
+  PartialFailureError = Class.new RuntimeError
   FORMATS = %w[png tif gif jpg kmz mbtiles zip psd pdf prj]
   # TODO: extract from Formats module automatically?
 
@@ -102,6 +103,7 @@ module NSWTopo
       Layer.new(name, map, params)
     end.tap do |layers|
       map.add *layers, **create_options
+    ensure
       map.save
     end
   end

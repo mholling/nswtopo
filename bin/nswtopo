@@ -227,7 +227,6 @@ begin
     YAML.load path.read
   rescue YAML::Exception
     warn "warning: couldn't parse #{path}, ignoring"
-    next
   end.grep(Hash).inject({}, &:deep_merge)
 
   begin
@@ -239,8 +238,8 @@ begin
       raise OptionParser::InvalidArgument, "#{tgz_path} is not a file" unless tgz_path.file?
       tgz_path
     end
+    arity, error = NSWTopo.method(command).arity, nil
 
-    arity = NSWTopo.method(command).arity
     NSWTopo::Archive.open(tgz_path, *in_path) do |archive|
       args = [ archive, *ARGV, options, config ]
       case
@@ -253,7 +252,9 @@ begin
       end
 
       NSWTopo.send command, *args
+    rescue NSWTopo::PartialFailureError => error
     end
+    raise error.message if error
   end
 rescue Interrupt
   abort "\r\033[Knswtopo: interrupted"

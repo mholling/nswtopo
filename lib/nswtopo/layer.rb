@@ -67,5 +67,9 @@ module NSWTopo
       mtimes = [ @source&.mtime, @map.mtime(filename) ]
       mtimes.all? && mtimes.inject(&:<)
     end
+
+    def pair
+      return name, params
+    end
   end
 end

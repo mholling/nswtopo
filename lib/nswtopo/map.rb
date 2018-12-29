@@ -96,7 +96,7 @@ module NSWTopo
     end
 
     def add(*layers, after: nil, before: nil, overwrite: false)
-      layers.inject [ self.layers, after ] do |(layers, follow), layer|
+      layers.inject [ self.layers, after, [] ] do |(layers, follow, errors), layer|
         index = layers.index layer unless after || before
         layers.delete layer
         case
@@ -113,16 +113,16 @@ module NSWTopo
         end
         if overwrite || !layer.uptodate?
           layer.create
-          # TODO: rescue failure in create and continue, so that
-          # one bad layer does not bring down the whole thing
         else
-          puts "keeping pre-existing layer: #{layer.name}"
+          puts "#{layer.name}: keeping pre-existing layer"
         end
-        next layers.insert(index, layer), layer.name
-      end.first.map do |layer|
-        [ layer.name, layer.params ]
-      end.to_h.tap do |layers|
-        @properties.layers.replace layers
+        next layers.insert(index, layer), layer.name, errors
+      rescue ArcGISServer::Error => error
+        warn "#{layer.name}: couldn't download layer"
+        next layers, follow, errors << error
+      end.tap do |layers, follow, errors|
+        @properties.layers.replace Hash[layers.map(&:pair)]
+        raise PartialFailureError, "download failed for #{errors.length} layer#{?s unless errors.one?}" if errors.any?
       end
     end
 

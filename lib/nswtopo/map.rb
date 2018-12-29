@@ -5,10 +5,9 @@ module NSWTopo
     end
 
     # TODO: extract Archive class. map is initialised with @archive to avoid passing block everywhere
-    # TODO: delegates [ :to_json, :projection, :coordinate ] => :@centre
     extend Forwardable
-    def_delegators :@centre, :to_json, :projection, :coordinates
-    def_delegators :@properties, :scale, :extents, :rotation
+    delegate [ :to_json, :projection, :coordinates ] => :@centre
+    delegate [ :scale, :extents, :rotation ] => :@properties
 
     def self.init(options)
       wgs84_points = case

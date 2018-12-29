@@ -92,7 +92,7 @@ module NSWTopo
       end
 
       extend Forwardable
-      def_delegators :first, :coordinates, :properties
+      delegate [ :coordinates, :properties ] => :first
 
       def to_json(**extras)
         to_h.merge(extras).to_json

@@ -32,7 +32,7 @@ module NSWTopo
           [ eastings, northings, boundary ].map(&:first)
         end.zip %w[easting northing boundary]
       end.flatten(1).inject(GeoJSON::Collection.new) do |result, (feature, category)|
-        feature.properties.store "category", category
+        feature.properties.store "categories", [ category ]
         result << feature
       end.explode!
     end

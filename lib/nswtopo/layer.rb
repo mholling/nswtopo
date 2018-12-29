@@ -3,7 +3,7 @@ require_relative 'layer/vector'
 require_relative 'layer/arcgis_raster'
 require_relative 'layer/control'
 require_relative 'layer/declination'
-# require_relative 'layer/feature'
+require_relative 'layer/feature'
 require_relative 'layer/grid'
 require_relative 'layer/import'
 require_relative 'layer/label'
@@ -13,8 +13,7 @@ require_relative 'layer/vegetation'
 
 module NSWTopo
   class Layer
-    # TYPES = Set[Vegetation, Import, ArcGISRaster, Feature, Relief, Overlay, Grid, Declination, Control]
-    TYPES = Set[Vegetation, Import, ArcGISRaster, Relief, Overlay, Grid, Declination, Control]
+    TYPES = Set[Vegetation, Import, ArcGISRaster, Feature, Relief, Overlay, Grid, Declination, Control]
 
     def initialize(name, map, params)
       # TODO: sanitise name to remove spaces etc.
@@ -47,7 +46,7 @@ module NSWTopo
       when Vegetation   == @type then 0
       when Import       == @type then 1
       when ArcGISRaster == @type then 1
-      # when Feature      == @type then 2
+      when Feature      == @type then 2
       when Overlay      == @type then 3
       when Relief       == @type then 4
       when Grid         == @type then 5

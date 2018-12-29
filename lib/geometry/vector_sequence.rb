@@ -99,7 +99,7 @@ module VectorSequence
   end
 
   def path_length
-    segments.map(&:difference).map(&:norm).inject(0, &:+)
+    segments.map(&:difference).sum(&:norm)
   end
 
   def trim(margin)

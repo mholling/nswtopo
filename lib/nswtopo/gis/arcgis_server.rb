@@ -4,7 +4,7 @@ module NSWTopo
     SERVICE = /^(?:MapServer|FeatureServer|ImageServer)$/
 
     class Connection
-      Error = Class.new RuntimeError
+      Error = Class.new ArcGISServer::Error
 
       def initialize(http, service_path)
         @http, @service_path, @headers = http, service_path, { "User-Agent" => "Ruby/#{RUBY_VERSION}", "Referer" => "%s://%s" % [ http.use_ssl? ? "https" : "http", http.address ] }
@@ -38,7 +38,8 @@ module NSWTopo
 
       def process_json(response)
         JSON.parse(response.body).tap do |result|
-          raise Error, result["error"].values_at("message", "details").compact.join(?\n) if result["error"]
+          # raise Error, result["error"].values_at("message", "details").compact.join(?\n) if result["error"]
+          raise Error, result["error"]["message"] if result["error"]
         end
       rescue JSON::ParserError
         raise Error, "unexpected ArcGIS response format"
@@ -56,20 +57,20 @@ module NSWTopo
     def self.check_uri(url)
       uri = URI.parse url
       return unless URI::HTTP === uri
-      instance, (layer_id, *) = uri.path.split(?/).slice_after(SERVICE).take(2)
+      instance, (id, *) = uri.path.split(?/).slice_after(SERVICE).take(2)
       return unless SERVICE === instance.last
-      return unless !layer_id || /^\d+$/ === layer_id
-      return uri, instance.join(?/), layer_id
+      return unless !id || /^\d+$/ === id
+      return uri, instance.join(?/), id
     rescue URI::Error
     end
 
     def self.===(string)
-      uri, service_path, layer_id = check_uri string
+      uri, service_path, id = check_uri string
       uri != nil
     end
 
     def self.start(url, &block)
-      uri, service_path, layer_id = check_uri url
+      uri, service_path, id = check_uri url
       raise Error, "invalid ArcGIS server URL: #{url}" unless uri
       Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: 600) do |http|
         connection = Connection.new http, service_path
@@ -80,14 +81,19 @@ module NSWTopo
         when wkid = service.dig("spatialReference", "wkid") then Projection.new("EPSG:#{wkid == 102100 ? 3857 : wkid}")
         else raise Error, "no spatial reference found: #{uri}"
         end
-        yield connection, service, projection, *layer_id
+        yield connection, service, projection, *id
       end
     end
 
-    def arcgis_layer(url, where: nil, margin: {}, per_page: nil)
-      ArcGISServer.start url do |connection, service, projection, layer_id|
-        layer = connection.get_json layer_id
-        query_path = "#{layer_id}/query"
+    def arcgis_layer(url, where: nil, layer: nil, per_page: nil, margin: {})
+      ArcGISServer.start url do |connection, service, projection, id|
+        id = service["layers"].find do |info|
+          layer.to_s == info["name"]
+        end&.dig("id") if layer
+        raise Error, "couldn't find ArcGIS layer id: #{url}" unless id
+
+        layer = connection.get_json id.to_s
+        query_path = "#{id}/query"
         max_record_count, fields, types, type_id_field, geometry_type, capabilities = layer.values_at "maxRecordCount", "fields", "types", "typeIdField", "geometryType", "capabilities"
         raise Error, "no query capability available: #{url}" unless /Query|Data/ === capabilities
 
@@ -137,7 +143,7 @@ module NSWTopo
             attributes[name] = case
             when type_id_field == name then type_values[value]
             when coded_values.key?(name) then coded_values[name][value]
-            when /^(?:null|Null|NULL|<null>|<Null>|<NULL>)$/ === value then nil
+            when %w[null Null NULL <null> <Null> <NULL>].include?(value) then nil
             else value
             end
           end

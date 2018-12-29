@@ -4,6 +4,8 @@ module NSWTopo
       @centre, @properties = centre, OpenStruct.new(centre.properties)
     end
 
+    # TODO: extract Archive class. map is initialised with @archive to avoid passing block everywhere
+    # TODO: delegates [ :to_json, :projection, :coordinate ] => :@centre
     extend Forwardable
     def_delegators :@centre, :to_json, :projection, :coordinates
     def_delegators :@properties, :scale, :extents, :rotation
@@ -114,6 +116,8 @@ module NSWTopo
         end
         if overwrite || !layer.uptodate?(&block)
           layer.create(&block)
+          # TODO: rescue failure in create and continue, so that
+          # one bad layer does not bring down the whole thing
         else
           puts "keeping pre-existing layer: #{layer.name}"
         end

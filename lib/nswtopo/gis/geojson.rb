@@ -43,7 +43,7 @@ module NSWTopo
       def initialize(projection = Projection.wgs84, features = [])
         @projection, @features = projection, features
       end
-      attr_reader :projection
+      attr_reader :projection, :features
 
       def self.load(json, projection = nil)
         collection = JSON.parse(json)
@@ -71,7 +71,7 @@ module NSWTopo
       end
 
       def reproject_to(projection)
-        # TODO return self if self.projection == projection
+        return self if self.projection == projection
         # TODO: set SIGNIFICANT_FIGURES and/or COORDINATE_PRECISION layer creation option?
         json = OS.ogr2ogr "-t_srs", projection, "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "/vsistdin/" do |stdin|
           stdin.puts to_json
@@ -100,6 +100,11 @@ module NSWTopo
 
       def explode!
         tap { @features.replace @features.flat_map(&:explode) }
+      end
+
+      def merge!(other)
+        raise Error, "can't merge different projections" unless self.projection == other.projection
+        tap { @features.concat other.features }
       end
 
       CLASSES.zip(TYPES).each do |klass, type|
@@ -242,6 +247,22 @@ module NSWTopo
           Collection.new(*projection) << klass.new(coordinates, properties)
         end
       end
+    end
+
+    class LineString
+      def length; @coordinates.path_length end
+    end
+
+    class MultiLineString
+      def length; @coordinates.sum(&:path_length) end
+    end
+
+    class Polygon
+      def area; @coordinates.sum(&:signed_area) end
+    end
+
+    class MultiPolygon
+      def area; @coordinates.flatten(1).sum(&:signed_area) end
     end
   end
 end

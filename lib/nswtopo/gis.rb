@@ -1,8 +1,3 @@
-require 'json'
-require 'open3'
-require 'set'
-require 'rexml/document'
-require 'forwardable'
 require_relative 'gis/projection'
 require_relative 'gis/geojson'
 require_relative 'gis/gps'

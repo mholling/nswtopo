@@ -63,8 +63,8 @@ module NSWTopo
       Layer === other && self.name == other.name
     end
 
-    def uptodate?(&block)
-      mtimes = [ @source&.mtime, yield(filename, :mtime) ]
+    def uptodate?
+      mtimes = [ @source&.mtime, @map.mtime(filename) ]
       mtimes.all? && mtimes.inject(&:<)
     end
   end

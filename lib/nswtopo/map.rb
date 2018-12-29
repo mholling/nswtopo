@@ -1,15 +1,17 @@
 module NSWTopo
   class Map
-    def initialize(centre)
-      @centre, @properties = centre, OpenStruct.new(centre.properties)
+    def initialize(archive, centre = nil)
+      @archive, @centre = archive, centre
+      @centre ||= GeoJSON::Collection.load(@archive.read "map.json")
+      @properties = OpenStruct.new(@centre.properties)
     end
 
-    # TODO: extract Archive class. map is initialised with @archive to avoid passing block everywhere
     extend Forwardable
     delegate [ :to_json, :projection, :coordinates ] => :@centre
     delegate [ :scale, :extents, :rotation ] => :@properties
+    delegate [ :write, :mtime, :delete, :read ] => :@archive
 
-    def self.init(options)
+    def self.init(archive, options)
       wgs84_points = case
       when options["coords"] && options["bounds"]
         raise "can't specify both bounds file and map coordinates"
@@ -78,17 +80,13 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new GeoJSON.point(centre, projection, "scale" => options["scale"], "extents" => extents, "rotation" => rotation, "layers" => {})
+      new archive, GeoJSON.point(centre, projection, "scale" => options["scale"], "extents" => extents, "rotation" => rotation, "layers" => {})
     rescue GPS::BadFile => error
       raise "invalid bounds file #{error.message}"
     end
 
-    def self.load(&block)
-      new GeoJSON::Collection.load(yield "map.json")
-    end
-
-    def save(&block)
-      tap { yield "map.json", to_json }
+    def save
+      tap { write "map.json", to_json }
     end
 
     def layers
@@ -97,7 +95,7 @@ module NSWTopo
       end
     end
 
-    def add(*layers, after: nil, before: nil, overwrite: false, &block)
+    def add(*layers, after: nil, before: nil, overwrite: false)
       layers.inject [ self.layers, after ] do |(layers, follow), layer|
         index = layers.index layer unless after || before
         layers.delete layer
@@ -113,8 +111,8 @@ module NSWTopo
         else
           index = layers.index { |other| (other <=> layer) > 0 } || -1
         end
-        if overwrite || !layer.uptodate?(&block)
-          layer.create(&block)
+        if overwrite || !layer.uptodate?
+          layer.create
           # TODO: rescue failure in create and continue, so that
           # one bad layer does not bring down the whole thing
         else
@@ -125,14 +123,13 @@ module NSWTopo
         [ layer.name, layer.params ]
       end.to_h.tap do |layers|
         @properties.layers.replace layers
-        save(&block)
       end
     end
 
-    def remove_layer(name, &block)
+    def remove(name)
       params = @properties.layers.delete name
       raise "no such layer: #{name}" unless params
-      yield Layer.new(name, self, params).filename, false
+      delete Layer.new(name, self, params).filename
     end
 
     def to_s

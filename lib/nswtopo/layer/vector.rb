@@ -4,11 +4,11 @@ module NSWTopo
       "#{@name}.json"
     end
 
-    def create(&block)
+    def create
       collection = features.reproject_to(@map.projection).clip!(@map.bounding_box(mm: 1.0).coordinates.first)
       # TODO: enforce conditions for labels and categories? convert labels to string here?
 
-      yield filename, collection.to_json
+      @map.write filename, collection.to_json
     end
   end
 end

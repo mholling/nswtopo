@@ -21,9 +21,6 @@ begin
   require 'pathname'
   require 'etc'
   require 'yaml'
-  require 'rubygems/package'
-  require 'zlib'
-  require 'set'
   require_relative '../lib/nswtopo.rb'
 
   Thread::report_on_exception = false
@@ -235,19 +232,18 @@ begin
   end.grep(Hash).inject({}, &:deep_merge)
 
   begin
-    input = case command
+    in_path = case command
     when "init"
       raise OptionParser::InvalidArgument, "#{tgz_path} already exists" if tgz_path.exist? && !options.delete("overwrite")
-      StringIO.new
     else
       raise OptionParser::InvalidArgument, "no such file #{tgz_path}" unless tgz_path.exist?
       raise OptionParser::InvalidArgument, "#{tgz_path} is not a file" unless tgz_path.file?
-      Zlib::GzipReader.open tgz_path
+      tgz_path
     end
 
-    changed, buffer, arity = Set[], StringIO.new, NSWTopo.method(command).arity
-    Gem::Package::TarReader.new(input) do |tar_in|
-      args = [ *ARGV, options, config ]
+    arity = NSWTopo.method(command).arity
+    NSWTopo::Archive.open(tgz_path, *in_path) do |archive|
+      args = [ archive, *ARGV, options, config ]
       case
       when arity >= 0 && args.length > arity
         puts command_parser
@@ -257,45 +253,8 @@ begin
         raise OptionParser::MissingArgument, ARGV
       end
 
-      Gem::Package::TarWriter.new(buffer) do |tar_out|
-        NSWTopo.send(command, *args) do |filename, arg|
-          case arg
-          when String
-            changed << filename
-            tar_out.add_file(filename, 0o0644) do |io|
-              io.write arg
-            end
-          when :mtime
-            header = tar_in.seek(filename, &:header)
-            Time.at header.mtime if header
-          when false
-            changed << filename
-          when nil
-            tar_in.seek(filename, &:read)
-          end
-        end
-
-        tar_in.each do |entry|
-          next if changed === entry.full_name
-          tar_out.add_entry entry
-        end if changed.any?
-      end
-
-      begin
-        Zlib::GzipWriter.open(tgz_path, Zlib::BEST_COMPRESSION) do |gzip|
-          gzip.write buffer.string
-        end
-      rescue Interrupt => interrupt
-        warn "\r\033[Knswtopo: saving map, please wait..."
-        retry
-      end if changed.any?
-      raise interrupt if interrupt
+      NSWTopo.send command, *args
     end
-  rescue Zlib::GzipFile::Error
-    raise OptionParser::InvalidArgument, "unrecognised map file #{tgz_path}"
-  ensure
-    input&.close
-    buffer&.close
   end
 rescue Interrupt
   abort "\r\033[Knswtopo: interrupted"

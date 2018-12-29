@@ -1,4 +1,5 @@
 require 'date'
+require 'open3'
 require 'uri'
 require 'net/http'
 require 'rexml/document'
@@ -15,6 +16,8 @@ require 'etc'
 require 'timeout'
 require 'ostruct'
 require 'forwardable'
+require 'rubygems/package'
+require 'zlib'
 begin
   require 'pty'
   require 'expect'
@@ -27,7 +30,6 @@ require_relative 'geometry'
 require_relative 'nswtopo/helpers'
 require_relative 'nswtopo/gis'
 require_relative 'nswtopo/map'
-# require_relative 'nswtopo/font'
 # require_relative 'nswtopo/formats'
 require_relative 'nswtopo/layer'
 
@@ -35,23 +37,23 @@ module NSWTopo
   FORMATS = %w[png tif gif jpg kmz mbtiles zip psd pdf prj]
   # TODO: extract from Formats module automatically?
 
-  def self.init(options, config, &block)
-    map = Map.init(options)
-    map.save(&block)
+  def self.init(archive, options, config)
+    map = Map.init(archive, options)
+    map.save
     puts map
   end
 
-  def self.info(options, config, &block)
-    puts Map.load(&block)
+  def self.info(archive, options, config)
+    puts Map.new(archive)
   end
 
-  def self.add(layer, options, config, &block)
+  def self.add(archive, layer, options, config)
     create_options = {
       after: options.delete("after")&.gsub(?/, ?.),
       before: options.delete("before")&.gsub(?/, ?.),
       overwrite: options.delete("overwrite")
     }
-    map = Map.load(&block)
+    map = Map.new(archive)
     Enumerator.new do |yielder|
       layers = [ layer ]
       while layers.any?
@@ -99,26 +101,27 @@ module NSWTopo
       params.merge! config[name] if config[name]
       Layer.new(name, map, params)
     end.tap do |layers|
-      map.add(*layers, **create_options, &block)
+      map.add *layers, **create_options
+      map.save
     end
   end
 
-  def self.grid(options, config, &block)
-    add("Grid", options, config, &block)
+  def self.grid(archive, options, config)
+    add archive, "Grid", options, config
   end
 
-  def self.declination(options, config, &block)
-    add("Declination", options, config, &block)
+  def self.declination(archive, options, config)
+    add archive, "Declination", options, config
   end
 
-  def self.remove(name, options, config, &block)
-    map = Map.load(&block)
-    map.remove_layer(name.gsub(?/, ?.), &block)
-    map.save(&block)
+  def self.remove(archive, name, options, config)
+    map = Map.new(archive)
+    map.remove name.gsub(?/, ?.)
+    map.save
   end
 
-  def self.render(format, *formats, options, config, &block)
-    map = Map.load(&block)
+  def self.render(archive, format, *formats, options, config)
+    map = Map.new(archive)
     # TODO: render various output formats
   end
 end

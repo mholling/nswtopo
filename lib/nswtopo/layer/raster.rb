@@ -4,7 +4,7 @@ module NSWTopo
       "#{@name}.tif"
     end
 
-    def create(&block)
+    def create
       # TODO: report raster dimensions?
       tif = Dir.mktmppath do |temp_dir|
         tif_path = temp_dir / "final.tif"
@@ -21,7 +21,7 @@ module NSWTopo
         OS.gdal_translate "-a_srs", @map.projection, "-of", "GTiff", *tiff_tags, tif_path, "/vsistdout/"
       end
 
-      yield filename, tif
+      @map.write filename, tif
     end
 
     def get_resolution(path)

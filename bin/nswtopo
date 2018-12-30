@@ -213,9 +213,9 @@ begin
     end
   end
   command_parser.order! into: options
-  options.transform_keys!(&:to_s)
+  # options.transform_keys!(&:to_s)
 
-  $stdout = File.open(File::NULL, "w") if options.delete "quiet"
+  $stdout = File.open(File::NULL, "w") if options.delete :quiet
   if ARGV.none?
     puts command_parser
     raise OptionParser::MissingArgument, "no map path specified"
@@ -231,7 +231,7 @@ begin
   begin
     in_path = case command
     when "init"
-      raise OptionParser::InvalidArgument, "#{tgz_path} already exists" if tgz_path.exist? && !options.delete("overwrite")
+      raise OptionParser::InvalidArgument, "#{tgz_path} already exists" if tgz_path.exist? && !options.delete(:overwrite)
     else
       raise OptionParser::InvalidArgument, "no such file #{tgz_path}" unless tgz_path.exist?
       raise OptionParser::InvalidArgument, "#{tgz_path} is not a file" unless tgz_path.file?

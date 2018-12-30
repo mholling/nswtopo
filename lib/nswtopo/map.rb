@@ -13,13 +13,13 @@ module NSWTopo
 
     def self.init(archive, options)
       wgs84_points = case
-      when options["coords"] && options["bounds"]
+      when options[:coords] && options[:bounds]
         raise "can't specify both bounds file and map coordinates"
-      when options["coords"]
-        options["coords"]
-      when options["bounds"]
-        gps = GPS.load options["bounds"]
-        options["margins"] ||= [ 15, 15 ] unless options["dimensions"] || gps.polygons.any?
+      when options[:coords]
+        options[:coords]
+      when options[:bounds]
+        gps = GPS.load options[:bounds]
+        options[:margins] ||= [ 15, 15 ] unless options[:dimensions] || gps.polygons.any?
         case
         when gps.polygons.any?
           gps.polygons.map(&:coordinates).flatten(1).inject(&:+)
@@ -28,7 +28,7 @@ module NSWTopo
         when gps.points.any?
           gps.points.map(&:coordinates)
         else
-          raise "no features found in %s" % options["bounds"]
+          raise "no features found in %s" % options[:bounds]
         end
       else
         raise "no bounds file or map coordinates specified"
@@ -37,25 +37,25 @@ module NSWTopo
       wgs84_centre = wgs84_points.transpose.map(&:minmax).map(&:sum).times(0.5)
       projection = Projection.transverse_mercator(wgs84_centre.first, 1.0)
 
-      case options["rotation"]
+      case options[:rotation]
       when "auto"
-        raise "can't specify both map dimensions and auto-rotation" if options["dimensions"]
+        raise "can't specify both map dimensions and auto-rotation" if options[:dimensions]
         coords = GeoJSON.multipoint(wgs84_points).reproject_to(projection).coordinates
         centre, extents, rotation = coords.minimum_bounding_box
         rotation *= 180.0 / Math::PI
       when "magnetic"
         rotation = -declination(*wgs84_centre)
       else
-        rotation = -options["rotation"]
+        rotation = -options[:rotation]
         raise "map rotation must be between ±45°" unless rotation.abs <= 45
       end
 
       case
       when centre
-      when options["dimensions"]
-        raise "can't specify both margins and map dimensions" if options["margins"]
-        extents = options["dimensions"].map do |dimension|
-          dimension * 0.001 * options["scale"]
+      when options[:dimensions]
+        raise "can't specify both margins and map dimensions" if options[:margins]
+        extents = options[:dimensions].map do |dimension|
+          dimension * 0.001 * options[:scale]
         end
         centre = GeoJSON.point(wgs84_centre).reproject_to(projection).coordinates
       else
@@ -68,19 +68,19 @@ module NSWTopo
         centre.rotate_by_degrees!(rotation)
       end
 
-      extents = extents.zip(options["margins"]).map do |extent, margin|
-        extent + 2 * margin * 0.001 * options["scale"]
-      end if options["margins"]
+      extents = extents.zip(options[:margins]).map do |extent, margin|
+        extent + 2 * margin * 0.001 * options[:scale]
+      end if options[:margins]
 
       case
       when extents.all?(&:positive?)
-      when options["coords"]
+      when options[:coords]
         raise "not enough information to calculate map size – add more coordinates, or specify map dimensions or margins"
-      when options["bounds"]
+      when options[:bounds]
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new archive, GeoJSON.point(centre, projection, "scale" => options["scale"], "extents" => extents, "rotation" => rotation, "layers" => {})
+      new archive, GeoJSON.point(centre, projection, "scale" => options[:scale], "extents" => extents, "rotation" => rotation, "layers" => {})
     rescue GPS::BadFile => error
       raise "invalid bounds file #{error.message}"
     end

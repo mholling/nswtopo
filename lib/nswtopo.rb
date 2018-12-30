@@ -50,9 +50,9 @@ module NSWTopo
 
   def self.add(archive, layer, options, config)
     create_options = {
-      after: options.delete("after")&.gsub(?/, ?.),
-      before: options.delete("before")&.gsub(?/, ?.),
-      overwrite: options.delete("overwrite")
+      after: options.delete(:after)&.gsub(?/, ?.),
+      before: options.delete(:before)&.gsub(?/, ?.),
+      overwrite: options.delete(:overwrite)
     }
     map = Map.new(archive)
     Enumerator.new do |yielder|
@@ -98,7 +98,7 @@ module NSWTopo
     rescue YAML::Exception
       raise "couldn't parse #{path}"
     end.map do |name, params|
-      params.merge! options
+      params.merge! options.transform_keys(&:to_s)
       params.merge! config[name] if config[name]
       Layer.new(name, map, params)
     end.tap do |layers|

@@ -48,6 +48,7 @@ begin
   PositivePair  = /\A#{float},#{float}\z/
   CoordList     = /\A#{coords}(?:,#{coords})*\z/
   Rotation      = /\A(?:#{float}|magnetic|auto)\z/
+  States        = Pathname(__dir__).parent.join("layers").children.select(&:directory?).map(&:basename).map(&:to_s)
 
   OptionParser.accept PositiveInt, PositiveInt do |string|
     raise OptionParser::InvalidArgument, string unless string.to_i.positive?
@@ -95,6 +96,7 @@ begin
           declination  add magnetic declination layer
           remove       remove map layer
           render       render map in various formats
+          layers       list available map layers
       command help: nswtopo <command> --help
       options:
     EOF
@@ -196,7 +198,14 @@ begin
       parser.on "-d", "--dither",                        "save raster in indexed colour mode using dithering"
       parser.on "-w", "--worldfile",                     "save corresponding world file for raster formats"
       parser.on "-q", "--quiet",                         "don't report progress"
-    # when "layers"  # TODO show available map layers from layers/nsw, layers/act etc?
+
+    when "layers"
+      parser.banner = <<~EOF
+        nswtopo layers - list available map layers
+        usage: nswtopo layers [options]
+      EOF
+      parser.on "-s", "--state  <#{States.join ?|}>", States, "only show layers for specified state"
+
     # when "reorder" # TODO move layer: --before <layer>, --after <layer> etc
 
     when nil
@@ -214,7 +223,12 @@ begin
     end
   end
   command_parser.order! into: options
-  # options.transform_keys!(&:to_s)
+
+  if command == "layers"
+    raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
+    NSWTopo.layers options
+    exit
+  end
 
   $stdout = File.open(File::NULL, "w") if options.delete :quiet
   if ARGV.none?

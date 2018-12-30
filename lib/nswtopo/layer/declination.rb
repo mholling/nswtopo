@@ -23,10 +23,18 @@ module NSWTopo
         (-i_max .. i_max).reject(&j.even? ? :even? : :odd?).map do |i|
           [ x, i * row_spacing ].rotate_by_degrees(-declination).plus(@map.coordinates)
         end.each do |coordinates|
-          collection.add_point coordinates, "rotation" => -declination
+          collection.add_point coordinates, "rotation" => declination
         end
       end
       collection
+    end
+
+    def to_s
+      lines = GeoJSON::Collection.load(@map.read filename).grep(GeoJSON::LineString)
+      return @name if lines.none?
+      line = lines.map(&:coordinates).max_by(&:distance)
+      angle = 90 - 180 * Math::atan2(*line.difference.reverse) / Math::PI
+      "%s: %i line%s at %.1f°%s" % [ @name, lines.length, (?s unless lines.one?), angle.abs, angle > 0 ? ?E : angle < 0 ? ?W : nil ]
     end
 
   end

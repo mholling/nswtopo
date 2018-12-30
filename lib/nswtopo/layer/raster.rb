@@ -24,6 +24,18 @@ module NSWTopo
       @map.write filename, tif
     end
 
+    def to_s
+      json = OS.gdalinfo "-json", "/vsistdin/" do |stdin|
+        stdin.write @map.read(filename)
+      rescue Errno::EPIPE # gdalinfo only reads the TIFF header
+      end
+      size, geotransform = JSON.parse(json).values_at "size", "geoTransform"
+      megapixels = size.inject(&:*) / 1024.0 / 1024.0
+      resolution = geotransform.values_at(1, 2).norm
+      ppi = 0.0254 * @map.scale / resolution
+      "%s: %i×%i (%.1f Mpx) @ %.1f m/px (%.0f ppi)" % [ @name, *size, megapixels, resolution, ppi ]
+    end
+
     def get_resolution(path)
       OS.gdaltransform path, '-t_srs', @map.projection do |stdin|
         stdin.puts "0 0", "1 1"

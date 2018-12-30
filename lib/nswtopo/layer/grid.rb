@@ -36,6 +36,10 @@ module NSWTopo
         result << feature
       end.explode!
     end
+
+    def to_s
+      @name
+    end
   end
 end
 

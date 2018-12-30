@@ -8,7 +8,7 @@ module NSWTopo
       [ [  "control",   /\AW?(\d\d\d?)\z/ ],
         [  "hashhouse", /\A(HH)\z/        ],
         [  "anc",       /\A(ANC)\z/       ],
-        [  "water",     /\AW\s\s\s?\z/    ],
+        [  "waterdrop", /\AW\s\s\s?\z/    ],
       ].each do |type, selector|
         points.each do |point|
           name = point.properties["name"]
@@ -20,6 +20,20 @@ module NSWTopo
       controls
     rescue GPS::BadFile => error
       raise "#{error.message} not a valid GPX or KML file"
+    end
+
+    def to_s
+      categories = GeoJSON::Collection.load(@map.read filename).map(&:properties).map do |properties|
+        properties["categories"]
+      end
+      counts = %w[control waterdrop hashhouse].map do |category|
+        count = categories.count do |categories|
+          categories.any? category
+        end
+        next unless count > 0
+        "%i %s%s" % [ count, category, count == 1 ? nil : ?s ]
+      end.compact
+      [ @name, counts.join(", ") ].join(": ")
     end
 
     # def labels

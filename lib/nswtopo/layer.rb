@@ -39,7 +39,9 @@ module NSWTopo
         Pathname.glob path
       end
     end
+
     attr_reader :name, :params
+    alias to_s name
 
     def level
       case

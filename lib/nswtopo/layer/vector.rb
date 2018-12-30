@@ -12,6 +12,11 @@ module NSWTopo
 
       @map.write filename, collection.to_json
     end
+
+    def to_s
+      count = GeoJSON::Collection.load(@map.read filename).count
+      "%s: %i feature%s" % [ @name, count, (?s unless count == 1) ]
+    end
   end
 end
 

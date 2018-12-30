@@ -140,8 +140,6 @@ begin
       EOF
       # TODO:
       # parser.on "-e", "--empty", "show empty layers"
-      # parser.on "-a", "--all",   "show details for all layers"
-      #   usage: nswtopo info [options] <map.tgz> [<layer> ...]
 
     when "add"
       parser.banner = <<~EOF

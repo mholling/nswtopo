@@ -145,8 +145,7 @@ module NSWTopo
         io.puts "%-9s %.1fkm²" %         [ "area:",     extents.inject(&:*) * 0.000001 ]
         io.puts "%-9s %.1f°" %           [ "rotation:", 0.0 - rotation ]
         layers.inject "layers:" do |heading, layer|
-          # io.puts "%-9s %s" % [ heading, layer.name ]
-          io.puts "%-9s %s: %s" % [ heading, layer.name, layer.params ]
+          io.puts "%-9s %s" % [ heading, layer ]
           nil
         end
       end.string

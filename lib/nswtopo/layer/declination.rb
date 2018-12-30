@@ -30,7 +30,7 @@ module NSWTopo
     end
 
     def to_s
-      lines = GeoJSON::Collection.load(@map.read filename).grep(GeoJSON::LineString)
+      lines = features.grep(GeoJSON::LineString)
       return @name if lines.none?
       line = lines.map(&:coordinates).max_by(&:distance)
       angle = 90 - 180 * Math::atan2(*line.difference.reverse) / Math::PI

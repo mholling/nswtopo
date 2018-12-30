@@ -13,12 +13,15 @@ module NSWTopo
       "#{@name}.json"
     end
 
-    def empty?
-      GeoJSON::Collection.load(@map.read filename).none?
+    def features
+      GeoJSON::Collection.load @map.read(filename)
     end
 
+    extend Forwardable
+    def_delegator :features, :none?, :empty?
+
     def to_s
-      count = GeoJSON::Collection.load(@map.read filename).count
+      count = features.count
       "%s: %i feature%s" % [ @name, count, (?s unless count == 1) ]
     end
   end

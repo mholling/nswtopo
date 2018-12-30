@@ -23,7 +23,7 @@ module NSWTopo
     end
 
     def to_s
-      categories = GeoJSON::Collection.load(@map.read filename).map(&:properties).map do |properties|
+      categories = features.map(&:properties).map do |properties|
         properties["categories"]
       end
       counts = %w[control waterdrop hashhouse].map do |category|

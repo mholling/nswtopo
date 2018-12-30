@@ -38,7 +38,7 @@ module NSWTopo
         OS.gdalwarp "-t_srs", @map.projection, "-te", *bounds.transpose.flatten, "-tr", @resolution, @resolution, "-r", "bilinear", vrt_path, dem_path
 
       when @contours
-        features = @contours.map do |url_or_path, attribute|
+        collection = @contours.map do |url_or_path, attribute|
           raise Error, "no elevation attribute specified for #{url_or_path}" unless attribute
           case url_or_path
           when ArcGISServer
@@ -46,17 +46,16 @@ module NSWTopo
               print "\r\033[K#{@name}: retrieved #{index} of #{total} contours"
             end.tap do |collection|
               puts "\r\033[K#{@name}: retrieved #{collection.count} contours" if collection.any?
-            end.reproject_to(@map.projection).each do |feature|
+            end.each do |feature|
               feature.properties.replace "elevation" => feature.properties.fetch(attribute, attribute).to_f
             end
           # when Shapefile
             # TODO: add contour importing from shapefile path + layer name
           else
             raise Error, "not implemented"
-          end
-        end.inject([], &:+)
+          end.reproject_to(@map.projection)
+        end.inject(&:merge!)
 
-        collection = GeoJSON::Collection.new @map.projection, features
         OS.gdal_grid "-a", "linear:radius=0:nodata=-9999", "-zfield", "elevation", "-ot", "Float32", "-txe", *txe, "-tye", *tye, "-spat", *spat, "-outsize", *outsize, "/vsistdin/", dem_path do |stdin|
           stdin.puts collection.to_json
         end

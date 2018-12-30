@@ -67,7 +67,7 @@ module NSWTopo
 
       include Enumerable
       def each(&block)
-        block_given? ? @features.each(&block) : @features.each
+        block_given? ? tap { @features.each(&block) } : @features.each
       end
 
       def reproject_to(projection)

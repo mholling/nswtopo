@@ -37,7 +37,7 @@ module NSWTopo
       megapixels = size.inject(&:*) / 1024.0 / 1024.0
       resolution = geotransform.values_at(1, 2).norm
       ppi = 0.0254 * @map.scale / resolution
-      "%s: %i×%i (%.1f Mpx) @ %.1f m/px (%.0f ppi)" % [ @name, *size, megapixels, resolution, ppi ]
+      "%s: %i×%i (%.1fMpx) @ %.1fm/px (%.0f ppi)" % [ @name, *size, megapixels, resolution, ppi ]
     end
 
     def get_resolution(path)

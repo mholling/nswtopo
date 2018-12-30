@@ -153,6 +153,8 @@ begin
       parser.on "-b", "--before      <layer>",                     "insert before specified layer"
       parser.on "-o", "--overwrite",                               "overwrite layer if it already exists"
       parser.on "-q", "--quiet",                                   "don't report progress"
+      # TODO: multiple layers at once? (should be easy, but might mess with default layer ordering?)
+
     when "grid"
       options.merge! interval: 1000.0
       parser.banner = <<~EOF
@@ -240,7 +242,7 @@ begin
     arity, error = NSWTopo.method(command).arity, nil
 
     NSWTopo::Archive.open(tgz_path, *in_path) do |archive|
-      args = [ archive, *ARGV, options, config ]
+      args = [ archive, config, *ARGV, options ]
       case
       when arity >= 0 && args.length > arity
         puts command_parser

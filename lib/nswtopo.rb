@@ -38,21 +38,21 @@ module NSWTopo
   FORMATS = %w[png tif gif jpg kmz mbtiles zip psd pdf prj]
   # TODO: extract from Formats module automatically?
 
-  def self.init(archive, options, config)
+  def self.init(archive, config, options)
     map = Map.init(archive, options)
     map.save
     puts map
   end
 
-  def self.info(archive, options, config)
+  def self.info(archive, config, options)
     puts Map.new(archive)
   end
 
-  def self.add(archive, layer, options, config)
+  def self.add(archive, config, layer, after: nil, before: nil, overwrite: nil, **options)
     create_options = {
-      after: options.delete(:after)&.gsub(?/, ?.),
-      before: options.delete(:before)&.gsub(?/, ?.),
-      overwrite: options.delete(:overwrite)
+      after: after&.gsub(?/, ?.),
+      before: before&.gsub(?/, ?.),
+      overwrite: overwrite
     }
     map = Map.new(archive)
     Enumerator.new do |yielder|
@@ -108,15 +108,15 @@ module NSWTopo
     end
   end
 
-  def self.grid(archive, options, config)
-    add archive, "Grid", options, config
+  def self.grid(archive, config, options)
+    add archive, config, "Grid", options
   end
 
-  def self.declination(archive, options, config)
-    add archive, "Declination", options, config
+  def self.declination(archive, config, options)
+    add archive, config, "Declination", options
   end
 
-  def self.remove(archive, *names, options, config)
+  def self.remove(archive, config, *names, options)
     map = Map.new(archive)
     names.uniq.map do |name|
       name.gsub ?/, ?.
@@ -128,7 +128,7 @@ module NSWTopo
     map.save
   end
 
-  def self.render(archive, format, *formats, options, config)
+  def self.render(archive, config, format, *formats, options)
     map = Map.new(archive)
     # TODO: render various output formats
   end

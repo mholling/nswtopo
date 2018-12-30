@@ -45,7 +45,7 @@ module NSWTopo
   end
 
   def self.info(archive, config, options)
-    puts Map.new(archive)
+    puts Map.new(archive).info(options)
   end
 
   def self.add(archive, config, layer, after: nil, before: nil, overwrite: nil, **options)

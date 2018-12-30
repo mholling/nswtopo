@@ -137,19 +137,20 @@ module NSWTopo
       end.any?
     end
 
-    def to_s
+    def info(empty: nil)
       StringIO.new.tap do |io|
         io.puts "%-9s 1:%i" %            [ "scale:",    scale ]
         io.puts "%-9s %imm × %imm" %     [ "size:",     *extents.times(1000.0 / scale) ]
         io.puts "%-9s %.1fkm × %.1fkm" % [ "extent:",   *extents.times(0.001) ]
         io.puts "%-9s %.1fkm²" %         [ "area:",     extents.inject(&:*) * 0.000001 ]
         io.puts "%-9s %.1f°" %           [ "rotation:", 0.0 - rotation ]
-        layers.inject "layers:" do |heading, layer|
+        layers.reject(&empty ? :nil? : :empty?).inject("layers:") do |heading, layer|
           io.puts "%-9s %s" % [ heading, layer ]
           nil
         end
       end.string
     end
+    alias to_s info
 
     def self.declination(longitude, latitude)
       today = Date.today

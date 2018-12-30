@@ -1,9 +1,5 @@
 module NSWTopo
   module Raster
-    def filename
-      "#{@name}.tif"
-    end
-
     def create
       # TODO: report raster dimensions?
       tif = Dir.mktmppath do |temp_dir|
@@ -22,6 +18,14 @@ module NSWTopo
       end
 
       @map.write filename, tif
+    end
+
+    def filename
+      "#{@name}.tif"
+    end
+
+    def empty?
+      false
     end
 
     def to_s

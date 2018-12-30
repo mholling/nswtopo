@@ -138,8 +138,7 @@ begin
         usage: nswtopo info [options] <map.tgz>
         options:
       EOF
-      # TODO:
-      # parser.on "-e", "--empty", "show empty layers"
+      parser.on "-e", "--empty", "show empty layers"
 
     when "add"
       parser.banner = <<~EOF

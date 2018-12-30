@@ -3,7 +3,7 @@ module NSWTopo
     MARGIN = { mm: 1.0 }
 
     def create
-      collection = features.reproject_to(@map.projection).clip!(@map.bounding_box(MARGIN).coordinates.first)
+      collection = get_features.reproject_to(@map.projection).clip!(@map.bounding_box(MARGIN).coordinates.first)
       # TODO: enforce conditions for labels and categories? convert labels to string here?
 
       @map.write filename, collection.to_json

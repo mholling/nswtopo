@@ -2,7 +2,7 @@ module NSWTopo
   module Control
     include Vector
 
-    def features
+    def get_features
       raise "no such file #{@path}" unless @path.exist?
       points, controls = GPS.load(@path).points, GeoJSON::Collection.new
       [ [  "control",   /\AW?(\d\d\d?)\z/ ],

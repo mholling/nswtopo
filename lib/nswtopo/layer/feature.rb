@@ -5,7 +5,7 @@ module NSWTopo
     include Shapefile
     CREATE = %w[features]
 
-    def features
+    def get_features
       (Array === @features ? @features : [ @features ]).map do |args|
         case args
         when Hash then args.transform_keys(&:to_sym)

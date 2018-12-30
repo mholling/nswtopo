@@ -21,7 +21,7 @@ module NSWTopo
       end
     end
 
-    def features
+    def get_features
       grids.map do |zone, eastings, northings|
         [ eastings, northings ].map do |lines|
           lines.reproject_to_wgs84

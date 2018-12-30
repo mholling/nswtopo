@@ -2,7 +2,7 @@ module NSWTopo
   module Overlay
     include Vector
 
-    def features
+    def get_features
       raise "no such file #{@path}" unless @path.exist?
       features = GPS.load @path
       features.each do |feature|

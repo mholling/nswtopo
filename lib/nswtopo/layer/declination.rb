@@ -3,7 +3,7 @@ module NSWTopo
     include Vector
     CREATE = %w[angle spacing arrows offset]
 
-    def features
+    def get_features
       declination = @angle || @map.declination
       col_spacing = 0.001 * @map.scale * @spacing
       row_spacing = 0.001 * @map.scale * @arrows * 0.5

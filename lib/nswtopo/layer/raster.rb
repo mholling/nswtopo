@@ -1,7 +1,6 @@
 module NSWTopo
   module Raster
     def create
-      # TODO: report raster dimensions?
       tif = Dir.mktmppath do |temp_dir|
         tif_path = temp_dir / "final.tif"
         tfw_path = temp_dir / "final.tfw"

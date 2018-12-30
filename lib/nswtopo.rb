@@ -50,8 +50,8 @@ module NSWTopo
 
   def self.add(archive, config, layer, after: nil, before: nil, overwrite: nil, **options)
     create_options = {
-      after: after&.gsub(?/, ?.),
-      before: before&.gsub(?/, ?.),
+      after: Layer.sanitise(after),
+      before: Layer.sanitise(before),
       overwrite: overwrite
     }
     map = Map.new(archive)
@@ -119,9 +119,9 @@ module NSWTopo
   def self.remove(archive, config, *names, options)
     map = Map.new(archive)
     names.uniq.map do |name|
-      name.gsub ?/, ?.
+      Layer.sanitise name
     end.map do |name|
-      name[?*] ? %r[^#{name.gsub ?*, '.*'}$] : name
+      name[?*] ? %r[^#{name.gsub(?., '\.').gsub(?*, '.*')}$] : name
     end.tap do |names|
       raise "no matching layers found" unless map.remove(*names)
     end

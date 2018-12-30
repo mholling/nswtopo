@@ -16,8 +16,7 @@ module NSWTopo
     TYPES = Set[Vegetation, Import, ArcGISRaster, Feature, Relief, Overlay, Grid, Declination, Control]
 
     def initialize(name, map, params)
-      # TODO: sanitise name to remove spaces etc.
-      @name, @map, @source, @path = name, map, params.delete("source"), params.delete("path")
+      @name, @map, @source, @path = Layer.sanitise(name), map, params.delete("source"), params.delete("path")
 
       @type = begin
         NSWTopo.const_get params["type"]
@@ -72,6 +71,10 @@ module NSWTopo
 
     def pair
       return name, params
+    end
+
+    def self.sanitise(name)
+      name&.gsub /[^\w\-\*]+/, ?.
     end
   end
 end

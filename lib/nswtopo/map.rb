@@ -1,17 +1,19 @@
 module NSWTopo
   class Map
-    def initialize(archive, centre = nil)
-      @archive, @centre = archive, centre
-      @centre ||= GeoJSON::Collection.load(@archive.read "map.json")
+    include Formats
+
+    def initialize(archive, config, centre = nil)
+      @archive, @config, @centre = archive, config, centre
+      @centre ||= GeoJSON::Collection.load(read "map.json")
       @properties = OpenStruct.new(@centre.properties)
     end
 
     extend Forwardable
     delegate [ :to_json, :projection, :coordinates ] => :@centre
     delegate [ :scale, :extents, :rotation ] => :@properties
-    delegate [ :write, :mtime, :delete, :read ] => :@archive
+    delegate [ :write, :mtime, :delete, :read, :uptodate? ] => :@archive
 
-    def self.init(archive, options)
+    def self.init(archive, config, options)
       wgs84_points = case
       when options[:coords] && options[:bounds]
         raise "can't specify both bounds file and map coordinates"
@@ -80,7 +82,7 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new archive, GeoJSON.point(centre, projection, "scale" => options[:scale], "extents" => extents, "rotation" => rotation, "layers" => {})
+      new archive, config, GeoJSON.point(centre, projection, "scale" => options[:scale], "extents" => extents, "rotation" => rotation, "layers" => {})
     rescue GPS::BadFile => error
       raise "invalid bounds file #{error.message}"
     end
@@ -152,6 +154,18 @@ module NSWTopo
     end
     alias to_s info
 
+    def svg
+      return REXML::Document.new(xml) if xml = read("map.svg")
+      raise "TODO: code here to build svg from scratch (saving before returning)"
+    end
+
+    def render(*paths, **options)
+      paths.each do |path|
+        ext = path.extname.delete_prefix ?.
+        send "render_#{ext}", path, **options
+      end
+    end
+
     def self.declination(longitude, latitude)
       today = Date.today
       query = { lat1: latitude.abs, lat1Hemisphere: latitude < 0 ? ?S : ?N, lon1: longitude.abs, lon1Hemisphere: longitude < 0 ? ?W : ?E, model: "WMM", startYear: today.year, startMonth: today.month, startDay: today.day, resultFormat: "xml" }
@@ -196,54 +210,6 @@ module NSWTopo
       WorldFile.write top_left, resolution, rotation, path
     end
 
-    # def geotransform_at(ppi)
-    #   top_left = bounding_box.coordinates[0][3]
-    #   WorldFile.geotransform top_left, resolution_at(ppi), rotation
-    # end
-
-    # def resolution_at(ppi)
-    #   @scale * 0.0254 / ppi
-    # end
-
-    # def dimensions_at(ppi)
-    #   @extents.map do |extent|
-    #     (ppi * extent / @scale / 0.0254).floor
-    #   end
-    # end
-
-    # def coord_corners(margin_in_mm = 0)
-    #   metres = margin_in_mm * 0.001 * @scale
-    #   @extents.map do |extent|
-    #     [ -0.5 * extent - metres, 0.5 * extent + metres ]
-    #   end.inject(&:product).values_at(0,2,3,1).map do |point|
-    #     @centre.plus point.rotate_by_degrees(@rotation)
-    #   end
-    # end
-
-    # def wgs84_corners
-    #   @projection.reproject_to_wgs84 coord_corners
-    # end
-
-    # def coords_to_mm(coords)
-    #   coords.one_or_many do |easting, northing|
-    #     [ easting - bounds.first.first, bounds.last.last - northing ].map do |metres|
-    #       1000.0 * metres / scale
-    #     end
-    #   end
-    # end
-
-    # def mm_corners(*args)
-    #   coords_to_mm coord_corners(*args).reverse
-    # end
-
-    # def overlaps?(bounds)
-    #   axes = [ [ 1, 0 ], [ 0, 1 ] ].map { |axis| axis.rotate_by_degrees(@rotation) }
-    #   bounds.inject(&:product).map do |corner|
-    #     axes.map { |axis| corner.minus(@centre).dot(axis) }
-    #   end.transpose.zip(@extents).none? do |projections, extent|
-    #     projections.max < -0.5 * extent || projections.min > 0.5 * extent
-    #   end
-    # end
 
     # def xml
     #   millimetres = @extents.map { |extent| 1000.0 * extent / @scale }

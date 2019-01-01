@@ -179,6 +179,7 @@ begin
       parser.on "-o", "--offset   <offset>",  Float,         "horizontal offset of declination lines in mm"
       parser.on "-r", "--arrows   <arrows>",  PositiveFloat, "spacing of directional arrows in mm (default %i)" % options[:arrows]
 
+    # TODO: rename to "delete"
     when "remove"
       parser.banner = <<~EOF
         nswtopo remove - remove map layers
@@ -191,12 +192,13 @@ begin
       parser.banner = <<~EOF
         nswtopo render - render map in various formats
         usage: nswtopo render [options] <map.tgz> <format_or_path> [<format_or_path> ...]
-        formats: #{NSWTopo::FORMATS.join ?\s}
+        formats: #{NSWTopo::Formats.map(&:ext).join ?\s}
         options:
       EOF
       parser.on "-p", "--ppi        <ppi>", PositiveInt, "resolution for raster formats in pixels per inch (default %i)" % options[:ppi]
       parser.on "-d", "--dither",                        "save raster in indexed colour mode using dithering"
       parser.on "-w", "--worldfile",                     "save corresponding world file for raster formats"
+      parser.on "-o", "--overwrite",                     "overwrite existing output files"
       parser.on "-q", "--quiet",                         "don't report progress"
 
     when "layers"

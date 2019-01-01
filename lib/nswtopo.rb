@@ -29,23 +29,21 @@ require_relative 'avl_tree'
 require_relative 'geometry'
 require_relative 'nswtopo/helpers'
 require_relative 'nswtopo/gis'
+require_relative 'nswtopo/formats'
 require_relative 'nswtopo/map'
-# require_relative 'nswtopo/formats'
 require_relative 'nswtopo/layer'
 
 module NSWTopo
   PartialFailureError = Class.new RuntimeError
-  FORMATS = %w[png tif gif jpg kmz mbtiles zip psd pdf prj]
-  # TODO: extract from Formats module automatically?
 
   def self.init(archive, config, options)
-    map = Map.init(archive, options)
+    map = Map.init archive, config, options
     map.save
     puts map
   end
 
   def self.info(archive, config, options)
-    puts Map.new(archive).info(options)
+    puts Map.new(archive, config).info(options)
   end
 
   def self.add(archive, config, layer, after: nil, before: nil, overwrite: nil, **options)
@@ -54,7 +52,7 @@ module NSWTopo
       before: Layer.sanitise(before),
       overwrite: overwrite
     }
-    map = Map.new(archive)
+    map = Map.new archive, config
     Enumerator.new do |yielder|
       layers = [ layer ]
       while layers.any?
@@ -117,7 +115,7 @@ module NSWTopo
   end
 
   def self.remove(archive, config, *names, options)
-    map = Map.new(archive)
+    map = Map.new archive, config
     names.uniq.map do |name|
       Layer.sanitise name
     end.map do |name|
@@ -129,8 +127,18 @@ module NSWTopo
   end
 
   def self.render(archive, config, format, *formats, options)
-    map = Map.new(archive)
-    # TODO: render various output formats
+    overwrite = options.delete :overwrite
+    [ format, *formats ].uniq.map do |format|
+      Pathname(Formats === format ? "#{archive.basename}.#{format}" : format)
+    end.each do |path|
+      format = path.extname.delete_prefix(?.)
+      raise "unrecognised format: #{path}" if format.empty?
+      raise "unrecognised format: #{format}" unless Formats === format
+      raise "file already exists: #{path}" if path.exist? && !overwrite
+      raise "non-existent directory: #{path.parent}" unless path.parent.directory?
+    end.tap do |paths|
+      Map.new(archive, config).render *paths, **options
+    end
   end
 
   def self.layers(state: nil, root: nil, indent: "")

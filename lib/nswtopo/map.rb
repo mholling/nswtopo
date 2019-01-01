@@ -182,11 +182,7 @@ module NSWTopo
     end
 
     def bounding_box(mm: nil, metres: nil)
-      margin = case
-      when mm then mm * 0.001 * scale
-      when metres then metres
-      else 0
-      end
+      margin = mm ? mm * 0.01 * scale : metres ? metres : 0
       ring = extents.map do |extent|
         [ -0.5 * extent - margin, 0.5 * extent + margin ]
       end.inject(&:product).map do |offset|

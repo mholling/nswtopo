@@ -154,11 +154,6 @@ module NSWTopo
     end
     alias to_s info
 
-    def svg
-      return REXML::Document.new(xml) if xml = read("map.svg")
-      raise "TODO: code here to build svg from scratch (saving before returning)"
-    end
-
     def render(*paths, **options)
       paths.each do |path|
         ext = path.extname.delete_prefix ?.

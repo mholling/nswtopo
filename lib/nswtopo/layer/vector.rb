@@ -24,6 +24,10 @@ module NSWTopo
       count = features.count
       "%s: %i feature%s" % [ @name, count, (?s unless count == 1) ]
     end
+
+    def render(group, defs)
+      raise "TODO: not implemented"
+    end
   end
 end
 
@@ -37,20 +41,6 @@ end
 # end
 
 # def render_svg(xml)
-#   defs = xml.elements["svg/defs"]
-#   unless CONFIG.map.rotation.zero?
-#     w, h = CONFIG.map.bounds.map { |bound| 1000.0 * (bound.max - bound.min) / CONFIG.map.scale }
-#     t = Math::tan(CONFIG.map.rotation * Math::PI / 180.0)
-#     d = (t * t - 1) * Math::sqrt(t * t + 1)
-#     if t >= 0
-#       y = (t * (h * t - w) / d).abs
-#       x = (t * y).abs
-#     else
-#       x = -(t * (h + w * t) / d).abs
-#       y = -(t * x).abs
-#     end
-#     transform = "translate(#{x} #{-y}) rotate(#{CONFIG.map.rotation})"
-#   end
 
 #   features.group_by do |dimension, feature, categories, sublayer, *|
 #     sublayer

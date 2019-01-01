@@ -200,30 +200,5 @@ module NSWTopo
       top_left = bounding_box.coordinates[0][3]
       WorldFile.write top_left, resolution, rotation, path
     end
-
-
-    # def xml
-    #   millimetres = @extents.map { |extent| 1000.0 * extent / @scale }
-    #   REXML::Document.new.tap do |xml|
-    #     xml << REXML::XMLDecl.new(1.0, "utf-8")
-    #     attributes = {
-    #       "version" => 1.1,
-    #       "baseProfile" => "full",
-    #       "xmlns" => "http://www.w3.org/2000/svg",
-    #       "xmlns:xlink" => "http://www.w3.org/1999/xlink",
-    #       "xmlns:ev" => "http://www.w3.org/2001/xml-events",
-    #       "xmlns:sodipodi" => "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd",
-    #       "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape",
-    #       "width"  => "#{millimetres[0]}mm",
-    #       "height" => "#{millimetres[1]}mm",
-    #       "viewBox" => "0 0 #{millimetres[0]} #{millimetres[1]}",
-    #     }
-    #     xml.add_element("svg", attributes).tap do |svg|
-    #       svg.add_element("sodipodi:namedview", "borderlayer" => true)
-    #       svg.add_element("defs")
-    #       svg.add_element("rect", "x" => 0, "y" => 0, "width" => millimetres[0], "height" => millimetres[1], "fill" => "white")
-    #     end
-    #   end
-    # end
   end
 end

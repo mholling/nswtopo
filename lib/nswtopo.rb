@@ -188,57 +188,6 @@ end
 # end
 
 
-# [ *updates, *label_layer ].each do |layer|
-#   begin
-#     if layer == label_layer
-#       puts "Processing label data:"
-#       Font.configure
-#       layers.each do |layer|
-#         label_layer.add(layer) do |sublayer|
-#           puts "  #{[ layer.name, *sublayer ].join SEGMENT}"
-#         end
-#       end
-#     end
-#     puts "Compositing: #{layer.name}"
-#     predicate = "@id='#{layer.name}' or starts-with(@id,'#{layer.name}#{SEGMENT}')"
-#     xml.elements.each("/svg/g[#{predicate}]/*", &:remove)
-#     xml.elements.each("/svg/defs/[#{predicate}]", &:remove)
-#     preexisting = xml.elements["/svg/g[#{predicate}]"]
-#     layer.render_svg(xml) do |sublayer|
-#       id = [ layer.name, *sublayer ].join(SEGMENT)
-#       if preexisting
-#         xml.elements["/svg/g[@id='#{id}']"]
-#       else
-#         before, after = layers.map(&:name).inject([[]]) do |memo, name|
-#           name == layer.name ? memo << [] : memo.last << name
-#           memo
-#         end
-#         neighbour = xml.elements.collect("/svg/g[@id]") do |sibling|
-#           sibling if [ *after ].any? do |name|
-#             sibling.attributes["id"] == name || sibling.attributes["id"].start_with?("#{name}#{SEGMENT}")
-#           end
-#         end.compact.first
-#         REXML::Element.new("g").tap do |group|
-#           group.add_attributes "id" => id, "style" => "opacity:1"
-#           neighbour ? xml.elements["/svg"].insert_before(neighbour, group) : xml.elements["/svg"].add_element(group)
-#         end
-#       end
-#     end
-#   rescue BadLayerError => e
-#     puts "Failed to render #{layer.name}: #{e.message}"
-#   end
-# end
-
-# xml.elements.each("/svg/g[*]") { |group| group.add_attribute("inkscape:groupmode", "layer") }
-
-# tmp_svg_path = temp_dir + svg_name
-# tmp_svg_path.open("w") do |file|
-#   formatter = REXML::Formatters::Pretty.new
-#   formatter.compact = true
-#   formatter.write xml, file
-# end
-
-
 # Dir.mktmppath do |temp_dir|
 #   outstanding.group_by do |format|
 #     [ formats[format], format == "mbtiles" ]

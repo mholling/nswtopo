@@ -4,6 +4,7 @@ module NSWTopo
       tif = Dir.mktmppath do |temp_dir|
         tif_path = temp_dir / "final.tif"
         tfw_path = temp_dir / "final.tfw"
+        out_path = temp_dir / "output.tif"
 
         resolution, raster_path = get_raster(temp_dir)
         dimensions = (@map.extents / resolution).map(&:ceil)
@@ -13,10 +14,9 @@ module NSWTopo
         @map.write_world_file tfw_path, resolution
         OS.convert "-size", dimensions.join(?x), "canvas:none", "-type", "TrueColorMatte", "-depth", 8, tif_path
         OS.gdalwarp "-t_srs", @map.projection, "-r", "bilinear", raster_path, tif_path
-        OS.gdal_translate "-a_srs", @map.projection, "-of", "GTiff", *tiff_tags, tif_path, "/vsistdout/"
+        OS.gdal_translate "-a_srs", @map.projection, *tiff_tags, tif_path, out_path
+        @map.write filename, out_path.read
       end
-
-      @map.write filename, tif
     end
 
     def filename
@@ -27,18 +27,24 @@ module NSWTopo
       false
     end
 
-    def to_s
+    def size_resolution
       json = OS.gdalinfo "-json", "/vsistdin/" do |stdin|
         stdin.write @map.read(filename)
       rescue Errno::EPIPE # gdalinfo only reads the TIFF header
       end
       size, geotransform = JSON.parse(json).values_at "size", "geoTransform"
-      megapixels = size.inject(&:*) / 1024.0 / 1024.0
       resolution = geotransform.values_at(1, 2).norm
+      return size, resolution
+    end
+
+    def to_s
+      size, resolution = size_resolution
+      megapixels = size.inject(&:*) / 1024.0 / 1024.0
       ppi = 0.0254 * @map.scale / resolution
       "%s: %i×%i (%.1fMpx) @ %.1fm/px (%.0f ppi)" % [ @name, *size, megapixels, resolution, ppi ]
     end
 
+    # TODO: can following two methods be refactored/removed to use #size_resolution instead?
     def get_resolution(path)
       OS.gdaltransform path, '-t_srs', @map.projection do |stdin|
         stdin.puts "0 0", "1 1"
@@ -58,42 +64,35 @@ module NSWTopo
     rescue OS::Error
       raise "invalid projection"
     end
+
+    def render(group, defs)
+      (width, height), resolution = size_resolution
+      group.add_attributes "style" => "opacity:%s" % params.fetch("opacity", 1)
+      transform = "scale(#{1000.0 * resolution / @map.scale})"
+      png = Dir.mktmppath do |temp_dir|
+        tif_path = temp_dir / "raster.tif"
+        png_path = temp_dir / "raster.png"
+        tif_path.write @map.read(filename)
+        OS.gdal_translate "-of", "PNG", "-co", "ZLEVEL=9", tif_path, png_path
+        png_path.read
+      end
+      href = "data:image/png;base64,#{Base64.encode64 png}"
+      if params["masks"]
+        # # TODO: handle masking
+        # filter_id, mask_id = "#{@name}.filter", "#{@name}.mask"
+        # defs.add_element("filter", "id" => filter_id).add_element "feColorMatrix", "type" => "matrix", "in" => "SourceGraphic", "values" => "0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 -1 1"
+        # defs.add_element("mask", "id" => mask_id).add_element("g", "filter" => "url(#%s)" % filter_id).tap do |g|
+        #   g.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "none", "stroke" => "none"
+        #   [ *params["masks"] ].each do |id|
+        #     next unless element = xml.elements["//g[@id='#{id}']"]
+        #     transforms = REXML::XPath.each(xml, "//g[@id='#{id}']/ancestor::g[@transform]/@transform").map(&:value)
+        #     g.add_element "use", "xlink:href" => "##{id}", "transform" => (transforms.join(?\s) if transforms.any?)
+        #   end
+        # end
+        # group.add_element "g", "mask" => "url(#%s)" % mask_id
+      else
+        group
+      end.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "xlink:href" => href
+    end
   end
 end
-
-# def render_svg(xml)
-#   transform = "scale(#{1000.0 * resolution / CONFIG.map.scale})"
-#   opacity = params["opacity"] || 1
-
-#   raise BadLayerError.new("#{name} raster image not found at #{path}") unless path.exist?
-#   href = if params["embed"]
-#     base64 = Base64.encode64 path.read(:mode => "rb")
-#     mimetype = %x[identify -quiet -verbose "#{path}"][/image\/\w+/] || "image/png"
-#     "data:#{mimetype};base64,#{base64}"
-#   else
-#     path.basename
-#   end
-
-#   if layer = yield
-#     if params["masks"]
-#       defs = xml.elements["//svg/defs"]
-#       filter_id, mask_id = "#{name}.filter", "#{name}.mask"
-#       defs.elements.each("[@id='#{filter_id}' or @id='#{mask_id}']", &:remove)
-#       defs.add_element("filter", "id" => filter_id).add_element "feColorMatrix", "type" => "matrix", "in" => "SourceGraphic", "values" => "0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 -1 1"
-#       defs.add_element("mask", "id" => mask_id).add_element("g", "filter" => "url(##{filter_id})").tap do |g|
-#         g.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "none", "stroke" => "none"
-#         [ *params["masks"] ].each do |id|
-#           next unless element = xml.elements["//g[@id='#{id}']"]
-#           transforms = REXML::XPath.each(xml, "//g[@id='#{id}']/ancestor::g[@transform]/@transform").map(&:value)
-#           g.add_element "use", "xlink:href" => "##{id}", "transform" => (transforms.join(?\s) if transforms.any?)
-#         end
-#       end
-#       layer.add_element("g", "mask" => "url(##{mask_id})")
-#     else
-#       layer
-#     end.add_element("image", "transform" => transform, "width" => dimensions[0], "height" => dimensions[1], "image-rendering" => "optimizeQuality", "xlink:href" => href)
-
-#     opacity = params["opacity"] || 1
-#     layer.add_attributes "style" => "opacity:#{opacity}"
-#   end
-# end

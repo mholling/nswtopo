@@ -54,7 +54,7 @@ module NSWTopo
           else
             raise Error, "not implemented"
           end.reproject_to(@map.projection)
-        end.inject(&:merge!)
+        end.inject(&:merge)
 
         OS.gdal_grid "-a", "linear:radius=0:nodata=-9999", "-zfield", "elevation", "-ot", "Float32", "-txe", *txe, "-tye", *tye, "-spat", *spat, "-outsize", *outsize, "/vsistdin/", dem_path do |stdin|
           stdin.puts collection.to_json

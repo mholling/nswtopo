@@ -13,7 +13,6 @@ module NSWTopo
           @coordinates, @properties = coordinates, properties
         end
         attr_reader :coordinates, :properties
-        # TODO add Collection#to_single, #to_multi etc
 
         define_method :to_h do
           {
@@ -87,7 +86,7 @@ module NSWTopo
         {
           "type" => "FeatureCollection",
           "crs" => { "type" => "name", "properties" => { "name" => @projection } },
-          "features" => @features.map(&:to_h)
+          "features" => map(&:to_h)
         }
       end
 
@@ -98,13 +97,17 @@ module NSWTopo
         to_h.merge(extras).to_json
       end
 
-      def explode!
-        tap { @features.replace @features.flat_map(&:explode) }
+      def explode
+        Collection.new @projection, flat_map(&:explode)
       end
 
-      def merge!(other)
-        raise Error, "can't merge different projections" unless self.projection == other.projection
-        tap { @features.concat other.features }
+      def multi
+        Collection.new @projection, map(&:multi)
+      end
+
+      def merge(other)
+        raise Error, "can't merge different projections" unless @projection == other.projection
+        Collection.new @projection, @features + other.features
       end
 
       CLASSES.zip(TYPES).each do |klass, type|
@@ -113,7 +116,7 @@ module NSWTopo
         end
 
         define_method "#{type}s".downcase do
-          @features.grep(klass)
+          grep klass
         end
       end
 
@@ -127,33 +130,41 @@ module NSWTopo
 
     [ [ Point,      MultiPoint      ],
       [ LineString, MultiLineString ],
-      [ Polygon,    MultiPolygon    ] ].each do |single, multi|
-      [ single, multi ].each.with_index do |klass, index|
+      [ Polygon,    MultiPolygon    ] ].each do |single_class, multi_class|
+      [ single_class, multi_class ].each do |klass|
         klass.class_eval do
           define_method :clip do |hull|
-            clipped = multi.clip klass == multi ? @coordinates : [ @coordinates ], hull
+            clipped = multi_class.clip klass == multi_class ? @coordinates : [ @coordinates ], hull
             case
             when clipped.none?
             when clipped.one?
-              single.new clipped.first, @properties
+              single_class.new clipped.first, @properties
             else
-              multi.new clipped, @properties
+              multi_class.new clipped, @properties
             end
           end
         end
+      end
 
-        single.class_eval do
-          def explode
-            [ self ]
+      single_class.class_eval do
+        def explode
+          [ self ]
+        end
+
+        define_method :multi do
+          multi_class.new [ @coordinates ], @properties
+        end
+      end
+
+      multi_class.class_eval do
+        define_method :explode do
+          @coordinates.map do |coordinates|
+            single_class.new coordinates, @properties
           end
         end
 
-        multi.class_eval do
-          define_method :explode do
-            @coordinates.map do |coordinates|
-              single.new coordinates, @properties
-            end
-          end
+        def multi
+          self
         end
       end
     end

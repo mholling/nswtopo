@@ -34,7 +34,7 @@ module NSWTopo
       end.flatten(1).inject(GeoJSON::Collection.new) do |result, (feature, category)|
         feature.properties.store "categories", [ category ]
         result << feature
-      end.explode!
+      end.explode
     end
 
     def to_s

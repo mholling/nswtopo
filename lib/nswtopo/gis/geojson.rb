@@ -131,21 +131,6 @@ module NSWTopo
     [ [ Point,      MultiPoint      ],
       [ LineString, MultiLineString ],
       [ Polygon,    MultiPolygon    ] ].each do |single_class, multi_class|
-      [ single_class, multi_class ].each do |klass|
-        klass.class_eval do
-          define_method :clip do |hull|
-            clipped = multi_class.clip klass == multi_class ? @coordinates : [ @coordinates ], hull
-            case
-            when clipped.none?
-            when clipped.one?
-              single_class.new clipped.first, @properties
-            else
-              multi_class.new clipped, @properties
-            end
-          end
-        end
-      end
-
       single_class.class_eval do
         def explode
           [ self ]
@@ -154,6 +139,9 @@ module NSWTopo
         define_method :multi do
           multi_class.new [ @coordinates ], @properties
         end
+
+        extend Forwardable
+        delegate :clip => :multi
       end
 
       multi_class.class_eval do
@@ -163,23 +151,22 @@ module NSWTopo
           end
         end
 
-        def multi
-          self
-        end
+        alias multi itself
       end
     end
 
     class MultiPoint
-      def self.clip(points, hull)
-        [ hull, hull.perps ].transpose.inject(points) do |result, (vertex, perp)|
+      def clip(hull)
+        points = [ hull, hull.perps ].transpose.inject(@coordinates) do |result, (vertex, perp)|
           result.select { |point| point.minus(vertex).dot(perp) >= 0 }
         end
+        points.none? ? nil : points.one? ? Point.new(*points, @properties) : MultiPoint.new(points, @properties)
       end
     end
 
     class MultiLineString
-      def self.clip(linestrings, hull)
-        [ hull, hull.perps ].transpose.inject(linestrings) do |result, (vertex, perp)|
+      def clip(hull)
+        lines = [ hull, hull.perps ].transpose.inject(@coordinates) do |result, (vertex, perp)|
           result.inject([]) do |clipped, points|
             clipped + [ *points, points.last ].segments.inject([[]]) do |lines, segment|
               inside = segment.map { |point| point.minus(vertex).dot(perp) >= 0 }
@@ -197,12 +184,13 @@ module NSWTopo
             end
           end
         end.select(&:many?)
+        lines.none? ? nil : lines.one? ? LineString.new(*lines, @properties) : MultiLineString.new(lines, @properties)
       end
     end
 
     class MultiPolygon
-      def self.clip(polygons, hull)
-        polygons.inject([]) do |result, rings|
+      def clip(hull)
+        polys = @coordinates.inject([]) do |result, rings|
           lefthanded = rings.first.clockwise?
           interior, exterior = hull.zip(hull.perps).inject(rings) do |rings, (vertex, perp)|
             insides, neighbours, clipped = Hash[].compare_by_identity, Hash[].compare_by_identity, []
@@ -249,6 +237,7 @@ module NSWTopo
             result << [ exterior_ring, *within ]
           end
         end
+        polys.none? ? nil : polys.one? ? Polygon.new(*polys, @properties) : MultiPolygon.new(polys, @properties)
       end
     end
 

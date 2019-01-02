@@ -6,6 +6,10 @@ module NSWTopo
       @archive, @config, @centre = archive, config, centre
       @centre ||= GeoJSON::Collection.load(read "map.json")
       @properties = OpenStruct.new(@centre.properties)
+      ox, oy = bounding_box.coordinates[0][3]
+      @affine = [ [ 1, 0 ], [ 0, -1 ], [ -ox, oy ] ].map do |vector|
+        vector.rotate_by_degrees(rotation).times(1000.0 / scale)
+      end.transpose
     end
 
     extend Forwardable
@@ -177,7 +181,7 @@ module NSWTopo
     end
 
     def bounding_box(mm: nil, metres: nil)
-      margin = mm ? mm * 0.01 * scale : metres ? metres : 0
+      margin = mm ? mm * 0.001 * scale : metres ? metres : 0
       ring = extents.map do |extent|
         [ -0.5 * extent - margin, 0.5 * extent + margin ]
       end.inject(&:product).map do |offset|
@@ -199,6 +203,12 @@ module NSWTopo
     def write_world_file(path, resolution)
       top_left = bounding_box.coordinates[0][3]
       WorldFile.write top_left, resolution, rotation, path
+    end
+
+    def coords_to_mm(point)
+      @affine.map do |row|
+        row.dot [ *point, 1.0 ]
+      end
     end
   end
 end

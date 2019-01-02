@@ -25,8 +25,47 @@ module NSWTopo
       "%s: %i feature%s" % [ @name, count, (?s unless count == 1) ]
     end
 
+    # TODO: decimal_places default value, link to GeoJSON SIGNIFICANT_FIGURES and/or COORDINATE_PRECISION
+    def svg_path_data(points, decimal_places: 4, bezier: false)
+      f = "%.#{decimal_places}f"
+      if bezier
+        fraction = [ 1.0, [ Numeric === bezier ? bezier : 1.0, 0.0 ].max ].min
+        extras = points.first == points.last ? [ points[-2], *points, points[2] ] : [ points.first, *points, points.last ]
+        midpoints = extras.segments.map(&:midpoint)
+        distances = extras.segments.map(&:distance)
+        offsets = midpoints.zip(distances).segments.map(&:transpose).map do |segment, distance|
+          segment.along(distance.first / distance.inject(&:+))
+        end.zip(points).map(&:difference)
+        controls = midpoints.segments.zip(offsets).map do |segment, offset|
+          segment.map { |point| [ point, point.plus(offset) ].along(fraction) }
+        end.flatten(1).drop(1).each_slice(2).entries.prepend(nil)
+        points.zip(controls).map do |point, controls|
+          controls ? "C #{f} #{f} #{f} #{f} #{f} #{f}" % [ *controls.flatten, *point ] :  "M #{f} #{f}" % point
+        end.join(" ")
+      else
+        points.map do |point|
+          "#{f} #{f}" % point
+        end.join(" L ").prepend("M ")
+      end
+    end
+
     def render(group, defs)
-      raise "TODO: not implemented"
+      to_mm = @map.method(:coords_to_mm)
+      features.explode.each do |feature|
+        case feature
+        when GeoJSON::Point
+          raise "TODO: not implemented"
+        when GeoJSON::LineString
+          d = svg_path_data feature.coordinates.map(&to_mm)
+          group.add_element "path", "d" => d, "fill" => "none", "stroke" => "black", "stroke-width" => 0.1
+        when GeoJSON::Polygon
+          d = feature.coordinates.map do |points|
+            svg_path_data points.map(&to_mm)
+          end.join(" Z ").concat(" Z")
+          # TODO: odd-even fill mode, etc
+          group.add_element "path", "d" => d, "fill" => "none", "stroke" => "black", "stroke-width" => 0.1
+        end
+      end
     end
   end
 end

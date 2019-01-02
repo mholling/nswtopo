@@ -73,19 +73,6 @@ module Vector
     perp.dot other
   end
 
-  # def one_or_many(&block)
-  #   case first
-  #   when Numeric then block.(self)
-  #   else map(&block)
-  #   end
-  # end
-
-  # def round(decimal_digits)
-  #   one_or_many do |point|
-  #     point.map { |value| value.round decimal_digits }
-  #   end
-  # end
-
   def within?(polygon)
     polygon.map do |point|
       point.minus self

@@ -101,7 +101,8 @@ module NSWTopo
           case feature
           when GeoJSON::Point
             symbol_id = [ *ids, "symbol"].join(?.)
-            transform = "translate(%f %f) rotate(%.2f)" % [ *feature.coordinates.yield_self(&to_mm), feature.properties.fetch("angle", @map.rotation) - @map.rotation ]
+            # TODO: use same format string for rounding mm values here
+            transform = "translate(%s %s) rotate(%s)" % [ *feature.coordinates.yield_self(&to_mm), feature.properties.fetch("angle", @map.rotation) - @map.rotation ]
             content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
 
           when GeoJSON::LineString
@@ -167,7 +168,8 @@ module NSWTopo
             lines_or_rings += features.grep(GeoJSON::Polygon).map(&:coordinates).flatten(1)
             lines_or_rings.each do |points|
               points.map(&to_mm).sample_at(interval, :angle).each do |point, angle|
-                transform = "translate(%f %f) rotate(%.2f)" % [ *point, 180.0 * angle / Math::PI ]
+                # TODO: use same format string for rounding mm values here
+                transform = "translate(%s %s) rotate(%s)" % [ *point, 180.0 * angle / Math::PI ]
                 content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_ids.sample
               end
             end
@@ -185,7 +187,8 @@ module NSWTopo
               when "outpoint" then [ line.last(2).rotate ]
               when "endpoint" then [ line.first(2), line.last(2).rotate ]
               end.each do |segment|
-                transform = "translate(%f %f) rotate(%.2f)" % [ *segment.first, 180.0 * segment.difference.angle / Math::PI ]
+                # TODO: use same format string for rounding mm values here
+                transform = "translate(%s %s) rotate(%s)" % [ *segment.first, 180.0 * segment.difference.angle / Math::PI ]
                 container.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
               end
             end

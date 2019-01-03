@@ -31,8 +31,7 @@ module NSWTopo::Formats
         string, formatter = String.new, REXML::Formatters::Pretty.new
         formatter.compact = true
         formatter.write xml, string
-        # TODO: enable next line, maybe have --force option to force SVG regeneration
-        # write "map.svg", string
+        write "map.svg", string
         path.write string
         # TODO: catch interrupts when saving to path (e.g. #safely)
       end

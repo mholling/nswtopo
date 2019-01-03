@@ -100,6 +100,10 @@ module NSWTopo
       tap { write "map.yml", YAML.dump(proj4: @projection.proj4, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
     end
 
+    def clean
+      delete "map.svg"
+    end
+
     def layers
       @layers.map do |name, params|
         Layer.new(name, self, params)

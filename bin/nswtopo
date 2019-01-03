@@ -187,6 +187,13 @@ begin
         options:
       EOF
 
+    when "clean"
+      parser.banner = <<~EOF
+        nswtopo clean - clean internally cached SVG
+        usage: nswtopo clean [options] <map.tgz>
+        options:
+      EOF
+
     when "render"
       options.merge! ppi: 300
       parser.banner = <<~EOF

@@ -101,8 +101,7 @@ module NSWTopo
           case feature
           when GeoJSON::Point
             symbol_id = [ *ids, "symbol"].join(?.)
-            # TODO: check rotation angle works!
-            transform = "translate(%f %f) rotate(%.2f)" % [ *feature.coordinates.yield_self(&to_mm), feature.properties.fetch("angle", 0) - @map.rotation ]
+            transform = "translate(%f %f) rotate(%.2f)" % [ *feature.coordinates.yield_self(&to_mm), feature.properties.fetch("angle", @map.rotation) - @map.rotation ]
             content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
 
           when GeoJSON::LineString
@@ -152,7 +151,7 @@ module NSWTopo
           when "pattern"
             width, height = Hash[args].values_at "width", "height"
             pattern_id = [ *ids, "pattern"].join(?.)
-            pattern = defs.add_element "pattern", "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "patternTransform" => "rotate(#{-@map.rotation})", "width" => width, "height" => height
+            pattern = defs.add_element "pattern", "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "width" => width, "height" => height
             args.each &pattern.method(:add_element)
             container.add_attribute "fill", "url(#%s)" % pattern_id
 

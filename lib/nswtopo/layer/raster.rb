@@ -57,7 +57,7 @@ module NSWTopo
 
     def get_projected_resolution(resolution, target_projection)
       OS.gdaltransform '-s_srs', @map.projection, '-t_srs', target_projection do |stdin|
-        stdin.puts @map.coordinates.join(?\s), [resolution, resolution].plus(@map.coordinates).join(?\s)
+        stdin.puts @map.centre.join(?\s), [resolution, resolution].plus(@map.centre).join(?\s)
       end.each_line.map do |line|
         line.split(?\s).take(2).map(&:to_f)
       end.distance.* Math.sqrt(0.5)

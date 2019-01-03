@@ -2,19 +2,17 @@ module NSWTopo
   class Map
     include Formats
 
-    def initialize(archive, config, centre = nil)
-      @archive, @config, @centre = archive, config, centre
-      @centre ||= GeoJSON::Collection.load(read "map.json")
-      @properties = OpenStruct.new(@centre.properties)
+    def initialize(archive, config, proj4:, scale:, centre:, extents:, rotation:, layers: {})
+      @archive, @config, @scale, @centre, @extents, @rotation, @layers = archive, config, scale, centre, extents, rotation, layers
+      @projection = Projection.new proj4
       ox, oy = bounding_box.coordinates[0][3]
       @affine = [ [ 1, 0 ], [ 0, -1 ], [ -ox, oy ] ].map do |vector|
-        vector.rotate_by_degrees(rotation).times(1000.0 / scale)
+        vector.rotate_by_degrees(@rotation).times(1000.0 / @scale)
       end.transpose
     end
+    attr_reader :projection, :scale, :centre, :extents, :rotation
 
     extend Forwardable
-    delegate [ :to_json, :projection, :coordinates ] => :@centre
-    delegate [ :scale, :extents, :rotation ] => :@properties
     delegate [ :write, :mtime, :delete, :read, :uptodate? ] => :@archive
 
     def self.init(archive, config, options)
@@ -42,6 +40,9 @@ module NSWTopo
 
       wgs84_centre = wgs84_points.transpose.map(&:minmax).map(&:sum).times(0.5)
       projection = Projection.transverse_mercator(wgs84_centre.first, 1.0)
+      # TODO: can we re-set the projection to be centred exactly on the calculated centre point?
+      #       that way, the centre in the local projection will always be 0,0 in projected coords
+      #       (as it stands, centre coords are off by a few hundred metres when using bounding box)
 
       case options[:rotation]
       when "auto"
@@ -86,19 +87,21 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new archive, config, GeoJSON.point(centre, projection, "scale" => options[:scale], "extents" => extents, "rotation" => rotation, "layers" => {})
+      new archive, config, proj4: projection.proj4, scale: options[:scale], centre: centre, extents: extents, rotation: rotation
     rescue GPS::BadFile => error
       raise "invalid bounds file #{error.message}"
     end
 
+    def self.load(archive, config)
+      new archive, config, **YAML.load(archive.read "map.yml")
+    end
+
     def save
-      # TODO: JSON can't have non-string keys. which messes things up
-      # TODO: maybe serialise to YAML first?
-      tap { write "map.json", to_json }
+      tap { write "map.yml", YAML.dump(proj4: @projection.proj4, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
     end
 
     def layers
-      @properties.layers.map do |name, params|
+      @layers.map do |name, params|
         Layer.new(name, self, params)
       end
     end
@@ -129,29 +132,29 @@ module NSWTopo
         warn "#{layer.name}: couldn't download layer"
         next layers, follow, errors << error
       end.tap do |layers, follow, errors|
-        @properties.layers.replace Hash[layers.map(&:pair)]
+        @layers.replace Hash[layers.map(&:pair)]
         raise PartialFailureError, "download failed for #{errors.length} layer#{?s unless errors.one?}" if errors.any?
       end
     end
 
     def remove(*names)
       names.inject Set[] do |matched, name|
-        matches = @properties.layers.keys.grep(name)
+        matches = @layers.keys.grep(name)
         raise "no such layer: #{name}" if String === name && matches.none?
         matched.merge matches
       end.each do |name|
-        params = @properties.layers.delete name
+        params = @layers.delete name
         delete Layer.new(name, self, params).filename
       end.any?
     end
 
     def info(empty: nil)
       StringIO.new.tap do |io|
-        io.puts "%-9s 1:%i" %            [ "scale:",    scale ]
-        io.puts "%-9s %imm × %imm" %     [ "size:",     *extents.times(1000.0 / scale) ]
-        io.puts "%-9s %.1fkm × %.1fkm" % [ "extent:",   *extents.times(0.001) ]
-        io.puts "%-9s %.1fkm²" %         [ "area:",     extents.inject(&:*) * 0.000001 ]
-        io.puts "%-9s %.1f°" %           [ "rotation:", 0.0 - rotation ]
+        io.puts "%-9s 1:%i" %            [ "scale:",    @scale ]
+        io.puts "%-9s %imm × %imm" %     [ "size:",     *@extents.times(1000.0 / @scale) ]
+        io.puts "%-9s %.1fkm × %.1fkm" % [ "extent:",   *@extents.times(0.001) ]
+        io.puts "%-9s %.1fkm²" %         [ "area:",     @extents.inject(&:*) * 0.000001 ]
+        io.puts "%-9s %.1f°" %           [ "rotation:", 0.0 - @rotation ]
         layers.reject(&empty ? :nil? : :empty?).inject("layers:") do |heading, layer|
           io.puts "%-9s %s" % [ heading, layer ]
           nil
@@ -179,15 +182,15 @@ module NSWTopo
     end
 
     def declination
-      Map.declination *@centre.reproject_to_wgs84.coordinates
+      Map.declination *GeoJSON.point(@centre, @projection).reproject_to_wgs84.coordinates
     end
 
     def bounding_box(mm: nil, metres: nil)
-      margin = mm ? mm * 0.001 * scale : metres ? metres : 0
-      ring = extents.map do |extent|
+      margin = mm ? mm * 0.001 * @scale : metres ? metres : 0
+      ring = @extents.map do |extent|
         [ -0.5 * extent - margin, 0.5 * extent + margin ]
       end.inject(&:product).map do |offset|
-        coordinates.plus offset.rotate_by_degrees(rotation)
+        @centre.plus offset.rotate_by_degrees(@rotation)
       end.values_at(0,2,3,1,0)
       GeoJSON.polygon [ ring ], projection
     end
@@ -204,7 +207,7 @@ module NSWTopo
 
     def write_world_file(path, resolution)
       top_left = bounding_box.coordinates[0][3]
-      WorldFile.write top_left, resolution, rotation, path
+      WorldFile.write top_left, resolution, @rotation, path
     end
 
     def coords_to_mm(point)

@@ -219,5 +219,10 @@ module NSWTopo
         row.dot [ *point, 1.0 ]
       end
     end
+
+    def raster_dimensions(ppi: nil, resolution: nil)
+      # TODO: use in Raster#create?
+      @extents.times(ppi ? ppi / 0.0254 / @scale : 1.0 / resolution).map(&:ceil)
+    end
   end
 end

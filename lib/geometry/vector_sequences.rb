@@ -9,6 +9,7 @@ module VectorSequences
     end.flatten(1)
   end
 
+  # TODO: use keyword arguments for extra
   def sample_at(interval, extra = nil)
     map do |sequence|
       sequence.periodically(interval, extra).to_a

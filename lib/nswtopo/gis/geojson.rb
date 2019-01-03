@@ -25,6 +25,10 @@ module NSWTopo
           }
         end
 
+        # # TODO: reject empty features in Vector#render
+        # def empty?
+        # end
+
         def to_points
           case self
           when Point then [ @coordinates ]

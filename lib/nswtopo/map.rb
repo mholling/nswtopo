@@ -92,6 +92,8 @@ module NSWTopo
     end
 
     def save
+      # TODO: JSON can't have non-string keys. which messes things up
+      # TODO: maybe serialise to YAML first?
       tap { write "map.json", to_json }
     end
 

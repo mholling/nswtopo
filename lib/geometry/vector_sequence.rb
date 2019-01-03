@@ -128,6 +128,7 @@ module VectorSequence
     trim(0.5 * (path_length - length))
   end
 
+  # TODO: use keyword arguments for extra
   def periodically(interval, extra = nil)
     Enumerator.new do |yielder|
       segments.inject [ 0.5, 0 ] do |(alpha, sum), segment|

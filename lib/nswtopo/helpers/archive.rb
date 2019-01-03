@@ -57,7 +57,7 @@ module NSWTopo
         Gem::Package::TarReader.new(input) do |tar_in|
           archive = new(out_path, tar_in).tap(&block)
           Gem::Package::TarWriter.new(buffer) do |tar_out|
-            archive.each(&tar_out.method(:add_entry))
+            archive.each &tar_out.method(:add_entry)
           end if archive.changed?
         end
       end

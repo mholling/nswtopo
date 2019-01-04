@@ -40,8 +40,11 @@ module NSWTopo
       montage
       stream
     ]
+    SQLite3 = %w[
+      sqlite3
+    ]
 
-    %w[GDAL ImageMagick].each do |package|
+    %w[GDAL ImageMagick SQLite3].each do |package|
       OS.const_get(package).each do |command|
         define_singleton_method command do |*args, &block|
           Open3.popen3 command, *args.map(&:to_s) do |stdin, stdout, stderr, thread|

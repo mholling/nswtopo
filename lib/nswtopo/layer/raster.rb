@@ -11,7 +11,7 @@ module NSWTopo
         density = 0.01 * @map.scale / resolution
         tiff_tags = %W[-mo TIFFTAG_XRESOLUTION=#{density} -mo TIFFTAG_YRESOLUTION=#{density} -mo TIFFTAG_RESOLUTIONUNIT=3]
 
-        @map.write_world_file tfw_path, resolution
+        @map.write_world_file tfw_path, resolution: resolution
         OS.convert "-size", dimensions.join(?x), "canvas:none", "-type", "TrueColorMatte", "-depth", 8, tif_path
         OS.gdalwarp "-t_srs", @map.projection, "-r", "bilinear", raster_path, tif_path
         OS.gdal_translate "-a_srs", @map.projection, *tiff_tags, tif_path, out_path

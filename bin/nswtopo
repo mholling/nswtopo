@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 
-# Copyright 2011-2018 Matthew Hollingworth
+# Copyright 2011-2019 Matthew Hollingworth
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -195,7 +195,7 @@ begin
       EOF
 
     when "render"
-      options.merge! ppi: 300
+      options.merge! ppi: 300, zoom: 16
       parser.banner = <<~EOF
         nswtopo render - render map in various formats
         usage: nswtopo render [options] <map.tgz> <format_or_path> [<format_or_path> ...]
@@ -203,8 +203,9 @@ begin
         options:
       EOF
       parser.on "-p", "--ppi        <ppi>", PositiveInt, "resolution for raster formats in pixels per inch (default %i)" % options[:ppi]
-      parser.on "-d", "--dither",                        "save raster in indexed colour mode using dithering"
-      parser.on "-w", "--worldfile",                     "save corresponding world file for raster formats"
+      parser.on "-z", "--zoom       <zoom>", Integer,    "maximum zoom level for mbtiles format (default %i)" % options[:zoom]
+      parser.on "-d", "--dither",                        "save raster in indexed colour mode with dithering"
+      parser.on "-w", "--worldfile",                     "save projection (.prj) and world file (.wld) for raster formats"
       parser.on "-o", "--overwrite",                     "overwrite existing output files"
       parser.on "-q", "--quiet",                         "don't report progress"
 

@@ -167,11 +167,43 @@ module NSWTopo
     end
     alias to_s info
 
-    def render(*paths, **options)
-      paths.each do |path|
-        ext = path.extname.delete_prefix ?.
-        send "render_#{ext}", path, **options
+    def render(*paths, worldfile: false, **options)
+      # TODO: report raster sizes as we make them
+      Dir.mktmppath do |temp_dir|
+        pngs = Hash.new do |pngs, options|
+          png_path = temp_dir / "map.#{pngs.size}.png"
+          pgw_path = temp_dir / "map.#{pngs.size}.pgw"
+          rasterise png_path, options
+          write_world_file pgw_path, options
+          pngs[options] = png_path
+        end
+
+        paths.each.with_index do |path, index|
+          ext = path.extname.delete_prefix ?.
+          name = path.basename(path.extname)
+          out_path = temp_dir / "output.#{index}.#{ext}"
+          send "render_#{ext}", temp_dir, out_path, name: name, **options, &pngs.method(:[])
+          # TODO: catch interrupts when saving to path (e.g. #safely)
+          # TODO: move them all at once?
+          FileUtils.mv out_path, path
+        end
+
+        paths.select do |path|
+          %w[.png .tif .jpg].include? path.extname
+        end.group_by do |path|
+          path.parent / path.basename(path.extname)
+        end.keys.each do |base|
+          write_world_file Pathname("#{base}.wld"), ppi: options[:ppi]
+          Pathname("#{base}.prj").write "#{@projection}\n"
+        end if worldfile
       end
+    end
+
+    def raster_dimensions(ppi: nil, resolution: nil)
+      # TODO: use in Raster#create? or remove altogether?
+      resolution ||= 0.0254 * @scale / ppi
+      ppi ||= 0.0254 * @scale / resolution
+      return (@extents / resolution).map(&:ceil), ppi, resolution
     end
 
     def self.declination(longitude, latitude)
@@ -209,7 +241,8 @@ module NSWTopo
       bounds(projection: projection).flatten.values_at(0,3,1,2)
     end
 
-    def write_world_file(path, resolution)
+    def write_world_file(path, resolution: nil, ppi: nil)
+      resolution ||= 0.0254 * @scale / ppi
       top_left = bounding_box.coordinates[0][3]
       WorldFile.write top_left, resolution, @rotation, path
     end
@@ -218,11 +251,6 @@ module NSWTopo
       @affine.map do |row|
         row.dot [ *point, 1.0 ]
       end
-    end
-
-    def raster_dimensions(ppi: nil, resolution: nil)
-      # TODO: use in Raster#create?
-      @extents.times(ppi ? ppi / 0.0254 / @scale : 1.0 / resolution).map(&:ceil)
     end
   end
 end

@@ -1,36 +1,32 @@
 require_relative 'formats/svg'
-require_relative 'formats/png'
-require_relative 'formats/tif'
-require_relative 'formats/jpg'
 require_relative 'formats/kmz'
 require_relative 'formats/mbtiles'
 # require_relative 'formats/zip'
 # require_relative 'formats/pdf'
 # require_relative 'formats/psd'
 
-# TODO: no need for nested modules, just use Formats.instance_methods.grep(/^render_\w+$)
-# to detect available extensions
-
 module NSWTopo
   module Formats
-    def self.each(&block)
-      modules = constants.map(&method(:const_get)).grep(Module).each
-      block_given? ? tap { modules.each(&block) } : modules
-    end
-    extend Enumerable
-
-    def self.included(mod)
-      mod.include *self
+    def self.extensions
+      instance_methods.grep(/^render_([a-z]+)/) { $1 }
     end
 
     def self.===(ext)
-      map(&:ext).any?(ext)
+      extensions.any? ext
     end
 
-    each do |format|
-      def format.ext
-        name.split("::").last.downcase
-      end
+    def render_png(temp_dir, out_path, ppi:, dither: false, **options)
+      # TODO: handle dithering if requested
+      FileUtils.cp yield(ppi: ppi), out_path
+    end
+
+    def render_tif(temp_dir, tif_path, ppi:, dither: false, **options)
+      # TODO: handle dithering if requested
+      OS.gdal_translate "-of", "GTiff", "-a_srs", @projection, yield(ppi: ppi), tif_path
+    end
+
+    def render_jpg(temp_dir, jpg_path, ppi:, **options)
+      OS.gdal_translate "-of", "JPEG", yield(ppi: ppi), jpg_path
     end
 
     def rasterise(png_path, **options)

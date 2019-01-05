@@ -1,9 +1,0 @@
-nsw.vegetation-spot5:
-  path: /Users/matthew/SPOT5/s5hgps_nsw_y20082012_bcvl0.tif
-pngquant: /Users/matthew/macports/bin/pngquant
-chrome: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
-# firefox: /Applications/Firefox.app/Contents/MacOS/firefox-bin
-
-# debug: true
-# no-output: true
-# no-update: true

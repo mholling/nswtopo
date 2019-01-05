@@ -1,41 +1,39 @@
 module NSWTopo
   module Formats
-    module Zip
-      # extend Dither
-      # LEVELS = 3 # TODO: determine programmatically, or is this fixed?
+    def render_zip(temp_dir, zip_path, name:, ppi:, **options)
+      zip_dir = temp_dir.join(name).tap(&:mkpath)
+      tiles_dir = zip_dir.join("tiles").tap(&:mkpath)
+      png_path = yield(ppi: ppi)
+      top_left = bounding_box.coordinates[0][3]
 
-      # def self.build(ppi, png_path, temp_dir, zip_path)
-      #   zip_dir = temp_dir + CONFIG.map.filename
-      #   tiles_dir = zip_dir + "tiles"
-      #   tiles_dir.mkpath
+      2.downto(0).map.with_index do |level, index|
+        [ level, index, ppi.to_f / 2**index ]
+      end.each.in_parallel do |level, index, ppi|
+        dimensions, ppi, resolution = raster_dimensions ppi: ppi
+        img_path = index.zero? ? png_path : temp_dir / "avenza.#{level}.png"
+        tile_path = temp_dir.join("avenza.tile.#{level}.%09d.png").to_s
 
-      #   (LEVELS - 1).downto(0).map.with_index do |level, index|
-      #     [ level, index, ppi.to_f / 2**index ]
-      #   end.each.in_parallel do |level, index, ppi|
-      #     dimensions = CONFIG.map.dimensions_at ppi
-      #     img_path = index.zero? ? png_path : temp_dir + "avenza.#{level}.png"
-      #     tile_path = temp_dir.join("avenza.tile.#{level}.%09d.png").to_s
-      #     %x[convert "#{png_path}" -filter Lanczos -resize #{dimensions.join ?x}! "#{img_path}"] unless img_path.exist?
-      #     %x[convert "#{img_path}" +repage -crop 256x256 "#{tile_path}"]
-      #     dimensions.reverse.map do |dimension|
-      #       0.upto((dimension - 1) / 256).to_a
-      #     end.inject(&:product).each.with_index do |(y, x), n|
-      #       FileUtils.cp tile_path % n, tiles_dir + "#{level}x#{y}x#{x}.png"
-      #     end
-      #     zip_dir.join("#{CONFIG.map.filename}.ref").open("w") do |file|
-      #       file.puts CONFIG.map.projection.wkt_simple
-      #       file.puts CONFIG.map.geotransform_at(ppi).flatten.join(?,)
-      #       file << dimensions.join(?,)
-      #     end if index == 1
-      #   end
-      #   Pathname.glob(tiles_dir + "*.png").each.in_parallel_groups do |tile_paths|
-      #     dither *tile_paths
-      #   end
+        OS.convert png_path, "-filter", "Lanczos", "-resize", "%ix%i!" % dimensions, img_path unless img_path.exist?
+        OS.convert img_path, "+repage", "-crop", "256x256", tile_path
 
-      #   %x[convert "#{png_path}" -thumbnail 64x64 -gravity center -background white -extent 64x64 -alpha Remove -type TrueColor "#{zip_dir + 'thumb.png'}"]
+        dimensions.reverse.map do |dimension|
+          0.upto((dimension - 1) / 256).to_a
+        end.inject(&:product).each.with_index do |(y, x), n|
+          FileUtils.cp tile_path % n, tiles_dir / "#{level}x#{y}x#{x}.png"
+        end
+        zip_dir.join("#{name}.ref").open("w") do |file|
+          file.puts @projection.wkt_simple
+          file.puts WorldFile.geotransform(top_left, resolution, @rotation).flatten.join(?,)
+          file << dimensions.join(?,)
+        end if index == 1
+      end
+      Pathname.glob(tiles_dir / "*.png").each.in_parallel_groups do |tile_paths|
+        # TODO: add dithering to reduce tile sizes
+        # dither *tile_paths
+      end
 
-      #   Dir.chdir(zip_dir) { %x[#{ZIP} -r "#{zip_path}" *] }
-      # end
+      OS.convert png_path, "-thumbnail", "64x64", "-gravity", "center", "-background", "white", "-extent", "64x64", "-alpha", "Remove", "-type", "TrueColor", zip_dir / "thumb.png"
+      OS.zip zip_dir, zip_path
     end
   end
 end

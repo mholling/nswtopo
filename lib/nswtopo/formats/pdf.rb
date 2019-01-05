@@ -1,30 +1,29 @@
 module NSWTopo
-  module PDF
-    def self.build(ppi, src_path, temp_dir, pdf_path)
-      case
-      when ppi
-        %x[gdal_translate -a_srs "#{CONFIG.map.projection}" -of PDF -co DPI=#{ppi} -co MARGIN=0 -co CREATOR=nswtopo -co "TITLE=#{CONFIG.map.name}" "#{src_path}" "#{output_path}"]
-      when wkhtmltopdf = CONFIG["wkhtmltopdf"]
-        xml = REXML::Document.new(src_path.read)
-        width, height = %w[width height].map { |name| xml.elements["/svg"].attributes[name] }
-        %x["#{wkhtmltopdf}" --quiet --margin-bottom 0mm --margin-left 0mm --margin-right 0mm --margin-top 0mm --page-width #{width} --page-height #{height} --title "#{CONFIG.map.name}" "#{src_path}" "#{pdf_path}"]
-      when inkscape = CONFIG["inkscape"]
-        %x["#{inkscape}" --without-gui --file="#{src_path}" --export-pdf="#{pdf_path}" #{DISCARD_STDERR}]
-      when phantomjs = CONFIG["phantomjs"]
-        xml = REXML::Document.new(src_path.read)
-        width, height = %w[width height].map { |name| xml.elements["/svg"].attributes[name] }
-        js_path = temp_dir + "makepdf.js"
-        File.write js_path, %Q[
-          var page = require('webpage').create();
-          page.paperSize = { width: '#{width}', height: '#{height}' };
-          page.open('#{src_path.to_s.gsub(?', "\\\\\'")}', function(status) {
-              page.render('#{pdf_path.to_s.gsub(?', "\\\\\'")}');
-              phantom.exit();
-          });
-        ]
-        %x["#{phantomjs}" "#{js_path}"]
+  module Formats
+    def render_pdf(temp_dir, pdf_path, ppi: nil, **options)
+      if ppi
+        OS.gdal_translate "-a_srs", @projection, "-of", "PDF", "-co", "DPI=#{ppi}", "-co", "MARGIN=0", "-co", "CREATOR=nswtopo", "-co", "GEO_ENCODING=ISO32000", yield(ppi: ppi), pdf_path
       else
-        abort("Error: please specify a path to Inkscape before creating PDF output (see README).")
+        svg_path = temp_dir / "pdf-map.svg"
+        render_svg temp_dir, svg_path
+        xml = REXML::Document.new svg_path.read
+        style = "@media print { @page { margin: 0 0 -1mm 0; size: %s %s; } }"
+        svg = xml.elements["svg"]
+        svg.add_element("style").text = style % svg.attributes.values_at("width", "height")
+        svg_path.write xml
+
+        FileUtils.rm pdf_path if pdf_path.exist?
+        with_browser do |browser_name, browser_path|
+          args = case browser_name
+          when "chrome"
+            [ "--headless", "--disable-gpu", "--print-to-pdf=#{pdf_path}" ]
+          when "firefox"
+            raise "can't create vector PDF with firefox; use chrome or specify ppi for a raster PDF"
+          end
+          stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{svg_path}"
+          raise "couldn't create PDF using %s" % browser_name unless status.success? && pdf_path.file?
+        end
+        # TODO: add georeferencing into the PDF using GDAL somehow?
       end
     end
   end

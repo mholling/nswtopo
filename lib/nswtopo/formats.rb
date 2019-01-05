@@ -32,41 +32,42 @@ module NSWTopo
       OS.gdal_translate "-of", "JPEG", yield(ppi: ppi), jpg_path
     end
 
-    def rasterise(png_path, **options)
-      browser = %w[firefox chrome].find &@config.method(:key?)
-      raise "please specify a path to Google Chrome before creating raster output (see README)" unless browser
-      puts "creating map raster at %i ppi using %s"    % [ options[:ppi],        browser ] if options[:ppi]
-      puts "creating map raster at %.1f m/px using %s" % [ options[:resolution], browser ] if options[:resolution]
-      browser_path = Pathname.new @config[browser]
+    def with_browser
+      browser_name = %w[firefox chrome].find &@config.method(:key?)
+      raise "please specify a path to google chrome (see README)" unless browser_name
+      browser_path = Pathname.new @config[browser_name]
+      yield browser_name, browser_path
+    rescue Errno::ENOENT
+      raise "invalid %s path: %s" % [ browser_name, browser_path ]
+    end
 
+    def rasterise(png_path, **options)
       Dir.mktmppath do |temp_dir|
+        dimensions, ppi, resolution = raster_dimensions **options
         svg_path = temp_dir / "map.svg"
         src_path = temp_dir / "browser.svg"
-        screenshot_path = temp_dir / "screenshot.png"
         render_svg temp_dir, svg_path
 
-        render = lambda do |width, height|
-          args = case browser
-          when "firefox"
-            %W[--window-size=#{width},#{height} -headless -screenshot screenshot.png]
-          when "chrome"
-            # TODO: --run-all-compositor-stages-before-draw flag?
-            # TODO: --screenshot=#{path} ???
-            # TODO: that way we don't need to Dir.chdir
-            %W[--window-size=#{width},#{height} --headless --screenshot --enable-logging --log-level=1 --disable-lcd-text --disable-extensions --hide-scrollbars --disable-gpu-rasterization]
-          end
-          FileUtils.rm screenshot_path if screenshot_path.exist?
-          stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{src_path}"
-          raise "couldn't rasterise map using %s" % browser unless status.success? && screenshot_path.file?
-        rescue Errno::ENOENT
-          raise "invalid %s path: %s" % [ browser, browser_path ]
-        end
+        with_browser do |browser_name, browser_path|
+          puts "creating map raster at %i ppi using %s"    % [ options[:ppi],        browser_name ] if options[:ppi]
+          puts "creating map raster at %.1f m/px using %s" % [ options[:resolution], browser_name ] if options[:resolution]
 
-        dimensions, ppi, resolution = raster_dimensions **options
-        Dir.chdir(temp_dir) do
+          render = lambda do |width, height|
+            args = case browser_name
+            when "firefox"
+              [ "--window-size=#{width},#{height}", "-headless", "-screenshot", png_path.to_s ]
+            when "chrome"
+              # TODO: --run-all-compositor-stages-before-draw flag?
+              [ "--window-size=#{width},#{height}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu-rasterization" ]
+            end
+            FileUtils.rm png_path if png_path.exist?
+            stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{src_path}"
+            raise "couldn't rasterise map using %s" % browser_name unless status.success? && png_path.file?
+          end
+
           src_path.write %Q[<?xml version='1.0' encoding='UTF-8'?><svg version='1.1' baseProfile='full' xmlns='http://www.w3.org/2000/svg'></svg>]
           render.call 1000, 1000
-          json = NSWTopo::OS.gdalinfo "-json", screenshot_path
+          json = NSWTopo::OS.gdalinfo "-json", png_path
           scaling = JSON.parse(json)["size"][0] / 1000.0
 
           svg = %w[width height].inject(svg_path.read) do |svg, attribute|
@@ -76,8 +77,7 @@ module NSWTopo
           render.call *(dimensions / scaling).map(&:ceil)
         end
 
-        OS.mogrify "+repage", "-crop", "#{dimensions.join ?x}+0+0", "-units", "PixelsPerInch", "-density", ppi, "-background", "white", "-alpha", "Remove", "-define", "PNG:exclude-chunk=bkgd", screenshot_path
-        FileUtils.mv screenshot_path, png_path
+        OS.mogrify "+repage", "-crop", "#{dimensions.join ?x}+0+0", "-units", "PixelsPerInch", "-density", ppi, "-background", "white", "-alpha", "Remove", "-define", "PNG:exclude-chunk=bkgd", png_path
       end
     end
   end

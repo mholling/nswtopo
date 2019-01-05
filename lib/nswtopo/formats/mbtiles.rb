@@ -4,7 +4,7 @@ module NSWTopo
       RESOLUTION, ORIGIN, TILE_SIZE = 2 * 78271.516, -20037508.34, 256
     end
 
-    def render_mbtiles(temp_dir, mbtiles_path, name:, zoom:, **options)
+    def render_mbtiles(temp_dir, mbtiles_path, name:, zoom: DEFAULT_ZOOM, **options)
       raise "invalid zoom outside 10-19 range: #{zoom}" unless (10..19) === zoom
 
       web_mercator_bounds = bounds(projection: Projection.new("EPSG:3857"))
@@ -40,7 +40,7 @@ module NSWTopo
         WorldFile.write topleft, resolution, 0, tfw_path
         OS.convert "-size", dimensions.join(?x), "canvas:none", "-type", "TrueColorAlpha", "-depth", 8, tif_path
         OS.gdalwarp "-s_srs", @projection, "-t_srs", "EPSG:3857", "-r", "lanczos", "-dstalpha", png_path, tif_path
-        OS.convert tif_path, "-quiet", "+repage", "-crop", "#{TILE_SIZE}x#{TILE_SIZE}", tile_path
+        OS.convert tif_path, "-quiet", "+repage", "-crop", "#{Mbtiles::TILE_SIZE}x#{Mbtiles::TILE_SIZE}", tile_path
       end.map do |resolution, indices, dimensions, topleft, tile_path, zoom|
         indices[1].to_a.reverse.product(indices[0].to_a).map.with_index do |(row, col), index|
           [ tile_path % index, zoom, col, row ]

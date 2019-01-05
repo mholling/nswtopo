@@ -7,6 +7,9 @@ require_relative 'formats/zip'
 
 module NSWTopo
   module Formats
+    DEFAULT_PPI = 300
+    DEFAULT_ZOOM = 16
+
     def self.extensions
       instance_methods.grep(/^render_([a-z]+)/) { $1 }
     end
@@ -15,17 +18,17 @@ module NSWTopo
       extensions.any? ext
     end
 
-    def render_png(temp_dir, out_path, ppi:, dither: false, **options)
+    def render_png(temp_dir, out_path, ppi: DEFAULT_PPI, dither: false, **options)
       # TODO: handle dithering if requested
       FileUtils.cp yield(ppi: ppi), out_path
     end
 
-    def render_tif(temp_dir, tif_path, ppi:, dither: false, **options)
+    def render_tif(temp_dir, tif_path, ppi: DEFAULT_PPI, dither: false, **options)
       # TODO: handle dithering if requested
       OS.gdal_translate "-of", "GTiff", "-a_srs", @projection, yield(ppi: ppi), tif_path
     end
 
-    def render_jpg(temp_dir, jpg_path, ppi:, **options)
+    def render_jpg(temp_dir, jpg_path, ppi: DEFAULT_PPI, **options)
       OS.gdal_translate "-of", "JPEG", yield(ppi: ppi), jpg_path
     end
 
@@ -47,6 +50,9 @@ module NSWTopo
           when "firefox"
             %W[--window-size=#{width},#{height} -headless -screenshot screenshot.png]
           when "chrome"
+            # TODO: --run-all-compositor-stages-before-draw flag?
+            # TODO: --screenshot=#{path} ???
+            # TODO: that way we don't need to Dir.chdir
             %W[--window-size=#{width},#{height} --headless --screenshot --enable-logging --log-level=1 --disable-lcd-text --disable-extensions --hide-scrollbars --disable-gpu-rasterization]
           end
           FileUtils.rm screenshot_path if screenshot_path.exist?

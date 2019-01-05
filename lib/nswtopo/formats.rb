@@ -62,7 +62,10 @@ module NSWTopo
             end
             FileUtils.rm png_path if png_path.exist?
             stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{src_path}"
-            raise "couldn't rasterise map using %s" % browser_name unless status.success? && png_path.file?
+            case browser_name
+            when "firefox" then raise "couldn't rasterise map using firefox (ensure browser is closed)"
+            when "chrome" then raise "couldn't rasterise map using chrome"
+            end unless status.success? && png_path.file?
           end
 
           src_path.write %Q[<?xml version='1.0' encoding='UTF-8'?><svg version='1.1' baseProfile='full' xmlns='http://www.w3.org/2000/svg'></svg>]

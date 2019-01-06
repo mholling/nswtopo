@@ -34,8 +34,12 @@ module NSWTopo
       new("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
     end
 
-    def self.transverse_mercator(central_meridian, scale_factor)
-      new("+proj=tmerc +lat_0=0.0 +lon_0=#{central_meridian} +k=#{scale_factor} +x_0=500000.0 +y_0=10000000.0 +ellps=WGS84 +datum=WGS84 +units=m")
+    def self.transverse_mercator(lon, lat)
+      new("+proj=tmerc +lon_0=#{lon} +lat_0=#{lat} +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+    end
+
+    def self.azimuthal_equidistant(lon, lat)
+      new("+proj=aeqd +lon_0=#{lon} +lat_0=#{lat} +k_0=1 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
     end
 
     def self.utm_zones(collection)

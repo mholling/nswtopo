@@ -39,10 +39,7 @@ module NSWTopo
       end
 
       wgs84_centre = wgs84_points.transpose.map(&:minmax).map(&:sum).times(0.5)
-      projection = Projection.transverse_mercator(wgs84_centre.first, 1.0)
-      # TODO: can we re-set the projection to be centred exactly on the calculated centre point?
-      #       that way, the centre in the local projection will always be 0,0 in projected coords
-      #       (as it stands, centre coords are off by a few hundred metres when using bounding box)
+      projection = Projection.azimuthal_equidistant *wgs84_centre
 
       case options[:rotation]
       when "auto"
@@ -75,6 +72,9 @@ module NSWTopo
         centre.rotate_by_degrees!(rotation)
       end
 
+      wgs84_centre = GeoJSON.point(centre, projection).reproject_to_wgs84.coordinates
+      projection = Projection.transverse_mercator *wgs84_centre
+
       extents = extents.zip(options[:margins]).map do |extent, margin|
         extent + 2 * margin * 0.001 * options[:scale]
       end if options[:margins]
@@ -87,7 +87,7 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new archive, config, proj4: projection.proj4, scale: options[:scale], centre: centre, extents: extents, rotation: rotation
+      new archive, config, proj4: projection.proj4, scale: options[:scale], centre: [ 0, 0 ], extents: extents, rotation: rotation
     rescue GPS::BadFile => error
       raise "invalid bounds file #{error.message}"
     end

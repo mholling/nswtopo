@@ -6,9 +6,6 @@ require_relative 'formats/pdf'
 
 module NSWTopo
   module Formats
-    DEFAULT_PPI = 300
-    DEFAULT_ZOOM = 16
-
     def self.extensions
       instance_methods.grep(/^render_([a-z]+)/) { $1 }
     end
@@ -17,15 +14,15 @@ module NSWTopo
       extensions.any? ext
     end
 
-    def render_png(temp_dir, out_path, ppi: DEFAULT_PPI, dither: false, **options)
+    def render_png(temp_dir, out_path, ppi:, dither: false, **options)
       FileUtils.cp yield(ppi: ppi, dither: dither), out_path
     end
 
-    def render_tif(temp_dir, tif_path, ppi: DEFAULT_PPI, dither: false, **options)
+    def render_tif(temp_dir, tif_path, ppi:, dither: false, **options)
       OS.gdal_translate "-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "ZLEVEL=9", "-a_srs", @projection, yield(ppi: ppi, dither: dither), tif_path
     end
 
-    def render_jpg(temp_dir, jpg_path, ppi: DEFAULT_PPI, **options)
+    def render_jpg(temp_dir, jpg_path, ppi:, **options)
       # TODO: check jpeg colour space
       OS.gdal_translate "-of", "JPEG", yield(ppi: ppi), jpg_path
     end

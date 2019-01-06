@@ -1,6 +1,6 @@
 module NSWTopo
   module Formats
-    def render_zip(temp_dir, zip_path, name:, ppi: DEFAULT_PPI, **options)
+    def render_zip(temp_dir, zip_path, name:, ppi:, **options)
       zip_dir = temp_dir.join("#{name}.avenza").tap(&:mkpath)
       tiles_dir = zip_dir.join("tiles").tap(&:mkpath)
       png_path = yield(ppi: ppi)

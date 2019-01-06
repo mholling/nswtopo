@@ -96,8 +96,12 @@ module NSWTopo
       new archive, config, **YAML.load(archive.read "map.yml")
     end
 
-    def save
+    def save!
       tap { write "map.yml", YAML.dump(proj4: @projection.proj4, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
+    end
+
+    def save
+      save! unless uptodate? "map.yml", *layers.map(&:filename)
     end
 
     def clean

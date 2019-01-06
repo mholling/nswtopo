@@ -101,7 +101,7 @@ module NSWTopo
       Layer.new(name, map, params)
     end.tap do |layers|
       map.add *layers, **create_options
-    ensure
+    ensure # in case of PartialFailureError
       map.save
     end
   end
@@ -123,7 +123,7 @@ module NSWTopo
     end.tap do |names|
       raise "no matching layers found" unless map.remove(*names)
     end
-    map.save
+    map.save!
   end
 
   def self.clean(archive, config, options)

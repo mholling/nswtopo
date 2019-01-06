@@ -1,7 +1,7 @@
 module NSWTopo
   module Formats
     def render_svg(temp_dir, svg_path, **options)
-      if uptodate? "map.svg", *layers.map(&:filename)
+      if uptodate? "map.svg", "map.yml"
         svg_path.write read("map.svg")
       else
         width, height = extents.times(1000.0 / scale)

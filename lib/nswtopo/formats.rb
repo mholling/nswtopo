@@ -24,7 +24,7 @@ module NSWTopo
 
     def render_tif(temp_dir, tif_path, ppi: DEFAULT_PPI, dither: false, **options)
       # TODO: handle dithering if requested
-      OS.gdal_translate "-of", "GTiff", "-a_srs", @projection, yield(ppi: ppi), tif_path
+      OS.gdal_translate "-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "ZLEVEL=9", "-a_srs", @projection, yield(ppi: ppi), tif_path
     end
 
     def render_jpg(temp_dir, jpg_path, ppi: DEFAULT_PPI, **options)

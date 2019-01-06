@@ -206,6 +206,10 @@ module NSWTopo
       return (@extents / resolution).map(&:ceil), ppi, resolution
     end
 
+    def wgs84_centre
+      GeoJSON.point(@centre, @projection).reproject_to_wgs84.coordinates
+    end
+
     def self.declination(longitude, latitude)
       today = Date.today
       query = { lat1: latitude.abs, lat1Hemisphere: latitude < 0 ? ?S : ?N, lon1: longitude.abs, lon1Hemisphere: longitude < 0 ? ?W : ?E, model: "WMM", startYear: today.year, startMonth: today.month, startDay: today.day, resultFormat: "xml" }
@@ -218,7 +222,7 @@ module NSWTopo
     end
 
     def declination
-      Map.declination *GeoJSON.point(@centre, @projection).reproject_to_wgs84.coordinates
+      Map.declination *wgs84_centre
     end
 
     def bounding_box(mm: nil, metres: nil)

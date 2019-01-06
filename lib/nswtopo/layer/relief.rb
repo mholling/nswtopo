@@ -145,37 +145,3 @@ module NSWTopo
     end
   end
 end
-
-
-    #   case
-    #   when params["path"]
-    #     src_path = temp_dir + "dem.txt"
-    #     vrt_path = temp_dir + "dem.vrt"
-
-    #     paths = [ *params["path"] ].map do |path|
-    #       Pathname.new(path).expand_path(@sourcedir)
-    #     end.map do |path|
-    #       Pathname.glob path
-    #     end.inject([], &:+).tap do |paths|
-    #       raise BadLayerError.new("no dem data files at specified path") if paths.empty?
-    #     end
-    #     src_path.write paths.join(?\n)
-
-    #     %x[gdalbuildvrt -input_file_list "#{src_path}" "#{vrt_path}"]
-    #     %x[gdalwarp -t_srs "#{CONFIG.map.projection}" -te #{bounds.flatten.values_at(0,2,1,3).join(?\s)} -tr #{resolution} #{resolution} -r bilinear "#{vrt_path}" "#{dem_path}"]
-    #   when params["contours"]
-
-    #     contours.inject(nil) do |append, (dataset, attribute)|
-    #       raise BadLayerError.new "no elevation attribute specified" unless attribute
-    #       case dataset
-    #       when /^(https?:\/\/.*)\/\d+\/query$/
-    #       else
-    #         dataset, name = *dataset
-    #         dataset = Pathname.new(dataset).expand_path(@sourcedir)
-    #         %x[ogr2ogr -spat #{spat} -spat_srs "#{CONFIG.map.projection}" -t_srs "#{CONFIG.map.projection}" -nln layer -update -overwrite "#{shp_path}" "#{dataset}" #{name} #{DISCARD_STDERR}]
-    #       end
-    #       %x[ogr2ogr -update #{append} -nln combined -sql "SELECT #{attribute} AS elevation FROM layer WHERE #{attribute} IS NOT NULL" "#{shp_path}" "#{shp_path}"]
-    #       "-append"
-    #     end
-    #     %x[gdal_grid -a linear:radius=0:nodata=-9999 -zfield elevation -l combined -ot Float32 -txe #{txe} -tye #{tye} -spat #{spat} -a_srs "#{CONFIG.map.projection}" -outsize #{outsize} "#{shp_path}" "#{dem_path}"]
-    #   end

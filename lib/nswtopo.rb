@@ -132,9 +132,9 @@ module NSWTopo
 
   def self.render(archive, config, format, *formats, options)
     overwrite = options.delete :overwrite
-    [ format, *formats ].uniq.map do |format|
+    [ format, *formats ].map do |format|
       Pathname(Formats === format ? "#{archive.basename}.#{format}" : format)
-    end.each do |path|
+    end.uniq.each do |path|
       format = path.extname.delete_prefix(?.)
       raise "unrecognised format: #{path}" if format.empty?
       raise "unrecognised format: #{format}" unless Formats === format

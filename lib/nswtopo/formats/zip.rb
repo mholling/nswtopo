@@ -1,7 +1,7 @@
 module NSWTopo
   module Formats
     def render_zip(temp_dir, zip_path, name:, ppi: DEFAULT_PPI, **options)
-      zip_dir = temp_dir.join(name).tap(&:mkpath)
+      zip_dir = temp_dir.join("#{name}.avenza").tap(&:mkpath)
       tiles_dir = zip_dir.join("tiles").tap(&:mkpath)
       png_path = yield(ppi: ppi)
       top_left = bounding_box.coordinates[0][3]
@@ -10,8 +10,8 @@ module NSWTopo
         [ level, index, ppi.to_f / 2**index ]
       end.each.in_parallel do |level, index, ppi|
         dimensions, ppi, resolution = raster_dimensions ppi: ppi
-        img_path = index.zero? ? png_path : temp_dir / "avenza.#{level}.png"
-        tile_path = temp_dir.join("avenza.tile.#{level}.%09d.png").to_s
+        img_path = index.zero? ? png_path : temp_dir / "#{name}.avenza.#{level}.png"
+        tile_path = temp_dir.join("#{name}.avenza.tile.#{level}.%09d.png").to_s
 
         OS.convert png_path, "-filter", "Lanczos", "-resize", "%ix%i!" % dimensions, img_path unless img_path.exist?
         OS.convert img_path, "+repage", "-crop", "256x256", tile_path
@@ -28,8 +28,7 @@ module NSWTopo
         end if index == 1
       end
       Pathname.glob(tiles_dir / "*.png").each.in_parallel_groups do |tile_paths|
-        # TODO: add dithering to reduce tile sizes
-        # dither *tile_paths
+        dither *tile_paths
       end
 
       OS.convert png_path, "-thumbnail", "64x64", "-gravity", "center", "-background", "white", "-extent", "64x64", "-alpha", "Remove", "-type", "TrueColor", zip_dir / "thumb.png"

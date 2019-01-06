@@ -1,11 +1,9 @@
 module NSWTopo
   module Dither
     def dither(*png_paths)
-      case
-      when pngquant = CONFIG["pngquant"]
-        %x["#{pngquant}" --quiet --force --ext .png --speed 1 --nofs "#{png_paths.join '" "'}"]
-      when gimp = CONFIG["gimp"]
-        script = %Q[
+      variants = Enumerator.new do |yielder|
+        yielder << -> { OS.pngquant "--quiet", "--force", "--ext", ".png", "--speed", 1, "--nofs", *png_paths }
+        gimp_script = <<~EOF
           (map
             (lambda (path)
               (let*
@@ -17,12 +15,17 @@ module NSWTopo
                 (gimp-file-save RUN-NONINTERACTIVE image drawable path path)
               )
             )
-            (list "#{png_paths.join '" "'}")
+            (list "#{png_paths.join ?\s}")
           )
-        ]
-        %x["#{gimp}" -c -d -f -i -b '#{script}' -b '(gimp-quit TRUE)' #{DISCARD_STDERR}]
-      else
-        %x[mogrify -type PaletteBilevelAlpha -dither Riemersma "#{png_paths.join '" "'}"]
+        EOF
+        yielder << -> { OS.gimp "-c", "-d", "-f", "-i", "-b", gimp_script, "-b", "(gimp-quit TRUE)" }
+        yielder << -> { OS.mogrify "-type", "PaletteBilevelAlpha", "-dither", "Riemersma", *png_paths }
+        raise "pngquant, GIMP or ImageMagick required for dithering"
+      end
+      begin
+        variants.next.call
+      rescue OS::Missing
+        retry
       end if png_paths.any?
     end
   end

@@ -1,6 +1,8 @@
 module NSWTopo
   module OS
     Error = Class.new RuntimeError
+    Missing = Class.new RuntimeError
+
     GDAL = %w[
       gdal_contour
       gdal_grid
@@ -40,11 +42,11 @@ module NSWTopo
       montage
       stream
     ]
-    SQLite3 = %w[
-      sqlite3
-    ]
+    SQLite3 = %w[sqlite3]
+    PNGQuant = %w[pngquant]
+    GIMP = %w[gimp]
 
-    %w[GDAL ImageMagick SQLite3].each do |package|
+    %w[GDAL ImageMagick SQLite3 PNGQuant GIMP].each do |package|
       OS.const_get(package).each do |command|
         define_singleton_method command do |*args, &block|
           Open3.popen3 command, *args.map(&:to_s) do |stdin, stdout, stderr, thread|
@@ -56,7 +58,7 @@ module NSWTopo
             out.value
           end
         rescue Errno::ENOENT
-          raise Error, "error: #{package} not installed"
+          raise Missing, "error: #{package} not installed"
         end
       end
     end
@@ -71,7 +73,7 @@ module NSWTopo
         end
       rescue Errno::ENOENT
         next
-      end || raise(Error, "no zip utility installed")
+      end || raise(Missing, "no zip utility installed")
       true
     end
   end

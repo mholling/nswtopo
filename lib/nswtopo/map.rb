@@ -1,6 +1,6 @@
 module NSWTopo
   class Map
-    include Formats
+    include Formats, Dither
 
     def initialize(archive, config, proj4:, scale:, centre:, extents:, rotation:, layers: {})
       @archive, @config, @scale, @centre, @extents, @rotation, @layers = archive, config, scale, centre, extents, rotation, layers
@@ -174,19 +174,29 @@ module NSWTopo
     def render(*paths, worldfile: false, **options)
       # TODO: report raster sizes as we make them
       Dir.mktmppath do |temp_dir|
-        pngs = Hash.new do |pngs, options|
-          png_path = temp_dir / "map.#{pngs.size}.png"
-          pgw_path = temp_dir / "map.#{pngs.size}.pgw"
+        rasters = Hash.new do |rasters, options|
+          png_path = temp_dir / "raster.#{rasters.size}.png"
+          pgw_path = temp_dir / "raster.#{rasters.size}.pgw"
           rasterise png_path, options
           write_world_file pgw_path, options
-          pngs[options] = png_path
+          rasters[options] = png_path
+        end
+        dithers = Hash.new do |dithers, options|
+          png_path = temp_dir / "dither.#{dithers.size}.png"
+          pgw_path = temp_dir / "dither.#{dithers.size}.pgw"
+          FileUtils.cp rasters[options], png_path
+          dither png_path
+          write_world_file pgw_path, options
+          dithers[options] = png_path
         end
 
         paths.each.with_index do |path, index|
           ext = path.extname.delete_prefix ?.
           name = path.basename(path.extname)
           out_path = temp_dir / "output.#{index}.#{ext}"
-          send "render_#{ext}", temp_dir, out_path, name: name, **options, &pngs.method(:[])
+          send "render_#{ext}", temp_dir, out_path, name: name, **options do |dither: false, **opts|
+            (dither ? dithers : rasters)[opts]
+          end
           # TODO: catch interrupts when saving to path (e.g. #safely)
           # TODO: move them all at once?
           FileUtils.mv out_path, path

@@ -18,16 +18,15 @@ module NSWTopo
     end
 
     def render_png(temp_dir, out_path, ppi: DEFAULT_PPI, dither: false, **options)
-      # TODO: handle dithering if requested
-      FileUtils.cp yield(ppi: ppi), out_path
+      FileUtils.cp yield(ppi: ppi, dither: dither), out_path
     end
 
     def render_tif(temp_dir, tif_path, ppi: DEFAULT_PPI, dither: false, **options)
-      # TODO: handle dithering if requested
-      OS.gdal_translate "-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "ZLEVEL=9", "-a_srs", @projection, yield(ppi: ppi), tif_path
+      OS.gdal_translate "-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "ZLEVEL=9", "-a_srs", @projection, yield(ppi: ppi, dither: dither), tif_path
     end
 
     def render_jpg(temp_dir, jpg_path, ppi: DEFAULT_PPI, **options)
+      # TODO: check jpeg colour space
       OS.gdal_translate "-of", "JPEG", yield(ppi: ppi), jpg_path
     end
 

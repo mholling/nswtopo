@@ -61,8 +61,8 @@ module NSWTopo
         counts = (wgs84_bounds.transpose.difference / degrees_per_tile).map(&:ceil)
         dimensions = counts.times Kmz::TILE_SIZE
 
-        tfw_path = temp_dir / "kmz.zoom.#{zoom}.tfw"
-        tif_path = temp_dir / "kmz.zoom.#{zoom}.tif"
+        tfw_path = temp_dir / "#{name}.kmz.zoom.#{zoom}.tfw"
+        tif_path = temp_dir / "#{name}.kmz.zoom.#{zoom}.tif"
         WorldFile.write topleft, resolution, 0, tfw_path
         OS.convert "-size", dimensions.join(?x), "canvas:none", "-type", "TrueColorMatte", "-depth", 8, tif_path
         OS.gdalwarp "-s_srs", @projection, "-t_srs", Projection.wgs84, "-r", "bilinear", "-dstalpha", png_path, tif_path
@@ -81,70 +81,69 @@ module NSWTopo
       end.inject({}, &:merge)
       puts
 
-      Dir.mktmppath do |kmz_dir|
-        pyramid.map do |zoom, (indices_bounds, tif_path)|
-          zoom_dir = kmz_dir.join(zoom.to_s).tap(&:mkpath)
-          indices_bounds.map do |indices, tile_bounds|
-            index_dir = zoom_dir.join(indices.first.to_s).tap(&:mkpath)
-            tile_kml_path = index_dir / "#{indices.last}.kml"
-            tile_png_path = index_dir / "#{indices.last}.png"
+      kmz_dir = temp_dir.join("#{name}.kmz").tap(&:mkpath)
+      pyramid.map do |zoom, (indices_bounds, tif_path)|
+        zoom_dir = kmz_dir.join(zoom.to_s).tap(&:mkpath)
+        indices_bounds.map do |indices, tile_bounds|
+          index_dir = zoom_dir.join(indices.first.to_s).tap(&:mkpath)
+          tile_kml_path = index_dir / "#{indices.last}.kml"
+          tile_png_path = index_dir / "#{indices.last}.png"
 
-            xml = REXML::Document.new
-            xml << REXML::XMLDecl.new(1.0, "UTF-8")
-            xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
-              kml.add_element("Document").tap do |document|
-                document.add_element("Style").tap(&Kmz.style)
-                document.add_element("Region").tap(&Kmz.region(tile_bounds, true))
-                document.add_element("GroundOverlay").tap do |overlay|
-                  overlay.add_element("drawOrder").text = zoom
-                  overlay.add_element("Icon").add_element("href").text = tile_png_path.basename
-                  overlay.add_element("LatLonBox").tap(&Kmz.lat_lon_box(tile_bounds))
-                end
-                if zoom < max_zoom
-                  indices.map do |index|
-                    [ 2 * index, 2 * index + 1 ]
-                  end.inject(:product).select do |subindices|
-                    pyramid[zoom + 1][0][subindices]
-                  end.each do |subindices|
-                    path = "../../%i/%i/%i.kml" % [ zoom + 1, *subindices ]
-                    document.add_element("NetworkLink").tap(&Kmz.network_link(pyramid[zoom + 1][0][subindices], path))
-                  end
+          xml = REXML::Document.new
+          xml << REXML::XMLDecl.new(1.0, "UTF-8")
+          xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
+            kml.add_element("Document").tap do |document|
+              document.add_element("Style").tap(&Kmz.style)
+              document.add_element("Region").tap(&Kmz.region(tile_bounds, true))
+              document.add_element("GroundOverlay").tap do |overlay|
+                overlay.add_element("drawOrder").text = zoom
+                overlay.add_element("Icon").add_element("href").text = tile_png_path.basename
+                overlay.add_element("LatLonBox").tap(&Kmz.lat_lon_box(tile_bounds))
+              end
+              if zoom < max_zoom
+                indices.map do |index|
+                  [ 2 * index, 2 * index + 1 ]
+                end.inject(:product).select do |subindices|
+                  pyramid[zoom + 1][0][subindices]
+                end.each do |subindices|
+                  path = "../../%i/%i/%i.kml" % [ zoom + 1, *subindices ]
+                  document.add_element("NetworkLink").tap(&Kmz.network_link(pyramid[zoom + 1][0][subindices], path))
                 end
               end
             end
-            tile_kml_path.write xml
-
-            crop = "%ix%i+%i+%s" % [ Kmz::TILE_SIZE, Kmz::TILE_SIZE, indices[0] * Kmz::TILE_SIZE, indices[1] * Kmz::TILE_SIZE ]
-            [ tif_path, "-quiet", "+repage", "-crop", crop, "+repage", "+dither", "-type", "PaletteBilevelMatte", "PNG8:#{tile_png_path}" ]
           end
-        end.flatten(1).tap do |args_list|
-          args_list.each.with_index do |args, index|
-            print "\r\033[Kcreating tiles: %i of %i" % [ index + 1, args_list.length ]
-            OS.convert *args
-          end.tap { puts }
-        end
+          tile_kml_path.write xml
 
-        xml = REXML::Document.new
-        xml << REXML::XMLDecl.new(1.0, "UTF-8")
-        xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
-          kml.add_element("Document").tap do |document|
-            document.add_element("LookAt").tap do |look_at|
-              range_x = @extents.first / 2.0 / Math::tan(Kmz::FOV) / Math::cos(Kmz::TILT)
-              range_y = @extents.last / Math::cos(Kmz::FOV - Kmz::TILT) / 2 / (Math::tan(Kmz::FOV - Kmz::TILT) + Math::sin(Kmz::TILT))
-              names_values = [ %w[longitude latitude], wgs84_centre ].transpose
-              names_values << [ "tilt", Kmz::TILT * 180.0 / Math::PI ] << [ "range", 1.2 * [ range_x, range_y ].max ] << [ "heading", -@rotation ]
-              names_values.each { |name, value| look_at.add_element(name).text = value }
-            end
-            document.add_element("Name").text = name
-            document.add_element("Style").tap(&Kmz.style)
-            document.add_element("NetworkLink").tap(&Kmz.network_link(pyramid[0][0][[0,0]], "0/0/0.kml"))
-          end
+          crop = "%ix%i+%i+%s" % [ Kmz::TILE_SIZE, Kmz::TILE_SIZE, indices[0] * Kmz::TILE_SIZE, indices[1] * Kmz::TILE_SIZE ]
+          [ tif_path, "-quiet", "+repage", "-crop", crop, "+repage", "+dither", "-type", "PaletteBilevelMatte", "PNG8:#{tile_png_path}" ]
         end
-        kml_path = kmz_dir / "doc.kml"
-        kml_path.write xml
-
-        OS.zip kmz_dir, kmz_path
+      end.flatten(1).tap do |args_list|
+        args_list.each.with_index do |args, index|
+          print "\r\033[Kcreating tiles: %i of %i" % [ index + 1, args_list.length ]
+          OS.convert *args
+        end.tap { puts }
       end
+
+      xml = REXML::Document.new
+      xml << REXML::XMLDecl.new(1.0, "UTF-8")
+      xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
+        kml.add_element("Document").tap do |document|
+          document.add_element("LookAt").tap do |look_at|
+            range_x = @extents.first / 2.0 / Math::tan(Kmz::FOV) / Math::cos(Kmz::TILT)
+            range_y = @extents.last / Math::cos(Kmz::FOV - Kmz::TILT) / 2 / (Math::tan(Kmz::FOV - Kmz::TILT) + Math::sin(Kmz::TILT))
+            names_values = [ %w[longitude latitude], wgs84_centre ].transpose
+            names_values << [ "tilt", Kmz::TILT * 180.0 / Math::PI ] << [ "range", 1.2 * [ range_x, range_y ].max ] << [ "heading", -@rotation ]
+            names_values.each { |name, value| look_at.add_element(name).text = value }
+          end
+          document.add_element("Name").text = name
+          document.add_element("Style").tap(&Kmz.style)
+          document.add_element("NetworkLink").tap(&Kmz.network_link(pyramid[0][0][[0,0]], "0/0/0.kml"))
+        end
+      end
+      kml_path = kmz_dir / "doc.kml"
+      kml_path.write xml
+
+      OS.zip kmz_dir, kmz_path
     end
   end
 end

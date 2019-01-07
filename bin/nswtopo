@@ -36,7 +36,7 @@ begin
   case
   when (RUBY_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,5]) < 0
     abort "error: ruby 2.5 or greater required"
-  when (GDAL_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,2]) < 0
+  when (GDAL_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,3]) < 0
     abort "error: GDAL 2.2 or greater required"
   end
 

@@ -76,7 +76,7 @@ module NSWTopo
       def reproject_to(projection)
         return self if self.projection == projection
         # TODO: set SIGNIFICANT_FIGURES and/or COORDINATE_PRECISION layer creation option?
-        json = OS.ogr2ogr "-t_srs", projection, "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "/vsistdin/" do |stdin|
+        json = OS.ogr2ogr "-t_srs", projection, "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "GeoJSON:/vsistdin/" do |stdin|
           stdin.puts to_json
         end
         GeoJSON::Collection.load json, projection

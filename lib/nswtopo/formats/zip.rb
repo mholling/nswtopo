@@ -9,7 +9,7 @@ module NSWTopo
       2.downto(0).map.with_index do |level, index|
         [ level, index, ppi.to_f / 2**index ]
       end.each.in_parallel do |level, index, ppi|
-        dimensions, ppi, resolution = raster_dimensions ppi: ppi
+        dimensions, ppi, resolution = raster_dimensions_at ppi: ppi
         img_path = index.zero? ? png_path : temp_dir / "#{name}.avenza.#{level}.png"
         tile_path = temp_dir.join("#{name}.avenza.tile.#{level}.%09d.png").to_s
 

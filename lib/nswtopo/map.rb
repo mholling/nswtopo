@@ -220,8 +220,7 @@ module NSWTopo
       end
     end
 
-    def raster_dimensions(ppi: nil, resolution: nil)
-      # TODO: use in Raster#create? or remove altogether?
+    def raster_dimensions_at(ppi: nil, resolution: nil)
       resolution ||= 0.0254 * @scale / ppi
       ppi ||= 0.0254 * @scale / resolution
       return (@extents / resolution).map(&:ceil), ppi, resolution

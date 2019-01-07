@@ -7,7 +7,7 @@ module NSWTopo
         out_path = temp_dir / "output.tif"
 
         resolution, raster_path = get_raster(temp_dir)
-        dimensions = (@map.extents / resolution).map(&:ceil)
+        dimensions, ppi, resolution = @map.raster_dimensions_at resolution: resolution
         density = 0.01 * @map.scale / resolution
         tiff_tags = %W[-mo TIFFTAG_XRESOLUTION=#{density} -mo TIFFTAG_YRESOLUTION=#{density} -mo TIFFTAG_RESOLUTIONUNIT=3]
 

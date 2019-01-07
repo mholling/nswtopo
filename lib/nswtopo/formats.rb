@@ -37,7 +37,7 @@ module NSWTopo
 
     def rasterise(png_path, **options)
       Dir.mktmppath do |temp_dir|
-        dimensions, ppi, resolution = raster_dimensions **options
+        dimensions, ppi, resolution = raster_dimensions_at **options
         svg_path = temp_dir / "map.svg"
         src_path = temp_dir / "browser.svg"
         render_svg temp_dir, svg_path

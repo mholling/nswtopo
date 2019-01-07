@@ -12,7 +12,10 @@ module InParallel
       begin
         while processes.length < CORES
           element = self.next
-          processes << Process.fork { yield element }
+          processes << Process.fork do
+            yield element
+          rescue Interrupt
+          end
         end
       rescue StopIteration
       end

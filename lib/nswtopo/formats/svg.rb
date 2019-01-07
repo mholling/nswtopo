@@ -15,7 +15,6 @@ module NSWTopo
           "viewBox" => "0 0 #{width} #{height}",
           "xmlns" => "http://www.w3.org/2000/svg",
           "xmlns:xlink" => "http://www.w3.org/1999/xlink",
-          "xmlns:ev" => "http://www.w3.org/2001/xml-events", # TODO: necessary?
           "xmlns:sodipodi" => "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd",
           "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape",
         }

@@ -14,8 +14,8 @@ module NSWTopo
       extensions.any? ext
     end
 
-    def render_png(temp_dir, out_path, ppi:, dither: false, **options)
-      FileUtils.cp yield(ppi: ppi, dither: dither), out_path
+    def render_png(temp_dir, png_path, ppi:, dither: false, **options)
+      FileUtils.cp yield(ppi: ppi, dither: dither), png_path
     end
 
     def render_tif(temp_dir, tif_path, ppi:, dither: false, **options)
@@ -23,8 +23,7 @@ module NSWTopo
     end
 
     def render_jpg(temp_dir, jpg_path, ppi:, **options)
-      # TODO: check jpeg colour space
-      OS.gdal_translate "-of", "JPEG", yield(ppi: ppi), jpg_path
+      OS.gdal_translate "-of", "JPEG", "-co", "QUALITY=90", "-mo", "EXIF_XResolution=#{ppi}", "-mo", "EXIF_YResolution=#{ppi}", "-mo", "EXIF_ResolutionUnit=2", yield(ppi: ppi), jpg_path
     end
 
     def with_browser
@@ -75,7 +74,7 @@ module NSWTopo
           render.call *(dimensions / scaling).map(&:ceil)
         end
 
-        OS.mogrify "+repage", "-crop", "#{dimensions.join ?x}+0+0", "-units", "PixelsPerInch", "-density", ppi, "-background", "white", "-alpha", "Remove", "-define", "PNG:exclude-chunk=bkgd", png_path
+        OS.mogrify "+repage", "-crop", "#{dimensions.join ?x}+0+0", "-background", "white", "-flatten", "-alpha", "Off", "-units", "PixelsPerInch", "-density", ppi, "-define", "PNG:exclude-chunk=bkgd,itxt,ztxt,text,chrm", png_path
       end
     end
   end

@@ -117,6 +117,77 @@ module NSWTopo
       end
     end
 
+    def raster_dimensions_at(ppi: nil, resolution: nil)
+      resolution ||= 0.0254 * @scale / ppi
+      ppi ||= 0.0254 * @scale / resolution
+      return (@extents / resolution).map(&:ceil), ppi, resolution
+    end
+
+    def wgs84_centre
+      GeoJSON.point(@centre, @projection).reproject_to_wgs84.coordinates
+    end
+
+    def bounding_box(mm: nil, metres: nil)
+      margin = mm ? mm * 0.001 * @scale : metres ? metres : 0
+      ring = @extents.map do |extent|
+        [ -0.5 * extent - margin, 0.5 * extent + margin ]
+      end.inject(&:product).map do |offset|
+        @centre.plus offset.rotate_by_degrees(@rotation)
+      end.values_at(0,2,3,1,0)
+      GeoJSON.polygon [ ring ], projection
+    end
+
+    def bounds(margin: {}, projection: nil)
+      bounding_box(margin).yield_self do |bbox|
+        projection ? bbox.reproject_to(projection) : bbox
+      end.coordinates.first.transpose.map(&:minmax)
+    end
+
+    def projwin(projection)
+      bounds(projection: projection).flatten.values_at(0,3,1,2)
+    end
+
+    def write_world_file(path, resolution: nil, ppi: nil)
+      resolution ||= 0.0254 * @scale / ppi
+      top_left = bounding_box.coordinates[0][3]
+      WorldFile.write top_left, resolution, @rotation, path
+    end
+
+    def coords_to_mm(point)
+      @affine.map do |row|
+        row.dot [ *point, 1.0 ]
+      end
+    end
+
+    def get_raster_resolution(raster_path)
+      metre_diagonal = bounding_box.coordinates.first.values_at(0, 2)
+      pixel_diagonal = OS.gdaltransform "-i", "-t_srs", @projection, raster_path do |stdin|
+        metre_diagonal.each do |point|
+          stdin.puts point.join(?\s)
+        end
+      end.each_line.map do |line|
+        line.split(?\s).take(2).map(&:to_f)
+      end
+      metre_diagonal.distance / pixel_diagonal.distance
+    rescue OS::Error
+      raise "invalid raster"
+    end
+
+    def self.declination(longitude, latitude)
+      today = Date.today
+      query = { lat1: latitude.abs, lat1Hemisphere: latitude < 0 ? ?S : ?N, lon1: longitude.abs, lon1Hemisphere: longitude < 0 ? ?W : ?E, model: "WMM", startYear: today.year, startMonth: today.month, startDay: today.day, resultFormat: "xml" }
+      uri = URI::HTTPS.build host: "www.ngdc.noaa.gov", path: "/geomag-web/calculators/calculateDeclination", query: URI.encode_www_form(query)
+      xml = Net::HTTP.get uri
+      text = REXML::Document.new(xml).elements["//declination"]&.text
+      text ? text.to_f : raise
+    rescue RuntimeError, SystemCallError, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError
+      raise "couldn't get magnetic declination value"
+    end
+
+    def declination
+      Map.declination *wgs84_centre
+    end
+
     def add(*layers, after: nil, before: nil, overwrite: false)
       layers.inject [ self.layers, after, [] ] do |(layers, follow, errors), layer|
         index = layers.index layer unless after || before
@@ -218,77 +289,6 @@ module NSWTopo
           end if worldfile
         end
       end
-    end
-
-    def raster_dimensions_at(ppi: nil, resolution: nil)
-      resolution ||= 0.0254 * @scale / ppi
-      ppi ||= 0.0254 * @scale / resolution
-      return (@extents / resolution).map(&:ceil), ppi, resolution
-    end
-
-    def wgs84_centre
-      GeoJSON.point(@centre, @projection).reproject_to_wgs84.coordinates
-    end
-
-    def self.declination(longitude, latitude)
-      today = Date.today
-      query = { lat1: latitude.abs, lat1Hemisphere: latitude < 0 ? ?S : ?N, lon1: longitude.abs, lon1Hemisphere: longitude < 0 ? ?W : ?E, model: "WMM", startYear: today.year, startMonth: today.month, startDay: today.day, resultFormat: "xml" }
-      uri = URI::HTTPS.build host: "www.ngdc.noaa.gov", path: "/geomag-web/calculators/calculateDeclination", query: URI.encode_www_form(query)
-      xml = Net::HTTP.get uri
-      text = REXML::Document.new(xml).elements["//declination"]&.text
-      text ? text.to_f : raise
-    rescue RuntimeError, SystemCallError, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError
-      raise "couldn't get magnetic declination value"
-    end
-
-    def declination
-      Map.declination *wgs84_centre
-    end
-
-    def bounding_box(mm: nil, metres: nil)
-      margin = mm ? mm * 0.001 * @scale : metres ? metres : 0
-      ring = @extents.map do |extent|
-        [ -0.5 * extent - margin, 0.5 * extent + margin ]
-      end.inject(&:product).map do |offset|
-        @centre.plus offset.rotate_by_degrees(@rotation)
-      end.values_at(0,2,3,1,0)
-      GeoJSON.polygon [ ring ], projection
-    end
-
-    def bounds(margin: {}, projection: nil)
-      bounding_box(margin).yield_self do |bbox|
-        projection ? bbox.reproject_to(projection) : bbox
-      end.coordinates.first.transpose.map(&:minmax)
-    end
-
-    def projwin(projection)
-      bounds(projection: projection).flatten.values_at(0,3,1,2)
-    end
-
-    def write_world_file(path, resolution: nil, ppi: nil)
-      resolution ||= 0.0254 * @scale / ppi
-      top_left = bounding_box.coordinates[0][3]
-      WorldFile.write top_left, resolution, @rotation, path
-    end
-
-    def coords_to_mm(point)
-      @affine.map do |row|
-        row.dot [ *point, 1.0 ]
-      end
-    end
-
-    def get_raster_resolution(raster_path)
-      metre_diagonal = bounding_box.coordinates.first.values_at(0, 2)
-      pixel_diagonal = OS.gdaltransform "-i", "-t_srs", @projection, raster_path do |stdin|
-        metre_diagonal.each do |point|
-          stdin.puts point.join(?\s)
-        end
-      end.each_line.map do |line|
-        line.split(?\s).take(2).map(&:to_f)
-      end
-      metre_diagonal.distance / pixel_diagonal.distance
-    rescue OS::Error
-      raise "invalid raster"
     end
   end
 end

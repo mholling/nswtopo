@@ -4,6 +4,7 @@ module NSWTopo
     SCALABLE_ATTRIBUTES = %w[word-spacing letter-spacing stroke-width]
     SHIELD_X, SHIELD_Y = 1.0, 0.5
     MARGIN = { mm: 1.0 }
+    POINT, ANGLE = "%.4f %.4f", "%.2f"
 
     def create
       collection = get_features.reproject_to(@map.projection).clip!(@map.bounding_box(MARGIN).coordinates.first)
@@ -34,9 +35,7 @@ module NSWTopo
       "%s: %i feature%s" % [ @name, count, (?s unless count == 1) ]
     end
 
-    # TODO: decimal_places default value, link to GeoJSON SIGNIFICANT_FIGURES and/or COORDINATE_PRECISION
-    def svg_path_data(points, decimal_places: 4, bezier: false)
-      f = "%.#{decimal_places}f"
+    def svg_path_data(points, bezier: false)
       if bezier
         fraction = [ 1.0, [ Numeric === bezier ? bezier : 1.0, 0.0 ].max ].min
         extras = points.first == points.last ? [ points[-2], *points, points[2] ] : [ points.first, *points, points.last ]
@@ -49,11 +48,11 @@ module NSWTopo
           segment.map { |point| [ point, point.plus(offset) ].along(fraction) }
         end.flatten(1).drop(1).each_slice(2).entries.prepend(nil)
         points.zip(controls).map do |point, controls|
-          controls ? "C #{f} #{f} #{f} #{f} #{f} #{f}" % [ *controls.flatten, *point ] :  "M #{f} #{f}" % point
+          controls ? "C %s %s %s" % [ POINT, POINT, POINT ] % [ *controls.flatten, *point ] : "M %s" % POINT % point
         end.join(" ")
       else
         points.map do |point|
-          "#{f} #{f}" % point
+          POINT % point
         end.join(" L ").prepend("M ")
       end
     end
@@ -101,8 +100,7 @@ module NSWTopo
           case feature
           when GeoJSON::Point
             symbol_id = [ *ids, "symbol"].join(?.)
-            # TODO: use same format string for rounding mm values here
-            transform = "translate(%s %s) rotate(%s)" % [ *feature.coordinates.yield_self(&to_mm), feature.properties.fetch("angle", -@map.rotation) + @map.rotation ]
+            transform = "translate(%s) rotate(%s)" % [ POINT, ANGLE ] % [ *feature.coordinates.yield_self(&to_mm), feature.properties.fetch("angle", -@map.rotation) + @map.rotation ]
             content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
 
           when GeoJSON::LineString
@@ -115,7 +113,6 @@ module NSWTopo
             d = feature.coordinates.map do |ring|
               svg_path_data ring.map(&to_mm), bezier: bezier
             end.join(" Z ").concat(" Z")
-            # TODO: check fill-rule!!!
             content.add_element "path", "fill-rule" => "nonzero", "d" => d
 
           # # TODO: re-introduce when we bring back Label layer
@@ -170,8 +167,7 @@ module NSWTopo
             lines_or_rings += features.grep(GeoJSON::Polygon).map(&:coordinates).flatten(1)
             lines_or_rings.each do |points|
               points.map(&to_mm).sample_at(interval, :angle).each do |point, angle|
-                # TODO: use same format string for rounding mm values here
-                transform = "translate(%s %s) rotate(%s)" % [ *point, 180.0 * angle / Math::PI ]
+                transform = "translate(%s) rotate(%s)" % [ POINT, ANGLE ] % [ *point, 180.0 * angle / Math::PI ]
                 content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_ids.sample
               end
             end
@@ -189,8 +185,7 @@ module NSWTopo
               when "outpoint" then [ line.last(2).rotate ]
               when "endpoint" then [ line.first(2), line.last(2).rotate ]
               end.each do |segment|
-                # TODO: use same format string for rounding mm values here
-                transform = "translate(%s %s) rotate(%s)" % [ *segment.first, 180.0 * segment.difference.angle / Math::PI ]
+                transform = "translate(%s) rotate(%s)" % [ POINT, ANGLE ] % [ *segment.first, 180.0 * segment.difference.angle / Math::PI ]
                 container.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
               end
             end

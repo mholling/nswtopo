@@ -1,8 +1,6 @@
 module NSWTopo
   module Feature
-    include Vector
-    include ArcGISServer
-    include Shapefile
+    include Vector, ArcGISServer, Shapefile
     CREATE = %w[features]
 
     def get_features

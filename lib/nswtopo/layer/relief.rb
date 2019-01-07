@@ -1,7 +1,6 @@
 module NSWTopo
   module Relief
-    include Raster
-    include ArcGISServer
+    include Raster, ArcGISServer
 
     DEFAULTS = {
       altitude: 45,

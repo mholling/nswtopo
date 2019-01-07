@@ -10,8 +10,9 @@ module NSWTopo
       vrt_path = temp_dir / "mosaic.vrt"
 
       ArcGISServer.start @url do |connection, service, projection|
-        target_resolution = get_projected_resolution(@resolution, projection)
-        target_bbox = @map.bounding_box.reproject_to(projection)
+        local_bbox = @map.bounding_box
+        target_bbox = local_bbox.reproject_to projection
+        target_resolution = @resolution * Math::sqrt(target_bbox.first.area / local_bbox.first.area)
 
         raise Error, "not a tiled map or image server: #{@url}" unless tile_info = service["tileInfo"]
         lods = tile_info["lods"]
@@ -64,6 +65,8 @@ module NSWTopo
         txt_path.write tif_paths.join(?\n)
         OS.gdalbuildvrt "-input_file_list", txt_path, vrt_path
       end
+
+      OS.gdal_translate vrt_path, Pathname.pwd / "foo.tif"
 
       return @resolution, vrt_path
     end

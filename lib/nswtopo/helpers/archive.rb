@@ -1,5 +1,7 @@
 module NSWTopo
   class Archive
+    extend Safely
+
     def initialize(path, tar_in)
       @tar_in, @basename, @entries = tar_in, path.basename(".tgz").basename(".tar.gz").to_s, Hash[]
     end
@@ -62,16 +64,12 @@ module NSWTopo
         end
       end
 
-      begin
-        # TODO: extract as #safely method so we can use it for Formats writing as well
+      safely "nswtopo: saving map file, please wait..." do
+        sleep 5
         Zlib::GzipWriter.open(out_path, Zlib::BEST_COMPRESSION) do |gzip|
           gzip.write buffer.string
         end
-      rescue Interrupt => interrupt
-        warn "\r\033[Knswtopo: saving map file, please wait..."
-        retry
       end unless buffer.size.zero?
-      raise interrupt if interrupt
 
     rescue Zlib::GzipFile::Error
       raise "unrecognised map file: #{in_path}"

@@ -3,7 +3,7 @@ module NSWTopo
   DEFAULT_ZOOM = 16
 
   class Map
-    include Formats, Dither
+    include Formats, Dither, Safely
 
     def initialize(archive, config, proj4:, scale:, centre:, extents:, rotation:, layers: {})
       @archive, @config, @scale, @centre, @extents, @rotation, @layers = archive, config, scale, centre, extents, rotation, layers
@@ -192,7 +192,7 @@ module NSWTopo
           dithers[options] = png_path
         end
 
-        paths.each.with_index do |path, index|
+        outputs = paths.map.with_index do |path, index|
           ext = path.extname.delete_prefix ?.
           name = path.basename(path.extname)
           out_path = temp_dir / "output.#{index}.#{ext}"
@@ -200,19 +200,23 @@ module NSWTopo
           send "render_#{ext}", temp_dir, out_path, name: name, **defaults, **options do |dither: false, **opts|
             (dither ? dithers : rasters)[opts]
           end
-          # TODO: catch interrupts when saving to path (e.g. #safely)
-          # TODO: move them all at once?
-          FileUtils.mv out_path, path
+          next out_path, path
         end
 
-        paths.select do |path|
-          %w[.png .tif .jpg].include? path.extname
-        end.group_by do |path|
-          path.parent / path.basename(path.extname)
-        end.keys.each do |base|
-          write_world_file Pathname("#{base}.wld"), ppi: options.fetch(:ppi, DEFAULT_PPI)
-          Pathname("#{base}.prj").write "#{@projection}\n"
-        end if worldfile
+        safely "nswtopo: saving, please wait..." do
+          outputs.each do |out_path, path|
+            FileUtils.cp out_path, path
+          end
+
+          paths.select do |path|
+            %w[.png .tif .jpg].include? path.extname
+          end.group_by do |path|
+            path.parent / path.basename(path.extname)
+          end.keys.each do |base|
+            write_world_file Pathname("#{base}.wld"), ppi: options.fetch(:ppi, DEFAULT_PPI)
+            Pathname("#{base}.prj").write "#{@projection}\n"
+          end if worldfile
+        end
       end
     end
 

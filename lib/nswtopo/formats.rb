@@ -44,8 +44,8 @@ module NSWTopo
 
         with_browser do |browser_name, browser_path|
           megapixels = dimensions.inject(&:*) / 1024.0 / 1024.0
-          puts "creating %i×%i (%.1fMpx) map raster at %i ppi using %s"    % [ *dimensions, megapixels, options[:ppi],        browser_name ] if options[:ppi]
-          puts "creating %i×%i (%.1fMpx) map raster at %.1f m/px using %s" % [ *dimensions, megapixels, options[:resolution], browser_name ] if options[:resolution]
+          puts "%s: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [ browser_name, *dimensions, megapixels, options[:ppi]        ] if options[:ppi]
+          puts "%s: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [ browser_name, *dimensions, megapixels, options[:resolution] ] if options[:resolution]
 
           render = lambda do |width, height|
             args = case browser_name

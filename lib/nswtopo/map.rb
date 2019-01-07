@@ -175,7 +175,6 @@ module NSWTopo
     alias to_s info
 
     def render(*paths, worldfile: false, **options)
-      # TODO: report raster sizes as we make them
       Dir.mktmppath do |temp_dir|
         rasters = Hash.new do |rasters, options|
           png_path = temp_dir / "raster.#{rasters.size}.png"

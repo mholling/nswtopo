@@ -43,8 +43,9 @@ module NSWTopo
         render_svg temp_dir, svg_path
 
         with_browser do |browser_name, browser_path|
-          puts "creating map raster at %i ppi using %s"    % [ options[:ppi],        browser_name ] if options[:ppi]
-          puts "creating map raster at %.1f m/px using %s" % [ options[:resolution], browser_name ] if options[:resolution]
+          megapixels = dimensions.inject(&:*) / 1024.0 / 1024.0
+          puts "creating %i×%i (%.1fMpx) map raster at %i ppi using %s"    % [ *dimensions, megapixels, options[:ppi],        browser_name ] if options[:ppi]
+          puts "creating %i×%i (%.1fMpx) map raster at %.1f m/px using %s" % [ *dimensions, megapixels, options[:resolution], browser_name ] if options[:resolution]
 
           render = lambda do |width, height|
             args = case browser_name

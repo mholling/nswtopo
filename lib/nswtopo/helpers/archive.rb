@@ -65,7 +65,6 @@ module NSWTopo
       end
 
       safely "nswtopo: saving map file, please wait..." do
-        sleep 5
         Zlib::GzipWriter.open(out_path, Zlib::BEST_COMPRESSION) do |gzip|
           gzip.write buffer.string
         end

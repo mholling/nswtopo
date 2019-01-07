@@ -44,17 +44,6 @@ module NSWTopo
       "%s: %i×%i (%.1fMpx) @ %.1fm/px (%.0f ppi)" % [ @name, *size, megapixels, resolution, ppi ]
     end
 
-    # TODO: can following two methods be refactored/removed to use #size_resolution instead?
-    def get_resolution(path)
-      OS.gdaltransform path, '-t_srs', @map.projection do |stdin|
-        stdin.puts "0 0", "1 1"
-      end.each_line.map do |line|
-        line.split(?\s).take(2).map(&:to_f)
-      end.distance.* Math.sqrt(0.5)
-    rescue OS::Error
-      raise "invalid raster"
-    end
-
     def render(group, defs)
       (width, height), resolution = size_resolution
       group.add_attributes "style" => "opacity:%s" % params.fetch("opacity", 1)

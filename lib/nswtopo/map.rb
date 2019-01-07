@@ -277,5 +277,19 @@ module NSWTopo
         row.dot [ *point, 1.0 ]
       end
     end
+
+    def get_raster_resolution(raster_path)
+      metre_diagonal = bounding_box.coordinates.first.values_at(0, 2)
+      pixel_diagonal = OS.gdaltransform "-i", "-t_srs", @projection, raster_path do |stdin|
+        metre_diagonal.each do |point|
+          stdin.puts point.join(?\s)
+        end
+      end.each_line.map do |line|
+        line.split(?\s).take(2).map(&:to_f)
+      end
+      metre_diagonal.distance / pixel_diagonal.distance
+    rescue OS::Error
+      raise "invalid raster"
+    end
   end
 end

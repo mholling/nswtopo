@@ -57,7 +57,7 @@ module NSWTopo
         OS.gdal_translate "-expand", "rgb", indexed_vrt_path, coloured_tif_path
 
         OS.gdalwarp "-s_srs", projection, "-t_srs", @map.projection, "-r", "bilinear", coloured_tif_path, tif_path
-        [ tif_path, @resolution || get_resolution(tif_path) ]
+        next tif_path, Numeric === @resolution ? @resolution : @map.get_raster_resolution(tif_path)
       end.transpose.tap do |tif_paths, resolutions|
         @resolution = resolutions.min
         txt_path.write tif_paths.join(?\n)

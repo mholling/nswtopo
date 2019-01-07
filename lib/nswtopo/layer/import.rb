@@ -20,7 +20,7 @@ module NSWTopo
       args = [ "-expand", "rgba", *args ] if palette
       OS.gdal_translate *args
 
-      return Numeric === @resolution ? @resolution : get_resolution(crop_path), crop_path
+      return Numeric === @resolution ? @resolution : @map.get_raster_resolution(crop_path), crop_path
     end
   end
 end

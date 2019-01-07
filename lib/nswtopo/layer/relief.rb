@@ -1,21 +1,19 @@
 module NSWTopo
   module Relief
     include Raster, ArcGISServer
-
-    DEFAULTS = {
-      altitude: 45,
-      azimuth: 315,
-      exaggeration: 2.5,
-      lightsources: 3,
-      highlights: 20,
-      sigma: 100,
-      median: 3,
-      bilateral: 4,
-      resolution: 30.0,
-      opacity: 0.3
-    }
-
     CREATE = %w[altitude azimuth exaggeration lightsources highlights sigma median bilateral resolution contours]
+    DEFAULTS = YAML.load <<~YAML
+      altitude: 45
+      azimuth: 315
+      exaggeration: 2.5
+      lightsources: 3
+      highlights: 20
+      sigma: 100
+      median: 3
+      bilateral: 4
+      resolution: 30.0
+      opacity: 0.3
+    YAML
 
     def get_raster(temp_dir)
       dem_path = temp_dir / "dem.tif"

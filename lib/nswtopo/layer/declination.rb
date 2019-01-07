@@ -2,6 +2,15 @@ module NSWTopo
   module Declination
     include Vector
     CREATE = %w[angle spacing arrows offset]
+    DEFAULTS = YAML.load <<~YAML
+      stroke: darkred
+      stroke-width: 0.1
+      symbol:
+        path:
+          d: M 0 0 L 0.4 2 L 0 1.3 L -0.4 2 Z
+          fill: darkred
+          stroke: none
+    YAML
 
     def get_features
       declination = @angle || @map.declination
@@ -23,7 +32,7 @@ module NSWTopo
         (-i_max .. i_max).reject(&j.even? ? :even? : :odd?).map do |i|
           [ x, i * row_spacing ].rotate_by_degrees(-declination).plus(@map.centre)
         end.each do |coordinates|
-          collection.add_point coordinates, "rotation" => declination
+          collection.add_point coordinates, "angle" => declination
         end
       end
       collection
@@ -39,13 +48,3 @@ module NSWTopo
 
   end
 end
-
-# PARAMS = %q[
-#   stroke: darkred
-#   stroke-width: 0.1
-#   fill: darkred
-#   symbol:
-#     path:
-#       d: M 0 0 L 0.4 2 L 0 1.3 L -0.4 2 Z
-#       stroke: none
-# ]

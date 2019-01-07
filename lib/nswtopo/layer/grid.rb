@@ -2,6 +2,12 @@ module NSWTopo
   module Grid
     include Vector
     CREATE = %w[interval]
+    DEFAULTS = YAML.load <<~YAML
+      stroke: black
+      stroke-width: 0.1
+      boundary:
+        stroke: gray
+    YAML
 
     def grids
       Projection.utm_zones(@map.bounding_box).map do |zone|

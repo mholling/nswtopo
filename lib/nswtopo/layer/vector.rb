@@ -102,7 +102,7 @@ module NSWTopo
           when GeoJSON::Point
             symbol_id = [ *ids, "symbol"].join(?.)
             # TODO: use same format string for rounding mm values here
-            transform = "translate(%s %s) rotate(%s)" % [ *feature.coordinates.yield_self(&to_mm), feature.properties.fetch("angle", @map.rotation) - @map.rotation ]
+            transform = "translate(%s %s) rotate(%s)" % [ *feature.coordinates.yield_self(&to_mm), feature.properties.fetch("angle", -@map.rotation) + @map.rotation ]
             content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
 
           when GeoJSON::LineString
@@ -147,7 +147,9 @@ module NSWTopo
           when "symbol"
             next unless content
             symbol = defs.add_element "g", "id" => [ *ids, "symbol"].join(?.)
-            args.each &symbol.method(:add_element)
+            args.each do |element, attributes|
+              symbol.add_element element, attributes
+            end
 
           when "pattern"
             width, height = Hash[args].values_at "width", "height"

@@ -3,6 +3,7 @@ module NSWTopo
     include Vector, ArcGISServer, Shapefile
     CREATE = %w[features]
 
+    # TODO: if @path is set, get features from there instead
     def get_features
       (Array === @features ? @features : [ @features ]).map do |args|
         case args

@@ -52,8 +52,7 @@ module NSWTopo
             when "firefox"
               [ "--window-size=#{width},#{height}", "-headless", "-screenshot", png_path.to_s ]
             when "chrome"
-              # TODO: --run-all-compositor-stages-before-draw flag?
-              [ "--window-size=#{width},#{height}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu-rasterization" ]
+              [ "--window-size=#{width},#{height}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu" ]
             end
             FileUtils.rm png_path if png_path.exist?
             stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{src_path}"

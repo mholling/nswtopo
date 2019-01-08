@@ -44,11 +44,11 @@ module NSWTopo
     puts Map.load(archive, config).info(options)
   end
 
-  def self.add(archive, config, layer, after: nil, before: nil, overwrite: nil, **options)
+  def self.add(archive, config, layer, options)
     create_options = {
-      after: Layer.sanitise(after),
-      before: Layer.sanitise(before),
-      overwrite: overwrite
+      after: Layer.sanitise(options.delete :after),
+      before: Layer.sanitise(options.delete :before),
+      overwrite: options.delete(:overwrite)
     }
     map = Map.load archive, config
     Enumerator.new do |yielder|
@@ -98,7 +98,7 @@ module NSWTopo
       params.merge! config[name] if config[name]
       Layer.new(name, map, params)
     end.tap do |layers|
-      map.add *layers, **create_options
+      map.add *layers, create_options
     end
   end
 
@@ -136,7 +136,7 @@ module NSWTopo
       raise "file already exists: #{path}" if path.exist? && !overwrite
       raise "non-existent directory: #{path.parent}" unless path.parent.directory?
     end.tap do |paths|
-      Map.load(archive, config).render *paths, **options
+      Map.load(archive, config).render *paths, options
     end
   end
 

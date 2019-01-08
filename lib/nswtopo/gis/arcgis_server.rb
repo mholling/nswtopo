@@ -1,6 +1,7 @@
 module NSWTopo
   module ArcGISServer
     Error = Class.new RuntimeError
+    ERRORS = [ Timeout::Error, Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError ]
     SERVICE = /^(?:MapServer|FeatureServer|ImageServer)$/
 
     class Connection
@@ -16,9 +17,9 @@ module NSWTopo
         response = @http.request(request)
         response.error! unless Net::HTTPSuccess === response
         yield response
-      rescue Timeout::Error, Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError, Error => error
+      rescue *ERRORS, Error => error
         interval = intervals.shift
-        interval ? sleep(interval) : raise(Error, error.message)
+        interval ? sleep(interval) : raise(error)
         retry
       end
 
@@ -83,6 +84,8 @@ module NSWTopo
         end
         yield connection, service, projection, *id
       end
+    rescue *ERRORS => error
+      raise Error, error.message
     end
 
     def arcgis_layer(url, where: nil, layer: nil, per_page: nil, margin: {})

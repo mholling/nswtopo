@@ -90,7 +90,7 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new archive, config, proj4: projection.proj4, scale: options[:scale], centre: [ 0, 0 ], extents: extents, rotation: rotation
+      new(archive, config, proj4: projection.proj4, scale: options[:scale], centre: [ 0, 0 ], extents: extents, rotation: rotation).save!
     rescue GPS::BadFile => error
       raise "invalid bounds file #{error.message}"
     end
@@ -215,10 +215,9 @@ module NSWTopo
         next layers, follow, errors << error
       end.tap do |layers, follow, errors|
         @layers.replace Hash[layers.map(&:pair)]
+        save
         raise PartialFailureError, "download failed for #{errors.length} layer#{?s unless errors.one?}" if errors.any?
       end
-    ensure # in case of PartialFailureError
-      save
     end
 
     def remove(*names)

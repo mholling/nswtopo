@@ -37,9 +37,7 @@ module NSWTopo
   PartialFailureError = Class.new RuntimeError
 
   def self.init(archive, config, options)
-    map = Map.init archive, config, options
-    map.save
-    puts map
+    puts Map.init(archive, config, options)
   end
 
   def self.info(archive, config, options)

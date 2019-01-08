@@ -90,7 +90,7 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new(archive, config, proj4: projection.proj4, scale: options[:scale], centre: [ 0, 0 ], extents: extents, rotation: rotation).save!
+      new(archive, config, proj4: projection.proj4, scale: options[:scale], centre: [ 0, 0 ], extents: extents, rotation: rotation).save
     rescue GPS::BadFile => error
       raise "invalid bounds file #{error.message}"
     end
@@ -99,16 +99,12 @@ module NSWTopo
       new archive, config, **YAML.load(archive.read "map.yml")
     end
 
-    def save!
+    def save
       tap { write "map.yml", YAML.dump(proj4: @projection.proj4, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
     end
 
-    def save
-      save! unless uptodate? "map.yml", *layers.map(&:filename)
-    end
-
     def clean
-      delete "map.svg"
+      tap { delete "map.svg" }
     end
 
     def layers
@@ -189,8 +185,14 @@ module NSWTopo
     end
 
     def add(*layers, after: nil, before: nil, overwrite: false)
-      layers.inject [ self.layers, after, [] ] do |(layers, follow, errors), layer|
+      layers.inject [ self.layers, false, after, [] ] do |(layers, changed, follow, errors), layer|
         index = layers.index layer unless after || before
+        if overwrite || !layer.uptodate?
+          layer.create
+        else
+          puts "#{layer.name}: keeping pre-existing layer"
+          next layers, changed, layer.name, errors if index
+        end
         layers.delete layer
         case
         when index
@@ -204,18 +206,15 @@ module NSWTopo
         else
           index = layers.index { |other| (other <=> layer) > 0 } || -1
         end
-        if overwrite || !layer.uptodate?
-          layer.create
-        else
-          puts "#{layer.name}: keeping pre-existing layer"
-        end
-        next layers.insert(index, layer), layer.name, errors
+        next layers.insert(index, layer), true, layer.name, errors
       rescue ArcGISServer::Error => error
         warn "#{layer.name}: couldn't download layer"
-        next layers, follow, errors << error
-      end.tap do |layers, follow, errors|
-        @layers.replace Hash[layers.map(&:pair)]
-        save
+        next layers, changed, follow, errors << error
+      end.tap do |layers, changed, follow, errors|
+        if changed
+          @layers.replace Hash[layers.map(&:pair)]
+          save
+        end
         raise PartialFailureError, "download failed for #{errors.length} layer#{?s unless errors.one?}" if errors.any?
       end
     end
@@ -231,7 +230,7 @@ module NSWTopo
         params = @layers.delete name
         delete Layer.new(name, self, params).filename
       end
-      save!
+      save
     end
 
     def info(empty: nil)

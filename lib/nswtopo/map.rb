@@ -217,6 +217,8 @@ module NSWTopo
         @layers.replace Hash[layers.map(&:pair)]
         raise PartialFailureError, "download failed for #{errors.length} layer#{?s unless errors.one?}" if errors.any?
       end
+    ensure # in case of PartialFailureError
+      save
     end
 
     def remove(*names)
@@ -224,10 +226,13 @@ module NSWTopo
         matches = @layers.keys.grep(name)
         raise "no such layer: #{name}" if String === name && matches.none?
         matched.merge matches
+      end.tap do |names|
+        raise "no matching layers found" unless names.any?
       end.each do |name|
         params = @layers.delete name
         delete Layer.new(name, self, params).filename
-      end.any?
+      end
+      save!
     end
 
     def info(empty: nil)

@@ -142,14 +142,14 @@ module NSWTopo
     end
   end
 
-  def self.layers(state: nil, root: nil, indent: "")
+  def self.layers(state: nil, root: nil, indent: state ? "#{state}/" : "")
     directory = [ Pathname(__dir__).parent, "layers", *state ].inject(&:/)
     root ||= directory
     directory.children.sort.each do |path|
       case
       when path.directory?
         puts [ indent, path.relative_path_from(root) ].join
-        layers state: [ *state, path.basename ], root: root, indent: indent + "  "
+        layers state: [ *state, path.basename ], root: root, indent: "  " + indent
       when path.sub_ext("").directory?
       when path.extname == ".yml"
         puts [ indent, path.relative_path_from(root).sub_ext("") ].join

@@ -56,22 +56,8 @@ module NSWTopo
         png_path.read
       end
       href = "data:image/png;base64,#{Base64.encode64 png}"
-      if params["masks"]
-        # # TODO: handle masking
-        # filter_id, mask_id = "#{@name}.filter", "#{@name}.mask"
-        # defs.add_element("filter", "id" => filter_id).add_element "feColorMatrix", "type" => "matrix", "in" => "SourceGraphic", "values" => "0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 -1 1"
-        # defs.add_element("mask", "id" => mask_id).add_element("g", "filter" => "url(#%s)" % filter_id).tap do |g|
-        #   g.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "none", "stroke" => "none"
-        #   [ *params["masks"] ].each do |id|
-        #     next unless element = xml.elements["//g[@id='#{id}']"]
-        #     transforms = REXML::XPath.each(xml, "//g[@id='#{id}']/ancestor::g[@transform]/@transform").map(&:value)
-        #     g.add_element "use", "xlink:href" => "##{id}", "transform" => (transforms.join(?\s) if transforms.any?)
-        #   end
-        # end
-        # group.add_element "g", "mask" => "url(#%s)" % mask_id
-      else
-        group
-      end.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "xlink:href" => href
+      group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "xlink:href" => href
+      group.add_attribute "mask", "url(#raster-mask)" if defs.elements["mask[@id='raster-mask']"]
     end
   end
 end

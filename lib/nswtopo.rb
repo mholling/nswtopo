@@ -156,14 +156,6 @@ module NSWTopo
   end
 end
 
-# # TODO: re-implement relief masks:
-#     relief_masks = []
-#       [ *params["relief-mask"] ].each do |sublayer|
-#         relief_masks << [ name, *(sublayer unless sublayer == true) ].join(SEGMENT)
-#       end
-#     end.each do |name, params|
-#       params.merge!("masks" => relief_masks) if "ReliefLayer" == params["class"]
-
 # # TODO: re-implement intervals-contours? (a better way?):
 # CONFIG["contour-interval"].tap do |interval|
 #   interval ||= CONFIG.map.scale < 40000 ? 10 : 20

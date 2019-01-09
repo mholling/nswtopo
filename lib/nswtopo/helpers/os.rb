@@ -58,7 +58,7 @@ module NSWTopo
             out.value
           end
         rescue Errno::ENOENT
-          raise Missing, "error: #{package} not installed"
+          raise Missing, "#{package} not installed"
         end
       end
     end

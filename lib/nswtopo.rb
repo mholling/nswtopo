@@ -44,15 +44,15 @@ module NSWTopo
     puts Map.load(archive, config).info(options)
   end
 
-  def self.add(archive, config, layer, options)
+  def self.add(archive, config, *layers, options)
     create_options = {
       after: Layer.sanitise(options.delete :after),
       before: Layer.sanitise(options.delete :before),
       overwrite: options.delete(:overwrite)
     }
     map = Map.load archive, config
+    # TODO: iterate separately for each layer, rather than in combination, so we keep default ordering
     Enumerator.new do |yielder|
-      layers = [ layer ]
       while layers.any?
         layer, basedir = layers.shift
         path = Pathname(layer).expand_path(*basedir)
@@ -98,6 +98,7 @@ module NSWTopo
       params.merge! config[name] if config[name]
       Layer.new(name, map, params)
     end.tap do |layers|
+      raise OptionParser::MissingArgument, "no layers specified" unless layers.any?
       map.add *layers, create_options
     end
   end
@@ -121,9 +122,9 @@ module NSWTopo
     end
   end
 
-  def self.render(archive, config, format, *formats, options)
+  def self.render(archive, config, *formats, options)
     overwrite = options.delete :overwrite
-    [ format, *formats ].map do |format|
+    formats.map do |format|
       Pathname(Formats === format ? "#{archive.basename}.#{format}" : format)
     end.uniq.each do |path|
       format = path.extname.delete_prefix(?.)
@@ -132,6 +133,7 @@ module NSWTopo
       raise "file already exists: #{path}" if path.exist? && !overwrite
       raise "non-existent directory: #{path.parent}" unless path.parent.directory?
     end.tap do |paths|
+      raise OptionParser::MissingArgument, "no output formats specified" unless paths.any?
       Map.load(archive, config).render *paths, options
     end
   end

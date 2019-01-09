@@ -145,7 +145,7 @@ begin
     when "add"
       parser.banner = <<~EOF
         nswtopo add - add named map layer
-        usage: nswtopo add [options] <map.tgz> <layer>
+        usage: nswtopo add [options] <map.tgz> <layer> [<layer> ...]
         options:
       EOF
       parser.on "-r", "--resolution  <resolution>", PositiveFloat, "raster layer resolution in metres"
@@ -154,7 +154,6 @@ begin
       parser.on "-b", "--before      <layer>",                     "insert before specified layer"
       parser.on "-o", "--overwrite",                               "overwrite layer if it already exists"
       parser.on "-q", "--quiet",                                   "don't report progress"
-      # TODO: multiple layers at once? (should be easy, but might mess with default layer ordering?)
 
     when "grid"
       options.merge! interval: 1000.0
@@ -212,11 +211,9 @@ begin
     # when "reorder" # TODO move layer: --before <layer>, --after <layer> etc
 
     when nil
-      puts base_parser
       raise OptionParser::MissingArgument, "no command specified"
 
     else
-      puts base_parser
       raise OptionParser::InvalidArgument, command
     end
 
@@ -224,6 +221,9 @@ begin
       puts parser
       exit
     end
+  rescue OptionParser::ParseError => error
+    warn base_parser
+    raise error.message
   end
   command_parser.order! into: options
 
@@ -234,10 +234,7 @@ begin
   end
 
   $stdout = File.open(File::NULL, "w") if options.delete :quiet
-  if ARGV.none?
-    puts command_parser
-    raise OptionParser::MissingArgument, "no map path specified"
-  end
+  raise OptionParser::MissingArgument, "no map path specified" if ARGV.empty?
   tgz_path = Pathname(ARGV.shift)
 
   config = config_paths.map do |path|
@@ -249,10 +246,10 @@ begin
   begin
     in_path = case command
     when "init"
-      raise OptionParser::InvalidArgument, "#{tgz_path} already exists" if tgz_path.exist? && !options.delete(:overwrite)
+      raise "#{tgz_path} already exists" if tgz_path.exist? && !options.delete(:overwrite)
     else
-      raise OptionParser::InvalidArgument, "no such file #{tgz_path}" unless tgz_path.exist?
-      raise OptionParser::InvalidArgument, "#{tgz_path} is not a file" unless tgz_path.file?
+      raise "no such file #{tgz_path}" unless tgz_path.exist?
+      raise "#{tgz_path} is not a file" unless tgz_path.file?
       tgz_path
     end
     arity, error = NSWTopo.method(command).arity, nil
@@ -261,11 +258,9 @@ begin
       args = [ archive, config, *ARGV, options ]
       case
       when arity >= 0 && args.length > arity
-        puts command_parser
         raise OptionParser::NeedlessArgument, ARGV.last(args.length - arity).join(?\s)
       when arity >= 0 ? args.length < arity : args.length + arity + 1 < 0
-        puts command_parser
-        raise OptionParser::MissingArgument, ARGV
+        raise OptionParser::MissingArgument
       end
 
       NSWTopo.send command, *args
@@ -273,6 +268,9 @@ begin
     end
     raise error.message if error
   end
+rescue OptionParser::ParseError => error
+  warn command_parser
+  abort "\r\033[Knswtopo: #{error.message}"
 rescue Interrupt
   abort "\r\033[Knswtopo: interrupted"
 rescue RuntimeError => error

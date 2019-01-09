@@ -216,6 +216,7 @@ module NSWTopo
     end
 
     def remove(*names)
+      raise OptionParser::MissingArgument, "no layers specified" unless names.any?
       names.inject Set[] do |matched, name|
         matches = @layers.keys.grep(name)
         raise "no such layer: #{name}" if String === name && matches.none?

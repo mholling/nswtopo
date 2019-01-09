@@ -76,7 +76,7 @@ module NSWTopo
           { indices => tile_bounds }
         end.inject({}, &:merge)
 
-        print "\r\033[Kkmz: resizing image pyramid: %i%%" % (100 * (2**(zoom + 1) - 1) / (2**(max_zoom + 1) - 1))
+        print "\r\e[Kkmz: resizing image pyramid: %i%%" % (100 * (2**(zoom + 1) - 1) / (2**(max_zoom + 1) - 1))
         { zoom => [ indices_bounds, tif_path ] }
       end.inject({}, &:merge)
       puts
@@ -119,7 +119,7 @@ module NSWTopo
         end
       end.flatten(1).tap do |args_list|
         args_list.each.with_index do |args, index|
-          print "\r\033[Kkmz: creating tiles: %i of %i" % [ index + 1, args_list.length ]
+          print "\r\e[Kkmz: creating tiles: %i of %i" % [ index + 1, args_list.length ]
           OS.convert *args
         end.tap { puts }
       end

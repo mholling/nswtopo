@@ -15,11 +15,11 @@ module NSWTopo
         !args[:fallback]
       end.map do |fallbacks|
         options, collection, error = fallbacks.inject [ {}, nil, nil ] do |(options, *), args|
-          warn "\r\033[K#{@name}: failed to retrieve features, trying fallback source" if args[:fallback]
+          warn "\r\e[K#{@name}: failed to retrieve features, trying fallback source" if args[:fallback]
           break options.merge!(args), case source = args.delete(:source)
           when ArcGISServer
             arcgis_layer source, margin: MARGIN, **options.slice(:where, :layer, :per_page) do |index, total|
-              print "\r\033[K#{@name}: retrieved #{index} of #{total} features"
+              print "\r\e[K#{@name}: retrieved #{index} of #{total} features"
             end
           when Shapefile
             shapefile_layer source, margin: MARGIN, **options.slice(:where, :layer)
@@ -30,7 +30,7 @@ module NSWTopo
         end
 
         raise error if error
-        puts "\r\033[K%s: retrieved %i feature%s" % [ @name, collection.count, (?s unless collection.one?) ]
+        puts "\r\e[K%s: retrieved %i feature%s" % [ @name, collection.count, (?s unless collection.one?) ]
 
         next collection.reproject_to(@map.projection), options
       end.each do |collection, options|

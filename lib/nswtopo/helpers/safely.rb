@@ -3,7 +3,7 @@ module NSWTopo
     def safely(message = nil)
       yield
     rescue Interrupt => interrupt
-      warn "\r\033[K#{message}" if message
+      warn "\r\e[K#{message}" if message
       retry
     ensure
       raise interrupt if interrupt

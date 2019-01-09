@@ -54,11 +54,11 @@ module NSWTopo
           [ rel_path, jpg_path, gdal_args, tif_path ]
         end.compact
         tiles.each.with_index do |(rel_path, jpg_path, gdal_args, tif_path), index|
-          print "\r\033[K#{@name}: retrieving tile %i of %i" % [ index + 1, tiles.length ]
+          print "\r\e[K#{@name}: retrieving tile %i of %i" % [ index + 1, tiles.length ]
           connection.get(rel_path, blankTile: true) do |response|
             jpg_path.write response.body
           end
-        end.tap { puts "\r\033[K#{@name}: retrieved %i tiles" % tiles.length }
+        end.tap { puts "\r\e[K#{@name}: retrieved %i tiles" % tiles.length }
       end.each do |rel_path, jpg_path, gdal_args, tif_path|
         OS.gdal_translate *gdal_args
       end.map(&:last).tap do |tif_paths|

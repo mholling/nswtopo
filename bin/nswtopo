@@ -78,12 +78,6 @@ begin
     directory / ".nswtopo"
   end.select(&:file?)
 
-  # TODO: use \e[1m, \e[m for boldface on/off, use colours, etc.
-  # ANSI escape codes:
-  # + https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences)
-  # + https://en.wikipedia.org/wiki/ANSI_escape_code
-  # TODO: use consistent error message format
-
   base_parser = OptionParser.new do |parser|
     parser.banner = <<~EOF
       nswtopo - download and create vector topographic maps
@@ -270,9 +264,9 @@ begin
   end
 rescue OptionParser::ParseError => error
   warn command_parser
-  abort "\r\033[Knswtopo: #{error.message}"
+  abort "\r\e[K\e[31mnswtopo:\e[0m #{error.message}"
 rescue Interrupt
-  abort "\r\033[Knswtopo: interrupted"
+  abort "\r\e[Knswtopo: interrupted"
 rescue RuntimeError => error
-  abort "\r\033[Knswtopo: #{error.message}"
+  abort "\r\e[K\e[31mnswtopo:\e[0m #{error.message}"
 end

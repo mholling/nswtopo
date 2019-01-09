@@ -199,6 +199,7 @@ begin
       parser.banner = <<~EOF
         nswtopo layers - list available map layers
         usage: nswtopo layers [options]
+        options:
       EOF
       parser.on "-s", "--state  <#{States.join ?|}>", States, "only show layers for specified state"
 

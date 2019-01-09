@@ -187,13 +187,6 @@ begin
         options:
       EOF
 
-    when "clean"
-      parser.banner = <<~EOF
-        nswtopo clean - clean internally cached SVG
-        usage: nswtopo clean [options] <map.tgz>
-        options:
-      EOF
-
     when "render"
       parser.banner = <<~EOF
         nswtopo render - render map in various formats
@@ -206,6 +199,7 @@ begin
       parser.on "-d", "--dither",                        "save raster in indexed colour mode with dithering"
       parser.on "-w", "--worldfile",                     "save projection (.prj) and world file (.wld) for raster formats"
       parser.on "-o", "--overwrite",                     "overwrite existing output files"
+      parser.on "-f", "--force",                         "force regeneration of cached SVG"
       parser.on "-q", "--quiet",                         "don't report progress"
 
     when "layers"

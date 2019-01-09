@@ -121,10 +121,6 @@ module NSWTopo
     end
   end
 
-  def self.clean(archive, config, options)
-    Map.load(archive, config).clean
-  end
-
   def self.render(archive, config, format, *formats, options)
     overwrite = options.delete :overwrite
     [ format, *formats ].map do |format|

@@ -103,10 +103,6 @@ module NSWTopo
       tap { write "map.yml", YAML.dump(proj4: @projection.proj4, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
     end
 
-    def clean
-      tap { delete "map.svg" }
-    end
-
     def layers
       @layers.map do |name, params|
         Layer.new(name, self, params)
@@ -248,7 +244,8 @@ module NSWTopo
     end
     alias to_s info
 
-    def render(*paths, worldfile: false, **options)
+    def render(*paths, worldfile: false, force: false, **options)
+      delete "map.svg" if force
       Dir.mktmppath do |temp_dir|
         rasters = Hash.new do |rasters, options|
           png_path = temp_dir / "raster.#{rasters.size}.png"

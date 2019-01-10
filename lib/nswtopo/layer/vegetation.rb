@@ -15,13 +15,13 @@ module NSWTopo
       colour_table = (0..255).map do |index|
         case
         when minmax&.all?(Integer) && minmax.all?(0..255)
-          [ [ 0.0, 100.0 * (index - min) / (max - min) ].max, 100.0 ].min
+          (100.0 * (index - min) / (max - min)).clamp(0.0, 100.0)
         when @mapping&.keys&.all?(Integer)
           @mapping.fetch(index, 0)
         else raise "no vegetation colour mapping specified for #{name}"
         end
       end.map do |percent|
-        [ [ 0.0, Float(percent - low) / (high - low) ].max, 1.0 ].min
+        (Float(percent - low) / (high - low)).clamp(0.0, 1.0)
       end.map do |x|
         next x if factor.zero?
         [ x, 1.0 ].map do |x|

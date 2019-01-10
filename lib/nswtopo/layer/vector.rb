@@ -37,7 +37,7 @@ module NSWTopo
 
     def svg_path_data(points, bezier: false)
       if bezier
-        fraction = [ 1.0, [ Numeric === bezier ? bezier : 1.0, 0.0 ].max ].min
+        fraction = Numeric === bezier ? bezier.clamp(0.0, 1.0) : 1.0
         extras = points.first == points.last ? [ points[-2], *points, points[2] ] : [ points.first, *points, points.last ]
         midpoints = extras.segments.map(&:midpoint)
         distances = extras.segments.map(&:distance)

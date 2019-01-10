@@ -47,10 +47,10 @@ module NSWTopo
             case feature
             when GeoJSON::LineString, GeoJSON::MultiLineString
               size = (Math::log2(feature.length) - Math::log2(unit)).ceil rescue 0
-              categories << [ [ 0, size ].max, max ].min
+              categories << size.clamp(0, max)
             when GeoJSON::Polygon, GeoJSON::MultiPolygon
               size = (0.5 * Math::log2(feature.area) - Math::log2(unit)).ceil rescue 0
-              categories << [ [ 0, size ].max, max ].min
+              categories << size.clamp(0, max)
             end
           end if options[:sizes]
 

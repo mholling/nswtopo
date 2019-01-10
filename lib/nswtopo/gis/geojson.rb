@@ -8,6 +8,7 @@ module NSWTopo
         def initialize(coordinates, properties = {})
           properties ||= {}
           raise Error, "invalid feature properties" unless Hash === properties
+          raise Error, "invalid feature geometry" unless Array === coordinates
           @coordinates, @properties = coordinates, properties
         end
         attr_reader :coordinates, :properties
@@ -22,10 +23,6 @@ module NSWTopo
             "properties" => @properties
           }
         end
-
-        # # TODO: reject empty features in Vector#render
-        # def empty?
-        # end
 
         def to_points
           case self

@@ -138,7 +138,7 @@ module NSWTopo
           features += page["features"]
         end.map do |feature|
           next unless geometry = feature["geometry"]
-          next unless attributes = feature["attributes"]
+          attributes = feature.fetch "attributes", {}
 
           attributes.each do |name, value|
             attributes[name] = case

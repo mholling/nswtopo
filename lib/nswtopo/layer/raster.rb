@@ -30,7 +30,6 @@ module NSWTopo
     def size_resolution
       json = OS.gdalinfo "-json", "/vsistdin/" do |stdin|
         stdin.write @map.read(filename)
-      rescue Errno::EPIPE # gdalinfo only reads the TIFF header
       end
       size, geotransform = JSON.parse(json).values_at "size", "geoTransform"
       resolution = geotransform.values_at(1, 2).norm

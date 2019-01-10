@@ -50,8 +50,12 @@ module NSWTopo
       OS.const_get(package).each do |command|
         define_singleton_method command do |*args, &block|
           Open3.popen3 command, *args.map(&:to_s) do |stdin, stdout, stderr, thread|
-            block.call(stdin) if block
-            stdin.close
+            begin
+              block.call(stdin) if block
+            rescue Errno::EPIPE
+            ensure
+              stdin.close
+            end
             out = Thread.new { stdout.read }
             err = Thread.new { stderr.read }
             raise Error, "#{command}: #{err.value.empty? ? out.value : err.value}" unless thread.value.success?

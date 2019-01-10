@@ -18,15 +18,15 @@ module NSWTopo
     extend Forwardable
     delegate [ :write, :mtime, :delete, :read, :uptodate? ] => :@archive
 
-    def self.init(archive, config, options)
+    def self.init(archive, config, scale:, rotation:, bounds: nil, coords: nil, dimensions: nil, margins: nil)
       wgs84_points = case
-      when options[:coords] && options[:bounds]
+      when coords && bounds
         raise "can't specify both bounds file and map coordinates"
-      when options[:coords]
-        options[:coords]
-      when options[:bounds]
-        gps = GPS.load options[:bounds]
-        options[:margins] ||= [ 15, 15 ] unless options[:dimensions] || gps.polygons.any?
+      when coords
+        coords
+      when bounds
+        gps = GPS.load bounds
+        margins ||= [ 15, 15 ] unless dimensions || gps.polygons.any?
         case
         when gps.polygons.any?
           gps.polygons.map(&:coordinates).flatten(1).inject(&:+)
@@ -35,7 +35,7 @@ module NSWTopo
         when gps.points.any?
           gps.points.map(&:coordinates)
         else
-          raise "no features found in %s" % options[:bounds]
+          raise "no features found in %s" % bounds
         end
       else
         raise "no bounds file or map coordinates specified"
@@ -44,30 +44,30 @@ module NSWTopo
       wgs84_centre = wgs84_points.transpose.map(&:minmax).map(&:sum).times(0.5)
       projection = Projection.azimuthal_equidistant *wgs84_centre
 
-      case options[:rotation]
+      case rotation
       when "auto"
-        raise "can't specify both map dimensions and auto-rotation" if options[:dimensions]
-        coords = GeoJSON.multipoint(wgs84_points).reproject_to(projection).coordinates
-        centre, extents, rotation = coords.minimum_bounding_box
+        raise "can't specify both map dimensions and auto-rotation" if dimensions
+        points = GeoJSON.multipoint(wgs84_points).reproject_to(projection).coordinates
+        centre, extents, rotation = points.minimum_bounding_box
         rotation *= 180.0 / Math::PI
       when "magnetic"
         rotation = -declination(*wgs84_centre)
       else
-        rotation = -options[:rotation]
+        rotation = -rotation
         raise "map rotation must be between ±45°" unless rotation.abs <= 45
       end
 
       case
       when centre
-      when options[:dimensions]
-        raise "can't specify both margins and map dimensions" if options[:margins]
-        extents = options[:dimensions].map do |dimension|
-          dimension * 0.001 * options[:scale]
+      when dimensions
+        raise "can't specify both margins and map dimensions" if margins
+        extents = dimensions.map do |dimension|
+          dimension * 0.001 * scale
         end
         centre = GeoJSON.point(wgs84_centre).reproject_to(projection).coordinates
       else
-        coords = GeoJSON.multipoint(wgs84_points).reproject_to(projection).coordinates
-        centre, extents = coords.map do |point|
+        points = GeoJSON.multipoint(wgs84_points).reproject_to(projection).coordinates
+        centre, extents = points.map do |point|
           point.rotate_by_degrees(-rotation)
         end.transpose.map(&:minmax).map do |min, max|
           [ 0.5 * (max + min), max - min ]
@@ -78,19 +78,19 @@ module NSWTopo
       wgs84_centre = GeoJSON.point(centre, projection).reproject_to_wgs84.coordinates
       projection = Projection.transverse_mercator *wgs84_centre
 
-      extents = extents.zip(options[:margins]).map do |extent, margin|
-        extent + 2 * margin * 0.001 * options[:scale]
-      end if options[:margins]
+      extents = extents.zip(margins).map do |extent, margin|
+        extent + 2 * margin * 0.001 * scale
+      end if margins
 
       case
       when extents.all?(&:positive?)
-      when options[:coords]
+      when coords
         raise "not enough information to calculate map size – add more coordinates, or specify map dimensions or margins"
-      when options[:bounds]
+      when bounds
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new(archive, config, proj4: projection.proj4, scale: options[:scale], centre: [ 0, 0 ], extents: extents, rotation: rotation).save
+      new(archive, config, proj4: projection.proj4, scale: scale, centre: [ 0, 0 ], extents: extents, rotation: rotation).save
     rescue GPS::BadFile => error
       raise "invalid bounds file #{error.message}"
     end

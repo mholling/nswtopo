@@ -9,22 +9,21 @@ module NSWTopo
         case args
         when Hash then args.transform_keys(&:to_sym)
         when String then { source: args }
-        else raise "#{@name}: invalid or no features specified"
+        else raise "#{@source}: invalid or no features specified"
         end
       end.slice_before do |args|
         !args[:fallback]
       end.map do |fallbacks|
-        options, collection, error = fallbacks.inject [ {}, nil, nil ] do |(options, *), args|
-          warn "\r\e[K#{@name}: failed to retrieve features, trying fallback source" if args[:fallback]
-          break options.merge!(args), case source = args.delete(:source)
-          when ArcGISServer
-            arcgis_layer source, margin: MARGIN, **options.slice(:where, :layer, :per_page) do |index, total|
-              print "\r\e[K#{@name}: retrieved #{index} of #{total} features"
-            end
-          when Shapefile
-            shapefile_layer source, margin: MARGIN, **options.slice(:where, :layer)
-          else raise "#{@name}: invalid feature source: #{source}"
-          end
+        options, collection, error = fallbacks.inject [ {}, nil, nil ] do |(options, *), source: nil, fallback: false, **args|
+          warn "\r\e[K#{@name}: failed to retrieve features, trying fallback source" if fallback
+          raise "#{@source}: no feature source defined" unless source
+          options.merge! args
+          break options, arcgis_layer(source, margin: MARGIN, **options.slice(:where, :layer, :per_page)) do |index, total|
+            print "\r\e[K#{@name}: retrieved #{index} of #{total} features"
+          end if ArcGISServer === source
+          source_path = Pathname(source).expand_path(@source.parent)
+          break options, shapefile_layer(source_path, margin: MARGIN, **options.slice(:where, :sql, :layer)) if Shapefile === source_path
+          raise "#{@source}: invalid feature source: #{source}"
         rescue ArcGISServer::Error => error
           next options, nil, error
         end

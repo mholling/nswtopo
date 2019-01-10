@@ -9,6 +9,7 @@ module NSWTopo
     CLASSES = TYPES.map do |type|
       klass = Class.new do
         def initialize(coordinates, properties = {})
+          properties ||= {}
           raise Error, "invalid feature properties" unless Hash === properties
           @coordinates, @properties = coordinates, properties
         end
@@ -50,7 +51,8 @@ module NSWTopo
 
       def self.load(json, projection = nil)
         collection = JSON.parse(json)
-        projection ||= Projection.new(collection.dig("crs", "properties", "name") || "EPSG:4326")
+        proj4 = collection.dig "crs", "properties", "name"
+        projection ||= proj4 ? Projection.new(proj4) : Projection.wgs84
         collection["features"].map do |feature|
           geometry, properties = feature.values_at "geometry", "properties"
           type, coordinates = geometry.values_at "type", "coordinates"
@@ -78,7 +80,7 @@ module NSWTopo
         json = OS.ogr2ogr "-t_srs", projection, "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "GeoJSON:/vsistdin/" do |stdin|
           stdin.puts to_json
         end
-        GeoJSON::Collection.load json, projection
+        Collection.load json, projection
       end
 
       def reproject_to_wgs84
@@ -246,8 +248,8 @@ module NSWTopo
 
     class << self
       CLASSES.zip(TYPES).each do |klass, type|
-        define_method type.downcase do |coordinates, projection = nil, properties = {}|
-          Collection.new(*projection) << klass.new(coordinates, properties)
+        define_method type.downcase do |coordinates, projection = nil|
+          Collection.new(*projection) << klass.new(coordinates)
         end
       end
     end

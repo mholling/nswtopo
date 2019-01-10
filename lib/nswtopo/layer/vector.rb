@@ -18,17 +18,17 @@ module NSWTopo
     end
 
     def features
-      GeoJSON::Collection.load @map.read(filename)
+      @features ||= GeoJSON::Collection.load @map.read(filename)
     end
+
+    extend Forwardable
+    def_delegator :features, :none?, :empty?
 
     def drawing_features
       features.explode.reject do |feature|
         feature.properties["nodraw"]
       end
     end
-
-    extend Forwardable
-    def_delegator :features, :none?, :empty?
 
     def to_s
       count = features.count

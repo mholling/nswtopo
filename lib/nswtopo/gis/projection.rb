@@ -20,12 +20,6 @@ module NSWTopo
       proj4 == other.proj4
     end
 
-    %w[central_meridian scale_factor].each do |parameter|
-      define_method parameter do
-        /PARAMETER\["#{parameter}",([\d\.]+)\]/.match(wkt) { |match| match[1].to_f }
-      end
-    end
-
     def self.utm(zone, south = true)
       new("+proj=utm +zone=#{zone}#{' +south' if south} +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
     end

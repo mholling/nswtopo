@@ -29,14 +29,14 @@ module NSWTopo
         vrt_path = temp_dir / "dem.vrt"
 
         # TODO: handle multiple projections, as per Vegetation layer?
-        raise Error, "no elevation data found at specified path" if @paths.none?
+        raise "no elevation data found at specified path" if @paths.none?
         txt_path.write @paths.join(?\n)
         OS.gdalbuildvrt "-input_file_list", txt_path, vrt_path
         OS.gdalwarp "-t_srs", @map.projection, "-te", *bounds.transpose.flatten, "-tr", @resolution, @resolution, "-r", "bilinear", vrt_path, dem_path
 
       when @contours
         collection = @contours.map do |url_or_path, attribute|
-          raise Error, "no elevation attribute specified for #{url_or_path}" unless attribute
+          raise "no elevation attribute specified for #{url_or_path}" unless attribute
           case url_or_path
           when ArcGISServer
             arcgis_layer url_or_path, margin: margin do |index, total|
@@ -49,7 +49,7 @@ module NSWTopo
           # when Shapefile
             # TODO: add contour importing from shapefile path + layer name
           else
-            raise Error, "not implemented"
+            raise "unrecognised elevation data source: #{url_or_path}"
           end.reproject_to(@map.projection)
         end.inject(&:merge)
 

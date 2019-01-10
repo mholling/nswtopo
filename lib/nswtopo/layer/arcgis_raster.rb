@@ -2,10 +2,9 @@ module NSWTopo
   module ArcGISRaster
     include Raster
     CREATE = %w[resolution url]
-    Error = Class.new RuntimeError
 
     def get_raster(temp_dir)
-      raise Error, "no resolution specified for #{@name}" unless Numeric === @resolution
+      raise "no resolution specified for #{@name}" unless Numeric === @resolution
       txt_path = temp_dir / "mosaic.txt"
       vrt_path = temp_dir / "mosaic.vrt"
 
@@ -14,7 +13,7 @@ module NSWTopo
         target_bbox = local_bbox.reproject_to projection
         target_resolution = @resolution * Math::sqrt(target_bbox.first.area / local_bbox.first.area)
 
-        raise Error, "not a tiled map or image server: #{@url}" unless tile_info = service["tileInfo"]
+        raise "not a tiled map or image server: #{@url}" unless tile_info = service["tileInfo"]
         lods = tile_info["lods"]
         origin = tile_info["origin"].values_at "x", "y"
         tile_sizes = tile_info.values_at "cols", "rows"

@@ -1,9 +1,6 @@
 module NSWTopo
   module GeoJSON
     Error = Class.new StandardError
-    NotImplemented = Class.new Error
-    ParserError = Class.new Error
-
     TYPES = Set.new %W[Point MultiPoint LineString MultiLineString Polygon MultiPolygon]
 
     CLASSES = TYPES.map do |type|
@@ -56,13 +53,13 @@ module NSWTopo
         collection["features"].map do |feature|
           geometry, properties = feature.values_at "geometry", "properties"
           type, coordinates = geometry.values_at "type", "coordinates"
-          raise NotImplemented, type unless TYPES === type
+          raise Error, "unsupported geometry type: #{type}" unless TYPES === type
           GeoJSON.const_get(type).new coordinates, properties
         end.yield_self do |features|
           new projection, features
         end
       rescue JSON::ParserError
-        raise ParserError
+        raise Error, "invalid GeoJSON data"
       end
 
       def <<(feature)

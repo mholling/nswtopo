@@ -5,8 +5,6 @@ module NSWTopo
     SERVICE = /^(?:MapServer|FeatureServer|ImageServer)$/
 
     class Connection
-      Error = Class.new ArcGISServer::Error
-
       def initialize(http, service_path)
         @http, @service_path, @headers = http, service_path, { "User-Agent" => "Ruby/#{RUBY_VERSION}", "Referer" => "%s://%s" % [ http.use_ssl? ? "https" : "http", http.address ] }
         http.max_retries = 0
@@ -131,7 +129,7 @@ module NSWTopo
             yield total - object_ids.length, total if block_given? && total > 0
             yielder << begin
               connection.get_json query_path, outFields: ?*, objectIds: object_ids.take(per_page).join(?,)
-            rescue Connection::Error => error
+            rescue Error => error
               (per_page /= 2) > 0 ? retry : raise(error)
             end
             object_ids.shift per_page
@@ -174,7 +172,7 @@ module NSWTopo
             next GeoJSON::Polygon.new rings, attributes if rings.one?
             next GeoJSON::MultiPolygon.new rings.slice_before(&:anticlockwise?).to_a, attributes
           else
-            raise Error, "unsupported geometry type: #{geometry_type}"
+            raise Error, "unsupported ArcGIS geometry type: #{geometry_type}"
           end
         end.compact
 

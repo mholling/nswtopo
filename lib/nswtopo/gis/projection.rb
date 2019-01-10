@@ -1,14 +1,12 @@
 module NSWTopo
   class Projection
     def initialize(string_or_path)
-      stdout, * = Open3.capture3 "gdalsrsinfo", "-o", "proj4", string_or_path.to_s
-      @proj4 = stdout.chomp.strip
+      @proj4 = OS.gdalsrsinfo("-o", "proj4", string_or_path).chomp.strip
     end
 
     %w[wkt wkt_simple wkt_noct wkt_esri mapinfo xml].each do |format|
       define_method format do
-        stdout, * = Open3.capture3 "gdalsrsinfo", "-o", format, @proj4
-        stdout.split(/['\r\n]+/).map(&:strip).join("")
+        OS.gdalsrsinfo("-o", format, @proj4).split(/['\r\n]+/).map(&:strip).join("")
       end
     end
 

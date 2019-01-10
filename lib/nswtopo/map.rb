@@ -91,8 +91,6 @@ module NSWTopo
       end
 
       new(archive, config, proj4: projection.proj4, scale: scale, centre: [ 0, 0 ], extents: extents, rotation: rotation).save
-    rescue GPS::BadFile => error
-      raise "invalid bounds file #{error.message}"
     end
 
     def self.load(archive, config)

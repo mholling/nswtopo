@@ -1,10 +1,8 @@
 module NSWTopo
   module GPS
-    BadFile = Class.new StandardError
-
     def self.load(path)
       xml = REXML::Document.new(path.read)
-      raise BadFile, path.to_s unless xml.elements["/gpx|/kml"]
+      raise "invalid GPX or KML file: #{path}" unless xml.elements["/gpx|/kml"]
       GeoJSON::Collection.new.tap do |collection|
         xml.elements.each "/gpx//wpt" do |waypoint|
           coords = [ "lon", "lat" ].map { |name| waypoint.attributes[name].to_f }
@@ -37,8 +35,10 @@ module NSWTopo
           collection.add_polygon [ coords ], "name" => name
         end
       end
-    rescue REXML::ParseException, Errno::ENOENT
-      raise BadFile, path
+    rescue Errno::ENOENT
+      raise "no such file: #{path}"
+    rescue REXML::ParseException
+      raise "invalid GPX or KML file: #{path}"
     end
   end
 end

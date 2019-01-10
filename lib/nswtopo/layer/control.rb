@@ -36,7 +36,6 @@ module NSWTopo
     YAML
 
     def get_features
-      raise "no such file: #{@path}" unless @path.exist?
       points, controls = GPS.load(@path).points, GeoJSON::Collection.new
       [ [  "control",   /\AW?(\d\d\d?)\z/ ],
         [  "hashhouse", /\A(HH)\z/        ],
@@ -51,8 +50,6 @@ module NSWTopo
         end
       end
       controls
-    rescue GPS::BadFile => error
-      raise "not a valid GPX or KML file: #{error.message}"
     end
 
     def to_s

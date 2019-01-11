@@ -20,7 +20,7 @@ module NSWTopo
           path:
             d: M 2.4749 2.4749 L -2.4749 2.4749 L -2.4749 -2.4749 L 2.4749 -2.4749 Z
             fill: none
-      water:
+      waterdrop:
         stroke: blue
         symbol:
           path:
@@ -37,10 +37,10 @@ module NSWTopo
 
     def get_features
       points, controls = GPS.load(@path).points, GeoJSON::Collection.new
-      [ [  "control",   /\AW?(\d\d\d?)\z/ ],
-        [  "hashhouse", /\A(HH)\z/        ],
-        [  "anc",       /\A(ANC)\z/       ],
-        [  "waterdrop", /\AW\s\s\s?\z/    ],
+      [ [  "control",   /^(1?\d\d)W?$/  ],
+        [  "hashhouse", /^(HH)$/        ],
+        [  "anc",       /^(ANC)$/       ],
+        [  "waterdrop", /^1?\d\dW$|^W$/ ],
       ].each do |type, selector|
         points.each do |point|
           name = point.properties["name"]

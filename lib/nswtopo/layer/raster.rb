@@ -15,7 +15,7 @@ module NSWTopo
         OS.convert "-size", dimensions.join(?x), "canvas:none", "-type", "TrueColorMatte", "-depth", 8, tif_path
         OS.gdalwarp "-t_srs", @map.projection, "-r", "bilinear", raster_path, tif_path
         OS.gdal_translate "-a_srs", @map.projection, *tiff_tags, tif_path, out_path
-        @map.write filename, out_path.read
+        @map.write filename, out_path.binread
       end
     end
 
@@ -29,6 +29,7 @@ module NSWTopo
 
     def size_resolution
       json = OS.gdalinfo "-json", "/vsistdin/" do |stdin|
+        stdin.binmode
         stdin.write @map.read(filename)
       end
       size, geotransform = JSON.parse(json).values_at "size", "geoTransform"
@@ -50,9 +51,9 @@ module NSWTopo
       png = Dir.mktmppath do |temp_dir|
         tif_path = temp_dir / "raster.tif"
         png_path = temp_dir / "raster.png"
-        tif_path.write @map.read(filename)
+        tif_path.binwrite @map.read(filename)
         OS.gdal_translate "-of", "PNG", "-co", "ZLEVEL=9", tif_path, png_path
-        png_path.read
+        png_path.binread
       end
       href = "data:image/png;base64,#{Base64.encode64 png}"
       group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "xlink:href" => href

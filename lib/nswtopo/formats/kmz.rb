@@ -117,11 +117,10 @@ module NSWTopo
           crop = "%ix%i+%i+%s" % [ Kmz::TILE_SIZE, Kmz::TILE_SIZE, indices[0] * Kmz::TILE_SIZE, indices[1] * Kmz::TILE_SIZE ]
           [ tif_path, "-quiet", "+repage", "-crop", crop, "+repage", "+dither", "-type", "PaletteBilevelMatte", "PNG8:#{tile_png_path}" ]
         end
-      end.flatten(1).tap do |args_list|
-        args_list.each.with_index do |args, index|
-          print "\r\e[Kkmz: creating tiles: %i of %i" % [ index + 1, args_list.length ]
-          OS.convert *args
-        end.tap { puts }
+      end.flatten(1).tap do |tiles|
+        puts "kmz: creating %i tiles" % tiles.length
+      end.each.in_parallel do |args|
+        OS.convert *args
       end
 
       xml = REXML::Document.new

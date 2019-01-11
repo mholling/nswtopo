@@ -33,8 +33,10 @@ module NSWTopo
 
         next collection.reproject_to(@map.projection), options
       end.each do |collection, options|
-        rotation_key = %i[rotation rotation-arithmetic rotation-geographic].find &options.method(:key?)
-        rotation_attribute = options[rotation_key] if rotation_key
+        rotation_attribute, arithmetic = case options[:rotation]
+        when /^90 - (\w+)$/ then [ $1, true ]
+        when String then options[:rotation]
+        end
 
         collection.each do |feature|
           categories = [ *options[:category] ].map do |category|
@@ -64,11 +66,7 @@ module NSWTopo
               0.0
             end
             categories << (value.zero? ? "unrotated" : "rotated")
-            case rotation_key.to_s
-            when "rotation-arithmetic" then 90 - value
-            when "rotation-geographic" then value
-            when "rotation"            then value
-            end
+            arithmetic ? 90 - value : value
           end if rotation_attribute
 
           labels = [ *options[:label] ].map do |attribute|

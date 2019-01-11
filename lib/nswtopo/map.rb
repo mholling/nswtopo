@@ -10,7 +10,7 @@ module NSWTopo
       @projection = Projection.new proj4
       ox, oy = bounding_box.coordinates[0][3]
       @affine = [ [ 1, 0 ], [ 0, -1 ], [ -ox, oy ] ].map do |vector|
-        vector.rotate_by_degrees(@rotation).times(1000.0 / @scale)
+        vector.rotate_by_degrees(-@rotation).times(1000.0 / @scale)
       end.transpose
     end
     attr_reader :projection, :scale, :centre, :extents, :rotation
@@ -49,11 +49,10 @@ module NSWTopo
         raise "can't specify both map dimensions and auto-rotation" if dimensions
         points = GeoJSON.multipoint(wgs84_points).reproject_to(projection).coordinates
         centre, extents, rotation = points.minimum_bounding_box
-        rotation *= 180.0 / Math::PI
+        rotation *= -180.0 / Math::PI
       when "magnetic"
-        rotation = -declination(*wgs84_centre)
+        rotation = declination(*wgs84_centre)
       else
-        rotation = -rotation
         raise "map rotation must be between ±45°" unless rotation.abs <= 45
       end
 
@@ -68,11 +67,11 @@ module NSWTopo
       else
         points = GeoJSON.multipoint(wgs84_points).reproject_to(projection).coordinates
         centre, extents = points.map do |point|
-          point.rotate_by_degrees(-rotation)
+          point.rotate_by_degrees rotation
         end.transpose.map(&:minmax).map do |min, max|
           [ 0.5 * (max + min), max - min ]
         end.transpose
-        centre.rotate_by_degrees!(rotation)
+        centre.rotate_by_degrees! -rotation
       end
 
       wgs84_centre = GeoJSON.point(centre, projection).reproject_to_wgs84.coordinates
@@ -122,7 +121,7 @@ module NSWTopo
       ring = @extents.map do |extent|
         [ -0.5 * extent - margin, 0.5 * extent + margin ]
       end.inject(&:product).map do |offset|
-        @centre.plus offset.rotate_by_degrees(@rotation)
+        @centre.plus offset.rotate_by_degrees(-@rotation)
       end.values_at(0,2,3,1,0)
       GeoJSON.polygon [ ring ], projection
     end
@@ -140,7 +139,7 @@ module NSWTopo
     def write_world_file(path, resolution: nil, ppi: nil)
       resolution ||= 0.0254 * @scale / ppi
       top_left = bounding_box.coordinates[0][3]
-      WorldFile.write top_left, resolution, @rotation, path
+      WorldFile.write top_left, resolution, -@rotation, path
     end
 
     def coords_to_mm(point)
@@ -234,7 +233,7 @@ module NSWTopo
         io.puts "%-9s %imm × %imm" %     [ "size:",     *@extents.times(1000.0 / @scale) ]
         io.puts "%-9s %.1fkm × %.1fkm" % [ "extent:",   *@extents.times(0.001) ]
         io.puts "%-9s %.1fkm²" %         [ "area:",     @extents.inject(&:*) * 0.000001 ]
-        io.puts "%-9s %.1f°" %           [ "rotation:", 0.0 - @rotation ]
+        io.puts "%-9s %.1f°" %           [ "rotation:", @rotation ]
         layers.reject(&empty ? :nil? : :empty?).inject("layers:") do |heading, layer|
           io.puts "%-9s %s" % [ heading, layer ]
           nil

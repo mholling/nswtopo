@@ -132,7 +132,7 @@ module NSWTopo
             range_x = @extents.first / 2.0 / Math::tan(Kmz::FOV) / Math::cos(Kmz::TILT)
             range_y = @extents.last / Math::cos(Kmz::FOV - Kmz::TILT) / 2 / (Math::tan(Kmz::FOV - Kmz::TILT) + Math::sin(Kmz::TILT))
             names_values = [ %w[longitude latitude], wgs84_centre ].transpose
-            names_values << [ "tilt", Kmz::TILT * 180.0 / Math::PI ] << [ "range", 1.2 * [ range_x, range_y ].max ] << [ "heading", -@rotation ]
+            names_values << [ "tilt", Kmz::TILT * 180.0 / Math::PI ] << [ "range", 1.2 * [ range_x, range_y ].max ] << [ "heading", @rotation ]
             names_values.each { |name, value| look_at.add_element(name).text = value }
           end
           document.add_element("Name").text = name

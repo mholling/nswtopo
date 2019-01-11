@@ -113,7 +113,7 @@ begin
   command_parser = OptionParser.new do |parser|
     case command
     when "init"
-      options.merge! scale: 25000, rotation: -0.0
+      options.merge! scale: 25000, rotation: 0.0
       parser.banner = <<~EOF
         nswtopo init - initialise map bounds and scale
         usage: nswtopo init [options] <map.tgz>

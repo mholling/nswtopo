@@ -32,7 +32,7 @@ module NSWTopo
         (-i_max .. i_max).reject(&j.even? ? :even? : :odd?).map do |i|
           [ x, i * row_spacing ].rotate_by_degrees(-declination).plus(@map.centre)
         end.each do |coordinates|
-          collection.add_point coordinates, "angle" => declination
+          collection.add_point coordinates, "rotation" => declination
         end
       end
       collection

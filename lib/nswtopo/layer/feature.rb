@@ -33,6 +33,9 @@ module NSWTopo
 
         next collection.reproject_to(@map.projection), options
       end.each do |collection, options|
+        rotation_key = %i[rotation rotation-arithmetic rotation-geographic].find &options.method(:key?)
+        rotation_attribute = options[rotation_key] if rotation_key
+
         collection.each do |feature|
           categories = [ *options[:category] ].map do |category|
             Hash === category ? [ *category ] : [ category ]
@@ -53,18 +56,20 @@ module NSWTopo
             end
           end if options[:sizes]
 
-          angle = options[:rotation].yield_self do |attribute, sense|
-            case feature
-            when GeoJSON::Point, GeoJSON::MultiPoint
-              value = begin
-                Float feature.properties.fetch(attribute)
-              rescue KeyError, TypeError, ArgumentError
-                0.0
-              end
-              categories << "no-angle" if value.zero?
-              "arithmetic" == sense ? value : 90 - value
+          rotation = case feature
+          when GeoJSON::Point, GeoJSON::MultiPoint
+            value = begin
+              Float feature.properties.fetch(rotation_attribute)
+            rescue KeyError, TypeError, ArgumentError
+              0.0
             end
-          end if options[:rotation]
+            categories << (value.zero? ? "unrotated" : "rotated")
+            case rotation_key.to_s
+            when "rotation-arithmetic" then 90 - value
+            when "rotation-geographic" then value
+            when "rotation"            then value
+            end
+          end if rotation_attribute
 
           labels = [ *options[:label] ].map do |attribute|
             feature.properties.fetch(attribute, attribute)
@@ -75,7 +80,7 @@ module NSWTopo
           properties["labels"] = labels if labels.any?
           properties["nodraw"] = true if options[:nodraw]
           properties["nodraw"] = true if /-labels$/ === @name
-          properties["angle"] = angle if angle
+          properties["rotation"] = rotation if rotation
 
           feature.properties.replace properties
         end

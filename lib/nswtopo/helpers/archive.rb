@@ -64,9 +64,13 @@ module NSWTopo
         end
       end
 
-      safely "nswtopo: saving map file, please wait..." do
-        Zlib::GzipWriter.open(out_path, Zlib::BEST_COMPRESSION) do |gzip|
+      Dir.mktmppath do |temp_dir|
+        temp_path = temp_dir / "temp.tgz"
+        Zlib::GzipWriter.open(temp_path, Zlib::BEST_COMPRESSION) do |gzip|
           gzip.write buffer.string
+        end
+        safely "nswtopo: saving map file, please wait..." do
+          FileUtils.cp temp_path, out_path
         end
       end unless buffer.size.zero?
 

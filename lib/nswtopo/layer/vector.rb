@@ -26,7 +26,7 @@ module NSWTopo
 
     def drawing_features
       features.explode.reject do |feature|
-        feature.properties["nodraw"]
+        feature.properties["draw"] == false
       end
     end
 

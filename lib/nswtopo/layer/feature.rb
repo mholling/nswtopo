@@ -78,8 +78,8 @@ module NSWTopo
           categories, properties = categories.map(&:to_s).reject(&:empty?).map(&:to_category), {}
           properties["categories"] = categories if categories.any?
           properties["labels"] = labels if labels.any?
-          properties["nodraw"] = true if options[:nodraw]
-          properties["nodraw"] = true if /-labels$/ === @name
+          properties["draw"] = false if options[:draw] == false
+          properties["draw"] = false if /-labels$/ === @name
           properties["rotation"] = rotation if rotation
 
           feature.properties.replace properties

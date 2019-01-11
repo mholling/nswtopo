@@ -1,26 +1,16 @@
 module InParallel
   CORES = Etc.nprocessors rescue 1
 
-  def in_parallel
-    processes = Set.new
-    begin
-      begin
-        pid = Timeout.timeout(60) { Process.wait }
-        processes.delete pid
-      rescue Timeout::Error
-      end if processes.any?
-      begin
-        while processes.length < CORES
-          element = self.next
-          processes << Process.fork do
-            yield element
-          rescue Interrupt
-          end
-        end
-      rescue StopIteration
+  def in_parallel(&block)
+    inject [] do |threads, element|
+      while threads.length == CORES
+        sleep 1
+        threads, finished = threads.partition(&:alive?)
+        finished.each(&:join)
       end
-    end while processes.any?
-    rewind
+      threads << Thread.new(element, &block)
+    end.each(&:join)
+    self
   end
 
   def in_parallel_groups(&block)

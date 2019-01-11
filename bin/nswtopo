@@ -240,7 +240,7 @@ begin
   begin
     in_path = case command
     when "init"
-      raise "#{tgz_path} already exists" if tgz_path.exist? && !options.delete(:overwrite)
+      raise "#{tgz_path} already exists" if !options.delete(:overwrite) && tgz_path.exist?
     else
       raise "no such file #{tgz_path}" unless tgz_path.exist?
       raise "#{tgz_path} is not a file" unless tgz_path.file?

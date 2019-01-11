@@ -25,7 +25,6 @@ begin
 
   Thread::report_on_exception = false
 
-  NSWTOPO_VERSION = "2.0.0"
   GDAL_VERSION = begin
     stdout, * = Open3.capture3 "gdal-config", "--version"
     stdout.chomp
@@ -98,7 +97,7 @@ begin
       config_paths << path
     end
     parser.on "-v", "--version", "show version information" do
-      puts NSWTOPO_VERSION
+      puts NSWTopo::VERSION
       exit
     end
     parser.on "-h", "--help", "show this help" do

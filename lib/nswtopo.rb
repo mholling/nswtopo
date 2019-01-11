@@ -32,6 +32,7 @@ require_relative 'nswtopo/gis'
 require_relative 'nswtopo/formats'
 require_relative 'nswtopo/map'
 require_relative 'nswtopo/layer'
+require_relative 'nswtopo/version'
 
 module NSWTopo
   PartialFailureError = Class.new RuntimeError

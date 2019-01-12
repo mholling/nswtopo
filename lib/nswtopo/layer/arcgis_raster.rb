@@ -1,7 +1,7 @@
 module NSWTopo
   module ArcGISRaster
     include Raster
-    CREATE = %w[resolution url]
+    CREATE = %w[url]
 
     def get_raster(temp_dir)
       raise "no resolution specified for #{@name}" unless Numeric === @resolution

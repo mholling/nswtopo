@@ -16,8 +16,6 @@ module NSWTopo
     TYPES = Set[Vegetation, Import, ArcGISRaster, Feature, Relief, Overlay, Grid, Declination, Control]
 
     def initialize(name, map, params)
-      @name, @map, @source, @path = Layer.sanitise(name), map, params.delete("source"), params.delete("path")
-
       @type = begin
         NSWTopo.const_get params["type"]
       rescue NameError, TypeError
@@ -27,6 +25,7 @@ module NSWTopo
       extend @type
 
       @params = @type.const_defined?(:DEFAULTS) ? @type.const_get(:DEFAULTS).transform_keys(&:to_s).merge(params) : params
+      @name, @map, @source, @path, @resolution = Layer.sanitise(name), map, @params.delete("source"), @params.delete("path"), @params.delete("resolution")
 
       @type.const_get(:CREATE).map(&:to_s).each do |attr|
         instance_variable_set ?@ + attr, @params.delete(attr)

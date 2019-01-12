@@ -1,7 +1,7 @@
 module NSWTopo
   module Relief
     include Raster, ArcGISServer
-    CREATE = %w[altitude azimuth exaggeration lightsources highlights sigma median bilateral resolution contours]
+    CREATE = %w[altitude azimuth exaggeration lightsources highlights sigma median bilateral contours]
     DEFAULTS = YAML.load <<~YAML
       altitude: 45
       azimuth: 315

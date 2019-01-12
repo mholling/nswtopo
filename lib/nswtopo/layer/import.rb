@@ -1,7 +1,6 @@
 module NSWTopo
   module Import
     include Raster
-    CREATE = %w[resolution]
 
     def get_raster(temp_dir)
       crop_path = temp_dir / "crop.tif"

@@ -1,7 +1,7 @@
 module NSWTopo
   module Vegetation
     include Raster
-    CREATE = %w[mapping contrast colour resolution]
+    CREATE = %w[mapping contrast colour]
 
     def get_raster(temp_dir)
       txt_path = temp_dir / "source.txt"
@@ -10,7 +10,6 @@ module NSWTopo
       min, max = minmax = @mapping&.values_at("min", "max")
       low, high, factor = { "low" => 0, "high" => 100, "factor" => 0.0 }.merge(@contrast || {}).values_at "low", "high", "factor"
       woody, nonwoody = { "woody" => "#A6F1A6", "non-woody" => "#FFFFFF" }.merge(@colour || {}).values_at("woody", "non-woody").map { |string| Colour.new string }
-      # resolution = params["resolution"] if Numeric === params["resolution"]
 
       colour_table = (0..255).map do |index|
         case

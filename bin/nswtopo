@@ -149,27 +149,26 @@ begin
       parser.on "-q", "--quiet",                                   "don't report progress"
 
     when "grid"
-      options.merge! interval: 1000.0
       parser.banner = <<~EOF
         nswtopo grid - add UTM grid layer
         usage: nswtopo grid [options] <map.tgz>
         options:
       EOF
-      parser.on "-i", "--interval  <interval>", PositiveFloat, "interval between grid lines in metres (default %i)" % options[:interval]
+      parser.on "-i", "--interval  <interval>", PositiveFloat, "interval between grid lines in metres (default %i)" % NSWTopo::Grid::DEFAULTS["interval"]
       parser.on "-p", "--period    <period>",   PositiveInt,   "use periodic grid labeling instead of edge labeling,",
                                                                "with labels every specified number of grid lines"
 
     when "declination"
-      options.merge! spacing: 40.0, offset: 0.0, arrows: 160.0
       parser.banner = <<~EOF
         nswtopo declination - add magnetic declination layer
         usage: nswtopo declination [options] <map.tgz>
         options:
       EOF
-      parser.on "-a", "--angle    <angle>",   Float,         "magnetic declination in clockwise degrees", "(calculated automatically by default)"
-      parser.on "-i", "--spacing  <spacing>", PositiveFloat, "spacing of declination lines in mm (default %i)" % options[:spacing]
+      parser.on "-a", "--angle    <angle>",   Float,         "magnetic declination in clockwise degrees",
+                                                             "(calculated automatically by default)"
+      parser.on "-i", "--spacing  <spacing>", PositiveFloat, "spacing of declination lines in mm (default %i)" % NSWTopo::Declination::DEFAULTS["spacing"]
       parser.on "-o", "--offset   <offset>",  Float,         "horizontal offset of declination lines in mm"
-      parser.on "-r", "--arrows   <arrows>",  PositiveFloat, "spacing of directional arrows in mm (default %i)" % options[:arrows]
+      parser.on "-r", "--arrows   <arrows>",  PositiveFloat, "spacing of directional arrows in mm (default %i)" % NSWTopo::Declination::DEFAULTS["arrows"]
 
     # TODO: rename to "delete"
     when "remove"

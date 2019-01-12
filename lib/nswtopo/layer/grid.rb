@@ -1,8 +1,9 @@
 module NSWTopo
   module Grid
     include Vector
-    CREATE = %w[interval]
+    CREATE = %w[interval period]
     DEFAULTS = YAML.load <<~YAML
+      interval: 1000.0
       stroke: black
       stroke-width: 0.1
       boundary:

@@ -3,6 +3,9 @@ module NSWTopo
     include Vector
     CREATE = %w[angle spacing arrows offset]
     DEFAULTS = YAML.load <<~YAML
+      spacing: 40.0
+      offset: 0.0
+      arrows: 160.0
       stroke: darkred
       stroke-width: 0.1
       symbol:

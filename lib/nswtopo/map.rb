@@ -1,7 +1,4 @@
 module NSWTopo
-  DEFAULT_PPI = 300
-  DEFAULT_ZOOM = 16
-
   class Map
     include Formats, Dither, Safely
 
@@ -265,8 +262,7 @@ module NSWTopo
           ext = path.extname.delete_prefix ?.
           name = path.basename(path.extname)
           out_path = temp_dir / "output.#{index}.#{ext}"
-          defaults = %w[png tif jpg kmz zip].include?(ext) ? { ppi: DEFAULT_PPI } : "mbtiles" == ext ? { zoom: DEFAULT_ZOOM } : { }
-          send "render_#{ext}", temp_dir, out_path, name: name, **defaults, **options do |dither: false, **opts|
+          send "render_#{ext}", temp_dir, out_path, name: name, **options do |dither: false, **opts|
             (dither ? dithers : rasters)[opts]
           end
           next out_path, path

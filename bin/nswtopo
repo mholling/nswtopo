@@ -184,8 +184,8 @@ begin
         formats: #{NSWTopo::Formats.extensions.sort.join ?\s}
         options:
       EOF
-      parser.on "-p", "--ppi        <ppi>", PositiveInt, "resolution for raster formats in pixels per inch (default %i)" % NSWTopo::DEFAULT_PPI
-      parser.on "-z", "--zoom       <zoom>", Integer,    "maximum zoom level for mbtiles format (default %i)" % NSWTopo::DEFAULT_ZOOM
+      parser.on "-p", "--ppi        <ppi>", PositiveInt, "resolution for raster formats in pixels per inch (default %i)" % NSWTopo::Formats::PPI
+      parser.on "-z", "--zoom       <zoom>", Integer,    "maximum zoom level for mbtiles format (default %i)" % NSWTopo::Formats::Mbtiles::ZOOM
       parser.on "-d", "--dither",                        "save raster in indexed colour mode with dithering"
       parser.on "-w", "--worldfile",                     "save projection (.prj) and world file (.wld) for raster formats"
       parser.on "-o", "--overwrite",                     "overwrite existing output files"

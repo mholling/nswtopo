@@ -1,10 +1,10 @@
 module NSWTopo
   module Formats
     module Mbtiles
-      RESOLUTION, ORIGIN, TILE_SIZE = 2 * 78271.516, -20037508.34, 256
+      RESOLUTION, ORIGIN, TILE_SIZE, ZOOM = 2 * 78271.516, -20037508.34, 256, 16
     end
 
-    def render_mbtiles(temp_dir, mbtiles_path, name:, zoom:, **options)
+    def render_mbtiles(temp_dir, mbtiles_path, name:, zoom: Mbtiles::ZOOM, **options)
       raise "invalid zoom outside 10-19 range: #{zoom}" unless (10..19) === zoom
 
       web_mercator_bounds = bounds(projection: Projection.new("EPSG:3857"))

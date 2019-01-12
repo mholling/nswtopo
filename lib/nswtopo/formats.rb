@@ -6,6 +6,8 @@ require_relative 'formats/pdf'
 
 module NSWTopo
   module Formats
+    PPI = 300
+
     def self.extensions
       instance_methods.grep(/^render_([a-z]+)/) { $1 }
     end
@@ -14,15 +16,15 @@ module NSWTopo
       extensions.any? ext
     end
 
-    def render_png(temp_dir, png_path, ppi:, dither: false, **options)
+    def render_png(temp_dir, png_path, ppi: PPI, dither: false, **options)
       FileUtils.cp yield(ppi: ppi, dither: dither), png_path
     end
 
-    def render_tif(temp_dir, tif_path, ppi:, dither: false, **options)
+    def render_tif(temp_dir, tif_path, ppi: PPI, dither: false, **options)
       OS.gdal_translate "-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "ZLEVEL=9", "-a_srs", @projection, yield(ppi: ppi, dither: dither), tif_path
     end
 
-    def render_jpg(temp_dir, jpg_path, ppi:, **options)
+    def render_jpg(temp_dir, jpg_path, ppi: PPI, **options)
       OS.gdal_translate "-of", "JPEG", "-co", "QUALITY=90", "-mo", "EXIF_XResolution=#{ppi}", "-mo", "EXIF_YResolution=#{ppi}", "-mo", "EXIF_ResolutionUnit=2", yield(ppi: ppi), jpg_path
     end
 

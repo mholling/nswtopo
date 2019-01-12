@@ -44,7 +44,7 @@ module NSWTopo
       end
     end
 
-    def render_kmz(temp_dir, kmz_path, name:, ppi:, **options)
+    def render_kmz(temp_dir, kmz_path, name:, ppi: PPI, **options)
       metre_resolution = 0.0254 * @scale / ppi
       degree_resolution = 180.0 * metre_resolution / Math::PI / Kmz::EARTH_RADIUS
 

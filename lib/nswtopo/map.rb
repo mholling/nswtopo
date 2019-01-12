@@ -18,7 +18,7 @@ module NSWTopo
     extend Forwardable
     delegate [ :write, :mtime, :delete, :read, :uptodate? ] => :@archive
 
-    def self.init(archive, config, scale:, rotation:, bounds: nil, coords: nil, dimensions: nil, margins: nil)
+    def self.init(archive, config, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, margins: nil)
       wgs84_points = case
       when coords && bounds
         raise "can't specify both bounds file and map coordinates"

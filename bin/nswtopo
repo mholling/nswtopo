@@ -112,13 +112,12 @@ begin
   command_parser = OptionParser.new do |parser|
     case command
     when "init"
-      options.merge! scale: 25000, rotation: 0.0
       parser.banner = <<~EOF
         nswtopo init - initialise map bounds and scale
         usage: nswtopo init [options] <map.tgz>
         options:
       EOF
-      parser.on "-s", "--scale       <scale>",        PositiveInt,  "scale of map (default %i)" % options[:scale]
+      parser.on "-s", "--scale       <scale>",        PositiveInt,  "scale of map (default 25000)"
       parser.on "-b", "--bounds      <bounds.kml>",   Pathname,     "bounds for map as KML or GPX file"
       parser.on "-c", "--coords      <x1,y1,...>",    CoordList,    "bounds for map as one or more WGS84 coordinate pairs" 
       parser.on "-d", "--dimensions  <width,height>", PositivePair, "dimensions of map in mm"

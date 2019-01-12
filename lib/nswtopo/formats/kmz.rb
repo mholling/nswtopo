@@ -119,7 +119,7 @@ module NSWTopo
         end
       end.flatten(1).tap do |tiles|
         puts "kmz: creating %i tiles" % tiles.length
-      end.each.in_parallel do |args|
+      end.each.concurrently do |args|
         OS.convert *args
       end
 

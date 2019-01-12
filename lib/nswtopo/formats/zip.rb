@@ -8,7 +8,7 @@ module NSWTopo
 
       2.downto(0).map.with_index do |level, index|
         [ level, index, ppi.to_f / 2**index ]
-      end.each.in_parallel do |level, index, ppi|
+      end.each.concurrently do |level, index, ppi|
         dimensions, ppi, resolution = raster_dimensions_at ppi: ppi
         img_path = index.zero? ? png_path : temp_dir / "#{name}.avenza.#{level}.png"
         tile_path = temp_dir.join("#{name}.avenza.tile.#{level}.%09d.png").to_s
@@ -27,7 +27,7 @@ module NSWTopo
           file << dimensions.join(?,)
         end if index == 1
       end
-      Pathname.glob(tiles_dir / "*.png").each.in_parallel_groups do |tile_paths|
+      Pathname.glob(tiles_dir / "*.png").each.concurrent_groups do |tile_paths|
         dither *tile_paths
       end
 

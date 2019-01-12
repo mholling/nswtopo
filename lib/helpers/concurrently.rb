@@ -1,7 +1,7 @@
-module InParallel
+module Concurrently
   CORES = Etc.nprocessors rescue 1
 
-  def in_parallel(&block)
+  def concurrently(threads = CORES, &block)
     inject [] do |threads, element|
       while threads.length == CORES
         sleep 1
@@ -13,11 +13,11 @@ module InParallel
     self
   end
 
-  def in_parallel_groups(&block)
+  def concurrent_groups(threads = CORES, &block)
     group_by.with_index do |item, index|
-      index % CORES
-    end.values.each.in_parallel(&block)
+      index % threads
+    end.values.each.concurrently(&block)
   end
 end
 
-Enumerator.send :include, InParallel
+Enumerator.send :include, Concurrently

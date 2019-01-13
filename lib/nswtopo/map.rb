@@ -198,15 +198,16 @@ module NSWTopo
           index = layers.index { |other| (other <=> layer) > 0 } || -1
         end
         next layers.insert(index, layer), true, layer.name, errors
-      rescue ArcGISServer::Error => error
-        warn "\r\e[K\e[31mnswtopo:\e[0m couldn't download layer: %s" % layer.name
+      rescue ArcGISServer::Error, RuntimeError => error
+        message = ArcGISServer::Error === error ? "couldn't download layer: #{layer.name}" : error.message
+        warn "\r\e[K\e[31mnswtopo:\e[0m #{message}"
         next layers, changed, follow, errors << error
       end.tap do |layers, changed, follow, errors|
         if changed
           @layers.replace Hash[layers.map(&:pair)]
           save
         end
-        raise PartialFailureError, "download failed for #{errors.length} layer#{?s unless errors.one?}" if errors.any?
+        raise PartialFailureError, "failed to create #{errors.length} layer#{?s unless errors.one?}" if errors.any?
       end
     end
 

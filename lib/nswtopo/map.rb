@@ -271,7 +271,7 @@ module NSWTopo
           next out_path, path
         end
 
-        safely NEUTRAL % "saving, please wait..." do
+        safely "saving, please wait..." do
           outputs.each do |out_path, path|
             FileUtils.cp out_path, path
             puts SUCCESS % "created %s" % path

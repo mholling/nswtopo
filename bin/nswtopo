@@ -264,7 +264,7 @@ rescue OptionParser::ParseError => error
   warn command_parser
   abort NSWTopo::FAILURE % error.message
 rescue Interrupt
-  abort NSWTopo::NEUTRAL % "interrupted"
+  abort $stderr.tty? ? "\r\e[K\e[31mnswtopo:\e[0m interrupted" : "nswtopo: interrupted"
 rescue RuntimeError => error
   abort NSWTopo::FAILURE % error.message
 end

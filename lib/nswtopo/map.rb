@@ -179,9 +179,9 @@ module NSWTopo
         index = layers.index layer unless after || before
         if overwrite || !layer.uptodate?
           layer.create
-          puts "\r\e[K\e[32mnswtopo:\e[0m created layer: %s" % layer.name
+          puts SUCCESS % "created layer: %s" % layer.name
         else
-          puts "nswtopo: keeping existing layer: %s" % layer.name
+          puts NEUTRAL % "keeping existing layer: %s" % layer.name
           next layers, changed, layer.name, errors if index
         end
         layers.delete layer
@@ -200,7 +200,7 @@ module NSWTopo
         next layers.insert(index, layer), true, layer.name, errors
       rescue ArcGISServer::Error, RuntimeError => error
         message = ArcGISServer::Error === error ? "couldn't download layer: #{layer.name}" : error.message
-        warn "\r\e[K\e[31mnswtopo:\e[0m #{message}"
+        warn FAILURE % message
         next layers, changed, follow, errors << error
       end.tap do |layers, changed, follow, errors|
         if changed
@@ -222,7 +222,7 @@ module NSWTopo
       end.each do |name|
         params = @layers.delete name
         delete Layer.new(name, self, params).filename
-        puts "\r\e[K\e[32mnswtopo:\e[0m removed layer: %s" % name
+        puts SUCCESS % "removed layer: %s" % name
       end
       save
     end
@@ -271,10 +271,10 @@ module NSWTopo
           next out_path, path
         end
 
-        safely "nswtopo: saving, please wait..." do
+        safely NEUTRAL % "saving, please wait..." do
           outputs.each do |out_path, path|
             FileUtils.cp out_path, path
-            puts "\r\e[K\e[32mnswtopo:\e[0m created %s" % path
+            puts SUCCESS % "created %s" % path
           end
 
           paths.select do |path|

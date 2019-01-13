@@ -1,6 +1,6 @@
 module NSWTopo
   class Map
-    include Formats, Dither, Safely
+    include Formats, Dither, Log, Safely
 
     def initialize(archive, config, version:, proj4:, scale:, centre:, extents:, rotation:, layers: {})
       @archive, @config, @version, @scale, @centre, @extents, @rotation, @layers = archive, config, version, scale, centre, extents, rotation, layers
@@ -179,9 +179,9 @@ module NSWTopo
         index = layers.index layer unless after || before
         if overwrite || !layer.uptodate?
           layer.create
-          puts SUCCESS % "created layer: %s" % layer.name
+          log_success "created layer: %s" % layer.name
         else
-          puts NEUTRAL % "keeping existing layer: %s" % layer.name
+          log_neutral "keeping existing layer: %s" % layer.name
           next layers, changed, layer.name, errors if index
         end
         layers.delete layer
@@ -199,8 +199,7 @@ module NSWTopo
         end
         next layers.insert(index, layer), true, layer.name, errors
       rescue ArcGISServer::Error, RuntimeError => error
-        message = ArcGISServer::Error === error ? "couldn't download layer: #{layer.name}" : error.message
-        warn FAILURE % message
+        log_warn ArcGISServer::Error === error ? "couldn't download layer: #{layer.name}" : error.message
         next layers, changed, follow, errors << error
       end.tap do |layers, changed, follow, errors|
         if changed
@@ -222,7 +221,7 @@ module NSWTopo
       end.each do |name|
         params = @layers.delete name
         delete Layer.new(name, self, params).filename
-        puts SUCCESS % "removed layer: %s" % name
+        log_success "removed layer: %s" % name
       end
       save
     end
@@ -274,7 +273,7 @@ module NSWTopo
         safely "saving, please wait..." do
           outputs.each do |out_path, path|
             FileUtils.cp out_path, path
-            puts SUCCESS % "created %s" % path
+            log_success "created %s" % path
           end
 
           paths.select do |path|

@@ -37,11 +37,6 @@ require_relative 'nswtopo/version'
 module NSWTopo
   PartialFailureError = Class.new RuntimeError
 
-  SUCCESS = $stdout.tty? ? "\r\e[K\e[32mnswtopo:\e[0m %s" : "nswtopo: %s"
-  FAILURE = $stderr.tty? ? "\r\e[K\e[31mnswtopo:\e[0m %s" : "nswtopo: %s"
-  NEUTRAL = $stdout.tty? ? "\r\e[Knswtopo: %s" : "nswtopo: %s"
-  UPDATE  = "\r\e[K%s"
-
   def self.init(archive, config, options)
     puts Map.init(archive, config, options)
   end

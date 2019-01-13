@@ -23,20 +23,21 @@ begin
   require 'yaml'
   require_relative '../lib/nswtopo.rb'
 
+  extend NSWTopo::Log
   Thread::report_on_exception = false
 
   GDAL_VERSION = begin
     stdout, * = Open3.capture3 "gdal-config", "--version"
     stdout.chomp
   rescue Errno::ENOENT
-    abort NSWTopo::FAILURE % "GDAL not installed"
+    log_abort "GDAL not installed"
   end
 
   case
   when (RUBY_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,5]) < 0
-    abort NSWTopo::FAILURE % "ruby 2.5 or greater required"
+    log_abort "ruby 2.5 or greater required"
   when (GDAL_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,3]) < 0
-    abort NSWTopo::FAILURE % "GDAL 2.3 or greater required"
+    log_abort "GDAL 2.3 or greater required"
   end
 
   digits = '\d+(?:_\d+)*'
@@ -232,7 +233,7 @@ begin
   config = config_paths.map do |path|
     YAML.load path.read
   rescue YAML::Exception
-    warn "warning: couldn't parse #{path}, ignoring"
+    log_warn "couldn't parse #{path}, ignoring"
   end.grep(Hash).inject({}, &:deep_merge)
 
   begin
@@ -262,9 +263,9 @@ begin
   end
 rescue OptionParser::ParseError => error
   warn command_parser
-  abort NSWTopo::FAILURE % error.message
+  log_abort error.message
 rescue Interrupt
   abort $stderr.tty? ? "\r\e[K\e[31mnswtopo:\e[0m interrupted" : "nswtopo: interrupted"
 rescue RuntimeError => error
-  abort NSWTopo::FAILURE % error.message
+  log_abort error.message
 end

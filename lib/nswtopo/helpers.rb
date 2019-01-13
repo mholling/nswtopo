@@ -1,3 +1,4 @@
+require_relative 'helpers/log'
 require_relative 'helpers/safely'
 require_relative 'helpers/dither'
 require_relative 'helpers/os'

@@ -1,6 +1,6 @@
 module NSWTopo
   module ArcGISRaster
-    include Raster
+    include Raster, Log
     CREATE = %w[url]
 
     def get_raster(temp_dir)
@@ -53,7 +53,7 @@ module NSWTopo
           [ rel_path, jpg_path, gdal_args, tif_path ]
         end.compact
         tiles.each.with_index do |(rel_path, jpg_path, gdal_args, tif_path), index|
-          print UPDATE % "%s: retrieving tile %i of %i" % [ @name, index + 1, tiles.length ] if $stdout.tty?
+          log_update "%s: retrieving tile %i of %i" % [ @name, index + 1, tiles.length ]
           connection.get(rel_path, blankTile: true) do |response|
             jpg_path.binwrite response.body
           end

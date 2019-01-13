@@ -23,7 +23,7 @@ module NSWTopo
         svg.add_element "sodipodi:namedview", "borderlayer" => true
         svg.add_element "rect", "x" => 0, "y" => 0, "width" => width, "height" => height, "fill" => "white"
         layers.reject(&:empty?).each do |layer|
-          print UPDATE % "compositing: #{layer.name}" if $stdout.tty?
+          log_update "compositing: #{layer.name}"
           group = svg.add_element "g", "id" => layer.name, "inkscape:groupmode" => "layer"
           layer.render group, defs
         end

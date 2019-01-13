@@ -76,7 +76,7 @@ module NSWTopo
           { indices => tile_bounds }
         end.inject({}, &:merge)
 
-        print UPDATE % "kmz: resizing image pyramid: %i%%" % (100 * (2**(zoom + 1) - 1) / (2**(max_zoom + 1) - 1)) if $stdout.tty?
+        log_update "kmz: resizing image pyramid: %i%%" % (100 * (2**(zoom + 1) - 1) / (2**(max_zoom + 1) - 1))
         { zoom => [ indices_bounds, tif_path ] }
       end.inject({}, &:merge)
 
@@ -117,7 +117,7 @@ module NSWTopo
           [ tif_path, "-quiet", "+repage", "-crop", crop, "+repage", "+dither", "-type", "PaletteBilevelMatte", "PNG8:#{tile_png_path}" ]
         end
       end.flatten(1).tap do |tiles|
-        print UPDATE % "kmz: creating %i tiles" % tiles.length if $stdout.tty?
+        log_update "kmz: creating %i tiles" % tiles.length
       end.each.concurrently do |args|
         OS.convert *args
       end

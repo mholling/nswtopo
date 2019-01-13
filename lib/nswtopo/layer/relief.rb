@@ -1,6 +1,6 @@
 module NSWTopo
   module Relief
-    include Raster, ArcGISServer
+    include Raster, ArcGISServer, Log
     CREATE = %w[altitude azimuth exaggeration lightsources highlights sigma median bilateral contours]
     DEFAULTS = YAML.load <<~YAML
       altitude: 45
@@ -40,7 +40,7 @@ module NSWTopo
           case url_or_path
           when ArcGISServer
             arcgis_layer url_or_path, margin: margin do |index, total|
-              print UPDATE % "%s: retrieved %i of %i contours" % [ @name, index, total ] if $stdout.tty?
+              log_update "%s: retrieved %i of %i contours" % [ @name, index, total ]
             end.each do |feature|
               feature.properties.replace "elevation" => feature.properties.fetch(attribute, attribute).to_f
             end

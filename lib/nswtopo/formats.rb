@@ -6,6 +6,7 @@ require_relative 'formats/pdf'
 
 module NSWTopo
   module Formats
+    include Log
     PPI = 300
 
     def self.extensions
@@ -46,8 +47,8 @@ module NSWTopo
 
         with_browser do |browser_name, browser_path|
           megapixels = dimensions.inject(&:*) / 1024.0 / 1024.0
-          print UPDATE % "%s: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [ browser_name, *dimensions, megapixels, options[:ppi]        ] if options[:ppi] && $stdout.tty?
-          print UPDATE % "%s: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [ browser_name, *dimensions, megapixels, options[:resolution] ] if options[:resolution] && $stdout.tty?
+          log_update "%s: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [ browser_name, *dimensions, megapixels, options[:ppi]        ] if options[:ppi]
+          log_update "%s: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [ browser_name, *dimensions, megapixels, options[:resolution] ] if options[:resolution]
 
           render = lambda do |width, height|
             args = case browser_name

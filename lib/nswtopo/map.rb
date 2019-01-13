@@ -282,7 +282,7 @@ module NSWTopo
           end.group_by do |path|
             path.parent / path.basename(path.extname)
           end.keys.each do |base|
-            write_world_file Pathname("#{base}.wld"), ppi: options.fetch(:ppi, DEFAULT_PPI)
+            write_world_file Pathname("#{base}.wld"), ppi: options.fetch(:ppi, Formats::PPI)
             Pathname("#{base}.prj").write "#{@projection}\n"
           end if worldfile
         end

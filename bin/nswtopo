@@ -69,7 +69,7 @@ begin
     "magnetic" == string ? string : "auto" == string ? string : string.to_f
   end
   OptionParser.accept Pathname do |string|
-    raise OptionParser::InvalidArgument, string unless Pathname(string).expand_path.file?
+    raise OptionParser::InvalidArgument, string unless Pathname(string).expand_path.exist?
     Pathname(string).expand_path
   end
 

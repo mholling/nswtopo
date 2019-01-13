@@ -3,7 +3,6 @@ module NSWTopo
     include Vector, ArcGISServer, Shapefile
     CREATE = %w[features]
 
-    # TODO: if @path is set, get features from there instead
     def get_features
       (Array === @features ? @features : [ @features ]).map do |args|
         case args
@@ -15,6 +14,7 @@ module NSWTopo
         !args[:fallback]
       end.map do |fallbacks|
         options, collection, error = fallbacks.inject [ {}, nil, nil ] do |(options, *), source: nil, fallback: false, **args|
+          source = @path if @path
           print UPDATE % "%s: failed to retrieve features, trying fallback source" % @name if $stdout.tty? && fallback
           raise "#{@source}: no feature source defined" unless source
           options.merge! args

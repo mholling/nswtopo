@@ -40,9 +40,7 @@ module NSWTopo
           case url_or_path
           when ArcGISServer
             arcgis_layer url_or_path, margin: margin do |index, total|
-              print "\r\e[K#{@name}: retrieved #{index} of #{total} contours"
-            end.tap do |collection|
-              puts "\r\e[K#{@name}: retrieved #{collection.count} contours" if collection.any?
+              print UPDATE % "%s: retrieved %i of %i contours" % [ @name, index, total ] if $stdout.tty?
             end.each do |feature|
               feature.properties.replace "elevation" => feature.properties.fetch(attribute, attribute).to_f
             end

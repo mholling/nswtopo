@@ -34,7 +34,7 @@ module NSWTopo
       end.tap do |(resolution, *, zoom), *|
         png_path = yield(resolution: resolution)
       end.tap do |levels|
-        puts "mbtiles: tiling for zoom levels %s" % levels.map(&:last).minmax.uniq.join(?-)
+        print UPDATE % "mbtiles: tiling for zoom levels %s" % levels.map(&:last).minmax.uniq.join(?-) if $stdout.tty?
       end.each.concurrently do |resolution, indices, dimensions, topleft, tile_path, zoom|
         tif_path, tfw_path = %w[tif tfw].map { |ext| temp_dir / "#{name}.mbtiles.#{zoom}.#{ext}" }
         WorldFile.write topleft, resolution, 0, tfw_path
@@ -48,7 +48,7 @@ module NSWTopo
       end.flatten(1).each do |tile_path, zoom, col, row|
         sql << %Q[INSERT INTO tiles VALUES (#{zoom}, #{col}, #{row}, readfile("#{tile_path}"));\n]
       end.tap do |tiles|
-        puts "mbtiles: optimising #{tiles.length} tiles"
+        print UPDATE % "mbtiles: optimising %i tiles" % tiles.length if $stdout.tty?
       end.map(&:first).each.concurrent_groups do |png_paths|
         dither *png_paths
       end

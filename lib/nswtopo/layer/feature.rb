@@ -15,11 +15,11 @@ module NSWTopo
         !args[:fallback]
       end.map do |fallbacks|
         options, collection, error = fallbacks.inject [ {}, nil, nil ] do |(options, *), source: nil, fallback: false, **args|
-          warn "\r\e[K#{@name}: failed to retrieve features, trying fallback source" if fallback
+          print UPDATE % "%s: failed to retrieve features, trying fallback source" % @name if $stdout.tty?
           raise "#{@source}: no feature source defined" unless source
           options.merge! args
           break options, arcgis_layer(source, margin: MARGIN, **options.slice(:where, :layer, :per_page)) do |index, total|
-            print "\r\e[K#{@name}: retrieved #{index} of #{total} features"
+            print UPDATE % "%s: retrieved %i of %i features" % [ @name, index, total ] if $stdout.tty?
           end if ArcGISServer === source
           source_path = Pathname(source).expand_path(@source.parent)
           break options, shapefile_layer(source_path, margin: MARGIN, **options.slice(:where, :sql, :layer)) if Shapefile === source_path
@@ -29,8 +29,6 @@ module NSWTopo
         end
 
         raise error if error
-        puts "\r\e[K%s: retrieved %i feature%s" % [ @name, collection.count, (?s unless collection.one?) ]
-
         next collection.reproject_to(@map.projection), options
       end.each do |collection, options|
         rotation_attribute, arithmetic = case options[:rotation]

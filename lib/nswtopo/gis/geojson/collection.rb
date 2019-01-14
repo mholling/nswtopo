@@ -78,6 +78,10 @@ module NSWTopo
         end.compact!
         self
       end
+
+      def bounds
+        map(&:bounds).transpose.map(&:flatten).map(&:minmax)
+      end
     end
   end
 end

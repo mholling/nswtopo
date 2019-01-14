@@ -26,13 +26,8 @@ module NSWTopo
           }
         end
 
-        def to_points
-          case self
-          when Point then [@coordinates]
-          when MultiPoint, LineString then @coordinates
-          when MultiLineString, Polygon then @coordinates.flatten(1)
-          when MultiPolygon then @coordinates.flatten(2)
-          end
+        def bounds
+          coordinates.flatten.each_slice(2).entries.transpose.map(&:minmax)
         end
       end
 

@@ -71,7 +71,8 @@ module NSWTopo
             feature.properties.fetch(attribute, attribute)
           end.map(&:to_s).reject(&:empty?)
 
-          categories, properties = categories.map(&:to_s).reject(&:empty?).map(&:to_category), {}
+          categories = categories.map(&:to_s).reject(&:empty?).map(&method(:categorise))
+          properties = {}
           properties["categories"] = categories if categories.any?
           properties["labels"] = labels if labels.any?
           properties["draw"] = false if options[:draw] == false

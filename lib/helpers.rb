@@ -1,6 +1,5 @@
 require_relative 'helpers/hash'
 require_relative 'helpers/array'
 require_relative 'helpers/dir'
-require_relative 'helpers/string'
 require_relative 'helpers/concurrently'
 require_relative 'helpers/tar_writer'

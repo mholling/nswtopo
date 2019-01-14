@@ -31,8 +31,12 @@ module NSWTopo
     end
 
     def to_s
-      size = features.size
-      "%s: %i feature%s" % [ @name, size, (?s unless size == 1) ]
+      count = features.count
+      "%s: %i feature%s" % [ @name, count, (?s unless count == 1) ]
+    end
+
+    def categorise(string)
+      string.tr('^_a-zA-Z0-9', ?-).squeeze(?-).delete_prefix(?-).delete_suffix(?-)
     end
 
     def svg_path_data(points, bezier: false)
@@ -73,7 +77,7 @@ module NSWTopo
       to_mm = @map.method(:coords_to_mm)
 
       drawing_features.group_by do |feature|
-        feature.properties.fetch("categories", []).map(&:to_s).map(&:to_category).to_set
+        feature.properties.fetch("categories", []).map(&:to_s).map(&method(:categorise)).to_set
       end.map do |categories, features|
         dupes = params_for(categories)["dupe"]
         Array(dupes).map(&:to_s).map do |dupe|

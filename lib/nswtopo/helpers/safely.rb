@@ -1,10 +1,10 @@
 module NSWTopo
   module Safely
     include Log
-    def safely(message = nil)
+    def safely(message)
       yield
     rescue Interrupt => interrupt
-      log_warn message if message
+      log_warn message
       retry
     ensure
       raise interrupt if interrupt

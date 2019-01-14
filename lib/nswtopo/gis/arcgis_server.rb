@@ -140,7 +140,7 @@ module NSWTopo
           next unless geometry = feature["geometry"]
           attributes = feature.fetch "attributes", {}
 
-          attributes.each do |name, value|
+          attributes.entries.each do |name, value|
             attributes[name] = case
             when type_id_field == name then type_values[value]
             when coded_values.key?(name) then coded_values[name][value]

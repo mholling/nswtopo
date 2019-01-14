@@ -147,6 +147,14 @@ module VectorSequence
       end
     end
   end
+
+  def in_sections(count)
+    segments.each_slice(count).map do |segments|
+      segments.inject do |section, segment|
+        section << segment[1]
+      end
+    end
+  end
 end
 
 Array.send :include, VectorSequence

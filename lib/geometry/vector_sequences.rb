@@ -1,14 +1,4 @@
 module VectorSequences
-  def in_sections(count)
-    map(&:segments).map do |segments|
-      segments.each_slice(count).map do |segments|
-        segments.inject do |section, segment|
-          section << segment[1]
-        end
-      end
-    end.flatten(1)
-  end
-
   def sample_at(interval, **options)
     map do |sequence|
       sequence.periodically(interval, **options).to_a

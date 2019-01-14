@@ -46,9 +46,11 @@ module NSWTopo
     PNGQuant = %w[pngquant]
     GIMP = %w[gimp]
 
+    extend self
+
     %w[GDAL ImageMagick SQLite3 PNGQuant GIMP].each do |package|
       OS.const_get(package).each do |command|
-        define_singleton_method command do |*args, &block|
+        define_method command do |*args, &block|
           Open3.popen3 command, *args.map(&:to_s) do |stdin, stdout, stderr, thread|
             begin
               block.call(stdin) if block
@@ -67,7 +69,7 @@ module NSWTopo
       end
     end
 
-    def self.zip(directory, archive)
+    def zip(directory, archive)
       raise Error, "zip: #{directory} is not a directory" unless directory.directory?
       [ %w[zip -r] << archive.expand_path, %w[7z a -tzip -r] << archive.expand_path ].find do |command, *args|
         Dir.chdir directory do

@@ -5,8 +5,9 @@ module NSWTopo
       EARTH_RADIUS = 6378137.0
       TILT = 40 * Math::PI / 180.0
       FOV = 25 * Math::PI / 180.0
+      extend self
 
-      def self.style
+      def style
         lambda do |style|
           style.add_element("ListStyle", "id" => "hideChildren").tap do |list_style|
             list_style.add_element("listItemType").text = "checkHideChildren"
@@ -14,7 +15,7 @@ module NSWTopo
         end
       end
 
-      def self.lat_lon_box(bounds)
+      def lat_lon_box(bounds)
         lambda do |box|
           [ %w[west east south north], bounds.flatten ].transpose.each do |limit, value|
             box.add_element(limit).text = value
@@ -22,7 +23,7 @@ module NSWTopo
         end
       end
 
-      def self.region(bounds, topmost = false)
+      def region(bounds, topmost = false)
         lambda do |region|
           region.add_element("Lod").tap do |lod|
             lod.add_element("minLodPixels").text = topmost ? 0 : TILE_SIZE / 2
@@ -32,7 +33,7 @@ module NSWTopo
         end
       end
 
-      def self.network_link(bounds, path)
+      def network_link(bounds, path)
         lambda do |network|
           network.add_element("Region").tap(&region(bounds))
           network.add_element("Link").tap do |link|

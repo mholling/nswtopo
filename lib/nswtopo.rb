@@ -36,16 +36,17 @@ require_relative 'nswtopo/version'
 
 module NSWTopo
   PartialFailureError = Class.new RuntimeError
+  extend self
 
-  def self.init(archive, config, options)
+  def init(archive, config, options)
     puts Map.init(archive, config, options)
   end
 
-  def self.info(archive, config, options)
+  def info(archive, config, options)
     puts Map.load(archive, config).info(options)
   end
 
-  def self.add(archive, config, *layers, options)
+  def add(archive, config, *layers, options)
     create_options = {
       after: Layer.sanitise(options.delete :after),
       before: Layer.sanitise(options.delete :before),
@@ -110,15 +111,15 @@ module NSWTopo
     end
   end
 
-  def self.grid(archive, config, options)
+  def grid(archive, config, options)
     add archive, config, "grid", options
   end
 
-  def self.declination(archive, config, options)
+  def declination(archive, config, options)
     add archive, config, "declination", options
   end
 
-  def self.remove(archive, config, *names, options)
+  def remove(archive, config, *names, options)
     map = Map.load archive, config
     names.uniq.map do |name|
       Layer.sanitise name
@@ -129,7 +130,7 @@ module NSWTopo
     end
   end
 
-  def self.render(archive, config, *formats, options)
+  def render(archive, config, *formats, options)
     overwrite = options.delete :overwrite
     formats.map do |format|
       Pathname(Formats === format ? "#{archive.basename}.#{format}" : format)
@@ -145,7 +146,7 @@ module NSWTopo
     end
   end
 
-  def self.layers(state: nil, root: nil, indent: state ? "#{state}/" : "")
+  def layers(state: nil, root: nil, indent: state ? "#{state}/" : "")
     directory = [ Pathname(__dir__).parent, "layers", *state ].inject(&:/)
     root ||= directory
     directory.children.sort.each do |path|

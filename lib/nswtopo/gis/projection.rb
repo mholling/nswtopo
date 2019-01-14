@@ -38,7 +38,7 @@ module NSWTopo
       collection.reproject_to_wgs84.map(&:to_points).flatten(1).map do |longitude, latitude|
         (longitude / 6).floor + 31
       end.minmax.yield_self do |min, max|
-        min .. max
+        min..max
       end
     end
 

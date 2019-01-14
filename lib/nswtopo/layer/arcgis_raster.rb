@@ -31,7 +31,7 @@ module NSWTopo
         end.transpose.map(&:minmax).zip(tile_sizes).map do |bound, tile_size|
           bound / tile_resolution / tile_size
         end.map do |min, max|
-          (min.floor .. max.ceil).each_cons(2).to_a
+          (min.floor..max.ceil).each_cons(2).to_a
         end.inject(&:product).map do |cols, rows|
           bounds = [ cols, rows ].zip(tile_sizes).map do |indices, tile_size|
             indices.times(tile_size * tile_resolution)

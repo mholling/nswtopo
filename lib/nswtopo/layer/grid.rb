@@ -14,7 +14,7 @@ module NSWTopo
       Projection.utm_zones(@map.bounding_box).map do |zone|
         utm = Projection.utm(zone)
         eastings, northings = @map.bounds(projection: utm).map do |min, max|
-          (min / @interval).floor .. (max / @interval).ceil
+          (min / @interval).floor..(max / @interval).ceil
         end.map do |counts|
           counts.map { |count| count * @interval }
         end

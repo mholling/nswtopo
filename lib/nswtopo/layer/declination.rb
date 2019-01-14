@@ -26,13 +26,13 @@ module NSWTopo
       i_max = (radius / row_spacing).ceil
 
       collection = GeoJSON::Collection.new(@map.projection)
-      (-j_max .. j_max).each do |j|
+      (-j_max..j_max).each do |j|
         x = j * col_spacing + col_offset
         coordinates = [ [ x, -radius ], [ x, radius ] ].map do |point|
           point.rotate_by_degrees(-declination).plus(@map.centre)
         end
         collection.add_linestring coordinates
-        (-i_max .. i_max).reject(&j.even? ? :even? : :odd?).map do |i|
+        (-i_max..i_max).reject(&j.even? ? :even? : :odd?).map do |i|
           [ x, i * row_spacing ].rotate_by_degrees(-declination).plus(@map.centre)
         end.each do |coordinates|
           collection.add_point coordinates, "rotation" => declination

@@ -68,7 +68,7 @@ module NSWTopo
         OS.convert "-size", dimensions.join(?x), "canvas:none", "-type", "TrueColorMatte", "-depth", 8, tif_path
         OS.gdalwarp "-s_srs", @projection, "-t_srs", Projection.wgs84, "-r", "bilinear", "-dstalpha", png_path, tif_path
 
-        indices_bounds = [topleft, counts, [:+, :-]].transpose.map do |coord, count, increment|
+        indices_bounds = [topleft, counts, %i[+ -]].transpose.map do |coord, count, increment|
           boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
           [boundaries[0..-2], boundaries[1..-1]].transpose.map(&:sort)
         end.map do |tile_bounds|

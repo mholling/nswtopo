@@ -128,8 +128,7 @@ module VectorSequence
     trim(0.5 * (path_length - length))
   end
 
-  # TODO: use keyword arguments for extra
-  def periodically(interval, extra = nil)
+  def periodically(interval, along: false, angle: false)
     Enumerator.new do |yielder|
       segments.inject [0.5, 0] do |(alpha, sum), segment|
         loop do
@@ -137,9 +136,9 @@ module VectorSequence
           break unless fraction < 1
           segment[0] = segment.along(fraction)
           sum += alpha * interval
-          yielder << case extra
-          when :along then [segment[0], sum]
-          when :angle then [segment[0], segment.difference.angle]
+          yielder << case
+          when along then [segment[0], sum]
+          when angle then [segment[0], segment.difference.angle]
           else segment[0]
           end
           alpha = 1.0

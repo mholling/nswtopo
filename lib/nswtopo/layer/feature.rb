@@ -67,7 +67,7 @@ module NSWTopo
             arithmetic ? 90 - value : value
           end if rotation_attribute
 
-          labels = [ *options[:label] ].map do |attribute|
+          labels = Array(options[:label]).map do |attribute|
             feature.properties.fetch(attribute, attribute)
           end.map(&:to_s).reject(&:empty?)
 

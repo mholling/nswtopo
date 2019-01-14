@@ -13,7 +13,7 @@ module NSWTopo
       raise "#{@source}: can't specify both SQL and where clause" if sql && where
       raise "#{@source}: can't specify both SQL and layer name" if sql && layer
       sql   = [ "-sql", sql ] if sql
-      where = [ "-where", "(" << [ *where ].join(") AND (") << ")" ] if where
+      where = [ "-where", "(" << Array(where).join(") AND (") << ")" ] if where
       srs   = [ "-t_srs", @map.projection ]
       spat  = [ "-spat", *@map.bounds(margin: margin).transpose.flatten, "-spat_srs", @map.projection ]
       misc  = %w[-mapFieldType Date=Integer,DateTime=Integer -dim XY]

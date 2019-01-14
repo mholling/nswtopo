@@ -59,7 +59,7 @@ module NSWTopo
 
     def params_for(categories)
       params.select do |command, args|
-        [ *command ].any? do |selector|
+        Array(command).any? do |selector|
           selector.to_s.split.to_set <= categories
         end
       end.values.inject(params, &:merge)
@@ -76,7 +76,7 @@ module NSWTopo
         feature.properties.fetch("categories", []).map(&:to_s).map(&:to_category).to_set
       end.map do |categories, features|
         dupes = params_for(categories)["dupe"]
-        [ *dupes ].map(&:to_s).map do |dupe|
+        Array(dupes).map(&:to_s).map do |dupe|
           [ categories | Set[dupe], [ name, *categories, "content" ].join(?.) ]
         end.push [ categories, features ]
       end.flatten(1).map do |categories, features|

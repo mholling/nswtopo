@@ -117,7 +117,7 @@ module NSWTopo
         end.to_h
 
         geometry = { rings: @map.bounding_box(margin).reproject_to(projection).coordinates.map(&:reverse) }.to_json
-        where = [ *where ].map { |clause| "(#{clause})"}.join " AND "
+        where = Array(where).map { |clause| "(#{clause})"}.join " AND "
         query = { geometry: geometry, geometryType: "esriGeometryPolygon", returnIdsOnly: true, where: where }
 
         object_ids = connection.get_json(query_path, query)["objectIds"]

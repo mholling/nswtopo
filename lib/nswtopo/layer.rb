@@ -31,7 +31,7 @@ module NSWTopo
         instance_variable_set ?@ + attr, @params.delete(attr)
       end if @type.const_defined?(:CREATE)
 
-      @paths = [ *@path ].map do |path|
+      @paths = Array(@path).map do |path|
         Pathname(path).expand_path(*@source&.parent)
       end.flat_map do |path|
         Pathname.glob path

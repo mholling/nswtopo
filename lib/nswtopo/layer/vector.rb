@@ -31,8 +31,8 @@ module NSWTopo
     end
 
     def to_s
-      count = features.count
-      "%s: %i feature%s" % [ @name, count, (?s unless count == 1) ]
+      size = features.size
+      "%s: %i feature%s" % [ @name, size, (?s unless size == 1) ]
     end
 
     def svg_path_data(points, bezier: false)

@@ -29,7 +29,7 @@ module NSWTopo
         end.transpose
         tile_path = temp_dir.join("#{name}.mbtiles.#{zoom}.%09d.png").to_s
         levels << [ resolution, indices, dimensions, topleft, tile_path, zoom ]
-        break levels if indices.map(&:count).all? { |count| count < 3 }
+        break levels if indices.map(&:size).all? { |size| size < 3 }
         levels
       end.tap do |(resolution, *, zoom), *|
         png_path = yield(resolution: resolution)

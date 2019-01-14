@@ -7,7 +7,7 @@ module NSWTopo
       top_left = bounding_box.coordinates[0][3]
 
       2.downto(0).map.with_index do |level, index|
-        [ level, index, ppi.to_f / 2**index ]
+        [level, index, ppi.to_f / 2**index]
       end.each.concurrently do |level, index, ppi|
         dimensions, ppi, resolution = raster_dimensions_at ppi: ppi
         img_path = index.zero? ? png_path : temp_dir / "#{name}.avenza.#{level}.png"

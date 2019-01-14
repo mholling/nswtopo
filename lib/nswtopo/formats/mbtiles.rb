@@ -25,10 +25,10 @@ module NSWTopo
         indices, dimensions, topleft = web_mercator_bounds.map do |lower, upper|
           ((lower - Mbtiles::ORIGIN) / resolution / Mbtiles::TILE_SIZE).floor ... ((upper - Mbtiles::ORIGIN) / resolution / Mbtiles::TILE_SIZE).ceil
         end.map.with_index do |indices, axis|
-          [ indices, (indices.last - indices.first) * Mbtiles::TILE_SIZE, Mbtiles::ORIGIN + (axis.zero? ? indices.first : indices.last) * Mbtiles::TILE_SIZE * resolution]
+          [indices, (indices.last - indices.first) * Mbtiles::TILE_SIZE, Mbtiles::ORIGIN + (axis.zero? ? indices.first : indices.last) * Mbtiles::TILE_SIZE * resolution]
         end.transpose
         tile_path = temp_dir.join("#{name}.mbtiles.#{zoom}.%09d.png").to_s
-        levels << [ resolution, indices, dimensions, topleft, tile_path, zoom ]
+        levels << [resolution, indices, dimensions, topleft, tile_path, zoom]
         break levels if indices.map(&:size).all? { |size| size < 3 }
         levels
       end.tap do |(resolution, *, zoom), *|
@@ -43,7 +43,7 @@ module NSWTopo
         OS.convert tif_path, "-quiet", "+repage", "-crop", "#{Mbtiles::TILE_SIZE}x#{Mbtiles::TILE_SIZE}", tile_path
       end.map do |resolution, indices, dimensions, topleft, tile_path, zoom|
         indices[1].to_a.reverse.product(indices[0].to_a).map.with_index do |(row, col), index|
-          [ tile_path % index, zoom, col, row ]
+          [tile_path % index, zoom, col, row]
         end
       end.flatten(1).each do |tile_path, zoom, col, row|
         sql << %Q[INSERT INTO tiles VALUES (#{zoom}, #{col}, #{row}, readfile("#{tile_path}"));\n]

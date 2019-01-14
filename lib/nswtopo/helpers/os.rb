@@ -71,7 +71,7 @@ module NSWTopo
 
     def zip(directory, archive)
       raise Error, "zip: #{directory} is not a directory" unless directory.directory?
-      [ %w[zip -r] << archive.expand_path, %w[7z a -tzip -r] << archive.expand_path ].find do |command, *args|
+      [%w[zip -r] << archive.expand_path, %w[7z a -tzip -r] << archive.expand_path].find do |command, *args|
         Dir.chdir directory do
           args += Pathname.glob('*')
           stdout, stderr, status = Open3.capture3 command, *args.map(&:to_s)

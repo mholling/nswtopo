@@ -40,7 +40,7 @@ module VectorSequence
     start = min_by(&:reverse)
     hull, remaining = uniq.partition { |point| point == start }
     remaining.sort_by do |point|
-      [ point.minus(start).angle, point.minus(start).norm ]
+      [point.minus(start).angle, point.minus(start).norm]
     end.inject(hull) do |memo, p3|
       while memo.many? do
         p1, p2 = memo.last(2)
@@ -52,11 +52,11 @@ module VectorSequence
 
   def minimum_bounding_box
     polygon = convex_hull
-    return polygon[0], [ 0, 0 ], 0 if polygon.one?
-    indices = [ [ :min_by, :max_by ], [ 0, 1 ] ].inject(:product).map do |min, axis|
+    return polygon[0], [0, 0], 0 if polygon.one?
+    indices = [[:min_by, :max_by], [0, 1]].inject(:product).map do |min, axis|
       polygon.map.with_index.send(min) { |point, index| point[axis] }.last
     end
-    calipers = [ [ 0, -1 ], [ 1, 0 ], [ 0, 1 ], [ -1, 0 ] ]
+    calipers = [[0, -1], [1, 0], [0, 1], [-1, 0]]
     rotation = 0.0
     candidates = []
 
@@ -64,7 +64,7 @@ module VectorSequence
       edges = indices.map do |index|
         polygon[(index + 1) % polygon.length].minus polygon[index]
       end
-      angle, which = [ edges, calipers ].transpose.map do |edge, caliper|
+      angle, which = [edges, calipers].transpose.map do |edge, caliper|
         Math::acos(edge.dot(caliper) / edge.norm)
       end.map.with_index.min_by { |angle, index| angle }
 
@@ -73,7 +73,7 @@ module VectorSequence
 
       break if rotation >= Math::PI / 2
 
-      dimensions = [ 0, 1 ].map do |offset|
+      dimensions = [0, 1].map do |offset|
         polygon[indices[offset + 2]].minus(polygon[indices[offset]]).proj(calipers[offset + 1])
       end
 
@@ -86,9 +86,9 @@ module VectorSequence
       end.rotate_by(rotation)
 
       if rotation < Math::PI / 4
-        candidates << [ centre, dimensions, rotation ]
+        candidates << [centre, dimensions, rotation]
       else
-        candidates << [ centre, dimensions.reverse, rotation - Math::PI / 2 ]
+        candidates << [centre, dimensions.reverse, rotation - Math::PI / 2]
       end
 
       indices[which] += 1
@@ -103,7 +103,7 @@ module VectorSequence
   end
 
   def trim(margin)
-    start = [ margin, 0 ].max
+    start = [margin, 0].max
     stop = path_length - start
     return [] unless start < stop
     points, total = [], 0
@@ -131,20 +131,20 @@ module VectorSequence
   # TODO: use keyword arguments for extra
   def periodically(interval, extra = nil)
     Enumerator.new do |yielder|
-      segments.inject [ 0.5, 0 ] do |(alpha, sum), segment|
+      segments.inject [0.5, 0] do |(alpha, sum), segment|
         loop do
           fraction = alpha * interval / segment.distance
           break unless fraction < 1
           segment[0] = segment.along(fraction)
           sum += alpha * interval
           yielder << case extra
-          when :along then [ segment[0], sum ]
-          when :angle then [ segment[0], segment.difference.angle ]
+          when :along then [segment[0], sum]
+          when :angle then [segment[0], segment.difference.angle]
           else segment[0]
           end
           alpha = 1.0
         end
-        [ alpha - segment.distance / interval, sum + segment.distance ]
+        [alpha - segment.distance / interval, sum + segment.distance]
       end
     end
   end

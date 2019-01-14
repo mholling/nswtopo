@@ -6,14 +6,14 @@ module NSWTopo
       @archive, @config, @version, @scale, @centre, @extents, @rotation, @layers = archive, config, version, scale, centre, extents, rotation, layers
       @projection = Projection.new proj4
       ox, oy = bounding_box.coordinates[0][3]
-      @affine = [ [ 1, 0 ], [ 0, -1 ], [ -ox, oy ] ].map do |vector|
+      @affine = [[1, 0], [0, -1], [-ox, oy]].map do |vector|
         vector.rotate_by_degrees(-@rotation).times(1000.0 / @scale)
       end.transpose
     end
     attr_reader :projection, :scale, :centre, :extents, :rotation
 
     extend Forwardable
-    delegate [ :write, :mtime, :delete, :read, :uptodate? ] => :@archive
+    delegate [:write, :mtime, :delete, :read, :uptodate?] => :@archive
 
     def self.init(archive, config, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, margins: nil)
       wgs84_points = case
@@ -23,7 +23,7 @@ module NSWTopo
         coords
       when bounds
         gps = GPS.load bounds
-        margins ||= [ 15, 15 ] unless dimensions || gps.polygons.any?
+        margins ||= [15, 15] unless dimensions || gps.polygons.any?
         case
         when gps.polygons.any?
           gps.polygons.map(&:coordinates).flatten(1).inject(&:+)
@@ -66,7 +66,7 @@ module NSWTopo
         centre, extents = points.map do |point|
           point.rotate_by_degrees rotation
         end.transpose.map(&:minmax).map do |min, max|
-          [ 0.5 * (max + min), max - min ]
+          [0.5 * (max + min), max - min]
         end.transpose
         centre.rotate_by_degrees! -rotation
       end
@@ -86,7 +86,7 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new(archive, config, version: VERSION, proj4: projection.proj4, scale: scale, centre: [ 0, 0 ], extents: extents, rotation: rotation).save
+      new(archive, config, version: VERSION, proj4: projection.proj4, scale: scale, centre: [0, 0], extents: extents, rotation: rotation).save
     end
 
     def self.load(archive, config)
@@ -116,11 +116,11 @@ module NSWTopo
     def bounding_box(mm: nil, metres: nil)
       margin = mm ? mm * 0.001 * @scale : metres ? metres : 0
       ring = @extents.map do |extent|
-        [ -0.5 * extent - margin, 0.5 * extent + margin ]
+        [-0.5 * extent - margin, 0.5 * extent + margin]
       end.inject(&:product).map do |offset|
         @centre.plus offset.rotate_by_degrees(-@rotation)
       end.values_at(0,2,3,1,0)
-      GeoJSON.polygon [ ring ], projection
+      GeoJSON.polygon [ring], projection
     end
 
     def bounds(margin: {}, projection: nil)
@@ -141,7 +141,7 @@ module NSWTopo
 
     def coords_to_mm(point)
       @affine.map do |row|
-        row.dot [ *point, 1.0 ]
+        row.dot [*point, 1.0]
       end
     end
 
@@ -175,7 +175,7 @@ module NSWTopo
     end
 
     def add(*layers, after: nil, before: nil, overwrite: false)
-      layers.inject [ self.layers, false, after, [] ] do |(layers, changed, follow, errors), layer|
+      layers.inject [self.layers, false, after, []] do |(layers, changed, follow, errors), layer|
         index = layers.index layer unless after || before
         if overwrite || !layer.uptodate?
           layer.create
@@ -228,13 +228,13 @@ module NSWTopo
 
     def info(empty: nil)
       StringIO.new.tap do |io|
-        io.puts "%-9s 1:%i" %            [ "scale:",    @scale ]
-        io.puts "%-9s %imm × %imm" %     [ "size:",     *@extents.times(1000.0 / @scale) ]
-        io.puts "%-9s %.1fkm × %.1fkm" % [ "extent:",   *@extents.times(0.001) ]
-        io.puts "%-9s %.1fkm²" %         [ "area:",     @extents.inject(&:*) * 0.000001 ]
-        io.puts "%-9s %.1f°" %           [ "rotation:", @rotation ]
+        io.puts "%-9s 1:%i" %            ["scale:",    @scale]
+        io.puts "%-9s %imm × %imm" %     ["size:",     *@extents.times(1000.0 / @scale)]
+        io.puts "%-9s %.1fkm × %.1fkm" % ["extent:",   *@extents.times(0.001)]
+        io.puts "%-9s %.1fkm²" %         ["area:",     @extents.inject(&:*) * 0.000001]
+        io.puts "%-9s %.1f°" %           ["rotation:", @rotation]
         layers.reject(&empty ? :nil? : :empty?).inject("layers:") do |heading, layer|
-          io.puts "%-9s %s" % [ heading, layer ]
+          io.puts "%-9s %s" % [heading, layer]
           nil
         end
       end.string

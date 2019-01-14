@@ -43,8 +43,8 @@ module NSWTopo
     end
 
     def self.utm_hull(zone)
-      longitudes = [ 31, 30 ].map { |offset| (zone - offset) * 6.0 }
-      latitudes = [ -80.0, 84.0 ]
+      longitudes = [31, 30].map { |offset| (zone - offset) * 6.0 }
+      latitudes = [-80.0, 84.0]
       longitudes.product(latitudes).values_at(0,2,3,1)
     end
 

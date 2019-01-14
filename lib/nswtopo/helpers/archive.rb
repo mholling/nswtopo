@@ -31,7 +31,7 @@ module NSWTopo
     def uptodate?(depender, *dependees)
       return unless mtime(depender)
       dependees.all? do |dependee|
-        mtimes = [ depender, dependee ].map(&method(:mtime))
+        mtimes = [depender, dependee].map(&method(:mtime))
         mtimes.all? && mtimes.inject(&:>=)
       end
     end

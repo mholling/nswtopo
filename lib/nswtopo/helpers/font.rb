@@ -10,14 +10,14 @@ module NSWTopo
     def self.in_two(string, attributes)
       words = string.split(string[?\n] || string[?/] || ?\s).map(&:strip)
       (1...words.size).map do |index|
-        [ words[0...index].join(?\s), words[index...words.size].join(?\s) ]
+        [words[0...index].join(?\s), words[index...words.size].join(?\s)]
       end.map do |lines|
         lines.map do |line|
-          [ line, glyph_length(line, attributes) ]
+          [line, glyph_length(line, attributes)]
         end
       end.min_by do |lines_widths|
         lines_widths.map(&:last).max
-      end || [ [ words[0], glyph_length(words[0], attributes) ] ]
+      end || [[words[0], glyph_length(words[0], attributes)]]
     end
 
     module Generic
@@ -79,7 +79,7 @@ module NSWTopo
         @families ||= Set[]
         @families.add?(family) || return
         command %Q[text.textContent="abcdefghijklmnopqrstuvwxyz"]
-        [ "font-family:#{family}", nil ].map do |style|
+        ["font-family:#{family}", nil].map do |style|
           command %Q[text.setAttribute("style", "#{style}")]
           command %Q[text.getBoundingClientRect().width]
         end.inject(&:==) || return

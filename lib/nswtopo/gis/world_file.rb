@@ -4,8 +4,8 @@ module NSWTopo
 
     def geotransform(top_left, resolution, angle)
       sin, cos = Math::sin(angle * Math::PI / 180.0), Math::cos(angle * Math::PI / 180.0)
-      [ [ top_left[0], resolution * cos,  resolution * sin ],
-        [ top_left[1], resolution * sin, -resolution * cos ] ]
+      [[top_left[0], resolution * cos,  resolution * sin],
+       [top_left[1], resolution * sin, -resolution * cos]]
     end
 
     def write(top_left, resolution, angle, path)

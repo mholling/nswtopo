@@ -15,7 +15,7 @@ class AVLTree
   end
 
   def leaf?
-    [ @left, @right ].all?(&:empty?)
+    [@left, @right].all?(&:empty?)
   end
 
   def replace_with(node)
@@ -27,7 +27,7 @@ class AVLTree
   end
 
   def update_height
-    @height = empty? ? 0 : [ @left, @right ].map(&:height).max + 1
+    @height = empty? ? 0 : [@left, @right].map(&:height).max + 1
   end
 
   def first_node
@@ -39,10 +39,10 @@ class AVLTree
   end
 
   def ancestors(node)
-    node.empty? ? [] : case [ @value, @value.object_id ] <=> [ node.value, node.value.object_id ]
-    when +1 then [ *@left.ancestors(node), self ]
-    when  0 then [ ]
-    when -1 then [ *@right.ancestors(node), self ]
+    node.empty? ? [] : case [@value, @value.object_id] <=> [node.value, node.value.object_id]
+    when +1 then [*@left.ancestors(node), self]
+    when  0 then []
+    when -1 then [*@right.ancestors(node), self]
     end
   end
 
@@ -50,14 +50,14 @@ class AVLTree
     a, b, c, v, @value = @left, @right.left, @right.right, @value, @right.value
     @left = @right
     @left.value, @left.left, @left.right, @right = v, a, b, c
-    [ @left, self ].each(&:update_height)
+    [@left, self].each(&:update_height)
   end
 
   def rotate_right
     a, b, c, v, @value = @left.left, @left.right, @right, @value, @left.value
     @right = @left
     @left.value, @left, @right.left, @right.right = v, a, b, c
-    [ @right, self ].each(&:update_height)
+    [@right, self].each(&:update_height)
   end
 
   def rebalance
@@ -76,7 +76,7 @@ class AVLTree
     if empty?
       @value, @left, @right = value, AVLTree.new, AVLTree.new
     else
-      case [ @value, @value.object_id ] <=> [ value, value.object_id ]
+      case [@value, @value.object_id] <=> [value, value.object_id]
       when +1 then @left.insert value
       when  0 then @value = value
       when -1 then @right.insert value
@@ -92,7 +92,7 @@ class AVLTree
   end
 
   def delete(value)
-    case [ @value, @value.object_id ] <=> [ value, value.object_id ]
+    case [@value, @value.object_id] <=> [value, value.object_id]
     when +1 then @left.delete value
     when 0
       @value.tap do

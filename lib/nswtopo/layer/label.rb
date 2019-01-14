@@ -39,18 +39,18 @@
 #     end
 
 #     def add(source)
-#       source_params = params[source.name] = [ YAML.load(DEFAULT_PARAMS), source.params[name] ].compact.inject(&:merge)
+#       source_params = params[source.name] = [YAML.load(DEFAULT_PARAMS), source.params[name]].compact.inject(&:merge)
 #       sublayers = Set.new
 #       source.labels.group_by do |dimension, data, labels, categories, sublayer|
-#         [ dimension, [ *categories ].map(&:to_s).reject(&:empty?).map(&:to_category).to_set ]
+#         [dimension, [*categories].map(&:to_s).reject(&:empty?).map(&:to_category).to_set]
 #       end.each do |(dimension, categories), features|
-#         transforms, attributes, *dimensioned_attributes = [ nil, nil, "point", "line", "line" ].map do |extra_category|
+#         transforms, attributes, *dimensioned_attributes = [nil, nil, "point", "line", "line"].map do |extra_category|
 #           categories | Set[*extra_category]
-#         end.zip([ TRANSFORMS, ATTRIBUTES, ATTRIBUTES, ATTRIBUTES, ATTRIBUTES ]).map do |categories, keys|
+#         end.zip([TRANSFORMS, ATTRIBUTES, ATTRIBUTES, ATTRIBUTES, ATTRIBUTES]).map do |categories, keys|
 #           source_params.select do |key, value|
 #             value.is_a?(Hash)
 #           end.select do |key, value|
-#             [ *key ].any? { |string| string.to_s.split.map(&:to_category).to_set <= categories }
+#             [*key].any? { |string| string.to_s.split.map(&:to_category).to_set <= categories }
 #           end.values.push("categories" => categories).inject(source_params, &:merge).select do |key, value|
 #             keys.include? key
 #           end
@@ -60,9 +60,9 @@
 #           text = case
 #           when REXML::Element === labels then labels
 #           when attributes["format"] then attributes["format"] % labels
-#           else [ *labels ].map(&:to_s).map(&:strip).reject(&:empty?).join(?\s)
+#           else [*labels].map(&:to_s).map(&:strip).reject(&:empty?).join(?\s)
 #           end
-#           [ *attributes["strip"] ].each do |strip|
+#           [*attributes["strip"]].each do |strip|
 #             text.gsub! strip, ''
 #           end
 #           text.upcase! if String === text && attributes["upcase"]
@@ -72,8 +72,8 @@
 #             other_source_name == source.name && other_text == text && other_sublayer == sublayer
 #           end if attributes["collate"]
 #           unless components
-#             components = [ ]
-#             @features << [ text, source.name, sublayer, components ]
+#             components = []
+#             @features << [text, source.name, sublayer, components]
 #           end
 #           data = case dimension
 #           when 0
@@ -83,7 +83,7 @@
 #               CONFIG.map.coords_to_mm coords
 #             end
 #           end
-#           transforms.inject([ [ dimension, data ] ]) do |dimensioned_data, (transform, (arg, *args))|
+#           transforms.inject([[dimension, data]]) do |dimensioned_data, (transform, (arg, *args))|
 #             next dimensioned_data unless arg
 #             opts, args = args.partition do |arg|
 #               Hash === arg
@@ -95,29 +95,29 @@
 #               when "reduce"
 #                 case arg
 #                 when "skeleton"
-#                   next [ [ 1, data.skeleton ] ] if closed
+#                   next [[1, data.skeleton]] if closed
 #                 when "centrelines"
-#                   next data.centres [ 1 ], *args, opts if closed
+#                   next data.centres [1], *args, opts if closed
 #                 when "centrepoints"
 #                   opts["interval"] ||= DEFAULT_SAMPLE
-#                   next data.centres [ 0 ], *args, opts if closed
+#                   next data.centres [0], *args, opts if closed
 #                 when "centres"
 #                   opts["interval"] ||= DEFAULT_SAMPLE
-#                   next data.centres [ 1, 0 ], *args, opts if closed
+#                   next data.centres [1, 0], *args, opts if closed
 #                 when "centroids"
-#                   next [ [ 0, data.reject(&:hole?).map(&:centroid) ] ] if closed
+#                   next [[0, data.reject(&:hole?).map(&:centroid)]] if closed
 #                 when "intervals"
 #                   interval = args[0] || DEFAULT_SAMPLE
 #                   case dimension
-#                   when 1 then next [ [ 0, data.sample_outwards(interval) ] ]
-#                   when 2 then next [ [ 0, data.sample_at(interval) ] ]
+#                   when 1 then next [[0, data.sample_outwards(interval)]]
+#                   when 2 then next [[0, data.sample_at(interval)]]
 #                   end
 #                 end
 #               when "fallback"
 #                 case arg
 #                 when "intervals"
 #                   interval = args[0] || DEFAULT_SAMPLE
-#                   next [ [ 1, data ], [ 0, data.sample_outwards(interval) ] ] if dimension == 1
+#                   next [[1, data], [0, data.sample_outwards(interval)]] if dimension == 1
 #                 end
 #               when "outset"
 #                 data.outset(arg, opts) if dimension > 0
@@ -128,7 +128,7 @@
 #               when "buffer"
 #                 data.buffer(closed, arg, *args) if dimension > 0
 #               when "smooth"
-#                 next [ [ 1, data.smooth(arg, max_turn) ] ] if dimension > 0
+#                 next [[1, data.smooth(arg, max_turn)]] if dimension > 0
 #               when "minimum-area"
 #                 case dimension
 #                 when 1
@@ -138,7 +138,7 @@
 #                 when 2
 #                   data.chunk(&:hole?).map(&:last).each_slice(2).map do |polys, holes|
 #                     keep = polys.map do |points|
-#                       [ points, points.signed_area > arg ]
+#                       [points, points.signed_area > arg]
 #                     end
 #                     keep.select(&:last).map(&:first).tap do |result|
 #                       result += holes if holes && keep.last.last
@@ -157,7 +157,7 @@
 #                   points.segments.map(&:distance).inject(0.0, &:+) < arg && points.first == points.last
 #                 end if dimension == 1
 #               when "remove"
-#                 [ ] if [ arg, *args ].any? do |value|
+#                 [] if [arg, *args].any? do |value|
 #                   case value
 #                   when true    then true
 #                   when String  then text == value
@@ -167,19 +167,19 @@
 #                 end
 #               when "keep-largest"
 #                 case dimension
-#                 when 1 then [ data.max_by(&:signed_area) ]
-#                 when 2 then [ data.max_by(&:path_length) ]
+#                 when 1 then [data.max_by(&:signed_area)]
+#                 when 2 then [data.max_by(&:path_length)]
 #                 end
 #               when "trim"
 #                 data.map do |points|
 #                   points.trim arg
 #                 end.reject(&:empty?) if dimension == 1
 #               end
-#               [ [ dimension, transformed || data ] ]
+#               [[dimension, transformed || data]]
 #             end.flatten(1)
 #           end.each do |dimension, data|
 #             data.each do |point_or_points|
-#               components << [ dimension, point_or_points, dimensioned_attributes[dimension] ]
+#               components << [dimension, point_or_points, dimensioned_attributes[dimension]]
 #             end
 #           end
 #         end
@@ -218,15 +218,15 @@
 #       labelling_hull, debug_features = CONFIG.map.mm_corners(-1), []
 #       fence_segments = fences.map.with_index do |(dimension, feature, buffer), index|
 #         case dimension
-#         when 0 then feature.map { |point| [ point ] }
+#         when 0 then feature.map { |point| [point] }
 #         when 1, 2 then feature.map(&:segments).flatten(1)
 #         end.map do |segment|
-#           [ segment, [ buffer, index ] ]
+#           [segment, [buffer, index]]
 #         end
 #       end.flatten(1)
 #       fence_index = RTree.load(fence_segments) do |fence, (buffer, *)|
 #         fence.transpose.map(&:minmax).map do |min, max|
-#           [ min - buffer, max + buffer ]
+#           [min - buffer, max + buffer]
 #         end
 #       end
 
@@ -236,24 +236,24 @@
 #           SCALABLE_ATTRIBUTES.each do |name|
 #             attributes[name] = attributes[name].to_i * font_size * 0.01 if /^\d+%$/ === attributes[name]
 #           end
-#           debug_features << [ dimension, [ data ], %w[debug feature] ] if CONFIG["debug"]
+#           debug_features << [dimension, [data], %w[debug feature]] if CONFIG["debug"]
 #           next [] if CONFIG["debug"] == "features"
 #           case dimension
 #           when 0
 #             margin, line_height = attributes.values_at "margin", "line-height"
 #             lines = Font.in_two text, attributes
-#             lines = [ [ text, Font.glyph_length(text, attributes) ] ] if lines.map(&:first).map(&:length).min == 1
+#             lines = [[text, Font.glyph_length(text, attributes)]] if lines.map(&:first).map(&:length).min == 1
 #             width = lines.map(&:last).max
 #             height = lines.map { font_size }.inject { |total| total + line_height }
 #             if attributes["shield"]
 #               width += VectorLayer::SHIELD_X * font_size
 #               height += VectorLayer::SHIELD_Y * font_size
 #             end
-#             [ *attributes["position"] || "over" ].map.with_index do |position, position_index|
+#             [*attributes["position"] || "over"].map.with_index do |position, position_index|
 #               dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
 #               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
 #               f = dx * dy == 0 ? 1 : 0.707
-#               offset = [ dx, dy ].map do |d|
+#               offset = [dx, dy].map do |d|
 #                 d * margin * f
 #               end
 #               text_attributes = {
@@ -271,18 +271,18 @@
 #                   text.add_text line
 #                 end
 #               end
-#               hull = [ [ dx, width ], [ dy, height ] ].map do |d, l|
-#                 [ d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l ]
+#               hull = [[dx, width], [dy, height]].map do |d, l|
+#                 [d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l]
 #               end.inject(&:product).values_at(0,2,3,1).map do |corner|
 #                 corner.rotate_by_degrees(-CONFIG.map.rotation).plus(data)
 #               end
 #               next unless labelling_hull.surrounds?(hull).all?
 #               fence_count = fence_index.search(hull.transpose.map(&:minmax)).inject(Set[]) do |indices, (fence, (buffer, index))|
 #                 next indices if indices.include? index
-#                 next indices unless [ hull, fence ].overlap?(buffer)
+#                 next indices unless [hull, fence].overlap?(buffer)
 #                 indices << index
 #               end.size
-#               priority = [ fence_count, position_index, component ]
+#               priority = [fence_count, position_index, component]
 #               Label.new source_name, sublayer, feature, component, priority, hull, attributes, text_elements
 #             end.compact.tap do |candidates|
 #               candidates.combination(2).each do |candidate1, candidate2|
@@ -331,10 +331,10 @@
 #             end
 #             closed ? angles.rotate!(-1) : angles.unshift(0).push(0)
 #             curvatures = segments.send(pairs).map do |(p0, p1), (_, p2)|
-#               sides = [ [ p0, p1 ], [ p1, p2 ], [ p2, p0 ] ].map(&:distance)
+#               sides = [[p0, p1], [p1, p2], [p2, p0]].map(&:distance)
 #               semiperimeter = 0.5 * sides.inject(&:+)
 #               diffs = sides.map { |side| semiperimeter - side }
-#               area_squared = [ semiperimeter * diffs.inject(&:*), 0 ].max
+#               area_squared = [semiperimeter * diffs.inject(&:*), 0].max
 #               4 * Math::sqrt(area_squared) / sides.inject(&:*)
 #             end
 #             closed ? curvatures.rotate!(-1) : curvatures.unshift(0).push(0)
@@ -344,14 +344,14 @@
 #             squared_angles = angles.map { |angle| angle * angle }
 #             overlaps = Hash.new do |hash, segment|
 #               bounds = segment.transpose.map(&:minmax).map do |min, max|
-#                 [ min - 0.5 * font_size, max + 0.5 * font_size ]
+#                 [min - 0.5 * font_size, max + 0.5 * font_size]
 #               end
 #               hash[segment] = fence_index.search(bounds).any? do |fence, (buffer, *)|
-#                 [ segment, fence ].overlap?(buffer + 0.5 * font_size)
+#                 [segment, fence].overlap?(buffer + 0.5 * font_size)
 #               end
 #             end
 #             Enumerator.new do |yielder|
-#               indices, distance, bad_indices, angle_integral = [ 0 ], 0, [ ], [ ]
+#               indices, distance, bad_indices, angle_integral = [0], 0, [], []
 #               loop do
 #                 while distance < text_length
 #                   break true if closed ? indices.many? && indices.last == indices.first : indices.last == points.length - 1
@@ -386,20 +386,20 @@
 #               fence = baseline.segments.any? do |segment|
 #                 overlaps[segment]
 #               end
-#               priority = [ fence ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f ]
+#               priority = [fence ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f]
 #               case orientation
 #               when "uphill"
 #               when "downhill" then baseline.reverse!
 #               else baseline.reverse! unless baseline.values_at(0, -1).difference.rotate_by_degrees(CONFIG.map.rotation).first > 0
 #               end
-#               hull = [ baseline, baseline.reverse ].map do |line|
-#                 [ line ].inset(0.5 * font_size, "splits" => false)
+#               hull = [baseline, baseline.reverse].map do |line|
+#                 [line].inset(0.5 * font_size, "splits" => false)
 #               end.flatten(2).convex_hull
 #               next unless labelling_hull.surrounds?(hull).all?
 #               baseline << baseline.last(2).difference.normalised.times(text_length * 0.25).plus(baseline.last)
-#               path_id = [ name, source_name, "path", feature, component, indices.first, indices.last ].join SEGMENT
+#               path_id = [name, source_name, "path", feature, component, indices.first, indices.last].join SEGMENT
 #               path_element = REXML::Element.new("path")
-#               path_element.add_attributes "id" => path_id, "d" => [ baseline ].to_path_data(MM_DECIMAL_DIGITS), "pathLength" => baseline.path_length.round(MM_DECIMAL_DIGITS)
+#               path_element.add_attributes "id" => path_id, "d" => [baseline].to_path_data(MM_DECIMAL_DIGITS), "pathLength" => baseline.path_length.round(MM_DECIMAL_DIGITS)
 #               text_element = REXML::Element.new("text")
 #               case text
 #               when REXML::Element
@@ -408,13 +408,13 @@
 #                 text_path = text_element.add_element "textPath", "xlink:href" => "##{path_id}", "textLength" => text_length.round(MM_DECIMAL_DIGITS), "spacing" => "auto"
 #                 text_path.add_element("tspan", "dy" => CENTRELINE_FRACTION * font_size).add_text(text)
 #               end
-#               Label.new source_name, sublayer, feature, component, priority, hull, attributes, [ text_element, path_element ], along
+#               Label.new source_name, sublayer, feature, component, priority, hull, attributes, [text_element, path_element], along
 #             end.compact.map do |candidate|
-#               [ candidate, [] ]
+#               [candidate, []]
 #             end.to_h.tap do |matrix|
 #               matrix.keys.nearby_pairs(closed) do |pair|
 #                 diff = pair.map(&:along).inject(&:-)
-#                 2 * (closed ? [ diff % total, -diff % total ].min : diff.abs) < sample
+#                 2 * (closed ? [diff % total, -diff % total].min : diff.abs) < sample
 #               end.each do |pair|
 #                 matrix[pair[0]] << pair[1]
 #                 matrix[pair[1]] << pair[0]
@@ -448,7 +448,7 @@
 #       end.flatten
 
 #       candidates.each do |candidate|
-#         debug_features << [ 2, [ candidate.hull ], %w[debug candidate] ]
+#         debug_features << [2, [candidate.hull], %w[debug candidate]]
 #       end if CONFIG["debug"]
 #       return debug_features if %w[features candidates].include? CONFIG["debug"]
 
@@ -460,7 +460,7 @@
 #       end
 
 #       candidates.group_by do |candidate|
-#         [ candidate.feature, candidate.attributes["separation"] ]
+#         [candidate.feature, candidate.attributes["separation"]]
 #       end.each do |(feature, buffer), candidates|
 #         candidates.map(&:hull).overlaps(buffer).map do |indices|
 #           candidates.values_at *indices
@@ -471,7 +471,7 @@
 #       end
 
 #       candidates.group_by do |candidate|
-#         [ candidate.source_name, candidate.sublayer, candidate.attributes["separation-all"] ]
+#         [candidate.source_name, candidate.sublayer, candidate.attributes["separation-all"]]
 #       end.each do |(source_name, sublayer, buffer), candidates|
 #         candidates.map(&:hull).overlaps(buffer).map do |indices|
 #           candidates.values_at *indices
@@ -482,7 +482,7 @@
 #       end
 
 #       conflicts = candidates.map do |candidate|
-#         [ candidate, candidate.conflicts.dup ]
+#         [candidate, candidate.conflicts.dup]
 #       end.to_h
 #       labels, remaining, changed = Set.new, AVLTree.new, candidates
 #       grouped = candidates.to_set.classify(&:feature)
@@ -495,7 +495,7 @@
 #           end
 #           labelled = counts[candidate.feature].zero? ? 0 : 1
 #           optional = candidate.optional? ? 1 : 0
-#           ordinal = [ optional, conflict_count, labelled, candidate.priority ]
+#           ordinal = [optional, conflict_count, labelled, candidate.priority]
 #           next if candidate.ordinal == ordinal
 #           remaining.delete candidate
 #           candidate.ordinal = ordinal
@@ -519,7 +519,7 @@
 #         counts[feature].zero?
 #       end.each do |feature, candidates|
 #         label = candidates.min_by do |candidate|
-#           [ (candidate.conflicts & labels).length, candidate.priority ]
+#           [(candidate.conflicts & labels).length, candidate.priority]
 #         end
 #         label.conflicts.intersection(labels).each do |other|
 #           next unless counts[other.feature] > 1
@@ -531,20 +531,20 @@
 #       end if CONFIG["allow-overlaps"]
 
 #       grouped = candidates.group_by do |candidate|
-#         [ candidate.feature, candidate.component ]
+#         [candidate.feature, candidate.component]
 #       end
 #       5.times do
 #         labels = labels.inject(labels.dup) do |labels, label|
 #           next labels unless label.point?
 #           labels.delete label
-#           labels << grouped[[ label.feature, label.component ]].min_by do |candidate|
-#             [ (labels & candidate.conflicts - Set[label]).count, candidate.priority ]
+#           labels << grouped[[label.feature, label.component]].min_by do |candidate|
+#             [(labels & candidate.conflicts - Set[label]).count, candidate.priority]
 #           end
 #         end
 #       end
 
 #       labels.map do |label|
-#         [ nil, label.elements, label.categories, label.source_name ]
+#         [nil, label.elements, label.categories, label.source_name]
 #       end.tap do |result|
 #         result.concat debug_features if CONFIG["debug"]
 #       end

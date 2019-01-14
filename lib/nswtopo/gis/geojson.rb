@@ -26,7 +26,7 @@ module NSWTopo
 
         def to_points
           case self
-          when Point then [ @coordinates ]
+          when Point then [@coordinates]
           when MultiPoint, LineString then @coordinates
           when MultiLineString, Polygon then @coordinates.flatten(1)
           when MultiPolygon then @coordinates.flatten(2)
@@ -90,7 +90,7 @@ module NSWTopo
       end
 
       extend Forwardable
-      delegate [ :coordinates, :properties ] => :first
+      delegate [:coordinates, :properties] => :first
 
       def to_json(**extras)
         to_h.merge(extras).to_json
@@ -127,16 +127,16 @@ module NSWTopo
       end
     end
 
-    [ [ Point,      MultiPoint      ],
-      [ LineString, MultiLineString ],
-      [ Polygon,    MultiPolygon    ] ].each do |single_class, multi_class|
+    [[Point,      MultiPoint     ],
+     [LineString, MultiLineString],
+     [Polygon,    MultiPolygon   ]].each do |single_class, multi_class|
       single_class.class_eval do
         def explode
-          [ self ]
+          [self]
         end
 
         define_method :multi do
-          multi_class.new [ @coordinates ], @properties
+          multi_class.new [@coordinates], @properties
         end
 
         extend Forwardable
@@ -156,7 +156,7 @@ module NSWTopo
 
     class MultiPoint
       def clip(hull)
-        points = [ hull, hull.perps ].transpose.inject(@coordinates) do |result, (vertex, perp)|
+        points = [hull, hull.perps].transpose.inject(@coordinates) do |result, (vertex, perp)|
           result.select { |point| point.minus(vertex).dot(perp) >= 0 }
         end
         points.none? ? nil : points.one? ? Point.new(*points, @properties) : MultiPoint.new(points, @properties)
@@ -165,9 +165,9 @@ module NSWTopo
 
     class MultiLineString
       def clip(hull)
-        lines = [ hull, hull.perps ].transpose.inject(@coordinates) do |result, (vertex, perp)|
+        lines = [hull, hull.perps].transpose.inject(@coordinates) do |result, (vertex, perp)|
           result.inject([]) do |clipped, points|
-            clipped + [ *points, points.last ].segments.inject([[]]) do |lines, segment|
+            clipped + [*points, points.last].segments.inject([[]]) do |lines, segment|
               inside = segment.map { |point| point.minus(vertex).dot(perp) >= 0 }
               case
               when inside.all?
@@ -176,7 +176,7 @@ module NSWTopo
                 lines.last << segment[0]
                 lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
               when inside[1]
-                lines << [ ]
+                lines << []
                 lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
               end
               lines
@@ -198,7 +198,7 @@ module NSWTopo
                 point.minus(vertex).dot(perp) >= 0
               end.segments.zip(points.segments).each do |inside, segment|
                 insides[segment] = inside
-                neighbours[segment] = [ nil, nil ]
+                neighbours[segment] = [nil, nil]
               end.map(&:last).ring.each do |segment0, segment1|
                 neighbours[segment1][0], neighbours[segment0][1] = segment0, segment1
               end
@@ -213,9 +213,9 @@ module NSWTopo
             end.sort_by do |segment, inside|
               segment[inside[0] ? 1 : 0].minus(vertex).cross(perp) * (lefthanded ? -1 : 1)
             end.map(&:first).each_slice(2) do |segment0, segment1|
-              segment = [ segment0[1], segment1[0] ]
+              segment = [segment0[1], segment1[0]]
               neighbours[segment0][1] = neighbours[segment1][0] = segment
-              neighbours[segment] = [ segment0, segment1 ]
+              neighbours[segment] = [segment0, segment1]
             end
             while neighbours.any?
               segment, * = neighbours.first
@@ -233,7 +233,7 @@ module NSWTopo
             within, interior = interior.partition do |interior_ring|
               interior_ring.first.within? exterior_ring
             end
-            result << [ exterior_ring, *within ]
+            result << [exterior_ring, *within]
           end
         end
         polys.none? ? nil : polys.one? ? Polygon.new(*polys, @properties) : MultiPolygon.new(polys, @properties)

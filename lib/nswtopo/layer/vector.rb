@@ -32,7 +32,7 @@ module NSWTopo
 
     def to_s
       count = features.count
-      "%s: %i feature%s" % [ @name, count, (?s unless count == 1) ]
+      "%s: %i feature%s" % [@name, count, (?s unless count == 1)]
     end
 
     def categorise(string)
@@ -42,17 +42,17 @@ module NSWTopo
     def svg_path_data(points, bezier: false)
       if bezier
         fraction = Numeric === bezier ? bezier.clamp(0.0, 1.0) : 1.0
-        extras = points.first == points.last ? [ points[-2], *points, points[2] ] : [ points.first, *points, points.last ]
+        extras = points.first == points.last ? [points[-2], *points, points[2]] : [points.first, *points, points.last]
         midpoints = extras.segments.map(&:midpoint)
         distances = extras.segments.map(&:distance)
         offsets = midpoints.zip(distances).segments.map(&:transpose).map do |segment, distance|
           segment.along(distance.first / distance.inject(&:+))
         end.zip(points).map(&:difference)
         controls = midpoints.segments.zip(offsets).map do |segment, offset|
-          segment.map { |point| [ point, point.plus(offset) ].along(fraction) }
+          segment.map { |point| [point, point.plus(offset)].along(fraction) }
         end.flatten(1).drop(1).each_slice(2).entries.prepend(nil)
         points.zip(controls).map do |point, controls|
-          controls ? "C %s %s %s" % [ POINT, POINT, POINT ] % [ *controls.flatten, *point ] : "M %s" % POINT % point
+          controls ? "C %s %s %s" % [POINT, POINT, POINT] % [*controls.flatten, *point] : "M %s" % POINT % point
         end.join(" ")
       else
         points.map do |point|
@@ -81,16 +81,16 @@ module NSWTopo
       end.map do |categories, features|
         dupes = params_for(categories)["dupe"]
         Array(dupes).map(&:to_s).map do |dupe|
-          [ categories | Set[dupe], [ name, *categories, "content" ].join(?.) ]
-        end.push [ categories, features ]
+          [categories | Set[dupe], [name, *categories, "content"].join(?.)]
+        end.push [categories, features]
       end.flatten(1).map do |categories, features|
-        ids = [ name, *categories ]
+        ids = [name, *categories]
         case features
         when String
           container = group.add_element "use", "class" => categories.to_a.join(?\s), "xlink:href" => "#%s" % features
         when Array
           container = group.add_element "g", "class" => categories.to_a.join(?\s)
-          content = container.add_element "g", "id" => [ *ids, "content" ].join(?.)
+          content = container.add_element "g", "id" => [*ids, "content"].join(?.)
         end
         container.add_attribute "id", ids.join(?.) if categories.any?
 
@@ -103,13 +103,13 @@ module NSWTopo
         features.each do |feature|
           case feature
           when GeoJSON::Point
-            symbol_id = [ *ids, "symbol"].join(?.)
-            transform = "translate(%s) rotate(%s)" % [ POINT, ANGLE ] % [ *feature.coordinates.yield_self(&to_mm), feature.properties.fetch("rotation", @map.rotation) - @map.rotation ]
+            symbol_id = [*ids, "symbol"].join(?.)
+            transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*feature.coordinates.yield_self(&to_mm), feature.properties.fetch("rotation", @map.rotation) - @map.rotation]
             content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
 
           when GeoJSON::LineString
             linestring = feature.coordinates.map(&to_mm)
-            (section ? linestring.in_sections(section) : [ linestring ]).each do |linestring|
+            (section ? linestring.in_sections(section) : [linestring]).each do |linestring|
               content.add_element "path", "fill" => "none", "d" => svg_path_data(linestring, bezier: bezier)
             end
 
@@ -134,7 +134,7 @@ module NSWTopo
 
           case command
           when "blur"
-            filter_id = [ *ids, "blur" ].join(?.)
+            filter_id = [*ids, "blur"].join(?.)
             container.add_attribute "filter", "url(#%s)" % filter_id
             defs.add_element("filter", "id" => filter_id).add_element "feGaussianBlur", "stdDeviation" => args, "in" => "SourceGraphic"
 
@@ -147,14 +147,14 @@ module NSWTopo
 
           when "symbol"
             next unless content
-            symbol = defs.add_element "g", "id" => [ *ids, "symbol"].join(?.)
+            symbol = defs.add_element "g", "id" => [*ids, "symbol"].join(?.)
             args.each do |element, attributes|
               symbol.add_element element, attributes
             end
 
           when "pattern"
             width, height = Hash[args].values_at "width", "height"
-            pattern_id = [ *ids, "pattern"].join(?.)
+            pattern_id = [*ids, "pattern"].join(?.)
             pattern = defs.add_element "pattern", "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "width" => width, "height" => height
             args.each &pattern.method(:add_element)
             container.add_attribute "fill", "url(#%s)" % pattern_id
@@ -163,7 +163,7 @@ module NSWTopo
             next unless content
             interval = Hash[args]["interval"]
             symbol_ids = args.map.with_index do |(element, attributes), index|
-              symbol_id = [ *ids, "symbol", index ].join(?.).tap do |symbol_id|
+              symbol_id = [*ids, "symbol", index].join(?.).tap do |symbol_id|
                 defs.add_element("g", "id" => symbol_id).add_element(element, attributes)
               end
             end
@@ -171,25 +171,25 @@ module NSWTopo
             lines_or_rings += features.grep(GeoJSON::Polygon).map(&:coordinates).flatten(1)
             lines_or_rings.each do |points|
               points.map(&to_mm).sample_at(interval, :angle).each do |point, angle|
-                transform = "translate(%s) rotate(%s)" % [ POINT, ANGLE ] % [ *point, 180.0 * angle / Math::PI ]
+                transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*point, 180.0 * angle / Math::PI]
                 content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_ids.sample
               end
             end
 
           when "inpoint", "outpoint", "endpoint"
             next unless content
-            symbol_id = [ *ids, command ].join(?.)
+            symbol_id = [*ids, command].join(?.)
             symbol = defs.add_element "g", "id" => symbol_id
             args.each &symbol.method(:add_element)
             features.grep(GeoJSON::LineString).map do |feature|
               feature.coordinates.map(&to_mm)
             end.each do |line|
               case command
-              when "inpoint"  then [ line.first(2) ]
-              when "outpoint" then [ line.last(2).rotate ]
-              when "endpoint" then [ line.first(2), line.last(2).rotate ]
+              when "inpoint"  then [line.first(2)]
+              when "outpoint" then [line.last(2).rotate]
+              when "endpoint" then [line.first(2), line.last(2).rotate]
               end.each do |segment|
-                transform = "translate(%s) rotate(%s)" % [ POINT, ANGLE ] % [ *segment.first, 180.0 * segment.difference.angle / Math::PI ]
+                transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*segment.first, 180.0 * segment.difference.angle / Math::PI]
                 container.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
               end
             end
@@ -213,7 +213,7 @@ module NSWTopo
           #   buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
           #   features.each do |feature|
           #     next if REXML::Element === features
-          #     fences << [ feature, buffer ]
+          #     fences << [feature, buffer]
           #   end
 
           # # TODO: reinstate, works with Label layer

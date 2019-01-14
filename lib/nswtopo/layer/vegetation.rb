@@ -23,10 +23,10 @@ module NSWTopo
         (Float(percent - low) / (high - low)).clamp(0.0, 1.0)
       end.map do |x|
         next x if factor.zero?
-        [ x, 1.0 ].map do |x|
-            [ x, 0.0 ].map do |x|
-                1 / (1 + Math::exp(factor * (0.5 - x)))
-            end.inject(&:-)
+        [x, 1.0].map do |x|
+          [x, 0.0].map do |x|
+            1 / (1 + Math::exp(factor * (0.5 - x)))
+          end.inject(&:-)
         end.inject(&:/) # sigmoid between 0..1
       end.map do |x|
         nonwoody.mix(woody, x)

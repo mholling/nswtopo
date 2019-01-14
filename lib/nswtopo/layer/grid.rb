@@ -19,27 +19,27 @@ module NSWTopo
           counts.map { |count| count * @interval }
         end
         grid = eastings.map do |easting|
-          [ easting ].product northings.reverse
+          [easting].product northings.reverse
         end
-        easting_lines, northing_lines = [ grid, grid.transpose ].map do |lines|
+        easting_lines, northing_lines = [grid, grid.transpose].map do |lines|
           GeoJSON.multilinestring lines, utm
         end
-        [ zone, easting_lines, northing_lines ]
+        [zone, easting_lines, northing_lines]
       end
     end
 
     def get_features
       grids.map do |zone, eastings, northings|
-        [ eastings, northings ].map do |lines|
+        [eastings, northings].map do |lines|
           lines.reproject_to_wgs84
         end.each do |lines|
           lines.clip! Projection.utm_hull(zone)
         end.yield_self do |eastings, northings|
           boundary = GeoJSON.linestring northings.coordinates.map(&:first)
-          [ eastings, northings, boundary ].map(&:first)
+          [eastings, northings, boundary].map(&:first)
         end.zip %w[easting northing boundary]
       end.flatten(1).inject(GeoJSON::Collection.new) do |result, (feature, category)|
-        feature.properties.store "categories", [ category ]
+        feature.properties.store "categories", [category]
         result << feature
       end.explode
     end
@@ -80,17 +80,17 @@ end
 
 # def label_grids(label_interval)
 #   grids.map do |zone, utm, grid|
-#     eastings, northings = [ grid, grid.transpose ].map.with_index do |lines, index|
+#     eastings, northings = [grid, grid.transpose].map.with_index do |lines, index|
 #       lines.select do |line|
 #         line[0][index] % label_interval == 0
 #       end.map do |line|
 #         offset_line = line.map(&:dup).each do |coords|
 #           coords[index] += 0.001 * label_offset * CONFIG.map.scale
 #         end
-#         [ line[0][index], offset_line ]
+#         [line[0][index], offset_line]
 #       end.to_h
 #     end
-#     [ zone, utm, eastings, northings ]
+#     [zone, utm, eastings, northings]
 #   end
 # end
 
@@ -99,8 +99,8 @@ end
 # end
 
 # def label(coord, label_interval)
-#   parts = [ [ "%d" % (coord / 100000), 80 ], [ "%02d" % ((coord / 1000) % 100), 100 ] ]
-#   parts << [ "%03d" % (coord % 1000), 80 ] unless label_interval % 1000 == 0
+#   parts = [["%d" % (coord / 100000), 80], ["%02d" % ((coord / 1000) % 100), 100]]
+#   parts << ["%03d" % (coord % 1000), 80] unless label_interval % 1000 == 0
 #   text_path = REXML::Element.new("textPath")
 #   parts.each.with_index do |(text, percent), index|
 #     tspan = text_path.add_element "tspan", "font-size" => "#{percent}%"
@@ -108,10 +108,10 @@ end
 #     tspan.add_text text
 #   end
 #   length = parts.map do |text, percent|
-#     [ Font.glyph_length(?\s, @params["labels"]), Font.glyph_length(text, @params["labels"].merge("font-size" => font_size * percent / 100.0)) ]
+#     [Font.glyph_length(?\s, @params["labels"]), Font.glyph_length(text, @params["labels"].merge("font-size" => font_size * percent / 100.0))]
 #   end.flatten.drop(1).inject(&:+)
 #   text_path.add_attribute "textLength", length
-#   [ length, text_path ]
+#   [length, text_path]
 # end
 
 # def edge_labels
@@ -125,16 +125,16 @@ end
 #           points.one? { |point| point.minus(corner).dot(perp) < 0.0 }
 #         end
 #         segment[outgoing ? 1 : 0] = segment.along(corner.minus(segment[0]).dot(perp) / segment.difference.dot(perp)) if segment
-#         [ coord, segment ]
+#         [coord, segment]
 #       end.select(&:last).select do |coord, segment|
 #         corners.surrounds?(segment).any? && Projection.in_zone?(zone, segment[outgoing ? 1 : 0], CONFIG.map.projection)
 #       end.map do |coord, segment|
 #         length, text_path = label(coord, grid_interval)
 #         segment_length = 1000.0 * segment.distance / CONFIG.map.scale
 #         fraction = length / segment_length
-#         fractions = outgoing ? [ 1.0 - fraction, 1.0 ] : [ 0.0, fraction ]
+#         fractions = outgoing ? [1.0 - fraction, 1.0] : [0.0, fraction]
 #         baseline = fractions.map { |fraction| segment.along fraction }
-#         [ 1, [ baseline ], text_path, index % 2 == 0 ? "eastings" : "northings" ]
+#         [1, [baseline], text_path, index % 2 == 0 ? "eastings" : "northings"]
 #       end
 #     end
 #   end.flatten(2)
@@ -143,7 +143,7 @@ end
 # def periodic_labels
 #   label_interval = label_spacing * grid_interval
 #   label_grids(label_interval).map do |zone, utm, eastings, northings|
-#     [ eastings, northings ].map.with_index do |lines, index|
+#     [eastings, northings].map.with_index do |lines, index|
 #       lines.map do |coord, line|
 #         line.segments.select do |segment|
 #           segment[0][1-index] % label_interval == 0
@@ -155,8 +155,8 @@ end
 #           length, text_path = label(coord, label_interval)
 #           segment_length = 1000.0 * segment.distance / CONFIG.map.scale
 #           fraction = length / segment_length
-#           baseline = [ segment.along(0.5 * (1 - fraction)), segment.along(0.5 * (1 + fraction)) ]
-#           [ 1, [ baseline ], text_path, index.zero? ? "eastings" : "northings" ]
+#           baseline = [segment.along(0.5 * (1 - fraction)), segment.along(0.5 * (1 + fraction))]
+#           [1, [baseline], text_path, index.zero? ? "eastings" : "northings"]
 #         end
 #       end
 #     end

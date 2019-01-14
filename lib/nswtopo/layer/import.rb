@@ -15,8 +15,8 @@ module NSWTopo
       end
 
       projection = Projection.new(@path)
-      args = [ "-projwin", *@map.projwin(projection), @path, crop_path ]
-      args = [ "-expand", "rgba", *args ] if palette
+      args = ["-projwin", *@map.projwin(projection), @path, crop_path]
+      args = ["-expand", "rgba", *args] if palette
       OS.gdal_translate *args
 
       return Numeric === @resolution ? @resolution : @map.get_raster_resolution(crop_path), crop_path

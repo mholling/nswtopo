@@ -43,7 +43,7 @@ module StraightSkeleton
       case
       when det && det.nonzero?
         x = normals.map { |normal| travel - @travel + normal.dot(point) }
-        [ normals[1][1] * x[0] - normals[0][1] * x[1], normals[0][0] * x[1] - normals[1][0] * x[0] ] / det
+        [normals[1][1] * x[0] - normals[0][1] * x[1], normals[0][0] * x[1] - normals[1][0] * x[0]] / det
       when normals[0] then normals[0].times(travel - @travel).plus(point)
       when normals[1] then normals[1].times(travel - @travel).plus(point)
       end
@@ -78,7 +78,7 @@ module StraightSkeleton
     end
 
     def replace!(&block)
-      @neighbours = [ @sources[0].prev, @sources[1].next ]
+      @neighbours = [@sources[0].prev, @sources[1].next]
       @neighbours.inject(&:==) ? block.call(prev) : insert! if @neighbours.any?
       @sources.each(&block)
     end
@@ -107,7 +107,7 @@ module StraightSkeleton
     end
 
     def split!(index, &block)
-      @neighbours = [ @source.neighbours[index], @edge[1-index] ].rotate index
+      @neighbours = [@source.neighbours[index], @edge[1-index]].rotate index
       @neighbours.inject(&:equal?) ? block.call(prev, prev.is_a?(Collapse) ? 1 : 0) : insert! if @neighbours.any?
     end
 
@@ -122,7 +122,7 @@ module StraightSkeleton
     include Node
 
     def initialize(nodes, point)
-      @original, @nodes, @point, @neighbours, @normals, @travel = self, nodes, point, [ nil, nil ], [ nil, nil ], 0
+      @original, @nodes, @point, @neighbours, @normals, @travel = self, nodes, point, [nil, nil], [nil, nil], 0
     end
   end
 
@@ -140,7 +140,7 @@ module StraightSkeleton
           points.last == point ? points : points << point
         end
       end.map.with_index do |(*points, point), index|
-        points.first == point ? [ points, :ring, (index unless points.hole?) ] : [ points << point, :segments, nil ]
+        points.first == point ? [points, :ring, (index unless points.hole?)] : [points << point, :segments, nil]
       end.each do |points, pair, index|
         normals = points.send(pair).map(&:difference).map(&:normalised).map(&:perp)
         points.map do |point|
@@ -165,8 +165,8 @@ module StraightSkeleton
       det = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
       return if det.zero?
       travel = (x0 * n1.cross(n2) + x1 * n2.cross(n0) + x2 * n0.cross(n1)) / det
-      point = [ n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2) ].inject(&:plus) / det
-      [ point, travel ]
+      point = [n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2)].inject(&:plus) / det
+      [point, travel]
     end
 
     # #################################
@@ -181,7 +181,7 @@ module StraightSkeleton
       return if det.zero?
       travel = (x0 * n1.dot(n2) - x1 * n2.dot(n0) + x2 * n0.cross(n1)) / det
       point = (n2.times(x0 - x1).plus n0.minus(n1).perp.times(x2)) / det
-      [ point, travel ]
+      [point, travel]
     end
 
     def collapse(edge)
@@ -189,7 +189,7 @@ module StraightSkeleton
       p0, p1 = edge.map(&:point)
       t0, t1 = edge.map(&:travel)
       return if p0.equal? p1
-      good = [ n00 && !n00.cross(n01).zero?, n11 && !n11.cross(n10).zero? ]
+      good = [n00 && !n00.cross(n01).zero?, n11 && !n11.cross(n10).zero?]
       point, travel = case
       when good.all? then Nodes::solve(n00, n01, n11, n00.dot(p0) - t0, n01.dot(p1) - t1, n11.dot(p1) - t1)
       when good[0] then Nodes::solve_asym(n00, n01, n10, n00.dot(p0) - t0, n01.dot(p0) - t0, n10.cross(p1))
@@ -202,16 +202,16 @@ module StraightSkeleton
 
     def split(node)
       bounds = node.project(@limit).zip(node.point).map do |centre, coord|
-        [ coord, centre - @limit, centre + @limit ].minmax
+        [coord, centre - @limit, centre + @limit].minmax
       end if @limit
       @index.search(bounds).map do |edge|
-        p0, p1, p2 = [ *edge, node ].map(&:point)
-        t0, t1, t2 = [ *edge, node ].map(&:travel)
-        (n00, n01), (n10, n11), (n20, n21) = [ *edge, node ].map(&:normals)
+        p0, p1, p2 = [*edge, node].map(&:point)
+        t0, t1, t2 = [*edge, node].map(&:travel)
+        (n00, n01), (n10, n11), (n20, n21) = [*edge, node].map(&:normals)
         next if p0 == p2 || p1 == p2
         next if node.terminal? and Split === node and node.source.normals[0].equal? n01
         next if node.terminal? and Split === node and node.source.normals[1].equal? n01
-        next unless node.terminal? || [ n20, n21 ].compact.inject(&:plus).dot(n01) < 0
+        next unless node.terminal? || [n20, n21].compact.inject(&:plus).dot(n01) < 0
         point, travel = case
         when n20 && n21 then Nodes::solve(n20, n21, n01, n20.dot(p2) - t2, n21.dot(p2) - t2, n01.dot(p0) - t0)
         when n20 then Nodes::solve_asym(n01, n20, n20, n01.dot(p0) - t0, n20.dot(p2) - t2, n20.cross(p2))
@@ -233,8 +233,8 @@ module StraightSkeleton
     def insert(node)
       @active << node
       @track[node.normals[1]] << node if node.normals[1]
-      2.times.inject [ node ] do |nodes|
-        [ nodes.first.prev, *nodes, nodes.last.next ].compact
+      2.times.inject [node] do |nodes|
+        [nodes.first.prev, *nodes, nodes.last.next].compact
       end.segments.uniq.each do |edge|
         collapse edge
       end
@@ -243,7 +243,7 @@ module StraightSkeleton
 
     def track(normal)
       @track[normal].select(&:active?).map do |node|
-        [ node, node.next ]
+        [node, node.next]
       end
     end
 
@@ -276,7 +276,7 @@ module StraightSkeleton
         @active.clear
         @indices = nil
       end.map do |*nodes, node|
-        nodes.first == node ? [ nodes, :ring ] : [ nodes << node, :segments ]
+        nodes.first == node ? [nodes, :ring] : [nodes << node, :segments]
       end.each.with_index do |(nodes, pair), index|
         normals = nodes.send(pair).map do |edge|
           edge[0].normals[1]
@@ -311,23 +311,23 @@ module StraightSkeleton
       end.each do |point, nodes|
         @active.subtract nodes
         nodes.inject [] do |events, node|
-          events << [ :incoming, node.prev ] if node.prev
-          events << [ :outgoing, node.next ] if node.next
+          events << [:incoming, node.prev] if node.prev
+          events << [:outgoing, node.next] if node.next
           events
         end.sort_by do |event, node|
           case event
-          when :incoming then [ -@direction * node.normals[1].angle,        1 ]
-          when :outgoing then [ -@direction * node.normals[0].negate.angle, 0 ]
+          when :incoming then [-@direction * node.normals[1].angle,        1]
+          when :outgoing then [-@direction * node.normals[0].negate.angle, 0]
           end
         end.ring.map(&:transpose).each do |events, neighbours|
           node = Vertex.new self, point
           case events
-          when [ :outgoing, :incoming ] then next
-          when [ :outgoing, :outgoing ]
+          when [:outgoing, :incoming] then next
+          when [:outgoing, :outgoing]
             Nodes.stitch neighbours[1].normals[0], node, neighbours[1]
-          when [ :incoming, :incoming ]
+          when [:incoming, :incoming]
             Nodes.stitch neighbours[0].normals[1], neighbours[0], node
-          when [ :incoming, :outgoing ]
+          when [:incoming, :outgoing]
             Nodes.stitch neighbours[0].normals[1], neighbours[0], node
             Nodes.stitch neighbours[1].normals[0], node, neighbours[1]
           end
@@ -363,20 +363,20 @@ module StraightSkeleton
         end.each do |extra_node|
           @active << extra_node
         end
-        edges = [ node.neighbours[0], node, *extra_nodes, node.neighbours[1] ].segments
-        normals = [ node.normals[0], *extra_normals, node.normals[1] ]
+        edges = [node.neighbours[0], node, *extra_nodes, node.neighbours[1]].segments
+        normals = [node.normals[0], *extra_normals, node.normals[1]]
         edges.zip(normals).each do |edge, normal|
           Nodes.stitch normal, *edge
         end
       end
 
       @active.select(&:next).map do |node|
-        [ node, node.next ]
+        [node, node.next]
       end.each do |edge|
         collapse edge
         @track[edge[0].normals[1]] << edge[0]
       end.map do |edge|
-        [ edge.map(&:point).transpose.map(&:minmax), edge ]
+        [edge.map(&:point).transpose.map(&:minmax), edge]
       end.tap do |bounds_edges|
         @index = RTree.load bounds_edges
       end
@@ -395,7 +395,7 @@ module StraightSkeleton
         end if interval && block_given?
         candidate.replace! do |node, index = 0|
           @active.delete node
-          yield :nodes, *[ node, candidate ].rotate(index).map(&:original) if block_given?
+          yield :nodes, *[node, candidate].rotate(index).map(&:original) if block_given?
         end
       end
 

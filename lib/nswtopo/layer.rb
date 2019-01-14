@@ -56,7 +56,7 @@ module NSWTopo
     end
 
     def <=>(other)
-      [ self, other ].map(&:level).inject(&:<=>)
+      [self, other].map(&:level).inject(&:<=>)
     end
 
     def ==(other)
@@ -64,7 +64,7 @@ module NSWTopo
     end
 
     def uptodate?
-      mtimes = [ @source&.mtime, @map.mtime(filename) ]
+      mtimes = [@source&.mtime, @map.mtime(filename)]
       mtimes.all? && mtimes.inject(&:<)
     end
 

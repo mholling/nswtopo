@@ -16,7 +16,7 @@ module NSWTopo
         with_browser do |browser_name, browser_path|
           args = case browser_name
           when "chrome"
-            [ "--headless", "--disable-gpu", "--print-to-pdf=#{pdf_path}" ]
+            ["--headless", "--disable-gpu", "--print-to-pdf=#{pdf_path}"]
           when "firefox"
             raise "can't create vector PDF with firefox; use chrome or specify ppi for a raster PDF"
           end

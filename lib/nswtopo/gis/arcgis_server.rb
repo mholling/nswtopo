@@ -1,12 +1,12 @@
 module NSWTopo
   module ArcGISServer
     Error = Class.new RuntimeError
-    ERRORS = [ Timeout::Error, Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError ]
+    ERRORS = [Timeout::Error, Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError]
     SERVICE = /^(?:MapServer|FeatureServer|ImageServer)$/
 
     class Connection
       def initialize(http, service_path)
-        @http, @service_path, @headers = http, service_path, { "User-Agent" => "Ruby/#{RUBY_VERSION}", "Referer" => "%s://%s" % [ http.use_ssl? ? "https" : "http", http.address ] }
+        @http, @service_path, @headers = http, service_path, { "User-Agent" => "Ruby/#{RUBY_VERSION}", "Referer" => "%s://%s" % [http.use_ssl? ? "https" : "http", http.address] }
         http.max_retries = 0
       end
 
@@ -108,12 +108,12 @@ module NSWTopo
         end
 
         coded_values = fields.map do |field|
-          [ field["name"], field.dig("domain", "codedValues") ]
+          [field["name"], field.dig("domain", "codedValues")]
         end.select(&:last).map do |name, coded_values|
           values = coded_values.map do |pair|
             pair.values_at "code", "name"
           end.to_h
-          [ name, values ]
+          [name, values]
         end.to_h
 
         geometry = { rings: @map.bounding_box(margin).reproject_to(projection).coordinates.map(&:reverse) }.to_json
@@ -124,7 +124,7 @@ module NSWTopo
         next GeoJSON::Collection.new projection unless object_ids
 
         features = Enumerator.new do |yielder|
-          per_page, total = [ *per_page, *max_record_count, 500 ].min, object_ids.length
+          per_page, total = [*per_page, *max_record_count, 500].min, object_ids.length
           while object_ids.any?
             yield total - object_ids.length, total if block_given? && total > 0
             yielder << begin

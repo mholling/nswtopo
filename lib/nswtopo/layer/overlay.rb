@@ -7,7 +7,7 @@ module NSWTopo
       features.each do |feature|
         name = feature.properties["name"]
         feature.properties.clear
-        feature.properties["categories"] = [ categorise(name) ] unless name.empty?
+        feature.properties["categories"] = [categorise(name)] unless name.empty?
       end
       features
     end

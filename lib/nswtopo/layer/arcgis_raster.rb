@@ -33,7 +33,7 @@ module NSWTopo
         end.map do |min, max|
           (min.floor..max.ceil).each_cons(2).to_a
         end.inject(&:product).map do |cols, rows|
-          bounds = [ cols, rows ].zip(tile_sizes).map do |indices, tile_size|
+          bounds = [cols, rows].zip(tile_sizes).map do |indices, tile_size|
             indices.times(tile_size * tile_resolution)
           end.transpose.map do |corner|
             corner.plus(origin)
@@ -48,12 +48,12 @@ module NSWTopo
           tif_path = temp_dir / "#{row}.#{col}.tif"
 
           ullr = bounds.inject(&:product).values_at(1,2).flatten
-          gdal_args = [ "-a_srs", projection, "-a_ullr", *ullr, "-of", "GTiff", jpg_path, tif_path ]
+          gdal_args = ["-a_srs", projection, "-a_ullr", *ullr, "-of", "GTiff", jpg_path, tif_path]
 
-          [ rel_path, jpg_path, gdal_args, tif_path ]
+          [rel_path, jpg_path, gdal_args, tif_path]
         end.compact
         tiles.each.with_index do |(rel_path, jpg_path, gdal_args, tif_path), index|
-          log_update "%s: retrieving tile %i of %i" % [ @name, index + 1, tiles.length ]
+          log_update "%s: retrieving tile %i of %i" % [@name, index + 1, tiles.length]
           connection.get(rel_path, blankTile: true) do |response|
             jpg_path.binwrite response.body
           end

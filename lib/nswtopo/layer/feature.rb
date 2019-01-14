@@ -4,7 +4,7 @@ module NSWTopo
     CREATE = %w[features]
 
     def get_features
-      (Array === @features ? @features : [ @features ]).map do |args|
+      (Array === @features ? @features : [@features]).map do |args|
         case args
         when Hash then args.transform_keys(&:to_sym)
         when String then { source: args }
@@ -13,13 +13,13 @@ module NSWTopo
       end.slice_before do |args|
         !args[:fallback]
       end.map do |fallbacks|
-        options, collection, error = fallbacks.inject [ {}, nil, nil ] do |(options, *), source: nil, fallback: false, **args|
+        options, collection, error = fallbacks.inject [{}, nil, nil] do |(options, *), source: nil, fallback: false, **args|
           source = @path if @path
           log_update "%s: failed to retrieve features, trying fallback source" % @name if fallback
           raise "#{@source}: no feature source defined" unless source
           options.merge! args
           break options, arcgis_layer(source, margin: MARGIN, **options.slice(:where, :layer, :per_page)) do |index, total|
-            log_update "%s: retrieved %i of %i features" % [ @name, index, total ]
+            log_update "%s: retrieved %i of %i features" % [@name, index, total]
           end if ArcGISServer === source
           source_path = Pathname(source).expand_path(@source.parent)
           break options, shapefile_layer(source_path, margin: MARGIN, **options.slice(:where, :sql, :layer)) if Shapefile === source_path
@@ -32,13 +32,13 @@ module NSWTopo
         next collection.reproject_to(@map.projection), options
       end.each do |collection, options|
         rotation_attribute, arithmetic = case options[:rotation]
-        when /^90 - (\w+)$/ then [ $1, true ]
+        when /^90 - (\w+)$/ then [$1, true]
         when String then options[:rotation]
         end
 
         collection.each do |feature|
-          categories = [ *options[:category] ].map do |category|
-            Hash === category ? [ *category ] : [ category ]
+          categories = [*options[:category]].map do |category|
+            Hash === category ? [*category] : [category]
           end.flatten(1).map do |attribute, substitutions|
             value = feature.properties.fetch(attribute, attribute)
             substitutions ? substitutions.fetch(value, value) : value

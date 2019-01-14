@@ -17,7 +17,7 @@ module NSWTopo
 
       def lat_lon_box(bounds)
         lambda do |box|
-          [ %w[west east south north], bounds.flatten ].transpose.each do |limit, value|
+          [%w[west east south north], bounds.flatten].transpose.each do |limit, value|
             box.add_element(limit).text = value
           end
         end
@@ -52,7 +52,7 @@ module NSWTopo
       wgs84_bounds = bounds(projection: Projection.wgs84)
       wgs84_dimensions = wgs84_bounds.transpose.difference / degree_resolution
       max_zoom = Math::log2(wgs84_dimensions.max).ceil - Math::log2(Kmz::TILE_SIZE).to_i
-      topleft = [ wgs84_bounds[0][0], wgs84_bounds[1][1] ]
+      topleft = [wgs84_bounds[0][0], wgs84_bounds[1][1]]
 
       png_path = yield(ppi: ppi)
 
@@ -68,9 +68,9 @@ module NSWTopo
         OS.convert "-size", dimensions.join(?x), "canvas:none", "-type", "TrueColorMatte", "-depth", 8, tif_path
         OS.gdalwarp "-s_srs", @projection, "-t_srs", Projection.wgs84, "-r", "bilinear", "-dstalpha", png_path, tif_path
 
-        indices_bounds = [ topleft, counts, [ :+, :- ] ].transpose.map do |coord, count, increment|
+        indices_bounds = [topleft, counts, [:+, :-]].transpose.map do |coord, count, increment|
           boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
-          [ boundaries[0..-2], boundaries[1..-1] ].transpose.map(&:sort)
+          [boundaries[0..-2], boundaries[1..-1]].transpose.map(&:sort)
         end.map do |tile_bounds|
           tile_bounds.each.with_index.to_a
         end.inject(:product).map(&:transpose).map do |tile_bounds, indices|
@@ -78,7 +78,7 @@ module NSWTopo
         end.inject({}, &:merge)
 
         log_update "kmz: resizing image pyramid: %i%%" % (100 * (2**(zoom + 1) - 1) / (2**(max_zoom + 1) - 1))
-        { zoom => [ indices_bounds, tif_path ] }
+        { zoom => [indices_bounds, tif_path] }
       end.inject({}, &:merge)
 
       kmz_dir = temp_dir.join("#{name}.kmz").tap(&:mkpath)
@@ -102,11 +102,11 @@ module NSWTopo
               end
               if zoom < max_zoom
                 indices.map do |index|
-                  [ 2 * index, 2 * index + 1 ]
+                  [2 * index, 2 * index + 1]
                 end.inject(:product).select do |subindices|
                   pyramid[zoom + 1][0][subindices]
                 end.each do |subindices|
-                  path = "../../%i/%i/%i.kml" % [ zoom + 1, *subindices ]
+                  path = "../../%i/%i/%i.kml" % [zoom + 1, *subindices]
                   document.add_element("NetworkLink").tap(&Kmz.network_link(pyramid[zoom + 1][0][subindices], path))
                 end
               end
@@ -114,8 +114,8 @@ module NSWTopo
           end
           tile_kml_path.write xml
 
-          crop = "%ix%i+%i+%s" % [ Kmz::TILE_SIZE, Kmz::TILE_SIZE, indices[0] * Kmz::TILE_SIZE, indices[1] * Kmz::TILE_SIZE ]
-          [ tif_path, "-quiet", "+repage", "-crop", crop, "+repage", "+dither", "-type", "PaletteBilevelMatte", "PNG8:#{tile_png_path}" ]
+          crop = "%ix%i+%i+%s" % [Kmz::TILE_SIZE, Kmz::TILE_SIZE, indices[0] * Kmz::TILE_SIZE, indices[1] * Kmz::TILE_SIZE]
+          [tif_path, "-quiet", "+repage", "-crop", crop, "+repage", "+dither", "-type", "PaletteBilevelMatte", "PNG8:#{tile_png_path}"]
         end
       end.flatten(1).tap do |tiles|
         log_update "kmz: creating %i tiles" % tiles.length
@@ -130,8 +130,8 @@ module NSWTopo
           document.add_element("LookAt").tap do |look_at|
             range_x = @extents.first / 2.0 / Math::tan(Kmz::FOV) / Math::cos(Kmz::TILT)
             range_y = @extents.last / Math::cos(Kmz::FOV - Kmz::TILT) / 2 / (Math::tan(Kmz::FOV - Kmz::TILT) + Math::sin(Kmz::TILT))
-            names_values = [ %w[longitude latitude], wgs84_centre ].transpose
-            names_values << [ "tilt", Kmz::TILT * 180.0 / Math::PI ] << [ "range", 1.2 * [ range_x, range_y ].max ] << [ "heading", @rotation ]
+            names_values = [%w[longitude latitude], wgs84_centre].transpose
+            names_values << ["tilt", Kmz::TILT * 180.0 / Math::PI] << ["range", 1.2 * [range_x, range_y].max] << ["heading", @rotation]
             names_values.each { |name, value| look_at.add_element(name).text = value }
           end
           document.add_element("Name").text = name

@@ -37,15 +37,15 @@ module NSWTopo
 
     def get_features
       points, controls = GPS.load(@path).points, GeoJSON::Collection.new
-      [ [  "control",   /^(1?\d\d)W?$/  ],
-        [  "hashhouse", /^(HH)$/        ],
-        [  "anc",       /^(ANC)$/       ],
-        [  "waterdrop", /^1?\d\dW$|^W$/ ],
+      [["control",   /^(1?\d\d)W?$/ ],
+       ["hashhouse", /^(HH)$/       ],
+       ["anc",       /^(ANC)$/      ],
+       ["waterdrop", /^1?\d\dW$|^W$/],
       ].each do |type, selector|
         points.each do |point|
           name = point.properties["name"]
           next unless selector === name
-          properties = [ [ "categories", [ type, *$1 ] ], [ "label", $1 ] ].select(&:last).to_h
+          properties = [["categories", [type, *$1]], ["label", $1]].select(&:last).to_h
           controls.add_point point.coordinates, properties
         end
       end
@@ -61,9 +61,9 @@ module NSWTopo
           categories.any? category
         end
         next unless count > 0
-        "%i %s%s" % [ count, category, count == 1 ? nil : ?s ]
+        "%i %s%s" % [count, category, count == 1 ? nil : ?s]
       end.compact
-      [ @name, counts.join(", ") ].join(": ")
+      [@name, counts.join(", ")].join(": ")
     end
 
     # def labels
@@ -71,7 +71,7 @@ module NSWTopo
     #     type == :water
     #   end.map do |type, waypoints|
     #     waypoints.map do |waypoint, label|
-    #       [ 0, [ CONFIG.map.reproject_from_wgs84(waypoint) ], label, [ type, label ] ]
+    #       [0, [CONFIG.map.reproject_from_wgs84(waypoint)], label, [type, label]]
     #     end
     #   end.flatten(1)
     # end

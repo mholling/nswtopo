@@ -60,15 +60,15 @@ module NSWTopo
         path = Pathname(layer).expand_path(*basedir)
         case layer
         when /^controls\.(gpx|kml)$/i
-          yielder << [ path.basename(path.extname).to_s, "type" => "Control", "path" => path ]
+          yielder << [path.basename(path.extname).to_s, "type" => "Control", "path" => path]
         when /\.(gpx|kml)$/i
-          yielder << [ path.basename(path.extname).to_s, "type" => "Overlay", "path" => path ]
+          yielder << [path.basename(path.extname).to_s, "type" => "Overlay", "path" => path]
         when /\.(tiff?|png|jpg)$/i
-          yielder << [ path.basename(path.extname).to_s, "type" => "Import", "path" => path ]
+          yielder << [path.basename(path.extname).to_s, "type" => "Import", "path" => path]
         when "grid"
-          yielder << [ layer.downcase, "type" => "Grid" ]
+          yielder << [layer.downcase, "type" => "Grid"]
         when "declination"
-          yielder << [ layer.downcase, "type" => "Declination" ]
+          yielder << [layer.downcase, "type" => "Declination"]
         when /\.yml$/i
           basedir ||= path.parent
           raise "couldn't find '#{layer}'" unless path.file?
@@ -78,21 +78,21 @@ module NSWTopo
               Pathname(item.to_s)
             end.each do |relative_path|
               raise "#{relative_path} is not a relative path" unless relative_path.relative?
-              layers.prepend [ Pathname(relative_path).expand_path(path.parent).relative_path_from(basedir).to_s, basedir ]
+              layers.prepend [Pathname(relative_path).expand_path(path.parent).relative_path_from(basedir).to_s, basedir]
             end
           when Hash
             name = path.sub_ext("").relative_path_from(basedir).descend.map(&:basename).join(?.)
-            yielder << [ name, contents.merge("source" => path) ]
+            yielder << [name, contents.merge("source" => path)]
           else
             raise "couldn't parse #{path}"
           end
         else
           path = Pathname("#{layer}.yml")
           raise "#{layer} is not a relative path" unless path.relative?
-          basedir ||= [ Pathname.pwd, Pathname(__dir__).parent / "layers" ].find do |root|
+          basedir ||= [Pathname.pwd, Pathname(__dir__).parent / "layers"].find do |root|
             path.expand_path(root).file?
           end
-          layers.prepend [ path.to_s, basedir ]
+          layers.prepend [path.to_s, basedir]
         end
       end
     rescue YAML::Exception
@@ -147,16 +147,16 @@ module NSWTopo
   end
 
   def layers(state: nil, root: nil, indent: state ? "#{state}/" : "")
-    directory = [ Pathname(__dir__).parent, "layers", *state ].inject(&:/)
+    directory = [Pathname(__dir__).parent, "layers", *state].inject(&:/)
     root ||= directory
     directory.children.sort.each do |path|
       case
       when path.directory?
-        puts [ indent, path.relative_path_from(root) ].join
-        layers state: [ *state, path.basename ], root: root, indent: "  " + indent
+        puts [indent, path.relative_path_from(root)].join
+        layers state: [*state, path.basename], root: root, indent: "  " + indent
       when path.sub_ext("").directory?
       when path.extname == ".yml"
-        puts [ indent, path.relative_path_from(root).sub_ext("") ].join
+        puts [indent, path.relative_path_from(root).sub_ext("")].join
       end
     end
   end
@@ -166,11 +166,11 @@ end
 # CONFIG["contour-interval"].tap do |interval|
 #   interval ||= CONFIG.map.scale < 40000 ? 10 : 20
 #   layers.each do |name, klass, params|
-#     params["exclude"] = [ *params["exclude"] ]
-#     [ *params["intervals-contours"] ].select do |candidate, sublayers|
+#     params["exclude"] = [*params["exclude"]]
+#     [*params["intervals-contours"]].select do |candidate, sublayers|
 #       candidate != interval
 #     end.map(&:last).each do |sublayers|
-#       params["exclude"] += [ *sublayers ]
+#       params["exclude"] += [*sublayers]
 #     end
 #   end
 # end

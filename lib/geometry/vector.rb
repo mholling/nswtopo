@@ -2,7 +2,7 @@ module Vector
   def rotate_by(angle)
     cos = Math::cos(angle)
     sin = Math::sin(angle)
-    [ self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos ]
+    [self[0] * cos - self[1] * sin, self[0] * sin + self[1] * cos]
   end
 
   def rotate_by!(angle)
@@ -18,15 +18,15 @@ module Vector
   end
 
   def plus(other)
-    [ self, other ].transpose.map { |values| values.inject(:+) }
+    [self, other].transpose.map { |values| values.inject(:+) }
   end
 
   def minus(other)
-    [ self, other ].transpose.map { |values| values.inject(:-) }
+    [self, other].transpose.map { |values| values.inject(:-) }
   end
 
   def dot(other)
-    [ self, other ].transpose.map { |values| values.inject(:*) }.inject(:+)
+    [self, other].transpose.map { |values| values.inject(:*) }.inject(:+)
   end
 
   def times(scalar)
@@ -66,7 +66,7 @@ module Vector
   end
 
   def perp
-    [ -self[1], self[0] ]
+    [-self[1], self[0]]
   end
 
   def cross(other)

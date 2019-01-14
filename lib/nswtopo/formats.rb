@@ -35,7 +35,7 @@ module NSWTopo
       browser_path = Pathname.new @config[browser_name]
       yield browser_name, browser_path
     rescue Errno::ENOENT
-      raise "invalid %s path: %s" % [ browser_name, browser_path ]
+      raise "invalid %s path: %s" % [browser_name, browser_path]
     end
 
     def rasterise(png_path, **options)
@@ -47,15 +47,15 @@ module NSWTopo
 
         with_browser do |browser_name, browser_path|
           megapixels = dimensions.inject(&:*) / 1024.0 / 1024.0
-          log_update "%s: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [ browser_name, *dimensions, megapixels, options[:ppi]        ] if options[:ppi]
-          log_update "%s: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [ browser_name, *dimensions, megapixels, options[:resolution] ] if options[:resolution]
+          log_update "%s: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [browser_name, *dimensions, megapixels, options[:ppi]       ] if options[:ppi]
+          log_update "%s: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [browser_name, *dimensions, megapixels, options[:resolution]] if options[:resolution]
 
           render = lambda do |width, height|
             args = case browser_name
             when "firefox"
-              [ "--window-size=#{width},#{height}", "-headless", "-screenshot", png_path.to_s ]
+              ["--window-size=#{width},#{height}", "-headless", "-screenshot", png_path.to_s]
             when "chrome"
-              [ "--window-size=#{width},#{height}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu" ]
+              ["--window-size=#{width},#{height}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu"]
             end
             FileUtils.rm png_path if png_path.exist?
             stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{src_path}"

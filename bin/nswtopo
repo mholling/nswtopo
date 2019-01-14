@@ -74,7 +74,7 @@ begin
     Pathname(string).expand_path
   end
 
-  config_paths = [ Pathname(__dir__).parent, Pathname(Etc.getpwuid&.dir || Dir.home), Pathname.pwd ].map do |directory|
+  config_paths = [Pathname(__dir__).parent, Pathname(Etc.getpwuid&.dir || Dir.home), Pathname.pwd].map do |directory|
     directory / ".nswtopo"
   end.select(&:file?)
 
@@ -248,7 +248,7 @@ begin
     arity, error = NSWTopo.method(command).arity, nil
 
     NSWTopo::Archive.open(tgz_path, *in_path) do |archive|
-      args = [ archive, config, *ARGV, options ]
+      args = [archive, config, *ARGV, options]
       case
       when arity >= 0 && args.length > arity
         raise OptionParser::NeedlessArgument, ARGV.last(args.length - arity).join(?\s)

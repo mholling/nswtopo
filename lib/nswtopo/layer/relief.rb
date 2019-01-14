@@ -40,7 +40,7 @@ module NSWTopo
           case url_or_path
           when ArcGISServer
             arcgis_layer url_or_path, margin: margin do |index, total|
-              log_update "%s: retrieved %i of %i contours" % [ @name, index, total ]
+              log_update "%s: retrieved %i of %i contours" % [@name, index, total]
             end.each do |feature|
               feature.properties.replace "elevation" => feature.properties.fetch(attribute, attribute).to_f
             end
@@ -66,7 +66,7 @@ module NSWTopo
       end.map do |azimuth|
         relief_path = temp_dir / "relief.#{azimuth}.bil"
         OS.gdaldem "hillshade", "-of", "EHdr", "-compute_edges", "-s", 1, "-alt", @altitude, "-z", @exaggeration, "-az", azimuth, dem_path, relief_path
-        [ azimuth, ESRIHdr.new(relief_path, 0) ]
+        [azimuth, ESRIHdr.new(relief_path, 0)]
       rescue OS::Error
         raise "invalid elevation data"
       end.to_h
@@ -101,13 +101,13 @@ module NSWTopo
         aspect = ESRIHdr.new aspect_path, 0.0
 
         reliefs.map do |azimuth, relief|
-          [ relief.values, aspect.values ].transpose.map do |relief, aspect|
+          [relief.values, aspect.values].transpose.map do |relief, aspect|
             relief ? aspect ? 2 * relief * Math::sin((aspect - azimuth) * Math::PI / 180)**2 : relief : 0
           end
         end.transpose.map do |values|
           values.inject(&:+) / @lightsources
         end.map do |value|
-          [ 255, value.ceil ].min
+          [255, value.ceil].min
         end.tap do |values|
           ESRIHdr.new(reliefs.values.first, values).write bil_path
         end
@@ -128,7 +128,7 @@ module NSWTopo
       OS.mogrify "-virtual-pixel", "edge", *filters, tif_path if filters.any?
 
       threshold = Math::sin(@altitude * Math::PI / 180)
-      shade = %W[-colorspace Gray -fill white -opaque none -level #{   90*threshold}%,0%                            -alpha Copy -fill black  +opaque black ]
+      shade = %W[-colorspace Gray -fill white -opaque none -level #{   90*threshold}%,0%                             -alpha Copy -fill black  +opaque black ]
       sun   = %W[-colorspace Gray -fill black -opaque none -level #{10+90*threshold}%,100% +level 0%,#{@highlights}% -alpha Copy -fill yellow +opaque yellow]
 
       temp_dir.join("composite.tif").tap do |composite_path|

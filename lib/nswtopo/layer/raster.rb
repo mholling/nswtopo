@@ -41,7 +41,7 @@ module NSWTopo
       size, resolution = size_resolution
       megapixels = size.inject(&:*) / 1024.0 / 1024.0
       ppi = 0.0254 * @map.scale / resolution
-      "%s: %i×%i (%.1fMpx) @ %.1fm/px (%.0f ppi)" % [ @name, *size, megapixels, resolution, ppi ]
+      "%s: %i×%i (%.1fMpx) @ %.1fm/px (%.0f ppi)" % [@name, *size, megapixels, resolution, ppi]
     end
 
     def render(group, defs)

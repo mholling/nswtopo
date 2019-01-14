@@ -9,7 +9,7 @@ module NSWTopo
 
       web_mercator_bounds = bounds(projection: Projection.new("EPSG:3857"))
       wgs84_bounds = bounds(projection: Projection.wgs84)
-      sql = <<~EOF
+      sql = <<~SQL
         CREATE TABLE metadata (name TEXT, value TEXT);
         INSERT INTO metadata VALUES ("name", "#{name}");
         INSERT INTO metadata VALUES ("type", "baselayer");
@@ -18,10 +18,10 @@ module NSWTopo
         INSERT INTO metadata VALUES ("format", "png");
         INSERT INTO metadata VALUES ("bounds", "#{wgs84_bounds.transpose.flatten.join ?,}");
         CREATE TABLE tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB);
-      EOF
+      SQL
       png_path = nil
       zoom.downto(0).inject([]) do |levels, zoom|
-        resolution = Mbtiles::RESOLUTION / (2 ** zoom)
+        resolution = Mbtiles::RESOLUTION / 2**zoom
         indices, dimensions, topleft = web_mercator_bounds.map do |lower, upper|
           ((lower - Mbtiles::ORIGIN) / resolution / Mbtiles::TILE_SIZE).floor ... ((upper - Mbtiles::ORIGIN) / resolution / Mbtiles::TILE_SIZE).ceil
         end.map.with_index do |indices, axis|

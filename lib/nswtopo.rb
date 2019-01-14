@@ -160,6 +160,11 @@ module NSWTopo
       end
     end
   end
+
+  def compatible?(version)
+    comparison = version&.split(?.)&.map(&:to_i) <=> MIN_VERSION.split(?.).map(&:to_i)
+    comparison && comparison >= 0
+  end
 end
 
 # # TODO: re-implement intervals-contours? (a better way?):

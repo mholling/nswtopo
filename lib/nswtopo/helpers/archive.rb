@@ -56,6 +56,11 @@ module NSWTopo
       buffer, reader = StringIO.new, in_path ? Zlib::GzipReader : StringIO
 
       reader.open(*in_path) do |input|
+        if in_path
+          version = input.comment.to_s[/^nswtopo (.+)$/, 1]
+          raise "unrecognised map file: %s" % in_path unless version
+          raise "map file too old: version %s, minimum %s required" % [version, MIN_VERSION] unless NSWTopo.compatible? version
+        end
         Gem::Package::TarReader.new(input) do |tar_in|
           archive = new(out_path, tar_in).tap(&block)
           Gem::Package::TarWriter.new(buffer) do |tar_out|
@@ -67,6 +72,7 @@ module NSWTopo
       Dir.mktmppath do |temp_dir|
         temp_path = temp_dir / "temp.tgz"
         Zlib::GzipWriter.open(temp_path, Zlib::BEST_COMPRESSION) do |gzip|
+          gzip.comment = "nswtopo %s" % VERSION
           gzip.write buffer.string
         end
         safely "saving map file, please wait..." do
@@ -75,7 +81,7 @@ module NSWTopo
       end unless buffer.size.zero?
 
     rescue Zlib::GzipFile::Error
-      raise "unrecognised map file: #{in_path}"
+      raise "unrecognised map file: %s" % in_path
     end
   end
 end

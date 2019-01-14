@@ -167,7 +167,7 @@ begin
       parser.on "-a", "--angle    <angle>",   Float,         "magnetic declination in clockwise degrees",
                                                              "(calculated automatically by default)"
       parser.on "-i", "--spacing  <spacing>", PositiveFloat, "spacing of declination lines in mm (default %i)" % NSWTopo::Declination::DEFAULTS["spacing"]
-      parser.on "-o", "--offset   <offset>",  Float,         "horizontal offset of declination lines in mm"
+      parser.on "-o", "--offset   <offset>",  Float,         "rightwards offset of declination lines in mm"
       parser.on "-r", "--arrows   <arrows>",  PositiveFloat, "spacing of directional arrows in mm (default %i)" % NSWTopo::Declination::DEFAULTS["arrows"]
 
     # TODO: rename to "delete"

@@ -73,7 +73,7 @@ module NSWTopo
     end
 
     def self.sanitise(name)
-      name&.gsub /[^\w\-\*]+/, ?.
+      name&.tr('^_a-zA-Z0-9*\-', ?.)&.squeeze(?.)
     end
   end
 end

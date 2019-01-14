@@ -1,6 +1,6 @@
 module StringHelpers
   def to_category
-    gsub(/^\W+|\W+$/, '').gsub(/\W+/, ?-)
+    tr('^_a-zA-Z0-9', ?-).squeeze(?-).delete_prefix(?-).delete_suffix(?-)
   end
 end
 

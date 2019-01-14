@@ -121,9 +121,9 @@ module NSWTopo
 
   def remove(archive, config, *names, options)
     map = Map.load archive, config
-    names.uniq.map do |name|
+    names.map do |name|
       Layer.sanitise name
-    end.map do |name|
+    end.uniq.map do |name|
       name[?*] ? %r[^#{name.gsub(?., '\.').gsub(?*, '.*')}$] : name
     end.tap do |names|
       map.remove *names

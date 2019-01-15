@@ -51,6 +51,10 @@ module NSWTopo
         end
         polys.none? ? nil : polys.one? ? Polygon.new(*polys, @properties) : MultiPolygon.new(polys, @properties)
       end
+
+      def area
+        @coordinates.flatten(1).sum(&:signed_area)
+      end
     end
   end
 end

@@ -22,6 +22,10 @@ module NSWTopo
         end.select(&:many?)
         lines.none? ? nil : lines.one? ? LineString.new(*lines, @properties) : MultiLineString.new(lines, @properties)
       end
+
+      def length
+        @coordinates.sum(&:path_length)
+      end
     end
   end
 end

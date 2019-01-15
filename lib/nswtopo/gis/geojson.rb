@@ -74,25 +74,12 @@ module NSWTopo
         alias multi itself
       end
     end
-
-    class LineString
-      def length; @coordinates.path_length end
-    end
-
-    class MultiLineString
-      def length; @coordinates.sum(&:path_length) end
-    end
-
-    class Polygon
-      def area; @coordinates.sum(&:signed_area) end
-    end
-
-    class MultiPolygon
-      def area; @coordinates.flatten(1).sum(&:signed_area) end
-    end
   end
 end
 
+require_relative 'geojson/point'
+require_relative 'geojson/linestring'
+require_relative 'geojson/polygon'
 require_relative 'geojson/multi_point'
 require_relative 'geojson/multi_linestring'
 require_relative 'geojson/multi_polygon'

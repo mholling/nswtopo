@@ -45,10 +45,12 @@ module NSWTopo
     SQLite3 = %w[sqlite3]
     PNGQuant = %w[pngquant]
     GIMP = %w[gimp]
+    Zip = %w[zip]
+    SevenZ = %w[7z]
 
     extend self
 
-    %w[GDAL ImageMagick SQLite3 PNGQuant GIMP].each do |package|
+    %w[GDAL ImageMagick SQLite3 PNGQuant GIMP Zip SevenZ].each do |package|
       OS.const_get(package).each do |command|
         define_method command do |*args, &block|
           Open3.popen3 command, *args.map(&:to_s) do |stdin, stdout, stderr, thread|
@@ -67,20 +69,6 @@ module NSWTopo
           raise Missing, "#{package} not installed"
         end
       end
-    end
-
-    def zip(directory, archive)
-      raise Error, "zip: #{directory} is not a directory" unless directory.directory?
-      [%w[zip -r] << archive.expand_path, %w[7z a -tzip -r] << archive.expand_path].find do |command, *args|
-        Dir.chdir directory do
-          args += Pathname.glob('*')
-          stdout, stderr, status = Open3.capture3 command, *args.map(&:to_s)
-          status.success? || raise(Error, "#{command}: #{stderr.empty? ? stdout : stderr}")
-        end
-      rescue Errno::ENOENT
-        next
-      end || raise(Missing, "no zip utility installed")
-      true
     end
   end
 end

@@ -142,7 +142,7 @@ module NSWTopo
       kml_path = kmz_dir / "doc.kml"
       kml_path.write xml
 
-      OS.zip kmz_dir, kmz_path
+      zip kmz_dir, kmz_path
     end
   end
 end

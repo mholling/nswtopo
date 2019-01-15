@@ -1,6 +1,6 @@
 module NSWTopo
   class Map
-    include Formats, Dither, Log, Safely
+    include Formats, Dither, Zip, Log, Safely
 
     def initialize(archive, config, version:, proj4:, scale:, centre:, extents:, rotation:, layers: {})
       @archive, @config, @version, @scale, @centre, @extents, @rotation, @layers = archive, config, version, scale, centre, extents, rotation, layers

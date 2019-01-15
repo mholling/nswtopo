@@ -32,7 +32,7 @@ module NSWTopo
       end
 
       OS.convert png_path, "-thumbnail", "64x64", "-gravity", "center", "-background", "white", "-extent", "64x64", "-alpha", "Remove", "-type", "TrueColor", zip_dir / "thumb.png"
-      OS.zip zip_dir, zip_path
+      zip zip_dir, zip_path
     end
   end
 end

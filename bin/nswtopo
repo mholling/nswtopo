@@ -36,6 +36,8 @@ begin
   case
   when (RUBY_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,5]) < 0
     log_abort "ruby 2.5 or greater required"
+  when !Zlib.const_defined?(:GzipFile)
+    log_abort "ruby with GZIP_SUPPORT required"
   when (GDAL_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,3]) < 0
     log_abort "GDAL 2.3 or greater required"
   end

@@ -179,9 +179,9 @@ module NSWTopo
         index = layers.index layer unless after || before
         if overwrite || !layer.uptodate?
           layer.create
-          log_success "created layer: %s" % layer.name
+          log_success "added layer: %s" % layer.name
         else
-          log_neutral "keeping existing layer: %s" % layer.name
+          log_neutral "kept existing layer: %s" % layer.name
           next layers, changed, layer.name, errors if index
         end
         layers.delete layer

@@ -15,7 +15,7 @@ module NSWTopo
       end.map do |fallbacks|
         options, collection, error = fallbacks.inject [{}, nil, nil] do |(options, *), source: nil, fallback: false, **args|
           source = @path if @path
-          log_update "%s: failed to retrieve features, trying fallback source" % @name if fallback
+          log_update "%s: %s" % [@name, fallback ? "failed to retrieve features, trying fallback source" : "retrieving features"]
           raise "#{@source}: no feature source defined" unless source
           options.merge! args
           break options, arcgis_layer(source, margin: MARGIN, **options.slice(:where, :layer, :per_page)) do |index, total|

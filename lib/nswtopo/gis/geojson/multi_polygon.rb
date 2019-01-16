@@ -63,7 +63,6 @@ module NSWTopo
         Nodes.new(@coordinates.flatten(1)).progress(nil) do |event, node0, node1|
           segments << [node0.point, node1.point].to_f
         end
-        segments
         MultiLineString.new segments, @properties
       end
 
@@ -124,8 +123,8 @@ module NSWTopo
           end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
             nodes.map(&:point).to_f
           end
-        end.flatten(1).yield_self do |linestrings|
-        features << MultiLineString.new linestrings, @properties
+        end.flatten(1)
+        features << MultiLineString.new(linestrings, @properties)
       end
 
       def centrepoints(interval:, **options)
@@ -134,6 +133,21 @@ module NSWTopo
 
       def centrelines(**options)
         centres(**options, interval: nil, lines: true)
+      end
+
+      def buffer(*margins, **options)
+        nodes = Nodes.new @coordinates.flatten(1)
+        margins.each do |margin|
+          nodes.progress limit: -margin, **options.slice(:rounding_angle, :cutoff_angle)
+        end
+        interior_rings, exterior_rings = nodes.readout.partition(&:hole?)
+        polygons, foo = exterior_rings.sort_by(&:signed_area).inject [[], interior_rings] do |(polygons, interior_rings), exterior_ring|
+          claimed, unclaimed = interior_rings.partition do |interior_ring|
+            interior_ring.first.within? exterior_ring
+          end
+          [polygons << [exterior_ring, *claimed], unclaimed]
+        end
+        polygons.one? ? Polygon.new(polygons.first, @properties) : MultiPolygon.new(polygons.entries, @properties)
       end
     end
   end

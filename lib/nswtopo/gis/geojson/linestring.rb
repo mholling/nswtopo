@@ -4,6 +4,8 @@ module NSWTopo
       def length
         @coordinates.path_length
       end
+
+      delegate %i[offset buffer smooth] => :multi
     end
   end
 end

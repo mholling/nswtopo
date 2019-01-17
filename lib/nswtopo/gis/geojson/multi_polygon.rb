@@ -124,7 +124,7 @@ module NSWTopo
             nodes.map(&:point).to_f
           end
         end.flatten(1)
-        features << MultiLineString.new(linestrings, @properties)
+        features.prepend MultiLineString.new(linestrings, @properties)
       end
 
       def centrepoints(interval:, **options)
@@ -147,7 +147,15 @@ module NSWTopo
           end
           [polygons << [exterior_ring, *claimed], unclaimed]
         end
-        polygons.one? ? Polygon.new(polygons.first, @properties) : MultiPolygon.new(polygons.entries, @properties)
+        MultiPolygon.new polygons.entries, @properties
+      end
+
+      def centroids
+        MultiPoint.new @coordinates.map(&:first).map(&:centroid), @properties
+      end
+
+      def samples(interval)
+        MultiPoint.new @coordinates.flatten(1).sample_at(interval), @properties
       end
     end
   end

@@ -33,7 +33,7 @@ module NSWTopo
         linestrings = margins.inject Nodes.new(@coordinates) do |nodes, margin|
           nodes.progress limit: margin, **options.slice(:rounding_angle, :cutoff_angle)
         end.readout
-        linestrings.one? ? LineString.new(linestrings.first, @properties) : MultiLineString.new(linestrings, @properties)
+        MultiLineString.new linestrings, @properties
       end
 
       def buffer(*margins, **options)
@@ -46,7 +46,17 @@ module NSWTopo
           nodes.progress **options.slice(:rounding_angle, :cutoff_angle).merge(limit: -2 * margin)
           nodes.progress **options.slice(:rounding_angle, :cutoff_angle).merge(limit: margin)
         end.readout
-        linestrings.one? ? LineString.new(linestrings.first, @properties) : MultiLineString.new(linestrings, @properties)
+        MultiLineString.new linestrings, @properties
+      end
+
+      def samples(interval)
+        points = @coordinates.map do |linestring|
+          distance = linestring.path_length
+          linestring.periodically(interval, along: true).map do |point, along|
+            [point, (2 * along - distance).abs - distance]
+          end
+        end.flatten(1).sort_by(&:last).map(&:first)
+        MultiPoint.new points, @properties
       end
     end
   end

@@ -30,9 +30,9 @@ module NSWTopo
     end
 
     def with_browser
-      browser_name = %w[firefox chrome].find &@config.method(:key?)
+      browser_name = %w[firefox chrome].find &NSWTopo.config.method(:key?)
       raise "please specify a path to google chrome (see README)" unless browser_name
-      browser_path = Pathname.new @config[browser_name]
+      browser_path = Pathname.new NSWTopo.config[browser_name]
       yield browser_name, browser_path
     rescue Errno::ENOENT
       raise "invalid %s path: %s" % [browser_name, browser_path]

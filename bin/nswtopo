@@ -232,11 +232,13 @@ begin
   raise OptionParser::MissingArgument, "no map path specified" if ARGV.empty?
   tgz_path = Pathname(ARGV.shift)
 
-  config = config_paths.map do |path|
+  config_paths.map do |path|
     YAML.load path.read
   rescue YAML::Exception
     log_warn "couldn't parse #{path}, ignoring"
-  end.grep(Hash).inject({}, &:deep_merge)
+  end.grep(Hash).inject({}, &:deep_merge).tap do |config|
+    NSWTopo.config = config
+  end
 
   begin
     in_path = case command
@@ -250,7 +252,7 @@ begin
     arity, error = NSWTopo.method(command).arity, nil
 
     NSWTopo::Archive.open(tgz_path, *in_path) do |archive|
-      args = [archive, config, *ARGV, options]
+      args = [archive, *ARGV, options]
       case
       when arity >= 0 && args.length > arity
         raise OptionParser::NeedlessArgument, ARGV.last(args.length - arity).join(?\s)

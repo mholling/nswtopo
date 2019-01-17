@@ -38,21 +38,23 @@ module NSWTopo
   PartialFailureError = Class.new RuntimeError
   extend self
 
-  def init(archive, config, options)
-    puts Map.init(archive, config, options)
+  attr_accessor :config
+
+  def init(archive, options)
+    puts Map.init(archive, options)
   end
 
-  def info(archive, config, options)
-    puts Map.load(archive, config).info(options)
+  def info(archive, options)
+    puts Map.load(archive).info(options)
   end
 
-  def add(archive, config, *layers, options)
+  def add(archive, *layers, options)
     create_options = {
       after: Layer.sanitise(options.delete :after),
       before: Layer.sanitise(options.delete :before),
       overwrite: options.delete(:overwrite)
     }
-    map = Map.load archive, config
+    map = Map.load archive
     # TODO: iterate separately for each layer, rather than in combination, so we keep default ordering
     Enumerator.new do |yielder|
       while layers.any?
@@ -99,7 +101,7 @@ module NSWTopo
       raise "couldn't parse #{path}"
     end.map do |name, params|
       params.merge! options.transform_keys(&:to_s)
-      params.merge! config[name] if config[name]
+      params.merge! NSWTopo.config[name] if NSWTopo.config[name]
       Layer.new(name, map, params)
     end.tap do |layers|
       raise OptionParser::MissingArgument, "no layers specified" unless layers.any?
@@ -111,16 +113,16 @@ module NSWTopo
     end
   end
 
-  def grid(archive, config, options)
-    add archive, config, "grid", options
+  def grid(archive, options)
+    add archive, "grid", options
   end
 
-  def declination(archive, config, options)
-    add archive, config, "declination", options
+  def declination(archive, options)
+    add archive, "declination", options
   end
 
-  def remove(archive, config, *names, options)
-    map = Map.load archive, config
+  def remove(archive, *names, options)
+    map = Map.load archive
     names.map do |name|
       Layer.sanitise name
     end.uniq.map do |name|
@@ -130,7 +132,7 @@ module NSWTopo
     end
   end
 
-  def render(archive, config, *formats, options)
+  def render(archive, *formats, options)
     overwrite = options.delete :overwrite
     formats.map do |format|
       Pathname(Formats === format ? "#{archive.basename}.#{format}" : format)
@@ -142,7 +144,7 @@ module NSWTopo
       raise "non-existent directory: #{path.parent}" unless path.parent.directory?
     end.tap do |paths|
       raise OptionParser::MissingArgument, "no output formats specified" unless paths.any?
-      Map.load(archive, config).render *paths, options
+      Map.load(archive).render *paths, options
     end
   end
 

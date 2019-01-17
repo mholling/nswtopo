@@ -2,8 +2,8 @@ module NSWTopo
   class Map
     include Formats, Dither, Zip, Log, Safely
 
-    def initialize(archive, config, version:, proj4:, scale:, centre:, extents:, rotation:, layers: {})
-      @archive, @config, @version, @scale, @centre, @extents, @rotation, @layers = archive, config, version, scale, centre, extents, rotation, layers
+    def initialize(archive, version:, proj4:, scale:, centre:, extents:, rotation:, layers: {})
+      @archive, @version, @scale, @centre, @extents, @rotation, @layers = archive, version, scale, centre, extents, rotation, layers
       @projection = Projection.new proj4
       ox, oy = bounding_box.coordinates[0][3]
       @affine = [[1, 0], [0, -1], [-ox, oy]].map do |vector|
@@ -15,7 +15,7 @@ module NSWTopo
     extend Forwardable
     delegate %i[write mtime delete read uptodate?] => :@archive
 
-    def self.init(archive, config, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, margins: nil)
+    def self.init(archive, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, margins: nil)
       wgs84_points = case
       when coords && bounds
         raise "can't specify both bounds file and map coordinates"
@@ -86,11 +86,11 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new(archive, config, version: VERSION, proj4: projection.proj4, scale: scale, centre: [0, 0], extents: extents, rotation: rotation).save
+      new(archive, version: VERSION, proj4: projection.proj4, scale: scale, centre: [0, 0], extents: extents, rotation: rotation).save
     end
 
-    def self.load(archive, config)
-      new archive, config, **YAML.load(archive.read "map.yml")
+    def self.load(archive)
+      new archive, **YAML.load(archive.read "map.yml")
     end
 
     def save

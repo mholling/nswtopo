@@ -72,6 +72,11 @@ module NSWTopo
         Collection.new @projection, @features + other.features
       end
 
+      def merge!(other)
+        raise Error, "can't merge different projections" unless @projection == other.projection
+        tap { @features.concat other.features }
+      end
+
       def clip!(hull)
         @features.map! do |feature|
           feature.clip hull

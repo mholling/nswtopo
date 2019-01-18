@@ -3,7 +3,7 @@ module NSWTopo
     include Vector, Log
     CENTRELINE_FRACTION = 0.35
     DEFAULT_SAMPLE = 5
-    PROPERTIES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format collate categories optional sample line-height upcase shield curved]
+    PROPERTIES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format categories optional sample line-height upcase shield curved]
     TRANSFORMS = %w[reduce fallback offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
 
     DEFAULTS = YAML.load <<~YAML
@@ -34,10 +34,15 @@ module NSWTopo
       @labels ||= []
     end
 
+    module LabelFeatures
+      attr_accessor :text, :layer_name
+    end
+
     def add(layer)
       category_params, base_params = layer.params.fetch("labels", {}).partition do |key, value|
         Hash === value
       end.map(&:to_h)
+      collate = base_params.delete "collate"
       @params.store layer.name, base_params if base_params.any?
       category_params.each do |categories, params|
         categories = Array(categories).map do |category|
@@ -65,7 +70,7 @@ module NSWTopo
           selected_params.slice *keys
         end
 
-        features.each do |feature|
+        features.map do |feature|
           label = feature.properties["labels"]
           text = case
           # when REXML::Element === label then label
@@ -73,15 +78,6 @@ module NSWTopo
           else Array(label).map(&:strip).join(?\s)
           end
           text.upcase! if String === text && attributes["upcase"]
-
-          # # TOD: we could probably collate at a later stage...
-          # _, _, _, components = @features.find do |other_text, other_source_name, other_sublayer, _|
-          #   other_source_name == source.name && other_text == text && other_sublayer == sublayer
-          # end if attributes["collate"]
-          # unless components
-          #   components = []
-          #   @features << [text, source.name, sublayer, components]
-          # end
 
           transforms.inject([feature]) do |features, (transform, (arg, *args))|
             next features unless arg
@@ -187,9 +183,18 @@ module NSWTopo
             when GeoJSON::MultiLineString then line_attributes
             when GeoJSON::MultiPolygon    then line_attributes
             end
-          end.tap do |features|
-            labels << [text, layer.name, GeoJSON::Collection.new(@map.projection, features).explode]
+          end.yield_self do |features|
+            GeoJSON::Collection.new(@map.projection, features).explode.extend(LabelFeatures)
+          end.tap do |collection|
+            collection.text, collection.layer_name = text, layer.name
           end
+        end.yield_self do |collections|
+          next collections unless collate
+          collections.group_by(&:text).map do |text, collections|
+            collections.inject(&:merge!)
+          end
+        end.each do |collection|
+          labels << collection
         end
       end
     #   fences.concat source.fences if source.respond_to? :fences
@@ -239,7 +244,7 @@ module NSWTopo
 
       labelling_hull = @map.bounding_box(mm: -1).coordinates.first.map(&to_mm)
 
-      candidates = labels.map.with_index do |(text, layer_name, collection), label_index|
+      candidates = labels.map.with_index do |collection, label_index|
         collection.flat_map do |feature|
           case feature
           when GeoJSON::Point, GeoJSON::LineString
@@ -261,8 +266,8 @@ module NSWTopo
           when GeoJSON::Point
             margin, line_height = attributes.values_at "margin", "line-height"
             point = feature.coordinates.yield_self(&to_mm)
-            lines = Font.in_two text, attributes
-            lines = [[text, Font.glyph_length(text, attributes)]] if lines.map(&:first).map(&:length).min == 1
+            lines = Font.in_two collection.text, attributes
+            lines = [[collection.text, Font.glyph_length(collection.text, attributes)]] if lines.map(&:first).map(&:length).min == 1
             width = lines.map(&:last).max
             height = lines.map { font_size }.inject { |total| total + line_height }
             if attributes["shield"]
@@ -301,7 +306,7 @@ module NSWTopo
               # end.size
               # priority = [fence_count, position_index, feature_index]
               priority = [position_index, feature_index]
-              Label.new layer_name, label_index, feature_index, priority, hull, attributes, text_elements
+              Label.new collection.layer_name, label_index, feature_index, priority, hull, attributes, text_elements
             end.compact.tap do |candidates|
               candidates.combination(2).each do |candidate1, candidate2|
                 candidate1.conflicts << candidate2
@@ -321,9 +326,9 @@ module NSWTopo
             sample      = attributes["sample"]
             separation  = attributes["separation-along"]
 
-            text_length = case text
+            text_length = case collection.text
             # when REXML::Element then data.path_length
-            when String then Font.glyph_length text, attributes
+            when String then Font.glyph_length collection.text, attributes
             end
 
             points = data.segments.inject([]) do |memo, segment|
@@ -434,19 +439,19 @@ module NSWTopo
               next unless labelling_hull.surrounds?(hull).all? # TODO: gross
 
               baseline << baseline.last(2).difference.normalised.times(text_length * 0.25).plus(baseline.last)
-              path_id = [@name, layer_name, "path", label_index, feature_index, indices.first, indices.last].join ?.
+              path_id = [@name, collection.layer_name, "path", label_index, feature_index, indices.first, indices.last].join ?.
               path_element = REXML::Element.new("path")
               path_element.add_attributes "id" => path_id, "d" => svg_path_data(baseline), "pathLength" => baseline.path_length
               text_element = REXML::Element.new("text")
 
-              case text
+              case collection.text
               when REXML::Element
-                text_element.add_element text, "xlink:href" => "#%s" % path_id
+                text_element.add_element collection.text, "xlink:href" => "#%s" % path_id
               when String
                 text_path = text_element.add_element "textPath", "xlink:href" => "#%s" % path_id, "textLength" => text_length, "spacing" => "auto"
-                text_path.add_element("tspan", "dy" => CENTRELINE_FRACTION * font_size).add_text(text)
+                text_path.add_element("tspan", "dy" => CENTRELINE_FRACTION * font_size).add_text(collection.text)
               end
-              Label.new layer_name, label_index, feature_index, priority, hull, attributes, [text_element, path_element], along
+              Label.new collection.layer_name, label_index, feature_index, priority, hull, attributes, [text_element, path_element], along
             end.compact.map do |candidate|
               [candidate, []]
             end.to_h.tap do |matrix|

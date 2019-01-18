@@ -261,6 +261,7 @@ module NSWTopo
       labelling_hull = @map.bounding_box(mm: -1).coordinates.first.map(&to_mm)
 
       candidates = label_features.map.with_index do |collection, label_index|
+        log_update "compositing %s: feature %i of %i" % [@name, label_index + 1, label_features.length]
         collection.flat_map do |feature|
           case feature
           when GeoJSON::Point, GeoJSON::LineString

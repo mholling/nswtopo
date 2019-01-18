@@ -22,11 +22,16 @@ module NSWTopo
         defs = svg.add_element "defs"
         svg.add_element "sodipodi:namedview", "borderlayer" => true
         svg.add_element "rect", "x" => 0, "y" => 0, "width" => width, "height" => height, "fill" => "white"
+
+        labels = Layer.new "labels", self, NSWTopo.config.fetch("labels", {}).merge("type" => "Labels")
         layers.reject(&:empty?).each do |layer|
+          labels.add layer if Vector === layer
+        end.push(labels).each do |layer|
           log_update "compositing: #{layer.name}"
           group = svg.add_element "g", "id" => layer.name, "inkscape:groupmode" => "layer"
-          layer.render group, defs
+          layer.render group, defs #, &labels.fences.method(:<<) # TODO
         end
+
         string, formatter = String.new, REXML::Formatters::Pretty.new
         formatter.compact = true
         formatter.write xml, string

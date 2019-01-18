@@ -1,7 +1,7 @@
 module NSWTopo
   module Vector
     SVG_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
-    SCALABLE_ATTRIBUTES = %w[word-spacing letter-spacing stroke-width]
+    FONT_SCALED_ATTRIBUTES = %w[word-spacing letter-spacing stroke-width line-height]
     SHIELD_X, SHIELD_Y = 1.0, 0.5
     MARGIN = { mm: 1.0 }
     POINT, ANGLE = "%.4f %.4f", "%.2f"
@@ -23,6 +23,10 @@ module NSWTopo
 
     extend Forwardable
     def_delegator :features, :none?, :empty?
+
+    def to_mm
+      @to_mm ||= @map.method(:coords_to_mm)
+    end
 
     def drawing_features
       features.explode.reject do |feature|
@@ -69,15 +73,9 @@ module NSWTopo
       end.values.inject(params, &:merge)
     end
 
-    def fences
-      @fences ||= []
-    end
-
     def render(group, defs)
-      to_mm = @map.method(:coords_to_mm)
-
-      drawing_features.group_by do |feature|
-        feature.properties.fetch("categories", []).map(&:to_s).map(&method(:categorise)).to_set
+      drawing_features.group_by do |feature, categories|
+        categories || feature.properties.fetch("categories", []).map(&:to_s).map(&method(:categorise)).to_set
       end.map do |categories, features|
         dupes = params_for(categories)["dupe"]
         Array(dupes).map(&:to_s).map do |dupe|
@@ -96,11 +94,11 @@ module NSWTopo
 
         commands = params_for categories
         font_size, bezier, section = commands.values_at "font-size", "bezier", "section"
-        SCALABLE_ATTRIBUTES.each do |name|
-          commands[name] = commands[name].to_i * font_size * 0.01 if /^\d+%$/ === commands[name]
-        end
+        commands.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
+          commands[key] = commands[key].to_i * font_size * 0.01 if /^\d+%$/ === value
+        end if font_size
 
-        features.each do |feature|
+        features.each do |feature, _|
           case feature
           when GeoJSON::Point
             symbol_id = [*ids, "symbol"].join(?.)
@@ -114,17 +112,16 @@ module NSWTopo
             end
 
           when GeoJSON::Polygon
-            d = feature.coordinates.map do |ring|
+            path_data = feature.coordinates.map do |ring|
               svg_path_data ring.map(&to_mm), bezier: bezier
             end.join(" Z ").concat(" Z")
-            content.add_element "path", "fill-rule" => "nonzero", "d" => d
+            content.add_element "path", "fill-rule" => "nonzero", "d" => path_data
 
-          # # TODO: re-introduce when we bring back Label layer
-          # when REXML::Element
-          #   case feature.name
-          #   when "text", "textPath" then content << element
-          #   when "path" then defs << element
-          #   end
+          when REXML::Element
+            case feature.name
+            when "text", "textPath" then content << feature
+            when "path" then defs << feature
+            end
           end
         end if content
 

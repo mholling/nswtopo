@@ -1,19 +1,19 @@
 require_relative 'layer/raster'
 require_relative 'layer/vector'
-require_relative 'layer/arcgis_raster'
-require_relative 'layer/control'
-require_relative 'layer/declination'
-require_relative 'layer/feature'
-require_relative 'layer/grid'
+require_relative 'layer/vegetation'
 require_relative 'layer/import'
-require_relative 'layer/label'
+require_relative 'layer/arcgis_raster'
+require_relative 'layer/feature'
 require_relative 'layer/overlay'
 require_relative 'layer/relief'
-require_relative 'layer/vegetation'
+require_relative 'layer/grid'
+require_relative 'layer/declination'
+require_relative 'layer/control'
+require_relative 'layer/labels'
 
 module NSWTopo
   class Layer
-    TYPES = Set[Vegetation, Import, ArcGISRaster, Feature, Relief, Overlay, Grid, Declination, Control]
+    TYPES = Set[Vegetation, Import, ArcGISRaster, Feature, Relief, Overlay, Grid, Declination, Control, Labels]
 
     def initialize(name, map, params)
       @type = begin
@@ -52,6 +52,7 @@ module NSWTopo
       when Grid         == @type then 5
       when Declination  == @type then 6
       when Control      == @type then 7
+      when Labels       == @type then 99
       end
     end
 

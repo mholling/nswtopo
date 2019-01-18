@@ -182,18 +182,23 @@ module NSWTopo
                 end
                 remove ? [] : feature
 
-              # when "keep-largest"
-              #   # case dimension
-              #   # when 1 then [data.max_by(&:signed_area)]
-              #   # when 2 then [data.max_by(&:path_length)]
-              #   # end
-              # when "trim"
-              #   # data.map do |points|
-              #   #   points.trim arg
-              #   # end.reject(&:empty?) if dimension == 1
+              when "keep-largest"
+                case feature
+                when GeoJSON::MultiPoint then feature
+                when GeoJSON::MultiLineString
+                  feature.coordinates.replace [feature.explode.max_by(&:length).coordinates]
+                when GeoJSON::MultiPolygon
+                  feature.coordinates.replace [feature.explode.max_by(&:area).coordinates]
+                end
 
-              else # TODO
-                feature
+              when "trim"
+                next feature unless GeoJSON::MultiLineString === features
+                distance = Float(arg) * @map.scale / 1000.0
+                feature.coordinates.map! do |linestring|
+                  linestring.trim distance
+                end
+                feature.coordinates.reject!(&:empty?)
+                feature.empty? ? [] : feature
               end
             end
           rescue ArgumentError

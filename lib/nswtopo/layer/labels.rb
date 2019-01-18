@@ -104,15 +104,15 @@ module NSWTopo
                 when "centrelines"
                   feature.send arg, **opts
                 when "centrepoints"
-                  interval = (opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
                   feature.send arg, interval: interval, **opts
                 when "centres"
-                  interval = (opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
                   feature.send arg, interval: interval, **opts
                 when "centroids"
                   feature.send arg
                 when "samples"
-                  interval = (args[0] || DEFAULT_SAMPLE) * @map.scale / 1000.0
+                  interval = Float(args[0] || DEFAULT_SAMPLE) * @map.scale / 1000.0
                   feature.send arg, interval
                 else
                   raise "unrecognised label transform: reduce: %s" % arg
@@ -122,7 +122,7 @@ module NSWTopo
                 next feature unless feature.respond_to? arg
                 case arg
                 when "samples"
-                  interval = (args[0] || DEFAULT_SAMPLE) * @map.scale / 1000.0
+                  interval = Float(args[0] || DEFAULT_SAMPLE) * @map.scale / 1000.0
                   [feature, *feature.send(arg, interval)]
                 else
                   raise "unrecognised label transform: fallback: %s" % arg
@@ -135,20 +135,22 @@ module NSWTopo
 
               when "smooth"
                 next feature unless feature.respond_to? transform
-                feature.send transform, cutoff_angle: max_turn, **opts
+                margin = Float(arg) * @map.scale / 1000.0
+                feature.send transform, margin, cutoff_angle: max_turn, **opts
 
               when "minimum-area"
+                area = Float(arg) * (@map.scale / 1000.0)**2
                 case feature
                 when GeoJSON::MultiPoint then feature
                 when GeoJSON::MultiLineString
                   feature.coordinates.reject do |linestring|
-                    linestring.first == linestring.last && linestring.signed_area.abs < arg * (@map.scale / 1000.0)**2
+                    linestring.first == linestring.last && linestring.signed_area.abs < area
                   end.yield_self do |linestrings|
                     linestrings.any? ? GeoJSON::MultiLineString.new(linestrings, feature.properties) : []
                   end
                 when GeoJSON::MultiPolygon
                   feature.coordinates.reject do |rings|
-                    rings.sum(&:signed_area) < arg * (@map.scale / 1000.0)**2
+                    rings.sum(&:signed_area) < area
                   end.yield_self do |polygons|
                     polygons.any? ? GeoJSON::MultiPolygon.new(polygons, feature.properties) : []
                   end

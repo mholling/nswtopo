@@ -34,6 +34,12 @@ module NSWTopo
       end
     end
 
+    def labeling_features
+      features.select do |feature|
+        feature.properties["labels"]
+      end
+    end
+
     def to_s
       count = features.count
       "%s: %i feature%s" % [@name, count, (?s unless count == 1)]

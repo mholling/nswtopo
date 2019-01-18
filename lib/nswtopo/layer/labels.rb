@@ -64,9 +64,7 @@ module NSWTopo
         @params.store categories, params
       end
 
-      layer.features.select do |feature|
-        feature.properties["labels"]
-      end.tap do |features|
+      layer.labeling_features.tap do |features|
         log_update "collecting labels: %s" % layer.name unless features.empty?
       end.map(&:multi).group_by do |feature|
         Set[layer.name, *feature.properties["categories"]]

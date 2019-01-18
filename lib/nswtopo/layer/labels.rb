@@ -154,17 +154,22 @@ module NSWTopo
                   polygons.any? ? GeoJSON::MultiPolygon.new(polygons, feature.properties) : []
                 end
 
-              # when "minimum-hole", "remove-holes"
-              #   # data.reject do |points|
-              #   #   case arg
-              #   #   when true then points.signed_area < 0
-              #   #   when Numeric then (-arg.abs ... 0).include? points.signed_area
-              #   #   end
-              #   # end if closed
-              # when "minimum-length"
-              #   # data.reject do |points|
-              #   #   points.segments.map(&:distance).inject(0.0, &:+) < arg && points.first == points.last
-              #   # end if dimension == 1
+              when "minimum-length"
+                next feature unless GeoJSON::MultiLineString === feature
+                distance = Float(arg) * @map.scale / 1000.0
+                linestrings = feature.coordinates.reject do |linestring|
+                  linestring.path_length < distance
+                end
+                linestrings.any? ? GeoJSON::MultiLineString.new(linestrings, feature.properties) : []
+
+              when "minimum-hole", "remove-holes"
+                area = Float(arg).abs * @map.scale / 1000.0 unless true == arg
+                feature.coordinates.each do |rings|
+                  rings.reject! do |ring|
+                    area ? (-area...0) === ring.signed_area : ring.signed_area < 0
+                  end
+                end if GeoJSON::MultiPolygon === feature
+                feature
 
               when "remove"
                 remove = [arg, *args].any? do |value|

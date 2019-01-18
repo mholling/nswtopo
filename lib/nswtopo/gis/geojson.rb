@@ -7,6 +7,8 @@ module NSWTopo
 
     CLASSES = TYPES.map do |type|
       klass = Class.new do
+        extend Forwardable
+
         def initialize(coordinates, properties = {})
           properties ||= {}
           raise Error, "invalid feature properties" unless Hash === properties
@@ -60,7 +62,6 @@ module NSWTopo
           multi_class.new [@coordinates], @properties
         end
 
-        extend Forwardable
         delegate :clip => :multi
       end
 
@@ -70,6 +71,8 @@ module NSWTopo
             single_class.new coordinates, @properties
           end
         end
+
+        delegate :empty? => :@coordinates
 
         alias multi itself
       end

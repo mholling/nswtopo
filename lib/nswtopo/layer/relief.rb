@@ -51,6 +51,7 @@ module NSWTopo
           end.reproject_to(@map.projection)
         end.inject(&:merge)
 
+        log_update "%s: calculating DEM" % @name
         OS.gdal_grid "-a", "linear:radius=0:nodata=-9999", "-zfield", "elevation", "-ot", "Float32", "-txe", *txe, "-tye", *tye, "-spat", *spat, "-outsize", *outsize, "/vsistdin/", dem_path do |stdin|
           stdin.puts collection.to_json
         end
@@ -59,6 +60,7 @@ module NSWTopo
         raise "no elevation data specified for relief layer #{@name}"
       end
 
+      log_update "%s: calculating relief shading" % @name
       reliefs = -90.step(90, 90.0 / @lightsources).select.with_index do |offset, index|
         index.odd?
       end.map do |offset|

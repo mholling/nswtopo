@@ -117,6 +117,7 @@ module NSWTopo
                 else
                   raise "unrecognised label transform: reduce: %s" % arg
                 end
+
               when "fallback"
                 next feature unless feature.respond_to? arg
                 case arg
@@ -126,30 +127,33 @@ module NSWTopo
                 else
                   raise "unrecognised label transform: fallback: %s" % arg
                 end
+
               when "offset", "buffer"
                 next feature unless feature.respond_to? transform
                 margins = [arg, *args].map { |value| Float(value) * @map.scale / 1000.0 }
                 feature.send transform, *margins, **opts
+
               when "smooth"
                 next feature unless feature.respond_to? transform
                 feature.send transform, cutoff_angle: max_turn, **opts
-              # when "minimum-area"
-              #   # next feature unless feature.respond_to? arg
-              #   # case dimension
-              #   # when 1
-              #   #   data.reject do |points|
-              #   #     points.last == points.first && points.signed_area.abs < arg
-              #   #   end
-              #   # when 2
-              #   #   data.chunk(&:hole?).map(&:last).each_slice(2).map do |polys, holes|
-              #   #     keep = polys.map do |points|
-              #   #       [points, points.signed_area > arg]
-              #   #     end
-              #   #     keep.select(&:last).map(&:first).tap do |result|
-              #   #       result += holes if holes && keep.last.last
-              #   #     end
-              #   #   end.flatten(1)
-              #   # end
+
+              when "minimum-area"
+                case feature
+                when GeoJSON::MultiPoint then feature
+                when GeoJSON::MultiLineString
+                  feature.coordinates.reject do |linestring|
+                    linestring.first == linestring.last && linestring.signed_area.abs < arg * (@map.scale / 1000.0)**2
+                  end.yield_self do |linestrings|
+                    linestrings.any? ? GeoJSON::MultiLineString.new(linestrings, feature.properties) : []
+                  end
+                when GeoJSON::MultiPolygon
+                  feature.coordinates.reject do |rings|
+                    rings.sum(&:signed_area) < arg * (@map.scale / 1000.0)**2
+                  end.yield_self do |polygons|
+                    polygons.any? ? GeoJSON::MultiPolygon.new(polygons, feature.properties) : []
+                  end
+                end
+
               # when "minimum-hole", "remove-holes"
               #   # data.reject do |points|
               #   #   case arg
@@ -161,6 +165,7 @@ module NSWTopo
               #   # data.reject do |points|
               #   #   points.segments.map(&:distance).inject(0.0, &:+) < arg && points.first == points.last
               #   # end if dimension == 1
+
               when "remove"
                 remove = [arg, *args].any? do |value|
                   case value
@@ -171,6 +176,7 @@ module NSWTopo
                   end
                 end
                 remove ? [] : feature
+
               # when "keep-largest"
               #   # case dimension
               #   # when 1 then [data.max_by(&:signed_area)]
@@ -180,6 +186,7 @@ module NSWTopo
               #   # data.map do |points|
               #   #   points.trim arg
               #   # end.reject(&:empty?) if dimension == 1
+
               else # TODO
                 feature
               end
@@ -430,9 +437,6 @@ module NSWTopo
               else baseline.reverse!
               end
 
-              # hull = [baseline, baseline.reverse].map do |line|
-              #   [line].inset(0.5 * font_size, "splits" => false)
-              # end.flatten(2).convex_hull
               hull = GeoJSON::LineString.new(baseline).multi.buffer(0.5 * font_size, splits: false).coordinates.flatten(1).convex_hull
               next unless labelling_hull.surrounds?(hull).all? # TODO: gross
 

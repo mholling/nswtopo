@@ -183,13 +183,14 @@ begin
     when "render"
       parser.banner = <<~EOF
         nswtopo render - render map in various formats
-        usage: nswtopo render [options] <map.tgz> <format_or_path> [<format_or_path> ...]
+        usage: nswtopo render [options] <map.tgz> [<format_or_path> [<format_or_path> ...]]
         formats: #{NSWTopo::Formats.extensions.sort.join ?\s}
+        default: svg
         options:
       EOF
       parser.on "-p", "--ppi        <ppi>", PositiveInt, "resolution for raster formats in pixels per inch (default %i)" % NSWTopo::Formats::PPI
       parser.on "-z", "--zoom       <zoom>", Integer,    "maximum zoom level for mbtiles format (default %i)" % NSWTopo::Formats::Mbtiles::ZOOM
-      parser.on "-d", "--dither",                        "save raster in indexed colour mode with dithering"
+      parser.on "-d", "--dither",                        "use indexed colour mode for raster formats"
       parser.on "-w", "--worldfile",                     "save projection (.prj) and world file (.wld) for raster formats"
       parser.on "-o", "--overwrite",                     "overwrite existing output files"
       parser.on "-f", "--force",                         "force regeneration of cached SVG"

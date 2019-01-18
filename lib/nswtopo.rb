@@ -134,6 +134,7 @@ module NSWTopo
 
   def render(archive, *formats, options)
     overwrite = options.delete :overwrite
+    formats << "svg" if formats.empty?
     formats.map do |format|
       Pathname(Formats === format ? "#{archive.basename}.#{format}" : format)
     end.uniq.each do |path|
@@ -143,7 +144,6 @@ module NSWTopo
       raise "file already exists: #{path}" if path.exist? && !overwrite
       raise "non-existent directory: #{path.parent}" unless path.parent.directory?
     end.tap do |paths|
-      raise OptionParser::MissingArgument, "no output formats specified" unless paths.any?
       Map.load(archive).render *paths, options
     end
   end

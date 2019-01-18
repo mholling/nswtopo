@@ -570,20 +570,20 @@ module NSWTopo
         changed.merge grouped[label.label_index] if counts[label.label_index] == 1
       end
 
-      # candidates.reject(&:optional?).group_by(&:label_index).select do |label_index, candidates|
-      #   counts[label_index].zero?
-      # end.each do |label_index, candidates|
-      #   label = candidates.min_by do |candidate|
-      #     [(candidate.conflicts & labels).length, candidate.priority]
-      #   end
-      #   label.conflicts.intersection(labels).each do |other|
-      #     next unless counts[other.label_index] > 1
-      #     labels.delete other
-      #     counts[other.label_index] -= 1
-      #   end
-      #   labels << label
-      #   counts[label_index] += 1
-      # end if CONFIG["allow-overlaps"]
+      candidates.reject(&:optional?).group_by(&:label_index).select do |label_index, candidates|
+        counts[label_index].zero?
+      end.each do |label_index, candidates|
+        label = candidates.min_by do |candidate|
+          [(candidate.conflicts & labels).length, candidate.priority]
+        end
+        label.conflicts.intersection(labels).each do |other|
+          next unless counts[other.label_index] > 1
+          labels.delete other
+          counts[other.label_index] -= 1
+        end
+        labels << label
+        counts[label_index] += 1
+      end if NSWTopo.config["allow-overlaps"]
 
       grouped = candidates.group_by do |candidate|
         [candidate.label_index, candidate.feature_index]

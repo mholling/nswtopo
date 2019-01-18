@@ -43,8 +43,8 @@ module NSWTopo
       end
     end
 
-    def labels
-      @labels ||= []
+    def label_features
+      @label_features ||= []
     end
 
     module LabelFeatures
@@ -220,7 +220,7 @@ module NSWTopo
             collections.inject(&:merge!)
           end
         end.each do |collection|
-          labels << collection
+          label_features << collection
         end
       end
     end
@@ -260,7 +260,7 @@ module NSWTopo
 
       labelling_hull = @map.bounding_box(mm: -1).coordinates.first.map(&to_mm)
 
-      candidates = labels.map.with_index do |collection, label_index|
+      candidates = label_features.map.with_index do |collection, label_index|
         collection.flat_map do |feature|
           case feature
           when GeoJSON::Point, GeoJSON::LineString

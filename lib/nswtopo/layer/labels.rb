@@ -26,9 +26,22 @@ module NSWTopo
         stroke-opacity: 0.75
     YAML
 
-    # def fences
-    #   @fences ||= []
-    # end
+    def fences
+      @fences ||= []
+    end
+
+    def add_fence(feature, buffer)
+      fences << case feature
+      when GeoJSON::Point
+        [[feature.coordinates] * 2]
+      when GeoJSON::LineString
+        feature.coordinates.segments
+      when GeoJSON::Polygon
+        feature.coordinates.map(&:segments).flatten(1)
+      end.map do |segment|
+        [segment, [buffer, fences.length]]
+      end
+    end
 
     def labels
       @labels ||= []
@@ -197,7 +210,6 @@ module NSWTopo
           labels << collection
         end
       end
-    #   fences.concat source.fences if source.respond_to? :fences
     end
 
     Label = Struct.new(:layer_name, :label_index, :feature_index, :priority, :hull, :attributes, :elements, :along) do
@@ -227,20 +239,11 @@ module NSWTopo
     end
 
     def drawing_features
-      # labelling_hull, debug_features = @map.mm_corners(-1), []
-      # fence_segments = fences.map.with_index do |(dimension, feature, buffer), index|
-      #   case dimension
-      #   when 0 then feature.map { |point| [point] }
-      #   when 1, 2 then feature.map(&:segments).flatten(1)
-      #   end.map do |segment|
-      #     [segment, [buffer, index]]
-      #   end
-      # end.flatten(1)
-      # fence_index = RTree.load(fence_segments) do |fence, (buffer, *)|
-      #   fence.transpose.map(&:minmax).map do |min, max|
-      #     [min - buffer, max + buffer]
-      #   end
-      # end
+      fence_index = RTree.load(fences.flatten(1)) do |segment, (buffer, _)|
+        segment.transpose.map(&:minmax).map do |min, max|
+          [min - buffer, max + buffer]
+        end
+      end
 
       labelling_hull = @map.bounding_box(mm: -1).coordinates.first.map(&to_mm)
 
@@ -299,13 +302,12 @@ module NSWTopo
               end
               next unless labelling_hull.surrounds?(hull).all?
 
-              # fence_count = fence_index.search(hull.transpose.map(&:minmax)).inject(Set[]) do |indices, (fence, (buffer, index))|
-              #   next indices if indices.include? index
-              #   next indices unless [hull, fence].overlap?(buffer)
-              #   indices << index
-              # end.size
-              # priority = [fence_count, position_index, feature_index]
-              priority = [position_index, feature_index]
+              fence_count = fence_index.search(hull.transpose.map(&:minmax)).inject(Set[]) do |indices, (fence, (buffer, index))|
+                next indices if indices.include? index
+                next indices unless [hull, fence].overlap?(buffer)
+                indices << index
+              end.size
+              priority = [fence_count, position_index, feature_index]
               Label.new collection.layer_name, label_index, feature_index, priority, hull, attributes, text_elements
             end.compact.tap do |candidates|
               candidates.combination(2).each do |candidate1, candidate2|
@@ -376,14 +378,14 @@ module NSWTopo
 
             squared_angles = angles.map { |angle| angle * angle }
 
-            # overlaps = Hash.new do |hash, segment|
-            #   bounds = segment.transpose.map(&:minmax).map do |min, max|
-            #     [min - 0.5 * font_size, max + 0.5 * font_size]
-            #   end
-            #   hash[segment] = fence_index.search(bounds).any? do |fence, (buffer, *)|
-            #     [segment, fence].overlap?(buffer + 0.5 * font_size)
-            #   end
-            # end
+            overlaps = Hash.new do |hash, segment|
+              bounds = segment.transpose.map(&:minmax).map do |min, max|
+                [min - 0.5 * font_size, max + 0.5 * font_size]
+              end
+              hash[segment] = fence_index.search(bounds).any? do |fence, (buffer, _)|
+                [segment, fence].overlap?(buffer + 0.5 * font_size)
+              end
+            end
 
             Enumerator.new do |yielder|
               indices, distance, bad_indices, angle_integral = [0], 0, [], []
@@ -419,11 +421,11 @@ module NSWTopo
               along = (start + 0.5 * (stop - start) % total) % total
               total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
               baseline = points.values_at(*indices).crop(text_length)
-              # fence = baseline.segments.any? do |segment|
-              #   overlaps[segment]
-              # end
-              # priority = [fence ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f]
-              priority = [total_squared_curvature, (total - 2 * along).abs / total.to_f]
+
+              fence = baseline.segments.any? do |segment|
+                overlaps[segment]
+              end
+              priority = [fence ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f]
 
               case
               when "uphill" == orientation

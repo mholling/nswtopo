@@ -29,7 +29,7 @@ module NSWTopo
         end.push(labels).each do |layer|
           log_update "compositing: #{layer.name}"
           group = svg.add_element "g", "id" => layer.name, "inkscape:groupmode" => "layer"
-          layer.render group, defs #, &labels.fences.method(:<<) # TODO
+          layer.render group, defs, &labels.method(:add_fence)
         end
 
         string, formatter = String.new, REXML::Formatters::Pretty.new

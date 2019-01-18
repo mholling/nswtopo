@@ -204,14 +204,13 @@ module NSWTopo
             transforms = REXML::XPath.each(content, "ancestor::g[@transform]/@transform").map(&:value)
             mask_contents.add_element "use", "xlink:href" => "#%s" % content.attributes["id"], "transform" => (transforms.join(?\s) if transforms.any?)
 
-          # # TODO: reinstate, works with Label layer
-          # when "fence"
-          #   next unless content
-          #   buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
-          #   features.each do |feature|
-          #     next if REXML::Element === features
-          #     fences << [feature, buffer]
-          #   end
+          when "fence"
+            next unless content && args
+            buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
+            features.each do |feature|
+              next if REXML::Element === feature
+              yield feature, buffer
+            end
 
           # # TODO: reinstate, works with Label layer
           # when "shield"

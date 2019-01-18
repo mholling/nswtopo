@@ -66,9 +66,9 @@ module NSWTopo
     end
 
     def params_for(categories)
-      params.select do |command, args|
-        Array(command).any? do |selector|
-          selector.to_s.split.to_set <= categories
+      params.select do |key, value|
+        Array(key).any? do |selector|
+          String(selector).split(?\s).to_set <= categories
         end
       end.values.inject(params, &:merge)
     end

@@ -74,11 +74,7 @@ module NSWTopo
         transforms, attributes, point_attributes, line_attributes = [nil, nil, "point", "line"].map do |extra_category|
           categories | Set[*extra_category]
         end.map do |categories|
-          @params.select do |key, value|
-            Array(key).any? do |selector|
-              String(selector).split(?\s).all? categories
-            end
-          end.values.push("categories" => categories).inject(@params, &:merge)
+          params_for(categories).merge("categories" => categories)
         end.zip([TRANSFORMS, PROPERTIES, PROPERTIES, PROPERTIES]).map do |selected_params, keys|
           selected_params.slice *keys
         end

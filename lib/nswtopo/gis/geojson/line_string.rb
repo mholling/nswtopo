@@ -1,9 +1,7 @@
 module NSWTopo
   module GeoJSON
     class LineString
-      def length
-        @coordinates.path_length
-      end
+      delegate %i[length offset buffer smooth samples] => :multi
     end
   end
 end

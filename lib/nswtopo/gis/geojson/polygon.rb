@@ -1,9 +1,7 @@
 module NSWTopo
   module GeoJSON
     class Polygon
-      def area
-        @coordinates.sum(&:signed_area)
-      end
+      delegate %i[area skeleton centres centrepoints centrelines buffer centroids samples] => :multi
     end
   end
 end

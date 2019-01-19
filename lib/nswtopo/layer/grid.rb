@@ -43,7 +43,7 @@ module NSWTopo
             coord = line[0][index]
             labels = [coord / 100000, (coord / 1000) % 100]
             labels << coord % 1000 unless @interval % 1000 == 0
-            collection.add_linestring line, "labels" => labels, "ends" => [0, 1], "categories" => index.zero? ? %w[easting] : %w[northing]
+            collection.add_linestring line, "labels" => labels, "ends" => [0, 1], "category" => index.zero? ? "easting" : "northing"
           end.reproject_to_wgs84.clip!(utm_hull).clip!(map_hull).each do |linestring|
             linestring["ends"].delete 0 if linestring.coordinates[0][0] % 6 < 0.00001
             linestring["ends"].delete 1 if linestring.coordinates[-1][0] % 6 < 0.00001
@@ -51,7 +51,7 @@ module NSWTopo
         end
 
         boundary_points = GeoJSON.multilinestring(grid.transpose, utm).reproject_to_wgs84.clip!(utm_hull).coordinates.map(&:first)
-        boundary = GeoJSON::Collection.new.add_linestring boundary_points, "categories" => %w[boundary]
+        boundary = GeoJSON::Collection.new.add_linestring boundary_points, "category" => "boundary"
 
         [eastings, northings, boundary]
       end.flatten.inject(&:merge)

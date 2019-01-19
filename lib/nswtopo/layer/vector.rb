@@ -81,7 +81,7 @@ module NSWTopo
 
     def render(group, defs)
       drawing_features.group_by do |feature, categories|
-        categories || feature.fetch("categories", []).map(&:to_s).map(&method(:categorise)).to_set
+        categories || Array(feature["category"]).map(&:to_s).map(&method(:categorise)).to_set
       end.map do |categories, features|
         dupes = params_for(categories)["dupe"]
         Array(dupes).map(&:to_s).map do |dupe|

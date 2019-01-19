@@ -45,7 +45,7 @@ module NSWTopo
         points.each do |point|
           name = point["name"]
           next unless selector === name
-          properties = [["categories", [type, *$1]], ["labels", $1]].select(&:last).to_h
+          properties = [["category", [type, *$1]], ["labels", $1]].select(&:last).to_h
           controls.add_point point.coordinates, properties
         end
       end
@@ -54,7 +54,7 @@ module NSWTopo
 
     def to_s
       categories = features.map do |feature|
-        feature["categories"]
+        feature["category"]
       end
       counts = %w[control waterdrop hashhouse].map do |category|
         count = categories.count do |categories|

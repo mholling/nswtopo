@@ -73,7 +73,7 @@ module NSWTopo
 
           categories = categories.map(&:to_s).reject(&:empty?).map(&method(:categorise))
           properties = {}
-          properties["categories"] = categories if categories.any?
+          properties["category"] = categories if categories.any?
           properties["labels"] = labels if labels.any?
           properties["draw"] = false if options[:draw] == false
           properties["draw"] = false if /-labels$/ === @name

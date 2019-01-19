@@ -59,8 +59,8 @@ module NSWTopo
       end.map(&:to_h)
       collate = base_params.delete "collate"
       @params.store layer.name, base_params if base_params.any?
-      category_params.each do |categories, params|
-        categories = Array(categories).map do |category|
+      category_params.each do |category, params|
+        categories = Array(category).map do |category|
           [layer.name, category].join(?\s)
         end
         @params.store categories, params
@@ -69,7 +69,7 @@ module NSWTopo
       layer.labeling_features.tap do |features|
         log_update "collecting labels: %s" % layer.name unless features.empty?
       end.map(&:multi).group_by do |feature|
-        Set[layer.name, *feature["categories"]]
+        Set[layer.name, *feature["category"]]
       end.each do |categories, features|
         transforms, attributes, point_attributes, line_attributes = [nil, nil, "point", "line"].map do |extra_category|
           categories | Set[*extra_category]

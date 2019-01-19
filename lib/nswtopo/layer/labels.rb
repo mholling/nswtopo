@@ -3,6 +3,8 @@ module NSWTopo
     include Vector, Log
     CENTRELINE_FRACTION = 0.35
     DEFAULT_SAMPLE = 5
+    INSET = 1
+
     PROPERTIES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format categories optional sample line-height upcase shield curved]
     TRANSFORMS = %w[reduce fallback offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
 
@@ -80,7 +82,7 @@ module NSWTopo
         features.map do |feature|
           label = feature.properties["labels"]
           text = case
-          # when REXML::Element === label then label
+          when REXML::Element === label then label
           when attributes["format"] then attributes["format"] % label
           else Array(label).map(&:strip).join(?\s)
           end
@@ -253,7 +255,7 @@ module NSWTopo
         end
       end
 
-      labelling_hull = @map.bounding_box(mm: -1).coordinates.first.map(&to_mm)
+      labelling_hull = @map.bounding_box(mm: -INSET).coordinates.first.map(&to_mm)
 
       candidates = label_features.map.with_index do |collection, label_index|
         log_update "compositing %s: feature %i of %i" % [@name, label_index + 1, label_features.length]
@@ -338,15 +340,15 @@ module NSWTopo
             separation  = attributes["separation-along"]
 
             text_length = case collection.text
-            # when REXML::Element then data.path_length
+            when REXML::Element then data.path_length
             when String then Font.glyph_length collection.text, attributes
             end
 
             points = data.segments.inject([]) do |memo, segment|
               distance = segment.distance
               case
-              # when REXML::Element === text
-              #   memo << segment[0]
+              when REXML::Element === collection.text
+                memo << segment[0]
               when curved && distance >= text_length
                 memo << segment[0]
               else

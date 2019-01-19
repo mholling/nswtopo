@@ -4,7 +4,7 @@ module NSWTopo
     FONT_SCALED_ATTRIBUTES = %w[word-spacing letter-spacing stroke-width line-height]
     SHIELD_X, SHIELD_Y = 1.0, 0.5
     MARGIN = { mm: 1.0 }
-    POINT, ANGLE = "%.4f %.4f", "%.2f"
+    VALUE, POINT, ANGLE = "%.5f", "%.5f %.5f", "%.2f"
 
     def create
       collection = get_features.reproject_to(@map.projection).clip!(@map.bounding_box(MARGIN).coordinates.first)

@@ -157,8 +157,6 @@ begin
         options:
       EOF
       parser.on "-i", "--interval  <interval>", PositiveFloat, "interval between grid lines in metres (default %i)" % NSWTopo::Grid::DEFAULTS["interval"]
-      parser.on "-p", "--period    <period>",   PositiveInt,   "use periodic grid labeling instead of edge labeling,",
-                                                               "with labels every specified number of grid lines"
 
     when "declination"
       parser.banner = <<~EOF

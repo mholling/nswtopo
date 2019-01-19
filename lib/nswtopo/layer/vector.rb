@@ -30,13 +30,13 @@ module NSWTopo
 
     def drawing_features
       features.explode.reject do |feature|
-        feature.properties["draw"] == false
+        feature["draw"] == false
       end
     end
 
     def labeling_features
       features.select do |feature|
-        feature.properties["labels"]
+        feature["labels"]
       end
     end
 
@@ -81,7 +81,7 @@ module NSWTopo
 
     def render(group, defs)
       drawing_features.group_by do |feature, categories|
-        categories || feature.properties.fetch("categories", []).map(&:to_s).map(&method(:categorise)).to_set
+        categories || feature.fetch("categories", []).map(&:to_s).map(&method(:categorise)).to_set
       end.map do |categories, features|
         dupes = params_for(categories)["dupe"]
         Array(dupes).map(&:to_s).map do |dupe|
@@ -108,7 +108,7 @@ module NSWTopo
           case feature
           when GeoJSON::Point
             symbol_id = [*ids, "symbol"].join(?.)
-            transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*feature.coordinates.yield_self(&to_mm), feature.properties.fetch("rotation", @map.rotation) - @map.rotation]
+            transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*feature.coordinates.yield_self(&to_mm), feature.fetch("rotation", @map.rotation) - @map.rotation]
             content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
 
           when GeoJSON::LineString

@@ -45,8 +45,8 @@ module NSWTopo
             labels << coord % 1000 unless @interval % 1000 == 0
             collection.add_linestring line, "labels" => labels, "ends" => [0, 1], "categories" => index.zero? ? %w[easting] : %w[northing]
           end.reproject_to_wgs84.clip!(utm_hull).clip!(map_hull).each do |linestring|
-            linestring.properties["ends"].delete 0 if linestring.coordinates[0][0] % 6 < 0.00001
-            linestring.properties["ends"].delete 1 if linestring.coordinates[-1][0] % 6 < 0.00001
+            linestring["ends"].delete 0 if linestring.coordinates[0][0] % 6 < 0.00001
+            linestring["ends"].delete 1 if linestring.coordinates[-1][0] % 6 < 0.00001
           end
         end
 
@@ -85,11 +85,11 @@ module NSWTopo
       inset_hull = @map.bounding_box(mm: -inset).coordinates.first
 
       features.select do |linestring|
-        linestring.properties["labels"]
+        linestring["labels"]
       end.map do |linestring|
         linestring.offset(offset, splits: false).clip(inset_hull)
       end.compact.flat_map do |linestring|
-        labels, ends = linestring.properties.values_at "labels", "ends"
+        labels, ends = linestring.values_at "labels", "ends"
         %i[itself reverse].values_at(*ends).map do |order|
           text_length, text_path = label_element(labels, label_params)
           segment = linestring.coordinates.send(order).take(2)

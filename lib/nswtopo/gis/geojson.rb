@@ -7,8 +7,6 @@ module NSWTopo
 
     CLASSES = TYPES.map do |type|
       klass = Class.new do
-        extend Forwardable
-
         def initialize(coordinates, properties = {})
           properties ||= {}
           raise Error, "invalid feature properties" unless Hash === properties
@@ -31,6 +29,9 @@ module NSWTopo
         def bounds
           coordinates.flatten.each_slice(2).entries.transpose.map(&:minmax)
         end
+
+        extend Forwardable
+        delegate %i[[] []= fetch values_at key? store clear] => :@properties
       end
 
       const_set type, klass

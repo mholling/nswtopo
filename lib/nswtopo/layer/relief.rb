@@ -42,7 +42,7 @@ module NSWTopo
             arcgis_layer url_or_path, margin: margin do |index, total|
               log_update "%s: retrieved %i of %i contours" % [@name, index, total]
             end.each do |feature|
-              feature.properties.replace "elevation" => feature.properties.fetch(attribute, attribute).to_f
+              feature.properties.replace "elevation" => feature.fetch(attribute, attribute).to_f
             end
           # when Shapefile
             # TODO: add contour importing from shapefile path + layer name

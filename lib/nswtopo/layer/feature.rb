@@ -40,7 +40,7 @@ module NSWTopo
           categories = [*options[:category]].map do |category|
             Hash === category ? [*category] : [category]
           end.flatten(1).map do |attribute, substitutions|
-            value = feature.properties.fetch(attribute, attribute)
+            value = feature.fetch(attribute, attribute)
             substitutions ? substitutions.fetch(value, value) : value
           end
 
@@ -59,7 +59,7 @@ module NSWTopo
           rotation = case feature
           when GeoJSON::Point, GeoJSON::MultiPoint
             value = begin
-              Float feature.properties.fetch(rotation_attribute)
+              Float feature.fetch(rotation_attribute)
             rescue KeyError, TypeError, ArgumentError
               0.0
             end
@@ -68,7 +68,7 @@ module NSWTopo
           end if rotation_attribute
 
           labels = Array(options[:label]).map do |attribute|
-            feature.properties.fetch(attribute, attribute)
+            feature.fetch(attribute, attribute)
           end.map(&:to_s).reject(&:empty?)
 
           categories = categories.map(&:to_s).reject(&:empty?).map(&method(:categorise))

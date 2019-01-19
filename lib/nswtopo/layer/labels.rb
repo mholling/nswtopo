@@ -69,7 +69,7 @@ module NSWTopo
       layer.labeling_features.tap do |features|
         log_update "collecting labels: %s" % layer.name unless features.empty?
       end.map(&:multi).group_by do |feature|
-        Set[layer.name, *feature.properties["categories"]]
+        Set[layer.name, *feature["categories"]]
       end.each do |categories, features|
         transforms, attributes, point_attributes, line_attributes = [nil, nil, "point", "line"].map do |extra_category|
           categories | Set[*extra_category]
@@ -80,7 +80,7 @@ module NSWTopo
         end
 
         features.map do |feature|
-          label = feature.properties["labels"]
+          label = feature["labels"]
           text = case
           when REXML::Element === label then label
           when attributes["format"] then attributes["format"] % label

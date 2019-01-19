@@ -46,7 +46,7 @@ module NSWTopo
     end
 
     def categorise(string)
-      string.tr('^_a-zA-Z0-9', ?-).squeeze(?-).delete_prefix(?-).delete_suffix(?-)
+      string.tr_s('^_a-zA-Z0-9', ?-).delete_prefix(?-).delete_suffix(?-)
     end
 
     def svg_path_data(points, bezier: false)

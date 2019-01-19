@@ -139,31 +139,29 @@ module NSWTopo
               when "minimum-area"
                 area = Float(arg) * (@map.scale / 1000.0)**2
                 case feature
-                when GeoJSON::MultiPoint then feature
                 when GeoJSON::MultiLineString
-                  feature.coordinates.reject! do |linestring|
+                  feature.coordinates = feature.coordinates.reject do |linestring|
                     linestring.first == linestring.last && linestring.signed_area.abs < area
                   end
-                  feature.empty? ? [] : feature
                 when GeoJSON::MultiPolygon
-                  feature.coordinates.reject! do |rings|
+                  feature.coordinates = feature.coordinates.reject do |rings|
                     rings.sum(&:signed_area) < area
                   end
-                  feature.empty? ? [] : feature
                 end
+                feature.empty? ? [] : feature
 
               when "minimum-length"
                 next feature unless GeoJSON::MultiLineString === feature
                 distance = Float(arg) * @map.scale / 1000.0
-                feature.coordinates.reject! do |linestring|
+                feature.coordinates = feature.coordinates.reject do |linestring|
                   linestring.path_length < distance
                 end
                 feature.empty? ? [] : feature
 
               when "minimum-hole", "remove-holes"
                 area = Float(arg).abs * @map.scale / 1000.0 unless true == arg
-                feature.coordinates.each do |rings|
-                  rings.reject! do |ring|
+                feature.coordinates = feature.coordinates.map do |rings|
+                  rings.reject do |ring|
                     area ? (-area...0) === ring.signed_area : ring.signed_area < 0
                   end
                 end if GeoJSON::MultiPolygon === feature
@@ -182,27 +180,26 @@ module NSWTopo
 
               when "keep-largest"
                 case feature
-                when GeoJSON::MultiPoint then feature
                 when GeoJSON::MultiLineString
-                  feature.coordinates.replace [feature.explode.max_by(&:length).coordinates]
+                  feature.coordinates = [feature.explode.max_by(&:length).coordinates]
                 when GeoJSON::MultiPolygon
-                  feature.coordinates.replace [feature.explode.max_by(&:area).coordinates]
+                  feature.coordinates = [feature.explode.max_by(&:area).coordinates]
                 end
+                feature
 
               when "trim"
                 next feature unless GeoJSON::MultiLineString === features
                 distance = Float(arg) * @map.scale / 1000.0
-                feature.coordinates.map! do |linestring|
+                feature.coordinates = feature.coordinates.map do |linestring|
                   linestring.trim distance
-                end
-                feature.coordinates.reject!(&:empty?)
+                end.reject(&:empty?)
                 feature.empty? ? [] : feature
               end
             end
           rescue ArgumentError
             raise "invalid label transform: %s: %s" % [transform, [arg, *args].join(?,)]
           end.each do |feature|
-            feature.properties.replace case feature
+            feature.properties = case feature
             when GeoJSON::MultiPoint      then point_attributes
             when GeoJSON::MultiLineString then line_attributes
             when GeoJSON::MultiPolygon    then line_attributes

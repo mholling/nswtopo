@@ -15,7 +15,7 @@ module NSWTopo
           raise Error, "invalid feature geometry" unless Array === coordinates
           @coordinates, @properties = coordinates, properties
         end
-        attr_reader :coordinates, :properties
+        attr_accessor :coordinates, :properties
 
         define_method :to_h do
           {
@@ -74,7 +74,7 @@ module NSWTopo
 
         delegate :empty? => :@coordinates
 
-        alias multi itself
+        alias multi dup
       end
     end
   end

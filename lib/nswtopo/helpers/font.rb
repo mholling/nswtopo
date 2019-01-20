@@ -12,7 +12,7 @@ module NSWTopo
       when !defined? PTY
         self.extend Generic
       when !chrome_path
-        log_warn "chrome browser not configured, using generic font measurements"
+        log_warn "chrome browser not configured - using generic font measurements"
         self.extend Generic
       else
         begin
@@ -20,7 +20,7 @@ module NSWTopo
           raise unless status.success?
           self.extend Chrome
         rescue Errno::ENOENT, RuntimeError
-          log_warn "couldn't run chrome, using generic font measurements"
+          log_warn "couldn't run chrome - using generic font measurements"
           self.extend Generic
         end
       end

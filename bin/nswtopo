@@ -234,7 +234,7 @@ begin
   config_paths.map do |path|
     YAML.load path.read
   rescue YAML::Exception
-    log_warn "couldn't parse #{path}, ignoring"
+    log_warn "couldn't parse #{path} - ignoring"
   end.grep(Hash).inject({}, &:deep_merge).tap do |config|
     NSWTopo.config = config
   end

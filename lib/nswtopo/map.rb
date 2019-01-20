@@ -71,7 +71,7 @@ module NSWTopo
         centre.rotate_by_degrees! -rotation
       end
 
-      wgs84_centre = GeoJSON.point(centre, projection).reproject_to_wgs84.coordinates
+      wgs84_centre = GeoJSON.point(centre, projection: projection).reproject_to_wgs84.coordinates
       projection = Projection.transverse_mercator *wgs84_centre
 
       extents = extents.zip(margins).map do |extent, margin|
@@ -110,7 +110,7 @@ module NSWTopo
     end
 
     def wgs84_centre
-      GeoJSON.point(@centre, @projection).reproject_to_wgs84.coordinates
+      GeoJSON.point(@centre, projection: @projection).reproject_to_wgs84.coordinates
     end
 
     def bounding_box(mm: nil, metres: nil)
@@ -120,7 +120,7 @@ module NSWTopo
       end.inject(&:product).map do |offset|
         @centre.plus offset.rotate_by_degrees(-@rotation)
       end.values_at(0,2,3,1,0)
-      GeoJSON.polygon [ring], projection
+      GeoJSON.polygon [ring], projection: projection
     end
 
     def bounds(margin: {}, projection: nil)

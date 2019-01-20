@@ -50,8 +50,8 @@ module NSWTopo
           end
         end
 
-        boundary_points = GeoJSON.multilinestring(grid.transpose, utm).reproject_to_wgs84.clip!(utm_hull).coordinates.map(&:first)
-        boundary = GeoJSON::Collection.new.add_linestring boundary_points, "category" => "boundary"
+        boundary_points = GeoJSON.multilinestring(grid.transpose, projection: utm).reproject_to_wgs84.clip!(utm_hull).coordinates.map(&:first)
+        boundary = GeoJSON.linestring boundary_points, properties: { "category" => "boundary" }
 
         [eastings, northings, boundary]
       end.flatten.inject(&:merge)

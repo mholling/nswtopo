@@ -7,7 +7,7 @@ module NSWTopo
       end
 
       def repeatedly_request(request)
-        intervals = 5.times.map(&1.4142.method(:**))
+        intervals ||= 5.times.map(&1.4142.method(:**))
         response = @http.request(request)
         response.error! unless Net::HTTPSuccess === response
         yield response

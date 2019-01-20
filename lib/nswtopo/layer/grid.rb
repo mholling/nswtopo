@@ -84,15 +84,28 @@ module NSWTopo
       inset = INSET + font_size * 0.5 * Math::sin(@map.rotation.abs * Math::PI / 180)
       inset_hull = @map.bounding_box(mm: -inset).coordinates.first
 
-      features.select do |linestring|
+      gridlines = features.select do |linestring|
         linestring["label"]
-      end.map do |linestring|
-        linestring.offset(offset, splits: false).clip(inset_hull)
-      end.compact.flat_map do |linestring|
-        label, ends = linestring.values_at "label", "ends"
+      end
+      eastings = gridlines.select do |gridline|
+        gridline["category"] == "easting"
+      end
+
+      flip_eastings = eastings.partition do |easting|
+        Math::atan2(*easting.coordinates.values_at(0, -1).inject(&:minus)) * 180.0 / Math::PI > @map.rotation
+      end.map(&:length).inject(&:>)
+      eastings.each do |easting|
+        easting.coordinates.reverse!
+        easting["ends"].map! { |index| 1 - index }
+      end if flip_eastings
+
+      gridlines.map do |gridline|
+        gridline.offset(offset, splits: false).clip(inset_hull)
+      end.compact.flat_map do |gridline|
+        label, ends = gridline.values_at "label", "ends"
         %i[itself reverse].values_at(*ends).map do |order|
           text_length, text_path = label_element(label, label_params)
-          segment = linestring.coordinates.send(order).take(2)
+          segment = gridline.coordinates.send(order).take(2)
           fraction = text_length * @map.scale / 1000.0 / segment.distance
           coordinates = [segment[0], segment.along(fraction)].send(order)
           GeoJSON::LineString.new coordinates, "label" => text_path

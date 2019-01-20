@@ -45,7 +45,7 @@ module NSWTopo
         points.each do |point|
           name = point["name"]
           next unless selector === name
-          properties = [["category", [type, *$1]], ["labels", $1]].select(&:last).to_h
+          properties = [["category", [type, *$1]], ["label", $1]].select(&:last).to_h
           controls.add_point point.coordinates, properties
         end
       end

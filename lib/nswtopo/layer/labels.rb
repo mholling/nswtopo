@@ -80,7 +80,7 @@ module NSWTopo
         end
 
         features.map do |feature|
-          label = feature["labels"]
+          label = feature["label"]
           text = case
           when REXML::Element === label then label
           when attributes["format"] then attributes["format"] % label

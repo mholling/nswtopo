@@ -36,7 +36,7 @@ module NSWTopo
 
     def labeling_features
       features.select do |feature|
-        feature["labels"]
+        feature["label"]
       end
     end
 

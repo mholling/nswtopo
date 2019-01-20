@@ -41,9 +41,9 @@ module NSWTopo
         eastings, northings = [grid, grid.transpose].map.with_index do |lines, index|
           lines.inject GeoJSON::Collection.new(utm) do |collection, line|
             coord = line[0][index]
-            labels = [coord / 100000, (coord / 1000) % 100]
-            labels << coord % 1000 unless @interval % 1000 == 0
-            collection.add_linestring line, "labels" => labels, "ends" => [0, 1], "category" => index.zero? ? "easting" : "northing"
+            label = [coord / 100000, (coord / 1000) % 100]
+            label << coord % 1000 unless @interval % 1000 == 0
+            collection.add_linestring line, "label" => label, "ends" => [0, 1], "category" => index.zero? ? "easting" : "northing"
           end.reproject_to_wgs84.clip!(utm_hull).clip!(map_hull).each do |linestring|
             linestring["ends"].delete 0 if linestring.coordinates[0][0] % 6 < 0.00001
             linestring["ends"].delete 1 if linestring.coordinates[-1][0] % 6 < 0.00001
@@ -85,17 +85,17 @@ module NSWTopo
       inset_hull = @map.bounding_box(mm: -inset).coordinates.first
 
       features.select do |linestring|
-        linestring["labels"]
+        linestring["label"]
       end.map do |linestring|
         linestring.offset(offset, splits: false).clip(inset_hull)
       end.compact.flat_map do |linestring|
-        labels, ends = linestring.values_at "labels", "ends"
+        label, ends = linestring.values_at "label", "ends"
         %i[itself reverse].values_at(*ends).map do |order|
-          text_length, text_path = label_element(labels, label_params)
+          text_length, text_path = label_element(label, label_params)
           segment = linestring.coordinates.send(order).take(2)
           fraction = text_length * @map.scale / 1000.0 / segment.distance
           coordinates = [segment[0], segment.along(fraction)].send(order)
-          GeoJSON::LineString.new coordinates, "labels" => text_path
+          GeoJSON::LineString.new coordinates, "label" => text_path
         end
       end
     end

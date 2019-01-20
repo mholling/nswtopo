@@ -66,8 +66,9 @@ module NSWTopo
         @params.store categories, params
       end
 
+      feature_count = feature_total = 0
       layer.labeling_features.tap do |features|
-        log_update "collecting labels: %s" % layer.name unless features.empty?
+        feature_total = features.length
       end.map(&:multi).group_by do |feature|
         Set[layer.name, *feature["category"]]
       end.each do |categories, features|
@@ -80,6 +81,7 @@ module NSWTopo
         end
 
         features.map do |feature|
+          log_update "collecting labels: %s: %i of %i features" % [layer.name, feature_count += 1, feature_total]
           label = feature["label"]
           text = case
           when REXML::Element === label then label

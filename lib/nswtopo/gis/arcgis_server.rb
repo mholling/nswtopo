@@ -10,8 +10,8 @@ module NSWTopo
       uri = URI.parse url
       return unless URI::HTTP === uri
       instance, (id, *) = uri.path.split(?/).slice_after(SERVICE).take(2)
-      return unless SERVICE === instance.last
-      return unless !id || /^\d+$/ === id
+      return unless instance.last =~ SERVICE
+      return unless !id || id =~ /^\d+$/
       return uri, instance.join(?/), id
     rescue URI::Error
     end
@@ -49,7 +49,7 @@ module NSWTopo
         layer = connection.get_json id.to_s
         query_path = "#{id}/query"
         max_record_count, fields, types, type_id_field, geometry_type, capabilities = layer.values_at "maxRecordCount", "fields", "types", "typeIdField", "geometryType", "capabilities"
-        raise Error, "no query capability available: #{url}" unless /Query|Data/ === capabilities
+        raise Error, "no query capability available: #{url}" unless capabilities =~ /Query|Data/
 
         if type_id_field && types
           type_id_field = fields.find do |field|

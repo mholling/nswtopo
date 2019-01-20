@@ -101,7 +101,7 @@ module NSWTopo
         commands = params_for categories
         font_size, bezier, section = commands.values_at "font-size", "bezier", "section"
         commands.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
-          commands[key] = commands[key].to_i * font_size * 0.01 if /^\d+%$/ === value
+          commands[key] = commands[key].to_i * font_size * 0.01 if value =~ /^\d+%$/
         end if font_size
 
         features.each do |feature, _|

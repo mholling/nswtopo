@@ -190,7 +190,7 @@ module NSWTopo
                 feature
 
               when "trim"
-                next feature unless GeoJSON::MultiLineString === features
+                next feature unless GeoJSON::MultiLineString === feature
                 distance = Float(arg) * @map.scale / 1000.0
                 feature.coordinates = feature.coordinates.map do |linestring|
                   linestring.trim distance
@@ -272,7 +272,7 @@ module NSWTopo
           attributes = feature.properties
           font_size = attributes["font-size"]
           attributes.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
-            attributes[key] = value.to_i * font_size * 0.01 if /^\d+%$/ === value
+            attributes[key] = value.to_i * font_size * 0.01 if value =~ /^\d+%$/
           end
           # debug_features << [dimension, [data], %w[debug feature]] if CONFIG["debug"]
           # next [] if CONFIG["debug"] == "features"

@@ -19,7 +19,7 @@ module NSWTopo
           raise "#{@source}: no feature source defined" unless source
           options.merge! args
           break options, arcgis_layer(source, margin: MARGIN, **options.slice(:where, :layer, :per_page)) do |index, total|
-            log_update "%s: retrieved %i of %i features" % [@name, index, total]
+            log_update "%s: retrieved %i of %i feature%s" % [@name, index, total, (?s if total > 1)]
           end if ArcGISServer === source
           source_path = Pathname(source).expand_path(@source.parent)
           break options, shapefile_layer(source_path, margin: MARGIN, **options.slice(:where, :sql, :layer)) if Shapefile === source_path

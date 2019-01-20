@@ -81,7 +81,7 @@ module NSWTopo
         end
 
         features.map do |feature|
-          log_update "collecting labels: %s: %i of %i features" % [layer.name, feature_count += 1, feature_total]
+          log_update "collecting labels: %s: feature %i of %i" % [layer.name, feature_count += 1, feature_total]
           label = feature["label"]
           text = case
           when REXML::Element === label then label

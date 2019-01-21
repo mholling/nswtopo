@@ -68,9 +68,11 @@ module NSWTopo
         when /\.(tiff?|png|jpg)$/i
           yielder << [path.basename(path.extname).to_s, "type" => "Import", "path" => path]
         when "grid"
-          yielder << [layer.downcase, "type" => "Grid"]
+          yielder << [layer, "type" => "Grid"]
         when "declination"
-          yielder << [layer.downcase, "type" => "Declination"]
+          yielder << [layer, "type" => "Declination"]
+        when "controls"
+          yielder << [layer, "type" => "Control"]
         when /\.yml$/i
           basedir ||= path.parent
           raise "couldn't find '#{layer}'" unless path.file?
@@ -119,6 +121,10 @@ module NSWTopo
 
   def declination(archive, options)
     add archive, "declination", options
+  end
+
+  def controls(archive, gps_path, options)
+    add archive, "controls", options.merge(path: Pathname(gps_path))
   end
 
   def remove(archive, *names, options)

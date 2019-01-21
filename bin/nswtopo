@@ -88,8 +88,9 @@ begin
           init         initialise map bounds and scale
           info         display map layers and metadata
           add          add named map layer
-          grid         add UTM grid layer
-          declination  add magnetic declination layer
+          grid         add UTM grid
+          declination  add magnetic declination lines
+          controls     add rogaine control markers
           remove       remove map layer
           render       render map in various formats
           layers       list available map layers
@@ -153,7 +154,7 @@ begin
 
     when "grid"
       parser.banner = <<~EOF
-        nswtopo grid - add UTM grid layer
+        nswtopo grid - add UTM grid
         usage: nswtopo grid [options] <map.tgz>
         options:
       EOF
@@ -161,7 +162,7 @@ begin
 
     when "declination"
       parser.banner = <<~EOF
-        nswtopo declination - add magnetic declination layer
+        nswtopo declination - add magnetic declination lines
         usage: nswtopo declination [options] <map.tgz>
         options:
       EOF
@@ -170,6 +171,16 @@ begin
       parser.on "-i", "--spacing  <spacing>", PositiveFloat, "spacing of declination lines in mm (default %i)" % NSWTopo::Declination::DEFAULTS["spacing"]
       parser.on "-o", "--offset   <offset>",  Float,         "rightwards offset of declination lines in mm"
       parser.on "-r", "--arrows   <arrows>",  PositiveFloat, "spacing of directional arrows in mm (default %i)" % NSWTopo::Declination::DEFAULTS["arrows"]
+
+    when "controls"
+      parser.banner = <<~EOF
+        nswtopo controls - add rogaine control markers
+        usage: nswtopo controls [options] <map.tgz> <controls.gpx>
+        options:
+      EOF
+      # TODO: describe defaults
+      parser.on "-d", "--diameter  <diameter>", PositiveFloat, "diameter of control markers in mm"
+      parser.on "-s", "--spot",                                "add spot at control centres"
 
     # TODO: rename to "delete"
     when "remove"

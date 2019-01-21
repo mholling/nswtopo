@@ -103,6 +103,9 @@ begin
       puts NSWTopo::VERSION
       exit
     end
+    parser.on "-q", "--quiet", "suppress non-error output" do
+      $stdout = File.open(File::NULL, "w")
+    end
     parser.on "-h", "--help", "show this help" do
       puts parser
       exit
@@ -127,7 +130,6 @@ begin
       parser.on "-m", "--margins     <x,y>",          PositivePair, "map margins in mm"
       parser.on "-r", "--rotation    <rotation>",     Rotation,     "map rotation in clockwise degrees, 'auto' or 'magnetic'"
       parser.on "-o", "--overwrite",                                "overwrite existing map file"
-      parser.on "-q", "--quiet",                                    "don't report progress"
 
     when "info"
       parser.banner = <<~EOF
@@ -148,7 +150,6 @@ begin
       parser.on "-a", "--after       <layer>",                     "insert after specified layer"
       parser.on "-b", "--before      <layer>",                     "insert before specified layer"
       parser.on "-o", "--overwrite",                               "overwrite layer if it already exists"
-      parser.on "-q", "--quiet",                                   "don't report progress"
 
     when "grid"
       parser.banner = <<~EOF
@@ -192,7 +193,6 @@ begin
       parser.on "-w", "--worldfile",                     "save projection (.prj) and world file (.wld) for raster formats"
       parser.on "-o", "--overwrite",                     "overwrite existing output files"
       parser.on "-f", "--force",                         "force regeneration of cached SVG"
-      parser.on "-q", "--quiet",                         "don't report progress"
 
     when "layers"
       parser.banner = <<~EOF
@@ -227,7 +227,6 @@ begin
     exit
   end
 
-  $stdout = File.open(File::NULL, "w") if options.delete :quiet
   raise OptionParser::MissingArgument, "no map path specified" if ARGV.empty?
   tgz_path = Pathname(ARGV.shift)
 

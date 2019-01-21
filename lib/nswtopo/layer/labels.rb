@@ -39,7 +39,7 @@ module NSWTopo
       when GeoJSON::LineString
         feature.coordinates.map(&to_mm).segments
       when GeoJSON::Polygon
-        feature.coordinates.flat_map { |ring| ring.map(&:to_m).segments }
+        feature.coordinates.flat_map { |ring| ring.map(&to_mm).segments }
       end.map do |segment|
         [segment, [buffer, fences.length]]
       end

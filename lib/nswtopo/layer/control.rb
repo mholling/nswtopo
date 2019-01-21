@@ -1,10 +1,10 @@
 module NSWTopo
   module Control
     include Vector
-    CREATE = %w[diameter spot font-size]
+    CREATE = %w[diameter spot font-size colour]
     DEFAULTS = YAML.load <<~YAML
       diameter: 7.0
-      stroke: "#880088"
+      colour: "#880088"
       stroke-width: 0.25
       waterdrop:
         stroke: blue
@@ -19,7 +19,6 @@ module NSWTopo
         font-family: sans-serif
         font-style: normal
         stroke: none
-        fill: "#880088"
     YAML
     SCALING_PARAMS = <<~YAML
       fence: 2.0
@@ -61,6 +60,7 @@ module NSWTopo
       scaled_params["control"]["symbol"] << { "circle" => { "r" => 0.07, "stroke-width" => 0.14, "fill" => "none" } } if @spot
       @params = scaled_params.deep_merge @params
       @params["labels"]["font-size"] = @fontsize if @fontsize
+      @params["labels"]["fill"] = @params["stroke"] = @colour.to_s if @colour
       points, controls = GPS.load(@path).points, GeoJSON::Collection.new
       [["control",   /^(1?\d\d)W?$/ ],
        ["hashhouse", /^(HH)$/       ],

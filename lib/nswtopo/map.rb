@@ -201,12 +201,12 @@ module NSWTopo
       rescue ArcGISServer::Error, RuntimeError => error
         log_warn ArcGISServer::Error === error ? "couldn't download layer: #{layer.name}" : error.message
         next layers, changed, follow, errors << error
-      end.tap do |layers, changed, follow, errors|
+      end.tap do |ordered_layers, changed, follow, errors|
         if changed
-          @layers.replace Hash[layers.map(&:pair)]
+          @layers.replace Hash[ordered_layers.map(&:pair)]
           save
         end
-        raise PartialFailureError, "failed to create #{errors.length} layer#{?s unless errors.one?}" if errors.any?
+        raise PartialFailureError, "failed to create %s" % [layers.one? ? "layer" : errors.one? ? "1 layer" : "#{errors.length} layers"] if errors.any?
       end
     end
 

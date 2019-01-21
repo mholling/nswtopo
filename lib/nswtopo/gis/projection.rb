@@ -47,11 +47,5 @@ module NSWTopo
       latitudes = [-80.0, 84.0]
       longitudes.product(latitudes).values_at(0,2,3,1)
     end
-
-    # def self.in_zone?(zone, coords, projection)
-    #   projection.reproject_to_wgs84(coords).one_or_many do |longitude, latitude|
-    #     (longitude / 6).floor + 31 == zone
-    #   end
-    # end
   end
 end

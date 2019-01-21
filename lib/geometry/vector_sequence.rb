@@ -65,7 +65,7 @@ module VectorSequence
         polygon[(index + 1) % polygon.length].minus polygon[index]
       end
       angle, which = [edges, calipers].transpose.map do |edge, caliper|
-        Math::acos(edge.dot(caliper) / edge.norm)
+        Math::acos caliper.proj(edge).clamp(-1, 1)
       end.map.with_index.min_by { |angle, index| angle }
 
       calipers.each { |caliper| caliper.rotate_by!(angle) }

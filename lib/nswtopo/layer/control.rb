@@ -78,15 +78,15 @@ module NSWTopo
     end
 
     def to_s
-      categories = features.map do |feature|
-        feature["category"]
-      end
       counts = %w[control waterdrop hashhouse].map do |category|
-        count = categories.count do |categories|
-          categories.any? category
+        waypoints = features.select do |feature|
+          feature["category"].any? category
         end
-        next unless count > 0
-        "%i %s%s" % [count, category, count == 1 ? nil : ?s]
+        next if waypoints.empty?
+        count = "%i %s%s" % [waypoints.length, category, waypoints.one? ? nil : ?s]
+        next count unless "control" == category
+        total = features.sum { |feature| feature["label"].to_i.floor(-1) }
+        count << " (%i points)" % total
       end.compact
       [@name, counts.join(", ")].join(": ")
     end

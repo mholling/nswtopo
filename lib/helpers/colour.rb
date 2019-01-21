@@ -154,7 +154,9 @@ class Colour
   def initialize(string_or_array)
     @triplet = case string_or_array
     when Array then string_or_array.take(3).map(&:round)
-    when *COLOURS.keys then COLOURS[string_or_array]
+    when *COLOURS.keys
+      @name = string_or_array
+      COLOURS[string_or_array]
     when /^#?([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})$/i
       [$1, $2, $3].map { |hex| Integer("0x#{hex}") }
     when /^rgb\((\d{1,3}),(\d{1,3}),(\d{1,3})\)$/
@@ -169,6 +171,6 @@ class Colour
   end
 
   def to_s
-    "#%.2X%.2X%.2X" % triplet
+    @name || "#%.2X%.2X%.2X" % triplet
   end
 end

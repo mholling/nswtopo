@@ -75,9 +75,9 @@ begin
     raise OptionParser::InvalidArgument, string unless Pathname(string).expand_path.exist?
     Pathname(string).expand_path
   end
-  OptionParser.accept NSWTopo::Colour do |string|
-    NSWTopo::Colour.new string
-  rescue NSWTopo::Colour::Error
+  OptionParser.accept Colour do |string|
+    Colour.new string
+  rescue Colour::Error
     raise OptionParser::InvalidArgument, string
   end
 
@@ -183,10 +183,10 @@ begin
         usage: nswtopo controls [options] <map.tgz> <controls.gpx>
         options:
       EOF
-      parser.on "-d", "--diameter   <diameter>",  PositiveFloat,   "diameter of control markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
-      parser.on "-s", "--spot",                                    "add spots at control centres"
-      parser.on "-f", "--font-size  <font-size>", PositiveFloat,   "font size for control labels in mm"
-      parser.on "-c", "--colour     <colour>",    NSWTopo::Colour, "colour for control markers and labels"
+      parser.on "-d", "--diameter   <diameter>",  PositiveFloat, "diameter of control markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
+      parser.on "-s", "--spot",                                  "add spots at control centres"
+      parser.on "-f", "--font-size  <font-size>", PositiveFloat, "font size for control labels in mm"
+      parser.on "-c", "--colour     <colour>",    Colour,        "colour for control markers and labels"
 
     # TODO: rename to "delete"
     when "remove"

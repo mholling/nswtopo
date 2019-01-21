@@ -71,9 +71,12 @@ module NSWTopo
 
       Dir.mktmppath do |temp_dir|
         temp_path = temp_dir / "temp.tgz"
-        Zlib::GzipWriter.open(temp_path, Zlib::BEST_COMPRESSION) do |gzip|
+        Zlib::GzipWriter.open temp_path, Zlib::BEST_COMPRESSION do |gzip|
           gzip.comment = "nswtopo %s" % VERSION
           gzip.write buffer.string
+        rescue Interrupt
+          log_update "nswtopo: interrupted, please wait..."
+          raise
         end
         safely "saving map file, please wait..." do
           FileUtils.cp temp_path, out_path

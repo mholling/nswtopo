@@ -4,7 +4,7 @@ module NSWTopo
     CREATE = %w[diameter spot font-size colour]
     DEFAULTS = YAML.load <<~YAML
       diameter: 7.0
-      colour: "#880088"
+      colour: darkmagenta
       stroke-width: 0.25
       waterdrop:
         stroke: blue

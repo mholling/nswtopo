@@ -76,7 +76,7 @@ begin
     Pathname(string).expand_path
   end
   OptionParser.accept Colour do |string|
-    Colour.new string
+    Colour.new string.downcase
   rescue Colour::Error
     raise OptionParser::InvalidArgument, string
   end
@@ -185,8 +185,8 @@ begin
       EOF
       parser.on "-d", "--diameter   <diameter>",  PositiveFloat, "diameter of control markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
       parser.on "-s", "--spot",                                  "add spots at control centres"
+      parser.on "-c", "--colour     <colour>",    Colour,        "colour for control markers and labels", "(as a named colour or RGB triplet)"
       parser.on "-f", "--font-size  <font-size>", PositiveFloat, "font size for control labels in mm"
-      parser.on "-c", "--colour     <colour>",    Colour,        "colour for control markers and labels"
 
     # TODO: rename to "delete"
     when "remove"

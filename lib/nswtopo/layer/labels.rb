@@ -33,16 +33,17 @@ module NSWTopo
     end
 
     def add_fence(feature, buffer)
-      fences << case feature
+      new_fences = case feature
       when GeoJSON::Point
-        [[feature.coordinates] * 2]
+        [[feature.coordinates.yield_self(&to_mm)] * 2]
       when GeoJSON::LineString
-        feature.coordinates.segments
+        feature.coordinates.map(&to_mm).segments
       when GeoJSON::Polygon
-        feature.coordinates.map(&:segments).flatten(1)
+        feature.coordinates.flat_map { |ring| ring.map(&:to_m).segments }
       end.map do |segment|
         [segment, [buffer, fences.length]]
       end
+      fences.concat new_fences
     end
 
     def label_features
@@ -251,7 +252,7 @@ module NSWTopo
     end
 
     def drawing_features
-      fence_index = RTree.load(fences.flatten(1)) do |segment, (buffer, _)|
+      fence_index = RTree.load(fences) do |segment, (buffer, _)|
         segment.transpose.map(&:minmax).map do |min, max|
           [min - buffer, max + buffer]
         end

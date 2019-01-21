@@ -188,7 +188,6 @@ begin
       parser.on "-c", "--colour     <colour>",    Colour,        "colour for control markers and labels", "(as a named colour or RGB triplet)"
       parser.on "-f", "--font-size  <font-size>", PositiveFloat, "font size for control labels in mm"
 
-    # TODO: rename to "delete"
     when "remove"
       parser.banner = <<~EOF
         nswtopo remove - remove map layers

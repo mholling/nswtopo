@@ -178,9 +178,8 @@ begin
         usage: nswtopo controls [options] <map.tgz> <controls.gpx>
         options:
       EOF
-      # TODO: describe defaults
-      parser.on "-d", "--diameter  <diameter>", PositiveFloat, "diameter of control markers in mm"
-      parser.on "-s", "--spot",                                "add spot at control centres"
+      parser.on "-d", "--diameter  <diameter>", PositiveFloat, "diameter of control markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
+      parser.on "-s", "--spot",                                "add spots at control centres"
 
     # TODO: rename to "delete"
     when "remove"

@@ -302,7 +302,7 @@ module NSWTopo
                 y += (CENTRELINE_FRACTION + 0.5 * dy) * font_size
                 REXML::Element.new("text").tap do |text|
                   text.add_attribute "transform", "translate(%s %s)" % origin
-                  text.add_attribute "text-anchor" => dx > 0 ? "start" : dx < 0 ? "end" : "middle"
+                  text.add_attribute "text-anchor", dx > 0 ? "start" : dx < 0 ? "end" : "middle"
                   text.add_attribute "textLength", text_length
                   text.add_attribute "y", y
                   text.add_text line

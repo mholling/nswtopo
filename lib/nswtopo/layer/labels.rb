@@ -26,6 +26,7 @@ module NSWTopo
         fill: none
         stroke-width: 0.25
         stroke-opacity: 0.75
+        blur: 0.06
     YAML
 
     def fences

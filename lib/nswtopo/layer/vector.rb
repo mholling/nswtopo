@@ -128,6 +128,9 @@ module NSWTopo
             when "text", "textPath" then content << feature
             when "path" then defs << feature
             end
+
+          when Array
+            content.add_element "path", "fill" => "none", "d" => svg_path_data(feature + feature.take(1))
           end
         end if content
 

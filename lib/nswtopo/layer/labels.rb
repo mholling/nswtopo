@@ -27,6 +27,21 @@ module NSWTopo
         stroke-width: 0.25
         stroke-opacity: 0.75
         blur: 0.06
+      debug:
+        dupe: ~
+        fill: none
+        opacity: 0.5
+      debug feature:
+        stroke: "#6600ff"
+        stroke-width: 0.2
+        symbol:
+          circle:
+            r: 0.3
+            stroke: none
+            fill: "#6600ff"
+      debug candidate:
+        stroke: magenta
+        stroke-width: 0.2
     YAML
 
     def fences
@@ -260,6 +275,7 @@ module NSWTopo
       end
 
       labelling_hull = @map.bounding_box(mm: -INSET).coordinates.first.map(&to_mm)
+      debug, debug_features = NSWTopo.config["debug"], []
 
       candidates = label_features.map.with_index do |collection, label_index|
         log_update "compositing %s: feature %i of %i" % [@name, label_index + 1, label_features.length]
@@ -278,8 +294,10 @@ module NSWTopo
           attributes.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
             attributes[key] = value.to_i * font_size * 0.01 if value =~ /^\d+%$/
           end
-          # debug_features << [dimension, [data], %w[debug feature]] if CONFIG["debug"]
-          # next [] if CONFIG["debug"] == "features"
+
+          debug_features << [feature, Set["debug", "feature"]] if debug
+          next [] if debug == "features"
+
           case feature
           when GeoJSON::Point
             margin, line_height = attributes.values_at "margin", "line-height"
@@ -504,10 +522,10 @@ module NSWTopo
         end
       end.flatten
 
-      # candidates.each do |candidate|
-      #   debug_features << [2, [candidate.hull], %w[debug candidate]]
-      # end if CONFIG["debug"]
-      # return debug_features if %w[features candidates].include? CONFIG["debug"]
+      candidates.each do |candidate|
+        debug_features << [candidate.hull, Set["debug", "candidate"]]
+      end if debug
+      return debug_features if %w[features candidates].include? debug
 
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices
@@ -604,26 +622,9 @@ module NSWTopo
         label.elements.map do |element|
           [element, label.categories]
         end
-      # end.tap do |result|
-      #   result.concat debug_features if CONFIG["debug"]
-      end.flatten(1)
+      end.flatten(1).tap do |result|
+        result.concat debug_features if debug
+      end
     end
-
-    # PARAMS = %Q[
-    #   debug:
-    #     fill: none
-    #     opacity: 0.5
-    #   debug feature:
-    #     stroke: "#6600ff"
-    #     stroke-width: 0.2
-    #     symbol:
-    #       circle:
-    #         r: 0.3
-    #         stroke: none
-    #         fill: "#6600ff"
-    #   debug candidate:
-    #     stroke: magenta
-    #     stroke-width: 0.2
-    # ]
   end
 end

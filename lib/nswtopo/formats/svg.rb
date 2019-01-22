@@ -7,6 +7,8 @@ module NSWTopo
         begin
           svg = REXML::Document.new(external.read).elements["svg"]
           raise "not an SVG file: %s" % external unless svg
+          desc = svg.elements["metadata/rdf:RDF/rdf:Description[@dc:creator='nswtopo']"]
+          raise "not an nswtopo SVG file: %s" % external unless desc
         rescue REXML::ParseException
           raise "not an SVG file: %s" % external
         end
@@ -19,18 +21,24 @@ module NSWTopo
         width, height = extents.times(1000.0 / scale)
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new(1.0, "utf-8")
-        attributes = {
+        svg = xml.add_element "svg",
           "version" => 1.1,
           "baseProfile" => "full",
           "width"  => "#{width}mm",
           "height" => "#{height}mm",
           "viewBox" => "0 0 #{width} #{height}",
-          "xmlns" => "http://www.w3.org/2000/svg",
-          "xmlns:xlink" => "http://www.w3.org/1999/xlink",
+          "xmlns"          => "http://www.w3.org/2000/svg",
+          "xmlns:xlink"    => "http://www.w3.org/1999/xlink",
           "xmlns:sodipodi" => "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd",
-          "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape",
-        }
-        svg = xml.add_element "svg", attributes
+          "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape"
+
+        meta = svg.add_element "metadata"
+        rdf = meta.add_element "rdf:RDF",
+          "xmlns:rdf" => "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+          "xmlns:dc"  => "http://purl.org/dc/elements/1.1/"
+        rdf.add_element "rdf:Description",
+          "dc:creator" => "nswtopo"
+
         defs = svg.add_element "defs"
         svg.add_element "sodipodi:namedview", "borderlayer" => true
         svg.add_element "rect", "x" => 0, "y" => 0, "width" => width, "height" => height, "fill" => "white"

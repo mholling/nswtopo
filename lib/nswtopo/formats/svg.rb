@@ -37,6 +37,8 @@ module NSWTopo
           "xmlns:rdf" => "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
           "xmlns:dc"  => "http://purl.org/dc/elements/1.1/"
         rdf.add_element "rdf:Description",
+          "dc:date" => Date.today.iso8601,
+          "dc:format" => "image/svg+xml",
           "dc:creator" => "nswtopo"
 
         defs = svg.add_element "defs"

@@ -241,30 +241,30 @@ module NSWTopo
     end
     alias to_s info
 
-    def render(*paths, worldfile: false, force: false, **options)
+    def render(*paths, worldfile: false, force: false, external: nil, **options)
       delete "map.svg" if force
       Dir.mktmppath do |temp_dir|
-        rasters = Hash.new do |rasters, options|
+        rasters = Hash.new do |rasters, opts|
           png_path = temp_dir / "raster.#{rasters.size}.png"
           pgw_path = temp_dir / "raster.#{rasters.size}.pgw"
-          rasterise png_path, options
-          write_world_file pgw_path, options
-          rasters[options] = png_path
+          rasterise png_path, external: external, **opts
+          write_world_file pgw_path, opts
+          rasters[opts] = png_path
         end
-        dithers = Hash.new do |dithers, options|
+        dithers = Hash.new do |dithers, opts|
           png_path = temp_dir / "dither.#{dithers.size}.png"
           pgw_path = temp_dir / "dither.#{dithers.size}.pgw"
-          FileUtils.cp rasters[options], png_path
+          FileUtils.cp rasters[opts], png_path
           dither png_path
-          write_world_file pgw_path, options
-          dithers[options] = png_path
+          write_world_file pgw_path, opts
+          dithers[opts] = png_path
         end
 
         outputs = paths.map.with_index do |path, index|
           ext = path.extname.delete_prefix ?.
           name = path.basename(path.extname)
           out_path = temp_dir / "output.#{index}.#{ext}"
-          send "render_#{ext}", temp_dir, out_path, name: name, **options do |dither: false, **opts|
+          send "render_#{ext}", temp_dir, out_path, name: name, external: external, **options do |dither: false, **opts|
             (dither ? dithers : rasters)[opts]
           end
           next out_path, path

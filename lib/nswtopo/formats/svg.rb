@@ -1,8 +1,20 @@
 module NSWTopo
   module Formats
-    def render_svg(temp_dir, svg_path, **options)
-      if uptodate? "map.svg", "map.yml"
+    def render_svg(temp_dir, svg_path, external: nil, **options)
+      case
+      when external
+        raise "not a file: %s" % external unless external.file?
+        begin
+          svg = REXML::Document.new(external.read).elements["svg"]
+          raise "not an SVG file: %s" % external unless svg
+        rescue REXML::ParseException
+          raise "not an SVG file: %s" % external
+        end
+        FileUtils.cp external, svg_path
+
+      when uptodate?("map.svg", "map.yml")
         svg_path.write read("map.svg")
+
       else
         width, height = extents.times(1000.0 / scale)
         xml = REXML::Document.new

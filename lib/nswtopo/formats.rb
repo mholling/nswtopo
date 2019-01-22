@@ -39,12 +39,12 @@ module NSWTopo
       raise "invalid %s path: %s" % [browser_name, browser_path]
     end
 
-    def rasterise(png_path, **options)
+    def rasterise(png_path, external:, **options)
       Dir.mktmppath do |temp_dir|
         dimensions, ppi, resolution = raster_dimensions_at **options
         svg_path = temp_dir / "map.svg"
         src_path = temp_dir / "browser.svg"
-        render_svg temp_dir, svg_path
+        render_svg temp_dir, svg_path, external: external
 
         with_browser do |browser_name, browser_path|
           megapixels = dimensions.inject(&:*) / 1024.0 / 1024.0

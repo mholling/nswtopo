@@ -185,7 +185,8 @@ begin
       EOF
       parser.on "-d", "--diameter   <diameter>",  PositiveFloat, "diameter of control markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
       parser.on "-s", "--spot",                                  "add spots at control centres"
-      parser.on "-c", "--colour     <colour>",    Colour,        "colour for control markers and labels", "(as a named colour or RGB triplet)"
+      parser.on "-c", "--colour     <colour>",    Colour,        "colour for control markers and labels",
+                                                                 "(as a colour name or RGB triplet)"
       parser.on "-f", "--font-size  <font-size>", PositiveFloat, "font size for control labels in mm"
 
     when "remove"
@@ -203,12 +204,13 @@ begin
         default: svg
         options:
       EOF
-      parser.on "-p", "--ppi        <ppi>", PositiveInt, "resolution for raster formats in pixels per inch (default %i)" % NSWTopo::Formats::PPI
-      parser.on "-z", "--zoom       <zoom>", Integer,    "maximum zoom level for mbtiles format (default %i)" % NSWTopo::Formats::Mbtiles::ZOOM
-      parser.on "-d", "--dither",                        "use indexed colour mode for raster formats"
-      parser.on "-w", "--worldfile",                     "save projection (.prj) and world file (.wld) for raster formats"
-      parser.on "-o", "--overwrite",                     "overwrite existing output files"
-      parser.on "-f", "--force",                         "force regeneration of cached SVG"
+      parser.on "-p", "--ppi        <ppi>",     PositiveInt, "resolution for raster formats in pixels per inch (default %i)" % NSWTopo::Formats::PPI
+      parser.on "-z", "--zoom       <zoom>",    Integer,     "maximum zoom level for mbtiles format (default %i)" % NSWTopo::Formats::Mbtiles::ZOOM
+      parser.on "-d", "--dither",                            "use indexed colour mode for raster formats"
+      parser.on "-w", "--worldfile",                         "save projection (.prj) and world file (.wld) for raster formats"
+      parser.on "-o", "--overwrite",                         "overwrite existing output files"
+      parser.on "-e", "--external   <map.svg>", Pathname,    "render from externally edited SVG instead of cached SVG"
+      parser.on "-f", "--force",                             "force regeneration of cached SVG"
 
     when "layers"
       parser.banner = <<~EOF

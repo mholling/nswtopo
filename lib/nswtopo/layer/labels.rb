@@ -467,7 +467,7 @@ module NSWTopo
               case
               when "uphill" == orientation
               when "downhill" == orientation then baseline.reverse!
-              when baseline.values_at(0, -1).difference.rotate_by_degrees(-@map.rotation).first > 0
+              when baseline.values_at(0, -1).map(&:first).inject(&:<=)
               else baseline.reverse!
               end
 

@@ -27,6 +27,9 @@ module NSWTopo
         stroke-width: 0.25
         stroke-opacity: 0.75
         blur: 0.06
+    YAML
+
+    DEBUG_PARAMS = YAML.load <<~YAML
       debug:
         dupe: ~
         fill: none
@@ -276,6 +279,7 @@ module NSWTopo
 
       labelling_hull = @map.bounding_box(mm: -INSET).coordinates.first.map(&to_mm)
       debug, debug_features = NSWTopo.config["debug"], []
+      @params = DEBUG_PARAMS.deep_merge @params if debug
 
       candidates = label_features.map.with_index do |collection, label_index|
         log_update "compositing %s: feature %i of %i" % [@name, label_index + 1, label_features.length]

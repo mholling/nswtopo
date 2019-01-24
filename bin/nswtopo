@@ -85,7 +85,7 @@ begin
   end
 
   OptionParser.accept Colour do |string|
-    Colour.new(string.downcase).to_s
+    string == "none" ? string : Colour.new(string.downcase).to_s
   rescue Colour::Error
     raise OptionParser::InvalidArgument, string
   end

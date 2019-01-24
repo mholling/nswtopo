@@ -12,6 +12,13 @@ module NSWTopo
         styles, folder, name = feature.values_at "styles", "folder", "name"
         styles ||= GPX_STYLES
 
+        case feature
+        when GeoJSON::LineString, GeoJSON::MultiLineString
+          styles["stroke-linejoin"] = "round"
+        when GeoJSON::Polygon, GeoJSON::MultiPolygon
+          styles["stroke-linejoin"] = "miter"
+        end
+
         categories = [folder, name].compact.reject(&:empty?).map(&method(:categorise))
         keys = styles.keys - params_for(categories.to_set).keys
         styles = styles.slice *keys

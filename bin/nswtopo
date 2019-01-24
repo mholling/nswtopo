@@ -45,40 +45,61 @@ begin
   digits = '\d+(?:_\d+)*'
   float  = "[-+]?(?:#{digits}(?=(.)?)(?:\\.(?:#{digits})?)?|\\.#{digits})(?:[eE][-+]?#{digits})?"
   coords = "#{float},#{float}"
+
   PositiveInt   = /\A#{digits}\z/
   PositiveFloat = /\A#{float}\z/
   PositivePair  = /\A#{float},#{float}\z/
   CoordList     = /\A#{coords}(?:,#{coords})*\z/
   Rotation      = /\A(?:#{float}|magnetic|auto)\z/
+  Opacity       = /\A#{float}%?\z/
+  DashArray     = /\A#{float}(?:,#{float})*\z/
   States        = Pathname(__dir__).parent.join("layers").children.select(&:directory?).map(&:basename).map(&:to_s)
 
   OptionParser.accept PositiveInt, PositiveInt do |string|
     raise OptionParser::InvalidArgument, string unless string.to_i.positive?
     string.to_i
   end
+
   OptionParser.accept PositiveFloat, PositiveFloat do |string|
     raise OptionParser::InvalidArgument, string unless string.to_f.positive?
     string.to_f
   end
+
   OptionParser.accept PositivePair, PositivePair do |string|
     raise OptionParser::InvalidArgument, string unless string.split(?,).map(&:to_f).all?(&:positive?)
     string.split(?,).map(&:to_f)
   end
+
   # TODO NonNegativePair for margins, or get rid of auto-margins for controls?
   OptionParser.accept CoordList, CoordList do |string|
     string.split(?,).map(&:to_f).each_slice(2).to_a
   end
+
   OptionParser.accept Rotation, Rotation do |string|
     "magnetic" == string ? string : "auto" == string ? string : string.to_f
   end
+
   OptionParser.accept Pathname do |string|
     raise OptionParser::InvalidArgument, string unless Pathname(string).expand_path.exist?
     Pathname(string).expand_path
   end
+
   OptionParser.accept Colour do |string|
     Colour.new string.downcase
   rescue Colour::Error
     raise OptionParser::InvalidArgument, string
+  end
+
+  OptionParser.accept Opacity, Opacity do |string|
+    opacity = string.end_with?(?%) ? Float(string.chomp ?%) * 0.01 : Float(string)
+    raise OptionParser::InvalidArgument, string unless (0..1) === opacity
+    opacity
+  end
+
+  OptionParser.accept DashArray, DashArray do |string|
+    values = string.split(?,).map(&:to_f)
+    raise OptionParser::InvalidArgument, string if values.any?(&:negative?)
+    values.join ?\s
   end
 
   config_paths = [Pathname(__dir__).parent, Pathname(Etc.getpwuid&.dir || Dir.home), Pathname.pwd].map do |directory|
@@ -96,6 +117,7 @@ begin
           grid         add UTM grid
           declination  add magnetic declination lines
           controls     add rogaine control markers
+          overlay      add KML or GPX overlay
           remove       remove map layer
           render       render map in various formats
           layers       list available map layers
@@ -185,9 +207,22 @@ begin
       EOF
       parser.on "-d", "--diameter   <diameter>",  PositiveFloat, "diameter of control markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
       parser.on "-s", "--spot",                                  "add spots at control centres"
-      parser.on "-c", "--colour     <colour>",    Colour,        "colour for control markers and labels",
-                                                                 "(as a colour name or RGB triplet)"
+      parser.on "-c", "--colour     <colour>",    Colour,        "colour of control markers and labels",
+                                                                 "(as colour name or RGB triplet)"
       parser.on "-f", "--font-size  <font-size>", PositiveFloat, "font size for control labels in mm"
+
+    when "overlay"
+      parser.banner = <<~EOF
+        nswtopo overlay - add KML or GPX overlay
+        usage: nswtopo overlay [options] <map.tgz> <overlay.kml>
+        options:
+      EOF
+      parser.on "--stroke           <colour>",  Colour,        "colour of line features",
+                                                               "(as colour name or RGB triplet)"
+      parser.on "--stroke-width     <width>",   PositiveFloat, "width of lines in mm"
+      parser.on "--stroke-dasharray <mm,...>",  DashArray,     "dash sequence for lines in mm"
+      parser.on "--stroke-opacity   <opacity>", Opacity,       "line opacity (between 0 and 1)"
+      parser.on "--opacity          <opacity>", Opacity,       "overall layer opacity"
 
     when "remove"
       parser.banner = <<~EOF

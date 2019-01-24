@@ -55,7 +55,7 @@ module NSWTopo
       overwrite: options.delete(:overwrite)
     }
     map = Map.load archive
-    # TODO: iterate separately for each layer, rather than in combination, so we keep default ordering
+
     Enumerator.new do |yielder|
       while layers.any?
         layer, basedir = layers.shift
@@ -125,6 +125,11 @@ module NSWTopo
 
   def controls(archive, gps_path, options)
     add archive, "controls", options.merge(path: Pathname(gps_path))
+  end
+
+  def overlay(archive, gps_path, options)
+    raise OptionParser::InvalidArgument, gps_path unless gps_path =~ /\.(gpx|kml)$/i
+    add archive, gps_path, options.merge(path: Pathname(gps_path))
   end
 
   def remove(archive, *names, options)

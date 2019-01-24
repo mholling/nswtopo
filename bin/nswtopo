@@ -52,7 +52,7 @@ begin
   CoordList     = /\A#{coords}(?:,#{coords})*\z/
   Rotation      = /\A(?:#{float}|magnetic|auto)\z/
   Opacity       = /\A#{float}%?\z/
-  DashArray     = /\A#{float}(?:,#{float})*\z/
+  DashArray     = /\A#{float}(?:(?:,#{float})*|(?: #{float})*)\z/
   States        = Pathname(__dir__).parent.join("layers").children.select(&:directory?).map(&:basename).map(&:to_s)
 
   OptionParser.accept PositiveInt, PositiveInt do |string|
@@ -97,7 +97,7 @@ begin
   end
 
   OptionParser.accept DashArray, DashArray do |string|
-    values = string.split(?,).map(&:to_f)
+    values = string.split(/[, ]/).map(&:to_f)
     raise OptionParser::InvalidArgument, string if values.any?(&:negative?)
     values.join ?\s
   end

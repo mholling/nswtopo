@@ -85,7 +85,7 @@ begin
   end
 
   OptionParser.accept Colour do |string|
-    Colour.new string.downcase
+    Colour.new(string.downcase).to_s
   rescue Colour::Error
     raise OptionParser::InvalidArgument, string
   end
@@ -222,6 +222,8 @@ begin
       parser.on "--stroke-width     <width>",   PositiveFloat, "width of lines in mm"
       parser.on "--stroke-dasharray <mm,...>",  DashArray,     "dash sequence for lines in mm"
       parser.on "--stroke-opacity   <opacity>", Opacity,       "line opacity (between 0 and 1)"
+      parser.on "--fill             <colour>",  Colour,        "polygon fill colour"
+      parser.on "--fill-opacity     <opacity>", Opacity,       "polygon fill opacity"
       parser.on "--opacity          <opacity>", Opacity,       "overall layer opacity"
 
     when "remove"

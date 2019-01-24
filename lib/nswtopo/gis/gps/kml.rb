@@ -41,7 +41,7 @@ module NSWTopo
         GeoJSON::Collection.new.tap do |collection|
           @xml.elements.each "/kml//Placemark[Point/coordinates]" do |placemark|
             coords = placemark.elements["Point/coordinates"].text.split(',').take(2).map(&:to_f)
-            collection.add_point coords, properties(placemark)
+            collection.add_point coords, properties(placemark).merge("styles" => {})
           end
           @xml.elements.each "/kml//Placemark[LineString/coordinates]" do |placemark|
             coords = placemark.elements["LineString/coordinates"].text.split(' ').map { |triplet| triplet.split(',')[0..1].map(&:to_f) }

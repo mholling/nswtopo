@@ -2,24 +2,23 @@ module NSWTopo
   module Overlay
     include Vector
 
-    DEFAULTS = YAML.load <<~YAML
+    GPX_STYLES = YAML.load <<~YAML
       stroke: black
       stroke-width: 0.4
-      fill: black
-      fill-opacity: 0.3
     YAML
 
     def get_features
       GPS.load(@path).each do |feature|
         styles, folder, name = feature.values_at "styles", "folder", "name"
-        feature.clear
+        styles ||= GPX_STYLES
+
         categories = [folder, name].compact.reject(&:empty?).map(&method(:categorise))
-        if styles
-          feature["category"] = categories << feature.object_id
-          @params[categories.join(?\s)] = styles
-        else
-          feature["category"] = categories if categories.any?
-        end
+        keys = styles.keys - params_for(categories.to_set).keys
+        styles = styles.slice *keys
+
+        feature.clear
+        feature["category"] = categories << feature.object_id
+        @params[categories.join(?\s)] = styles if styles.any?
       end
     end
   end

@@ -205,11 +205,11 @@ begin
         usage: nswtopo controls [options] <map.tgz> <controls.gpx>
         options:
       EOF
-      parser.on "-d", "--diameter   <diameter>",  PositiveFloat, "diameter of control markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
-      parser.on "-s", "--spot",                                  "add spots at control centres"
-      parser.on "-c", "--colour     <colour>",    Colour,        "colour of control markers and labels",
+      parser.on "-d", "--diameter   <diameter>",  PositiveFloat, "diameter of markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
+      parser.on "-s", "--spot",                                  "add spots at centres"
+      parser.on "-c", "--colour     <colour>",    Colour,        "colour of markers and labels",
                                                                  "(as colour name or RGB triplet)"
-      parser.on "-f", "--font-size  <font-size>", PositiveFloat, "font size for control labels in mm"
+      parser.on "-f", "--font-size  <font-size>", PositiveFloat, "font size for labels in mm"
 
     when "overlay"
       parser.banner = <<~EOF
@@ -218,16 +218,15 @@ begin
         options:
       EOF
       parser.on       "--opacity          <opacity>", Opacity,       "layer opacity (between 0 and 1)"
-      parser.on       "--stroke           <colour>",  Colour,        "colour of line features",
-                                                                     "(as colour name or RGB triplet)"
-      parser.on       "--stroke-width     <width>",   PositiveFloat, "width of lines in mm"
-      parser.on       "--stroke-opacity   <opacity>", Opacity,       "line opacity"
-      parser.on       "--stroke-dasharray <mm,...>",  DashArray,     "dash sequence for lines in mm"
+      parser.on       "--stroke           <colour>",  Colour,        "stroke colour (as colour name or RGB triplet)"
+      parser.on       "--stroke-width     <width>",   PositiveFloat, "stroke width in mm"
+      parser.on       "--stroke-opacity   <opacity>", Opacity,       "stroke opacity"
+      parser.on       "--stroke-dasharray <mm,...>",  DashArray,     "stroke dash sequence in mm"
       parser.on       "--stroke-linecap   <butt|round|square>", %w[butt round square],
                                                                      "stroke linecap value"
       parser.on       "--fill             <colour>",  Colour,        "polygon fill colour"
       parser.on       "--fill-opacity     <opacity>", Opacity,       "polygon fill opacity"
-      parser.on "-s", "--simplify",                                  "do scale-appropriate track simplification"
+      parser.on "-s", "--simplify",                                  "apply scale-appropriate track simplification"
 
     when "remove"
       parser.banner = <<~EOF

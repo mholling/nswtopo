@@ -39,5 +39,14 @@ module NSWTopo
         @params[categories.join(?\s)] = styles if styles.any?
       end
     end
+
+    def to_s
+      counts = %i[linestrings polygons].map do |type|
+        features.send type
+      end.reject(&:empty?).map(&:length).zip(%w[line polygon]).map do |count, word|
+        "%s %s%s" % [count, word, (?s if count > 1)]
+      end.join(", ")
+      "%s: %s" % [@name, counts]
+    end
   end
 end

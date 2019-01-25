@@ -2,8 +2,8 @@ module NSWTopo
   class Map
     include Formats, Dither, Zip, Log, Safely
 
-    def initialize(archive, version:, proj4:, scale:, centre:, extents:, rotation:, layers: {})
-      @archive, @version, @scale, @centre, @extents, @rotation, @layers = archive, version, scale, centre, extents, rotation, layers
+    def initialize(archive, proj4:, scale:, centre:, extents:, rotation:, layers: {})
+      @archive, @scale, @centre, @extents, @rotation, @layers = archive, scale, centre, extents, rotation, layers
       @projection = Projection.new proj4
       ox, oy = bounding_box.coordinates[0][3]
       @affine = [[1, 0], [0, -1], [-ox, oy]].map do |vector|
@@ -86,7 +86,7 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new(archive, version: VERSION, proj4: projection.proj4, scale: scale, centre: [0, 0], extents: extents, rotation: rotation).save
+      new(archive, proj4: projection.proj4, scale: scale, centre: [0, 0], extents: extents, rotation: rotation).save
     end
 
     def self.load(archive)
@@ -94,7 +94,7 @@ module NSWTopo
     end
 
     def save
-      tap { write "map.yml", YAML.dump(version: @version, proj4: @projection.proj4, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
+      tap { write "map.yml", YAML.dump(proj4: @projection.proj4, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
     end
 
     def layers

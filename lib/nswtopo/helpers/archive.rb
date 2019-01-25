@@ -59,7 +59,8 @@ module NSWTopo
         if in_path
           version = input.comment.to_s[/^nswtopo (.+)$/, 1]
           raise "unrecognised map file: %s" % in_path unless version
-          raise "map file too old: version %s, minimum %s required" % [version, MIN_VERSION] unless NSWTopo.compatible? version
+          comparison = version.split(?.).map(&:to_i) <=> MIN_VERSION.split(?.).map(&:to_i)
+          raise "map file too old: version %s, minimum %s required" % [version, MIN_VERSION] unless comparison >= 0
         end
         Gem::Package::TarReader.new(input) do |tar_in|
           archive = new(out_path, tar_in).tap(&block)

@@ -324,10 +324,10 @@ module NSWTopo
                 y = (lines.one? ? 0 : dy == 0 ? index - 0.5 : index + 0.5 * (dy - 1)) * line_height
                 y += (CENTRELINE_FRACTION + 0.5 * dy) * font_size
                 REXML::Element.new("text").tap do |text|
-                  text.add_attribute "transform", "translate(%s %s)" % origin
+                  text.add_attribute "transform", "translate(%s)" % POINT % origin
                   text.add_attribute "text-anchor", dx > 0 ? "start" : dx < 0 ? "end" : "middle"
                   text.add_attribute "textLength", VALUE % text_length
-                  text.add_attribute "y", y
+                  text.add_attribute "y", VALUE % y
                   text.add_text line
                 end
               end
@@ -484,7 +484,7 @@ module NSWTopo
                 text_element.add_element collection.text, "xlink:href" => "#%s" % path_id
               when String
                 text_path = text_element.add_element "textPath", "xlink:href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
-                text_path.add_element("tspan", "dy" => CENTRELINE_FRACTION * font_size).add_text(collection.text)
+                text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
               end
               Label.new collection.layer_name, label_index, feature_index, priority, hull, attributes, [text_element, path_element], along
             end.compact.map do |candidate|

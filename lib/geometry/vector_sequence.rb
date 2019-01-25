@@ -155,6 +155,23 @@ module VectorSequence
       end
     end
   end
+
+  def douglas_peucker(tolerance)
+    chunks, simplified = [self], []
+    while chunk = chunks.pop
+      direction = chunk.last.minus(chunk.first).normalised
+      deltas = chunk.map do |point|
+        point.minus(chunk.first).cross(direction).abs
+      end
+      delta, index = deltas.each.with_index.max_by(&:first)
+      if delta < tolerance
+        simplified.prepend chunk.first
+      else
+        chunks << chunk[0..index] << chunk[index..-1]
+      end
+    end
+    simplified << last
+  end
 end
 
 Array.send :include, VectorSequence

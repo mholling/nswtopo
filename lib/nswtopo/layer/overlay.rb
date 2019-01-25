@@ -1,6 +1,8 @@
 module NSWTopo
   module Overlay
     include Vector
+    CREATE = %w[simplify]
+    TOLERANCE = 0.4
 
     GPX_STYLES = YAML.load <<~YAML
       stroke: black
@@ -8,14 +10,23 @@ module NSWTopo
     YAML
 
     def get_features
-      GPS.load(@path).each do |feature|
+      tolerance = [5, TOLERANCE * @map.scale / 1000.0].max if @simplify
+
+      GPS.load(@path).reproject_to(@map.projection).explode.each do |feature|
         styles, folder, name = feature.values_at "styles", "folder", "name"
         styles ||= GPX_STYLES
 
         case feature
-        when GeoJSON::LineString, GeoJSON::MultiLineString
+        when GeoJSON::LineString
           styles["stroke-linejoin"] = "round"
-        when GeoJSON::Polygon, GeoJSON::MultiPolygon
+          if tolerance
+            simplified = feature.coordinates.douglas_peucker(tolerance)
+            smoothed = simplified.periodically(2*tolerance).each_cons(2).map do |segment|
+              segment.along(0.5)
+            end.push(simplified.last).prepend(simplified.first)
+            feature.coordinates = smoothed
+          end
+        when GeoJSON::Polygon
           styles["stroke-linejoin"] = "miter"
         end
 

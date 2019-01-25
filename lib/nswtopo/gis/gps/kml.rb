@@ -15,12 +15,12 @@ module NSWTopo
           [%w[LineStyle stroke], %w[PolyStyle fill]].each do |element, attribute|
             /^[0-9a-fA-F]{8}$/.match(style_element.elements["#{element}/color"]&.text) do |match|
               a, b, g, r = match[0].each_char.each_slice(2).map(&:join)
-              result["#{attribute}-opacity"] = (Float("0x%s" % a) / 255).round(2)
+              result["#{attribute}-opacity"] = (Float("0x%s" % a) / 255).round(5)
               result[attribute] = Colour.new("#%s%s%s" % [r, g, b]).to_s
             end
           end
           result["stroke"] ||= "#FFFFFF"
-          result["stroke-width"] = ((style_element.elements["LineStyle/width"]&.text || 1).to_f * 25.4 / 96.0).round(2)
+          result["stroke-width"] = ((style_element.elements["LineStyle/width"]&.text || 1).to_f * 25.4 / 96.0).round(5)
 
           [%w[fill fill], %w[outline stroke]].each do |element, attribute|
             if style_element.elements["PolyStyle/#{element}"]&.text == ?0

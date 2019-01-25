@@ -207,8 +207,7 @@ begin
       EOF
       parser.on "-d", "--diameter   <diameter>",  PositiveFloat, "diameter of markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
       parser.on "-s", "--spot",                                  "add spots at centres"
-      parser.on "-c", "--colour     <colour>",    Colour,        "colour of markers and labels",
-                                                                 "(as colour name or RGB triplet)"
+      parser.on "-c", "--colour     <colour>",    Colour,        "colour of markers and labels (as colour name or RGB triplet)"
       parser.on "-f", "--font-size  <font-size>", PositiveFloat, "font size for labels in mm"
 
     when "overlay"

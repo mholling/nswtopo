@@ -29,10 +29,8 @@ module VectorSequence
   end
 
   def surrounds?(points)
-    Enumerator.new do |yielder|
-      points.each do |point|
-        yielder << point.within?(self)
-      end
+    points.all? do |point|
+      point.within? self
     end
   end
 

@@ -337,7 +337,7 @@ module NSWTopo
               end.inject(&:product).values_at(0,2,3,1).map do |corner|
                 corner.plus point
               end
-              next unless labelling_hull.surrounds?(hull).all?
+              next unless labelling_hull.surrounds? hull
 
               fence_count = fence_index.search(hull.transpose.map(&:minmax)).inject(Set[]) do |indices, (fence, (buffer, index))|
                 next indices if indices.include? index
@@ -472,7 +472,7 @@ module NSWTopo
               end
 
               hull = GeoJSON::LineString.new(baseline).multi.buffer(0.5 * font_size, splits: false).coordinates.flatten(1).convex_hull
-              next unless labelling_hull.surrounds?(hull).all? # TODO: gross
+              next unless labelling_hull.surrounds? hull
 
               path_id = [@name, collection.layer_name, "path", label_index, feature_index, indices.first, indices.last].join ?.
               path_element = REXML::Element.new("path")

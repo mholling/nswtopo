@@ -225,7 +225,9 @@ begin
                                                                      "stroke linecap value"
       parser.on       "--fill             <colour>",  Colour,        "polygon fill colour"
       parser.on       "--fill-opacity     <opacity>", Opacity,       "polygon fill opacity"
-      parser.on "-s", "--simplify",                                  "apply scale-appropriate track simplification"
+      parser.on "-s", "--simplify",                                  "apply track simplification"
+      parser.on "-t", "--tolerance        <metres>",  PositiveFloat, "track simplifiction tolerance in metres",
+                                                                     "(scale-appropriate value used by default)"
 
     when "remove"
       parser.banner = <<~EOF

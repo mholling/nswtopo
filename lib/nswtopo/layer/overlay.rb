@@ -1,7 +1,7 @@
 module NSWTopo
   module Overlay
     include Vector
-    CREATE = %w[simplify]
+    CREATE = %w[simplify tolerance]
     TOLERANCE = 0.4
 
     GPX_STYLES = YAML.load <<~YAML
@@ -10,7 +10,7 @@ module NSWTopo
     YAML
 
     def get_features
-      tolerance = [5, TOLERANCE * @map.scale / 1000.0].max if @simplify
+      @tolerance ||= [5, TOLERANCE * @map.scale / 1000.0].max if @simplify
 
       GPS.load(@path).reproject_to(@map.projection).explode.each do |feature|
         styles, folder, name = feature.values_at "styles", "folder", "name"
@@ -19,9 +19,9 @@ module NSWTopo
         case feature
         when GeoJSON::LineString
           styles["stroke-linejoin"] = "round"
-          if tolerance
-            simplified = feature.coordinates.douglas_peucker(tolerance)
-            smoothed = simplified.periodically(2*tolerance).each_cons(2).map do |segment|
+          if @tolerance
+            simplified = feature.coordinates.douglas_peucker(@tolerance)
+            smoothed = simplified.periodically(2*@tolerance).each_cons(2).map do |segment|
               segment.along(0.5)
             end.push(simplified.last).prepend(simplified.first)
             feature.coordinates = smoothed

@@ -1,7 +1,7 @@
 module VectorSequences
   def sample_at(interval, **options)
     map do |sequence|
-      sequence.periodically(interval, **options).to_a
+      sequence.periodically(interval, **options)
     end.flatten(1)
   end
 end

@@ -143,7 +143,7 @@ module VectorSequence
         end
         [alpha - segment.distance / interval, sum + segment.distance]
       end
-    end
+    end.entries
   end
 
   def in_sections(count)

@@ -48,7 +48,8 @@ begin
 
   PositiveInt   = /\A#{digits}\z/
   PositiveFloat = /\A#{float}\z/
-  PositivePair  = /\A#{float},#{float}\z/
+  Dimensions    = /\A#{float},#{float}\z/
+  Margins       = /\A#{float}(?:,#{float})?\z/
   CoordList     = /\A#{coords}(?:,#{coords})*\z/
   Rotation      = /\A(?:#{float}|magnetic|auto)\z/
   Opacity       = /\A#{float}%?\z/
@@ -65,12 +66,17 @@ begin
     string.to_f
   end
 
-  OptionParser.accept PositivePair, PositivePair do |string|
+  OptionParser.accept Dimensions, Dimensions do |string|
     raise OptionParser::InvalidArgument, string unless string.split(?,).map(&:to_f).all?(&:positive?)
     string.split(?,).map(&:to_f)
   end
 
-  # TODO NonNegativePair for margins, or get rid of auto-margins for controls?
+  OptionParser.accept Margins, Margins do |string|
+    margins = string.split(?,).map(&:to_f)
+    raise OptionParser::InvalidArgument, string if margins.any?(&:negative?)
+    margins.one? ? margins * 2 : margins
+  end
+
   OptionParser.accept CoordList, CoordList do |string|
     string.split(?,).map(&:to_f).each_slice(2).to_a
   end
@@ -157,8 +163,8 @@ begin
       parser.on "-s", "--scale       <scale>",        PositiveInt,  "scale of map (default 25000)"
       parser.on "-b", "--bounds      <bounds.kml>",   Pathname,     "bounds for map as KML or GPX file"
       parser.on "-c", "--coords      <x1,y1,...>",    CoordList,    "bounds for map as one or more WGS84 coordinate pairs" 
-      parser.on "-d", "--dimensions  <width,height>", PositivePair, "dimensions of map in mm"
-      parser.on "-m", "--margins     <x,y>",          PositivePair, "map margins in mm"
+      parser.on "-d", "--dimensions  <width,height>", Dimensions,   "dimensions of map in mm"
+      parser.on "-m", "--margins     <x[,y]>",        Margins,      "map margins in mm"
       parser.on "-r", "--rotation    <rotation>",     Rotation,     "map rotation in clockwise degrees, 'auto' or 'magnetic'"
       parser.on "-o", "--overwrite",                                "overwrite existing map file"
 

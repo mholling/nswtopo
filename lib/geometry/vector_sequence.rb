@@ -48,7 +48,7 @@ module VectorSequence
     end
   end
 
-  def minimum_bounding_box
+  def minimum_bounding_box(*margins)
     polygon = convex_hull
     return polygon[0], [0, 0], 0 if polygon.one?
     indices = [%i[min_by max_by], [0, 1]].inject(:product).map do |min, axis|
@@ -93,7 +93,11 @@ module VectorSequence
       indices[which] %= polygon.length
     end
 
-    candidates.min_by { |centre, dimensions, rotation| dimensions.inject(:*) }
+    candidates.min_by do |centre, dimensions, rotation|
+      dimensions.zip(margins).map do |dimension, margin|
+        margin ? dimension + 2 * margin : dimension
+      end.inject(:*)
+    end
   end
 
   def path_length

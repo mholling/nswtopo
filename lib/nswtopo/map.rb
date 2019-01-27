@@ -45,7 +45,7 @@ module NSWTopo
       when "auto"
         raise "can't specify both map dimensions and auto-rotation" if dimensions
         points = GeoJSON.multipoint(wgs84_points).reproject_to(projection).coordinates
-        centre, extents, rotation = points.minimum_bounding_box
+        centre, extents, rotation = points.minimum_bounding_box(*margins)
         rotation *= -180.0 / Math::PI
       when "magnetic"
         rotation = declination(*wgs84_centre)

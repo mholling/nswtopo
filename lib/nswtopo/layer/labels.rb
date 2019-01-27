@@ -119,31 +119,30 @@ module NSWTopo
             features.flat_map do |feature|
               case transform
               when "reduce"
-                next feature unless feature.respond_to? arg
                 case arg
                 when "skeleton"
-                  feature.send arg
+                  feature.respond_to?(arg) ? feature.send(arg) : feature
                 when "centrelines"
-                  feature.send arg, **opts
+                  feature.respond_to?(arg) ? feature.send(arg, **opts) : feature
                 when "centrepoints"
                   interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
-                  feature.send arg, interval: interval, **opts
+                  feature.respond_to?(arg) ? feature.send(arg, interval: interval, **opts) : feature
                 when "centres"
                   interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
-                  feature.send arg, interval: interval, **opts
+                  feature.respond_to?(arg) ? feature.send(arg, interval: interval, **opts) : feature
                 when "centroids"
-                  feature.send arg
+                  feature.respond_to?(arg) ? feature.send(arg) : feature
                 when "samples"
                   interval = Float(args[0] || DEFAULT_SAMPLE) * @map.scale / 1000.0
-                  feature.send arg, interval
+                  feature.respond_to?(arg) ? feature.send(arg, interval) : feature
                 else
                   raise "unrecognised label transform: reduce: %s" % arg
                 end
 
               when "fallback"
-                next feature unless feature.respond_to? arg
                 case arg
                 when "samples"
+                  next feature unless feature.respond_to? arg
                   interval = Float(args[0] || DEFAULT_SAMPLE) * @map.scale / 1000.0
                   [feature, *feature.send(arg, interval)]
                 else

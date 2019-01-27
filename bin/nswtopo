@@ -152,7 +152,6 @@ begin
   end
   base_parser.order!
 
-  # TODO: rearrange order? e.g. nswtopo map.tgz add [options] <layer>
   command, options = ARGV.shift, Hash.new
   command_parser = OptionParser.new do |parser|
     case command
@@ -270,8 +269,6 @@ begin
         options:
       EOF
       parser.on "-s", "--state  <#{States.join ?|}>", States, "only show layers for specified state"
-
-    # when "reorder" # TODO move layer: --before <layer>, --after <layer> etc
 
     when nil
       raise OptionParser::MissingArgument, "no command specified"

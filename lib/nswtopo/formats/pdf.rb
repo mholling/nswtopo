@@ -23,7 +23,6 @@ module NSWTopo
           stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{svg_path}"
           raise "couldn't create PDF using %s" % browser_name unless status.success? && pdf_path.file?
         end
-        # TODO: add georeferencing into the PDF using GDAL somehow?
       end
     end
   end

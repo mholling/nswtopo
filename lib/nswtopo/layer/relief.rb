@@ -28,7 +28,6 @@ module NSWTopo
         txt_path = temp_dir / "dem.txt"
         vrt_path = temp_dir / "dem.vrt"
 
-        # TODO: handle multiple projections, as per Vegetation layer?
         raise "no elevation data found at specified path" if @paths.none?
         txt_path.write @paths.join(?\n)
         OS.gdalbuildvrt "-input_file_list", txt_path, vrt_path

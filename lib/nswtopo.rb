@@ -174,16 +174,3 @@ module NSWTopo
     end
   end
 end
-
-# # TODO: re-implement intervals-contours? (a better way?):
-# CONFIG["contour-interval"].tap do |interval|
-#   interval ||= CONFIG.map.scale < 40000 ? 10 : 20
-#   layers.each do |name, klass, params|
-#     params["exclude"] = [*params["exclude"]]
-#     [*params["intervals-contours"]].select do |candidate, sublayers|
-#       candidate != interval
-#     end.map(&:last).each do |sublayers|
-#       params["exclude"] += [*sublayers]
-#     end
-#   end
-# end

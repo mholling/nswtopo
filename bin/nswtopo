@@ -106,10 +106,13 @@ begin
     directory / ".nswtopo"
   end.select(&:file?)
 
+  boldface  = ->(string) { "\e[1m%s\e[0m" % string }
+  underline = ->(string) { "\e[4m%s\e[0m" % string }
+
   base_parser = OptionParser.new do |parser|
     parser.banner = <<~EOF
-      nswtopo - download and create vector topographic maps
-      usage: nswtopo [options] [<command> ...]
+      %s - download and create vector topographic maps
+      usage: %s [options] [<command> ...]
       commands:
           init         initialise map bounds and scale
           info         display map layers and metadata
@@ -121,7 +124,7 @@ begin
           remove       remove map layer
           render       render map in various formats
           layers       list available map layers
-      command help: nswtopo <command> --help
+      command help: %s <command> --help
       options:
     EOF
     parser.on "-c", "--config   <path>", Pathname, "specify additional configuration file" do |path|
@@ -135,7 +138,7 @@ begin
       $stdout = File.open(File::NULL, "w")
     end
     parser.on "-h", "--help", "show this help" do
-      puts parser
+      puts parser.to_s % ($stdout.tty? ? [boldface["nswtopo"], underline["nswtopo"], underline["nswtopo"]] : %w[nswtopo nswtopo nswtopo])
       exit
     end
   end
@@ -147,8 +150,8 @@ begin
     case command
     when "init"
       parser.banner = <<~EOF
-        nswtopo init - initialise map bounds and scale
-        usage: nswtopo init [options] <map.tgz>
+        %s %s - initialise map bounds and scale
+        usage: %s %s [options] <map.tgz>
         options:
       EOF
       parser.on "-s", "--scale       <scale>",        PositiveInt,  "scale of map (default 25000)"
@@ -161,16 +164,16 @@ begin
 
     when "info"
       parser.banner = <<~EOF
-        nswtopo info - display map layers and metadata
-        usage: nswtopo info [options] <map.tgz>
+        %s %s - display map layers and metadata
+        usage: %s %s [options] <map.tgz>
         options:
       EOF
       parser.on "-e", "--empty", "show empty layers"
 
     when "add"
       parser.banner = <<~EOF
-        nswtopo add - add named map layer
-        usage: nswtopo add [options] <map.tgz> <layer> [<layer> ...]
+        %s %s - add named map layer
+        usage: %s %s [options] <map.tgz> <layer> [<layer> ...]
         options:
       EOF
       parser.on "-r", "--resolution  <resolution>", PositiveFloat, "raster layer resolution in metres"
@@ -181,16 +184,16 @@ begin
 
     when "grid"
       parser.banner = <<~EOF
-        nswtopo grid - add UTM grid
-        usage: nswtopo grid [options] <map.tgz>
+        %s %s - add UTM grid
+        usage: %s %s [options] <map.tgz>
         options:
       EOF
       parser.on "-i", "--interval  <interval>", PositiveFloat, "interval between grid lines in metres (default %i)" % NSWTopo::Grid::DEFAULTS["interval"]
 
     when "declination"
       parser.banner = <<~EOF
-        nswtopo declination - add magnetic declination lines
-        usage: nswtopo declination [options] <map.tgz>
+        %s %s - add magnetic declination lines
+        usage: %s %s [options] <map.tgz>
         options:
       EOF
       parser.on "-a", "--angle    <angle>",   Float,         "magnetic declination in clockwise degrees",
@@ -201,8 +204,8 @@ begin
 
     when "controls"
       parser.banner = <<~EOF
-        nswtopo controls - add rogaine control markers
-        usage: nswtopo controls [options] <map.tgz> <controls.gpx>
+        %s %s - add rogaine control markers
+        usage: %s %s [options] <map.tgz> <controls.gpx>
         options:
       EOF
       parser.on "-d", "--diameter   <diameter>",  PositiveFloat, "diameter of markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
@@ -212,8 +215,8 @@ begin
 
     when "overlay"
       parser.banner = <<~EOF
-        nswtopo overlay - add KML or GPX overlay
-        usage: nswtopo overlay [options] <map.tgz> <overlay.kml>
+        %s %s - add KML or GPX overlay
+        usage: %s %s [options] <map.tgz> <overlay.kml>
         options:
       EOF
       parser.on       "--opacity          <opacity>", Opacity,       "layer opacity (between 0 and 1)"
@@ -231,15 +234,15 @@ begin
 
     when "remove"
       parser.banner = <<~EOF
-        nswtopo remove - remove map layers
-        usage: nswtopo remove [options] <map.tgz> <layer> [<layer> ...]
+        %s %s - remove map layers
+        usage: %s %s [options] <map.tgz> <layer> [<layer> ...]
         options:
       EOF
 
     when "render"
       parser.banner = <<~EOF
-        nswtopo render - render map in various formats
-        usage: nswtopo render [options] <map.tgz> [<format_or_path> [<format_or_path> ...]]
+        %s %s - render map in various formats
+        usage: %s %s [options] <map.tgz> [<format_or_path> [<format_or_path> ...]]
         formats: #{NSWTopo::Formats.extensions.sort.join ?\s}
         default: svg
         options:
@@ -254,8 +257,8 @@ begin
 
     when "layers"
       parser.banner = <<~EOF
-        nswtopo layers - list available map layers
-        usage: nswtopo layers [options]
+        %s %s - list available map layers
+        usage: %s %s [options]
         options:
       EOF
       parser.on "-s", "--state  <#{States.join ?|}>", States, "only show layers for specified state"
@@ -270,11 +273,11 @@ begin
     end
 
     parser.on "-h", "--help",  "show this help" do
-      puts parser
+      puts parser.to_s % ($stdout.tty? ? [boldface["nswtopo"], boldface[command], underline["nswtopo"], underline[command]] : ["nswtopo", command, "nswtopo", command])
       exit
     end
   rescue OptionParser::ParseError => error
-    warn base_parser
+    warn base_parser.to_s % ($stderr.tty? ? [boldface["nswtopo"], underline["nswtopo"], underline["nswtopo"]] : %w[nswtopo nswtopo nswtopo])
     raise error.message
   end
   command_parser.order! into: options
@@ -322,7 +325,7 @@ begin
     raise error.message if error
   end
 rescue OptionParser::ParseError => error
-  warn command_parser
+  warn command_parser.to_s % ($stderr.tty? ? [boldface["nswtopo"], boldface[command], underline["nswtopo"], underline[command]] : ["nswtopo", command, "nswtopo", command])
   log_abort error.message
 rescue Interrupt
   abort $stderr.tty? ? "\r\e[K\e[31mnswtopo:\e[0m interrupted" : "nswtopo: interrupted"

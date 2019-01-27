@@ -52,7 +52,7 @@ module NSWTopo
       def samples(interval)
         points = @coordinates.map do |linestring|
           distance = linestring.path_length
-          linestring.periodically(interval, along: true).map do |point, along|
+          linestring.sample_at(interval, along: true).map do |point, along|
             [point, (2 * along - distance).abs - distance]
           end
         end.flatten(1).sort_by(&:last).map(&:first)

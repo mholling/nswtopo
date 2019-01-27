@@ -21,7 +21,7 @@ module NSWTopo
           styles["stroke-linejoin"] = "round"
           if @tolerance
             simplified = feature.coordinates.douglas_peucker(@tolerance)
-            smoothed = simplified.periodically(2*@tolerance).each_cons(2).map do |segment|
+            smoothed = simplified.sample_at(2*@tolerance).each_cons(2).map do |segment|
               segment.along(0.5)
             end.push(simplified.last).prepend(simplified.first)
             feature.coordinates = smoothed

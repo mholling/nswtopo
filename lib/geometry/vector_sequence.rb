@@ -126,7 +126,7 @@ module VectorSequence
     trim(0.5 * (path_length - length))
   end
 
-  def periodically(interval, along: false, angle: false)
+  def sample_at(interval, along: false, angle: false)
     Enumerator.new do |yielder|
       segments.inject [0.5, 0] do |(alpha, sum), segment|
         loop do

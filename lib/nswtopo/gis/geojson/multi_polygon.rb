@@ -79,7 +79,7 @@ module NSWTopo
           when :interval
             travel, rings = *args
             samples[travel] = rings.flat_map do |ring|
-              ring.periodically interval
+              ring.sample_at interval
             end
           end
         end
@@ -158,7 +158,7 @@ module NSWTopo
 
       def samples(interval)
         points = @coordinates.flatten(1).flat_map do |ring|
-          ring.periodically(interval)
+          ring.sample_at interval
         end
         MultiPoint.new points, @properties
       end

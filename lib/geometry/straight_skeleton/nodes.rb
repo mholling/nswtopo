@@ -264,7 +264,7 @@ module StraightSkeleton
         next unless candidate.viable?
         @travel = candidate.travel
         while travel < @travel
-          yield :interval, travel, readout(travel).sample_at(interval)
+          yield :interval, travel, readout(travel)
           travel += interval
         end if interval && block_given?
         candidate.replace! do |node, index = 0|

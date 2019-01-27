@@ -60,13 +60,13 @@ module NSWTopo
 
       def skeleton
         segments = []
-        Nodes.new(@coordinates.flatten(1)).progress(nil) do |event, node0, node1|
+        Nodes.new(@coordinates.flatten(1)).progress do |event, node0, node1|
           segments << [node0.point, node1.point].to_f
         end
         MultiLineString.new segments, @properties
       end
 
-      def centres(fraction: 0.5, min_width: nil, interval:, lines:)
+      def centres(fraction: 0.5, min_width: nil, interval:, lines: true)
         neighbours = Hash.new { |neighbours, node| neighbours[node] = [] }
         samples, tails, node1 = {}, {}, nil
 
@@ -77,8 +77,10 @@ module NSWTopo
             neighbours[node0] << node1
             neighbours[node1] << node0
           when :interval
-            travel, points = *args
-            samples[travel] = points
+            travel, rings = *args
+            samples[travel] = rings.flat_map do |ring|
+              ring.periodically interval
+            end
           end
         end
 
@@ -155,7 +157,10 @@ module NSWTopo
       end
 
       def samples(interval)
-        MultiPoint.new @coordinates.flatten(1).sample_at(interval), @properties
+        points = @coordinates.flatten(1).flat_map do |ring|
+          ring.periodically(interval)
+        end
+        MultiPoint.new points, @properties
       end
     end
   end

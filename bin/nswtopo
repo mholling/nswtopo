@@ -67,8 +67,9 @@ begin
   end
 
   OptionParser.accept Dimensions, Dimensions do |string|
-    raise OptionParser::InvalidArgument, string unless string.split(?,).map(&:to_f).all?(&:positive?)
-    string.split(?,).map(&:to_f)
+    dimensions = string.split(?,).map(&:to_f)
+    raise OptionParser::InvalidArgument, string unless dimensions.all?(&:positive?)
+    dimensions
   end
 
   OptionParser.accept Margins, Margins do |string|
@@ -86,8 +87,9 @@ begin
   end
 
   OptionParser.accept Pathname do |string|
-    raise OptionParser::InvalidArgument, string unless Pathname(string).expand_path.exist?
-    Pathname(string).expand_path
+    path = Pathname(string).expand_path
+    raise OptionParser::InvalidArgument, string unless path.exist?
+    path
   end
 
   OptionParser.accept Colour do |string|

@@ -133,7 +133,7 @@ module NSWTopo
                 when "centroids"
                   feature.respond_to?(arg) ? feature.send(arg) : feature
                 when "samples"
-                  interval = Float(args[0] || DEFAULT_SAMPLE) * @map.scale / 1000.0
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
                   feature.respond_to?(arg) ? feature.send(arg, interval) : feature
                 else
                   raise "unrecognised label transform: reduce: %s" % arg
@@ -143,7 +143,7 @@ module NSWTopo
                 case arg
                 when "samples"
                   next feature unless feature.respond_to? arg
-                  interval = Float(args[0] || DEFAULT_SAMPLE) * @map.scale / 1000.0
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
                   [feature, *feature.send(arg, interval)]
                 else
                   raise "unrecognised label transform: fallback: %s" % arg

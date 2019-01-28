@@ -52,6 +52,7 @@ begin
   Margins       = /\A#{float}(?:,#{float})?\z/
   CoordList     = /\A#{coords}(?:,#{coords})*\z/
   Rotation      = /\A(?:#{float}|magnetic|auto)\z/
+  AltitudeAngle = 0..90
   Opacity       = /\A#{float}%?\z/
   DashArray     = /\A#{float}(?:(?:,#{float})*|(?: #{float})*)\z/
   States        = Pathname(__dir__).parent.join("layers").children.select(&:directory?).map(&:basename).map(&:to_s)
@@ -84,6 +85,11 @@ begin
 
   OptionParser.accept Rotation, Rotation do |string|
     "magnetic" == string ? string : "auto" == string ? string : string.to_f
+  end
+
+  OptionParser.accept AltitudeAngle, PositiveFloat do |string|
+    raise OptionParser::InvalidArgument, string unless AltitudeAngle === string.to_f
+    string.to_f
   end
 
   OptionParser.accept Pathname do |string|
@@ -125,6 +131,7 @@ begin
           init         initialise map bounds and scale
           info         display map layers and metadata
           add          add named map layer
+          relief       add shaded relief
           grid         add UTM grid
           declination  add magnetic declination lines
           controls     add rogaine control markers
@@ -188,6 +195,22 @@ begin
       parser.on "-a", "--after       <layer>",                     "insert after specified layer"
       parser.on "-b", "--before      <layer>",                     "insert before specified layer"
       parser.on "-o", "--overwrite",                               "overwrite layer if it already exists"
+
+    when "relief"
+      parser.banner = <<~EOF
+        %s %s - add shaded relief
+        usage: %s %s [options] <map.tgz> <dem_path>
+        options:
+      EOF
+      parser.on "-r", "--resolution  <resolution>", PositiveFloat, "resolution in metres (default %i)" % NSWTopo::Relief::DEFAULTS["resolution"]
+      parser.on "-o", "--opacity     <opacity>",    Opacity,       "opacity (default %s)" % NSWTopo::Relief::DEFAULTS["opacity"]
+      parser.on "-a", "--altitude    <altitude>",   AltitudeAngle, "altitude angle in degrees (default %i)" % NSWTopo::Relief::DEFAULTS["altitude"]
+      parser.on "-z", "--azimuth     <azimuth>",    Float,         "azimuth angle in clockwise degrees (default %i)" % NSWTopo::Relief::DEFAULTS["azimuth"]
+      parser.on "-s", "--sources     <sources>",    PositiveInt,   "number of light sources (default %i)" % NSWTopo::Relief::DEFAULTS["sources"]
+      parser.on "-f", "--factor      <factor>",     PositiveFloat, "exaggeration factor (default %s)" % NSWTopo::Relief::DEFAULTS["factor"]
+      # parser.on "-g", "--sigma       <sigma>",      PositiveFloat, "DEM blur radius in metres"
+      # parser.on "-m", "--median      <median>",     PositiveFloat, "DEM median filter radius in pixels"
+      # parser.on "-b", "--bilateral   <bilateral>",  PositiveFloat, "DEM bilateral filter threshold in metres"
 
     when "grid"
       parser.banner = <<~EOF

@@ -1,12 +1,12 @@
 module NSWTopo
   module Relief
     include Raster, ArcGISServer, Log
-    CREATE = %w[altitude azimuth exaggeration lightsources highlights sigma median bilateral contours]
+    CREATE = %w[altitude azimuth factor sources highlights sigma median bilateral contours]
     DEFAULTS = YAML.load <<~YAML
       altitude: 45
       azimuth: 315
-      exaggeration: 2.5
-      lightsources: 3
+      factor: 2.5
+      sources: 3
       highlights: 20
       sigma: 100
       median: 3
@@ -60,13 +60,13 @@ module NSWTopo
       end
 
       log_update "%s: calculating relief shading" % @name
-      reliefs = -90.step(90, 90.0 / @lightsources).select.with_index do |offset, index|
+      reliefs = -90.step(90, 90.0 / @sources).select.with_index do |offset, index|
         index.odd?
       end.map do |offset|
         (@azimuth + offset) % 360
       end.map do |azimuth|
         relief_path = temp_dir / "relief.#{azimuth}.bil"
-        OS.gdaldem "hillshade", "-of", "EHdr", "-compute_edges", "-s", 1, "-alt", @altitude, "-z", @exaggeration, "-az", azimuth, dem_path, relief_path
+        OS.gdaldem "hillshade", "-of", "EHdr", "-compute_edges", "-s", 1, "-alt", @altitude, "-z", @factor, "-az", azimuth, dem_path, relief_path
         [azimuth, ESRIHdr.new(relief_path, 0)]
       rescue OS::Error
         raise "invalid elevation data"
@@ -106,7 +106,7 @@ module NSWTopo
             relief ? aspect ? 2 * relief * Math::sin((aspect - azimuth) * Math::PI / 180)**2 : relief : 0
           end
         end.transpose.map do |values|
-          values.inject(&:+) / @lightsources
+          values.inject(&:+) / @sources
         end.map do |value|
           [255, value.ceil].min
         end.tap do |values|

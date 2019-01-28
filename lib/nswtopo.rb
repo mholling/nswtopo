@@ -67,6 +67,8 @@ module NSWTopo
           yielder << [path.basename(path.extname).to_s, "type" => "Overlay", "path" => path]
         when /\.(tiff?|png|jpg)$/i
           yielder << [path.basename(path.extname).to_s, "type" => "Import", "path" => path]
+        when "relief"
+          yielder << [layer, "type" => "Relief"]
         when "grid"
           yielder << [layer, "type" => "Grid"]
         when "declination"
@@ -113,6 +115,10 @@ module NSWTopo
       end
       map.add *layers, create_options
     end
+  end
+
+  def relief(archive, dem_path, options)
+    add archive, "relief", options.merge(path: Pathname(dem_path))
   end
 
   def grid(archive, options)

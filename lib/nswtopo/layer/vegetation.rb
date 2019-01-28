@@ -32,16 +32,19 @@ module NSWTopo
         nonwoody.mix(woody, x)
       end
 
-      raise "no vegetation data file specified" if @paths.empty?
-      @paths.group_by do |path|
-        Projection.new(path)
-      end.map.with_index do |(projection, paths), index|
+      Dir.chdir(@source ? @source.parent : Pathname.pwd) do
+        GDALGlob.rasters @path
+      end.tap do |rasters|
+        raise "no vegetation data file specified" if rasters.none?
+      end.group_by do |path, info|
+        Projection.new info.dig("coordinateSystem", "wkt")
+      end.map.with_index do |(projection, rasters), index|
         indexed_tif_path = temp_dir / "indexed.#{index}.tif"
         indexed_vrt_path = temp_dir / "indexed.#{index}.vrt"
         coloured_tif_path = temp_dir / "coloured.#{index}.tif"
         tif_path = temp_dir / "output.#{index}.tif"
 
-        txt_path.write paths.join(?\n)
+        txt_path.write rasters.map(&:first).join(?\n)
         OS.gdalbuildvrt "-overwrite", "-input_file_list", txt_path, vrt_path
         OS.gdal_translate "-projwin", *@map.projwin(projection), "-r", "near", "-co", "TFW=YES", vrt_path, indexed_tif_path
         OS.gdal_translate "-of", "VRT", indexed_tif_path, indexed_vrt_path

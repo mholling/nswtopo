@@ -30,12 +30,6 @@ module NSWTopo
       @type.const_get(:CREATE).map(&:to_s).each do |attr|
         instance_variable_set ?@ + attr.delete(?-), @params.delete(attr)
       end if @type.const_defined?(:CREATE)
-
-      @paths = Array(@path).map do |path|
-        Pathname(path).expand_path(*@source&.parent)
-      end.flat_map do |path|
-        Pathname.glob path
-      end
     end
 
     attr_reader :name, :params

@@ -18,6 +18,10 @@ module NSWTopo
       proj4 == other.proj4
     end
 
+    extend Forwardable
+    delegate :hash => :@proj4
+    alias eql? ==
+
     def self.utm(zone, south = true)
       new("+proj=utm +zone=#{zone}#{' +south' if south} +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
     end

@@ -1,30 +1,31 @@
 module NSWTopo
   module Relief
     include Raster, ArcGISServer, DEM, Log
-    CREATE = %w[altitude azimuth factor sources highlights sigma median bilateral contours]
+    CREATE = %w[altitude azimuth factor sources highlights radius median bilateral contours]
     DEFAULTS = YAML.load <<~YAML
       altitude: 45
       azimuth: 315
       factor: 2.5
       sources: 3
       highlights: 20
-      sigma: 100
-      median: 3
-      bilateral: 4
+      radius: 4
       resolution: 30.0
       opacity: 0.3
     YAML
 
+    def margin
+      { mm: 3 * @radius }
+    end
+
     def get_raster(temp_dir)
       dem_path = temp_dir / "dem.tif"
-      margin = { metres: 3 * @sigma }
-      bounds = @map.bounds(margin: margin)
 
       case
       when @path
-        get_dem temp_dir, bounds, dem_path
+        get_dem temp_dir, dem_path
 
       when @contours
+        bounds = @map.bounds(margin: margin)
         txe, tye, spat = bounds[0], bounds[1].reverse, bounds.transpose.flatten
         outsize = (bounds.transpose.difference / @resolution).map(&:ceil)
 
@@ -70,26 +71,8 @@ module NSWTopo
       if reliefs.one?
         reliefs.values.first.write bil_path
       else
-        json = OS.gdalinfo "-json", dem_path
-        nodata = JSON.parse(json).dig("bands", 0, "noDataValue")
-        blur_path = temp_dir / "dem.blurred.bil"
-        OS.gdal_translate "-of", "EHdr", dem_path, blur_path
-        dem = ESRIHdr.new blur_path, nodata
-
-        # TODO: should sigma be in pixels instead of metres?
-        (@sigma.to_f / @resolution).ceil.times.inject(dem.rows) do |rows|
-          2.times.inject(rows) do |rows|
-            rows.map do |row|
-              row.map do |value|
-                value && value.nan? ? nil : value
-              end.each_cons(3).map do |window|
-                window[1] && window.compact.inject(&:+) / window.compact.length
-              end.push(nil).unshift(nil)
-            end.transpose
-          end
-        end.flatten.tap do |blurred|
-          ESRIHdr.new(dem, blurred).write blur_path
-        end
+        blur_path = temp_dir / "dem.blurred.tif"
+        blur_dem dem_path, blur_path
 
         aspect_path = temp_dir / "aspect.bil"
         OS.gdaldem "aspect", "-zero_for_flat", "-of", "EHdr", blur_path, aspect_path

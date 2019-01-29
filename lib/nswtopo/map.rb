@@ -175,6 +175,13 @@ module NSWTopo
     end
 
     def add(*layers, after: nil, before: nil, replace: nil, overwrite: false)
+      [%w[before after replace], [before, after, replace]].transpose.select(&:last).each do |option, name|
+        next if self.layers.any? { |other| other.name == name }
+        raise "no such layer: %s" % name
+      end.map(&:first).combination(2).each do |options|
+        raise OptionParser::AmbiguousOption,  "can't specify --%s and --%s simultaneously" % options
+      end
+
       layers.inject [self.layers, false, replace || after, []] do |(layers, changed, follow, errors), layer|
         index = layers.index layer unless replace || after || before
         if overwrite || !layer.uptodate?
@@ -189,11 +196,9 @@ module NSWTopo
         when index
         when follow
           index = layers.index { |other| other.name == follow }
-          raise "no such layer: #{follow}" unless index
           index += 1
         when before
           index = layers.index { |other| other.name == before }
-          raise "no such layer: #{before}" unless index
         else
           index = layers.index { |other| (other <=> layer) > 0 } || -1
         end

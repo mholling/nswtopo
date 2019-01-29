@@ -131,6 +131,7 @@ begin
           init         initialise map bounds and scale
           info         display map layers and metadata
           add          add named map layer
+          contours     add contours from elevation data
           relief       add shaded relief
           grid         add UTM grid
           declination  add magnetic declination lines
@@ -195,6 +196,20 @@ begin
       parser.on "-a", "--after       <layer>",                     "insert after specified layer"
       parser.on "-b", "--before      <layer>",                     "insert before specified layer"
       parser.on "-o", "--overwrite",                               "overwrite layer if it already exists"
+
+    when "contours"
+      parser.banner = <<~EOF
+        %s %s - add contours from elevation data
+        usage: %s %s [options] <map.tgz> <dem_path>
+        options:
+      EOF
+      parser.on "-i", "--interval  <interval>",  PositiveInt,   "contour interval in metres"
+      parser.on "-x", "--index     <index>",     PositiveInt,   "index interval in metres"
+      parser.on "-r", "--radius    <radius>",    PositiveFloat, "DEM smoothing radius in mm"
+      # parser.on "-s", "--simplify  <tolerance>", PositiveFloat, "contour simplification tolerance in metres"
+      parser.on "-t", "--thin",                                 "thin intermediate contours in steep areas"
+      # parser.on "-d", "--density   <density>",   PositiveFloat, "maximum lines/mm before thinning occurs"
+      # parser.on "-m", "--min-length <length>",    PositiveFloat, "  minimum contour removal length in mm"
 
     when "relief"
       parser.banner = <<~EOF

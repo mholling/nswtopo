@@ -5,11 +5,11 @@ module NSWTopo
     DEFAULTS = YAML.load <<~YAML
       altitude: 45
       azimuth: 315
-      factor: 2.5
+      factor: 2.0
       sources: 3
       highlights: 20
       radius: 4
-      resolution: 30.0
+      resolution: 5.0
       opacity: 0.3
     YAML
 

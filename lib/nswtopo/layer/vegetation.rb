@@ -1,6 +1,6 @@
 module NSWTopo
   module Vegetation
-    include Raster
+    include Raster, GDALGlob
     CREATE = %w[mapping contrast colour]
 
     def get_raster(temp_dir)
@@ -33,7 +33,7 @@ module NSWTopo
       end
 
       Dir.chdir(@source ? @source.parent : Pathname.pwd) do
-        GDALGlob.rasters @path
+        gdal_rasters @path
       end.tap do |rasters|
         raise "no vegetation data file specified" if rasters.none?
       end.group_by do |path, info|

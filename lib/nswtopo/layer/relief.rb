@@ -54,7 +54,7 @@ module NSWTopo
         raise "no elevation data specified for relief layer #{@name}"
       end
 
-      log_update "%s: calculating relief shading" % @name
+      log_update "%s: generating shaded relief" % @name
       reliefs = -90.step(90, 90.0 / @sources).select.with_index do |offset, index|
         index.odd?
       end.map do |offset|
@@ -78,6 +78,7 @@ module NSWTopo
         OS.gdaldem "aspect", "-zero_for_flat", "-of", "EHdr", blur_path, aspect_path
         aspect = ESRIHdr.new aspect_path, 0.0
 
+        log_update "%s: combining shaded relief" % @name
         reliefs.map do |azimuth, relief|
           [relief.values, aspect.values].transpose.map do |relief, aspect|
             relief ? aspect ? 2 * relief * Math::sin((aspect - azimuth) * Math::PI / 180)**2 : relief : 0
@@ -103,8 +104,12 @@ module NSWTopo
         threshold, sigma = *@bilateral, (60.0 / @resolution).round
         filters += %W[-channel RGB -selective-blur 0x#{sigma}+#{threshold}%]
       end
-      OS.mogrify "-virtual-pixel", "edge", *filters, tif_path if filters.any?
+      if filters.any?
+        log_update "%s: applying filters" % @name
+        OS.mogrify "-virtual-pixel", "edge", *filters, tif_path
+      end
 
+      log_update "%s: finalising shaded relief" % @name
       threshold = Math::sin(@altitude * Math::PI / 180)
       shade = %W[-colorspace Gray -fill white -opaque none -level #{   90*threshold}%,0%                             -alpha Copy -fill black  +opaque black ]
       sun   = %W[-colorspace Gray -fill black -opaque none -level #{10+90*threshold}%,100% +level 0%,#{@highlights}% -alpha Copy -fill yellow +opaque yellow]

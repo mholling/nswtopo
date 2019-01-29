@@ -1,14 +1,20 @@
 module NSWTopo
   module DEM
+    include GDALGlob, Log
+
     def get_dem(temp_dir, dem_path)
       txt_path = temp_dir / "dem.txt"
       vrt_path = temp_dir / "dem.vrt"
       te = @map.bounds(margin: margin).transpose.flatten
 
       Dir.chdir(@source ? @source.parent : Pathname.pwd) do
-        GDALGlob.rasters @path
+        log_update "%s: examining DEM" % @name
+        gdal_rasters @path do |index, total|
+          log_update "%s: examining DEM file %i of %i" % [@name, index, total]
+        end
       end.tap do |rasters|
         raise "no elevation data found at specified path" if rasters.none?
+        log_update "%s: extracting DEM raster" % @name
       end.group_by do |path, info|
         Projection.new info.dig("coordinateSystem", "wkt")
       end.map.with_index do |(projection, rasters), index|
@@ -55,6 +61,7 @@ module NSWTopo
         complex_source.parent.delete complex_source
       end
 
+      log_update "%s: smoothing DEM raster" % @name
       OS.gdal_translate "/vsistdin/", blur_path do |stdin|
         stdin.write xml
       end

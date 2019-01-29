@@ -3,7 +3,7 @@ module NSWTopo
     def gdal_raster?(format)
       @gdal_formats ||= OS.gdalinfo("--formats").each_line.drop(1).map do |line|
         line.strip.split(?\s).first
-      end
+      end - %w[PDF]
       @gdal_formats.include? format
     end
 

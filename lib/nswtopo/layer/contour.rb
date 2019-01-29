@@ -166,14 +166,24 @@ module NSWTopo
           elevation, modulo = feature.values_at "elevation", "modulo"
           category = modulo.zero? ? %w[Index] : %w[Standard]
           feature.clear
+          feature["elevation"] = elevation
           feature["category"] = category
           feature["label"] = elevation.to_i.to_s if modulo.zero?
         end
       end
     end
 
-    # def to_s
-    #   # TODO: number of features, range of elevation, contour interval, index interval
-    # end
+    def to_s
+      elevations = features.map do |feature|
+        [feature["elevation"], feature["category"].include?("Index")]
+      end.uniq.sort_by(&:first)
+      range = elevations.map(&:first).minmax
+      interval, index = %i[itself last].map do |selector|
+        elevations.select(&selector).map(&:first).each_cons(2).map { |e0, e1| e1 - e0 }.min
+      end
+      [["%im intervals", interval], ["%im indices", index], ["%im-%im elevation", (range if range.all?)]].select(&:last).map do |label, value|
+        label % value
+      end.join(", ").prepend("%s: " % @name)
+    end
   end
 end

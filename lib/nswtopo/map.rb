@@ -174,9 +174,9 @@ module NSWTopo
       Map.declination *wgs84_centre
     end
 
-    def add(*layers, after: nil, before: nil, overwrite: false)
-      layers.inject [self.layers, false, after, []] do |(layers, changed, follow, errors), layer|
-        index = layers.index layer unless after || before
+    def add(*layers, after: nil, before: nil, replace: nil, overwrite: false)
+      layers.inject [self.layers, false, replace || after, []] do |(layers, changed, follow, errors), layer|
+        index = layers.index layer unless replace || after || before
         if overwrite || !layer.uptodate?
           layer.create
           log_success "added layer: %s" % layer.name
@@ -204,7 +204,7 @@ module NSWTopo
       end.tap do |ordered_layers, changed, follow, errors|
         if changed
           @layers.replace Hash[ordered_layers.map(&:pair)]
-          save
+          replace ? remove(replace) : save
         end
         raise PartialFailureError, "failed to create %s" % [layers.one? ? "layer" : errors.one? ? "1 layer" : "#{errors.length} layers"] if errors.any?
       end

@@ -52,6 +52,7 @@ module NSWTopo
     create_options = {
       after: Layer.sanitise(options.delete :after),
       before: Layer.sanitise(options.delete :before),
+      replace: Layer.sanitise(options.delete :replace),
       overwrite: options.delete(:overwrite)
     }
     map = Map.load archive

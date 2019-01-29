@@ -1,7 +1,7 @@
 module NSWTopo
   module Contour
     include Vector, DEM, Log
-    CREATE = %w[interval index radius simplify thin density min-length]
+    CREATE = %w[interval index radius simplify thin density min-length fill]
     DEFAULTS = YAML.load <<~YAML
       interval: 5
       radius: 0.2
@@ -10,10 +10,7 @@ module NSWTopo
       section: 100
       stroke: "#805100"
       stroke-width: 0.08
-      Index:
-        stroke-width: 0.16
       labels:
-        fill: "#805100"
         font-size: 1.4
         letter-spacing: 0.05
         orientation: downhill
@@ -44,6 +41,10 @@ module NSWTopo
     def get_features
       @simplify ||= [0.5 * @interval / Math::tan(Math::PI * 85 / 180), 0.001 * 0.05 * @map.scale].min
       @index ||= 5 * @interval
+      @params = {
+        "Index" => { "stroke-width" => 2 * @params["stroke-width"] },
+        "labels" => { "fill" => @fill || @params["stroke"] }
+      }.deep_merge(@params)
 
       check_geos! if @thin
       raise "%im index interval not a multiple of %im contour interval" % [@index, @interval] unless @index % @interval == 0

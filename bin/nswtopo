@@ -203,13 +203,16 @@ begin
         usage: %s %s [options] <map.tgz> <dem_path>
         options:
       EOF
-      parser.on "-i", "--interval  <interval>",  PositiveInt,   "contour interval in metres"
-      parser.on "-x", "--index     <index>",     PositiveInt,   "index interval in metres"
-      parser.on "-r", "--radius    <radius>",    PositiveFloat, "DEM smoothing radius in mm"
-      # parser.on "-s", "--simplify  <tolerance>", PositiveFloat, "contour simplification tolerance in metres"
-      parser.on "-t", "--thin",                                 "thin intermediate contours in steep areas"
-      # parser.on "-d", "--density   <density>",   PositiveFloat, "maximum lines/mm before thinning occurs"
-      # parser.on "-m", "--min-length <length>",    PositiveFloat, "  minimum contour removal length in mm"
+      parser.on "-i", "--interval      <interval>",  PositiveInt,   "contour interval in metres"
+      parser.on "-x", "--index         <index>",     PositiveInt,   "index interval in metres"
+      parser.on "-r", "--radius        <radius>",    PositiveFloat, "DEM smoothing radius in mm"
+      # parser.on "-s", "--simplify      <tolerance>", PositiveFloat, "contour simplification tolerance in metres"
+      parser.on "-t", "--thin",                                     "thin intermediate contours in steep areas"
+      # parser.on "-d", "--density       <density>",   PositiveFloat, "maximum lines/mm before thinning occurs"
+      # parser.on "-m", "--min-length    <length>",    PositiveFloat, "  minimum contour removal length in mm"
+      parser.on       "--stroke        <colour>",    Colour,        "stroke colour (as colour name or RGB triplet)"
+      parser.on       "--stroke-width  <width>",     PositiveFloat, "stroke width in mm"
+      parser.on       "--fill          <colour>",    Colour,        "label colour (defaults to stroke colour)"
 
     when "relief"
       parser.banner = <<~EOF

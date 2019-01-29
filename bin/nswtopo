@@ -195,6 +195,7 @@ begin
       parser.on "-p", "--path        <path>",       Pathname,      "source data path for layer"
       parser.on "-a", "--after       <layer>",                     "insert after specified layer"
       parser.on "-b", "--before      <layer>",                     "insert before specified layer"
+      parser.on "-c", "--replace     <layer>",                     "replace specified layer"
       parser.on "-o", "--overwrite",                               "overwrite layer if it already exists"
 
     when "contours"
@@ -212,7 +213,7 @@ begin
       # parser.on "-m", "--min-length    <length>",    PositiveFloat, "  minimum contour removal length in mm"
       parser.on "-a", "--after         <layer>",                    "insert after specified layer"
       parser.on "-b", "--before        <layer>",                    "insert before specified layer"
-      parser.on "-r", "--replace       <layer>",                    "replace specified layer"
+      parser.on "-c", "--replace       <layer>",                    "replace specified layer"
       parser.on       "--stroke        <colour>",    Colour,        "stroke colour (as colour name or RGB triplet)"
       parser.on       "--stroke-width  <width>",     PositiveFloat, "stroke width in mm"
       parser.on       "--fill          <colour>",    Colour,        "label colour (defaults to stroke colour)"

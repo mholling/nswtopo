@@ -58,7 +58,7 @@ module NSWTopo
         db_flags = @thin ? %w[-f SQLite -dsco SPATIALITE=YES] : ["-f", "ESRI Shapefile"]
         db_path = temp_dir / "contour"
 
-        log_update "%s: calculating contour lines" % @name
+        log_update "%s: generating contour lines" % @name
         OS.gdal_contour "-nln", "raw", "-a", "elevation", "-i", @interval, *db_flags, blur_path, db_path
 
         OS.ogr2ogr "-update", "-nln", "contour", "-simplify", @simplify, db_path, db_path, "-dialect", "OGRSQL", "-sql", <<~SQL
@@ -72,7 +72,7 @@ module NSWTopo
           slope_vrt_path = temp_dir / "slope.vrt"
           min_length = @minlength * @map.scale / 1000.0
 
-          log_update "%s: calculating slope masks" % @name
+          log_update "%s: generating slope masks" % @name
           OS.gdaldem "slope", blur_path, slope_tif_path, "-compute_edges"
           json = OS.gdalinfo "-json", slope_tif_path
           width, height = JSON.parse(json)["size"]

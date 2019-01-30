@@ -48,6 +48,7 @@ begin
 
   PositiveInt   = /\A#{digits}\z/
   PositiveFloat = /\A#{float}\z/
+  NonNegFloat   = 0..Float::INFINITY
   Dimensions    = /\A#{float},#{float}\z/
   Margins       = /\A#{float}(?:,#{float})?\z/
   CoordList     = /\A#{coords}(?:,#{coords})*\z/
@@ -64,6 +65,11 @@ begin
 
   OptionParser.accept PositiveFloat, PositiveFloat do |string|
     raise OptionParser::InvalidArgument, string unless string.to_f.positive?
+    string.to_f
+  end
+
+  OptionParser.accept NonNegFloat, PositiveFloat do |string|
+    raise OptionParser::InvalidArgument, string if string.to_f.negative?
     string.to_f
   end
 
@@ -215,11 +221,11 @@ begin
       EOF
       parser.on "-i", "--interval      <interval>",  PositiveInt,   "contour interval in metres"
       parser.on "-x", "--index         <index>",     PositiveInt,   "index interval in metres"
-      parser.on "-r", "--radius        <radius>",    PositiveFloat, "DEM smoothing radius in mm"
+      parser.on "-r", "--radius        <radius>",    NonNegFloat,   "DEM smoothing radius in mm"
       # parser.on "-s", "--simplify      <tolerance>", PositiveFloat, "contour simplification tolerance in metres"
       parser.on "-t", "--thin",                                     "thin intermediate contours in steep areas"
       # parser.on "-d", "--density       <density>",   PositiveFloat, "maximum lines/mm before thinning occurs"
-      # parser.on "-m", "--min-length    <length>",    PositiveFloat, "  minimum contour removal length in mm"
+      # parser.on "-m", "--min-length    <length>",    PositiveFloat, "minimum length before contour thinning in mm"
       parser.on "-a", "--after         <layer>",                    "insert after specified layer"
       parser.on "-b", "--before        <layer>",                    "insert before specified layer"
       parser.on "-c", "--replace       <layer>",                    "replace specified layer"
@@ -239,9 +245,6 @@ begin
       parser.on "-z", "--azimuth     <azimuth>",    Float,         "azimuth angle in clockwise degrees (default %i)" % NSWTopo::Relief::DEFAULTS["azimuth"]
       parser.on "-s", "--sources     <sources>",    PositiveInt,   "number of light sources (default %i)" % NSWTopo::Relief::DEFAULTS["sources"]
       parser.on "-f", "--factor      <factor>",     PositiveFloat, "exaggeration factor (default %s)" % NSWTopo::Relief::DEFAULTS["factor"]
-      # parser.on "-g", "--sigma       <sigma>",      PositiveFloat, "DEM blur radius in metres"
-      # parser.on "-m", "--median      <median>",     PositiveFloat, "DEM median filter radius in pixels"
-      # parser.on "-b", "--bilateral   <bilateral>",  PositiveFloat, "DEM bilateral filter threshold in metres"
 
     when "grid"
       parser.banner = <<~EOF

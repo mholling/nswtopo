@@ -25,7 +25,7 @@ module NSWTopo
     YAML
 
     def margin
-      { mm: 3 * @radius } # TODO: MARGIN instead?
+      { mm: [3 * @radius, 1].min }
     end
 
     def check_geos!
@@ -52,8 +52,12 @@ module NSWTopo
       Dir.mktmppath do |temp_dir|
         dem_path, blur_path = temp_dir / "dem.tif", temp_dir / "dem.blurred.tif"
 
-        get_dem temp_dir, dem_path
-        blur_dem dem_path, blur_path
+        if @radius.zero?
+          get_dem temp_dir, blur_path
+        else
+          get_dem temp_dir, dem_path
+          blur_dem dem_path, blur_path
+        end
 
         db_flags = @thin ? %w[-f SQLite -dsco SPATIALITE=YES] : ["-f", "ESRI Shapefile"]
         db_path = temp_dir / "contour"

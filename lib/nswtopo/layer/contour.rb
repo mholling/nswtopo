@@ -74,7 +74,7 @@ module NSWTopo
         if @thin
           slope_tif_path = temp_dir / "slope.tif"
           slope_vrt_path = temp_dir / "slope.vrt"
-          min_length = @minlength * @map.scale / 1000.0
+          min_length = @min_length * @map.scale / 1000.0
 
           log_update "%s: generating slope masks" % @name
           OS.gdaldem "slope", blur_path, slope_tif_path, "-compute_edges"

@@ -59,7 +59,7 @@ module NSWTopo
       scaled_params = YAML.load scaled_params
       scaled_params["control"]["symbol"] << { "circle" => { "r" => 0.07, "stroke-width" => 0.14, "fill" => "none" } } if @spot
       @params = scaled_params.deep_merge @params
-      @params["labels"]["font-size"] = @fontsize if @fontsize
+      @params["labels"]["font-size"] = @font_size if @font_size
       @params["labels"]["fill"] = @params["stroke"] = @colour.to_s if @colour
       points, controls = GPS.load(@path).points, GeoJSON::Collection.new
       [["control",   /^(1?\d\d)W?$/ ],

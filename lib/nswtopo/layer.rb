@@ -29,7 +29,7 @@ module NSWTopo
       @name, @map, @source, @path, @resolution = Layer.sanitise(name), map, @params.delete("source"), @params.delete("path"), @params.delete("resolution")
 
       @type.const_get(:CREATE).map(&:to_s).each do |attr|
-        instance_variable_set ?@ + attr.delete(?-), @params.delete(attr)
+        instance_variable_set ?@ + attr.tr_s(?-, ?_), @params.delete(attr)
       end if @type.const_defined?(:CREATE)
     end
 

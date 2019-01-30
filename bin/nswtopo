@@ -21,7 +21,9 @@ begin
   require 'pathname'
   require 'etc'
   require 'yaml'
+  require 'rdoc'
   require_relative '../lib/nswtopo.rb'
+  require_relative '../lib/help_formatter.rb'
 
   extend NSWTopo::Log
   Thread::report_on_exception = false
@@ -326,8 +328,12 @@ begin
       raise OptionParser::InvalidArgument, command
     end
 
-    parser.on "-h", "--help",  "show this help" do
+    parser.on "-h", "--help",  "show help for this command" do
       puts $stdout.tty? ? ansi[parser] : plain[parser]
+      doc = Pathname(__dir__).parent / "doc" / "command" / "#{command}.md"
+      puts nil, RDoc::Markdown.parse(doc.read).accept(HelpFormatter.new $stdout.tty?)
+    rescue Errno::ENOENT
+    ensure
       exit
     end
   rescue OptionParser::ParseError => error

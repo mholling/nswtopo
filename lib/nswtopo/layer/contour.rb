@@ -1,10 +1,10 @@
 module NSWTopo
   module Contour
     include Vector, DEM, Log
-    CREATE = %w[interval index radius simplify thin density min-length fill]
+    CREATE = %w[interval index smooth simplify thin density min-length fill]
     DEFAULTS = YAML.load <<~YAML
       interval: 5
-      radius: 0.2
+      smooth: 0.2
       density: 4.0
       min-length: 2.0
       section: 100
@@ -25,7 +25,7 @@ module NSWTopo
     YAML
 
     def margin
-      { mm: [3 * @radius, 1].min }
+      { mm: [3 * @smooth, 1].min }
     end
 
     def check_geos!
@@ -52,7 +52,7 @@ module NSWTopo
       Dir.mktmppath do |temp_dir|
         dem_path, blur_path = temp_dir / "dem.tif", temp_dir / "dem.blurred.tif"
 
-        if @radius.zero?
+        if @smooth.zero?
           get_dem temp_dir, blur_path
         else
           get_dem temp_dir, dem_path

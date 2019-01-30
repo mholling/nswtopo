@@ -39,7 +39,7 @@ module NSWTopo
     end
 
     def blur_dem(dem_path, blur_path)
-      sigma = @radius * @map.scale / 1000.0
+      sigma = @smooth * @map.scale / 1000.0
       half = (3 * sigma / @resolution).ceil
 
       coeffs = (-half..half).map do |n|

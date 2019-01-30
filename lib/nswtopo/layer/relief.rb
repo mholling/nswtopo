@@ -1,20 +1,20 @@
 module NSWTopo
   module Relief
     include Raster, ArcGISServer, DEM, Log
-    CREATE = %w[altitude azimuth factor sources highlights radius median bilateral contours]
+    CREATE = %w[altitude azimuth factor sources highlights smooth median bilateral contours]
     DEFAULTS = YAML.load <<~YAML
       altitude: 45
       azimuth: 315
       factor: 2.0
       sources: 3
       highlights: 20
-      radius: 4
+      smooth: 4
       resolution: 5.0
       opacity: 0.3
     YAML
 
     def margin
-      { mm: 3 * @radius }
+      { mm: 3 * @smooth }
     end
 
     def get_raster(temp_dir)

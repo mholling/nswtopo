@@ -141,6 +141,7 @@ begin
   end
 
   base_parser = OptionParser.new do |parser|
+    parser.separator "options:"
     parser.banner = <<~EOF
       *nswtopo* - download and create vector topographic maps
       usage: _nswtopo_ [~options~] [<command> ...]
@@ -158,7 +159,6 @@ begin
           render       render map in various formats
           layers       list available map layers
       command help: _nswtopo_ <command> --help
-      options:
     EOF
     parser.on "-c", "--config   <path>", Pathname, "specify additional configuration file" do |path|
       config_paths << path
@@ -179,12 +179,13 @@ begin
 
   command, options = ARGV.shift, Hash.new
   command_parser = OptionParser.new do |parser|
+    parser.separator "options:"
+
     case command
     when "init"
       parser.banner = <<~EOF
         *nswtopo* *init* - initialise map bounds and scale
         usage: _nswtopo_ _init_ [~options~] <map.tgz>
-        options:
       EOF
       parser.on "-s", "--scale       <scale>",        PositiveInt,  "scale of map (default 25000)"
       parser.on "-b", "--bounds      <bounds.kml>",   Pathname,     "bounds for map as KML or GPX file"
@@ -198,7 +199,6 @@ begin
       parser.banner = <<~EOF
         *nswtopo* *info* - display map layers and metadata
         usage: _nswtopo_ _info_ [~options~] <map.tgz>
-        options:
       EOF
       parser.on "-e", "--empty", "show empty layers"
 
@@ -206,7 +206,6 @@ begin
       parser.banner = <<~EOF
         *nswtopo* *add* - add named map layer
         usage: _nswtopo_ _add_ [~options~] <map.tgz> <layer> [<layer> ...]
-        options:
       EOF
       parser.on "-r", "--resolution  <resolution>", PositiveFloat, "raster layer resolution in metres"
       parser.on "-p", "--path        <path>",       Pathname,      "source data path for layer"
@@ -219,7 +218,6 @@ begin
       parser.banner = <<~EOF
         *nswtopo* *contours* - add contours from elevation data
         usage: _nswtopo_ _contours_ [~options~] <map.tgz> <dem-path>
-        options:
       EOF
       parser.on "-i", "--interval      <interval>",  PositiveInt,   "contour interval in metres (default %s)" % NSWTopo::Contour::DEFAULTS["interval"]
       parser.on "-x", "--index         <index>",     PositiveInt,   "index interval in metres (default 5 × interval)"
@@ -239,7 +237,6 @@ begin
       parser.banner = <<~EOF
         *nswtopo* *relief* - add shaded relief
         usage: _nswtopo_ _relief_ [~options~] <map.tgz> <dem-path>
-        options:
       EOF
       parser.on "-r", "--resolution  <resolution>", PositiveFloat, "resolution in metres (default %i)" % NSWTopo::Relief::DEFAULTS["resolution"]
       parser.on "-o", "--opacity     <opacity>",    Opacity,       "opacity (default %s)" % NSWTopo::Relief::DEFAULTS["opacity"]
@@ -252,7 +249,6 @@ begin
       parser.banner = <<~EOF
         *nswtopo* *grid* - add UTM grid
         usage: _nswtopo_ _grid_ [~options~] <map.tgz>
-        options:
       EOF
       parser.on "-i", "--interval  <interval>", PositiveFloat, "interval between grid lines in metres (default %i)" % NSWTopo::Grid::DEFAULTS["interval"]
 
@@ -260,7 +256,6 @@ begin
       parser.banner = <<~EOF
         *nswtopo* *declination* - add magnetic declination lines
         usage: _nswtopo_ _declination_ [~options~] <map.tgz>
-        options:
       EOF
       parser.on "-a", "--angle    <angle>",   Float,         "magnetic declination in clockwise degrees",
                                                              "(calculated automatically by default)"
@@ -272,7 +267,6 @@ begin
       parser.banner = <<~EOF
         *nswtopo* *controls* - add rogaine control markers
         usage: _nswtopo_ _controls_ [~options~] <map.tgz> <controls.gpx>
-        options:
       EOF
       parser.on "-d", "--diameter   <diameter>",  PositiveFloat, "diameter of markers in mm (default %s)" % NSWTopo::Control::DEFAULTS["diameter"]
       parser.on "-s", "--spot",                                  "add spots at centres"
@@ -283,7 +277,6 @@ begin
       parser.banner = <<~EOF
         *nswtopo* *overlay* - add KML or GPX overlay
         usage: _nswtopo_ _overlay_ [~options~] <map.tgz> <overlay.kml>
-        options:
       EOF
       parser.on       "--opacity          <opacity>", Opacity,       "layer opacity (between 0 and 1)"
       parser.on       "--stroke           <colour>",  Colour,        "stroke colour (as colour name or RGB triplet)"
@@ -302,7 +295,6 @@ begin
       parser.banner = <<~EOF
         *nswtopo* *remove* - remove map layers
         usage: _nswtopo_ _remove_ [~options~] <map.tgz> <layer> [<layer> ...]
-        options:
       EOF
 
     when "render"
@@ -311,7 +303,6 @@ begin
         usage: _nswtopo_ _render_ [~options~] <map.tgz> [<format-or-path> [<format-or-path> ...]]
         formats: #{NSWTopo::Formats.extensions.sort.join ?\s}
         default: svg
-        options:
       EOF
       parser.on "-p", "--ppi        <ppi>",     PositiveInt, "resolution for raster formats in pixels per inch (default %i)" % NSWTopo::Formats::PPI
       parser.on "-z", "--zoom       <zoom>",    Integer,     "maximum zoom level for mbtiles format (default %i)" % NSWTopo::Formats::Mbtiles::ZOOM
@@ -325,7 +316,6 @@ begin
       parser.banner = <<~EOF
         *nswtopo* *layers* - list available map layers
         usage: _nswtopo_ _layers_ [~options~]
-        options:
       EOF
       parser.on "-s", "--state  <#{States.join ?|}>", States, "only show layers for specified state"
 

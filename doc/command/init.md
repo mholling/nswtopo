@@ -6,26 +6,33 @@ By convention, use a `.tgz` file extension for your map file, since it's in a *g
 
 # Setting Map Location
 
-The easiest way to set bounds is with the `--bounds` option. Using Google Earth, draw out a polygon covering the area for your map, save as a KML file, then run the command:
+The easiest way to set bounds is with the `--bounds` option. Using Google Earth, mark out a polygon covering the area you want to map, save as a KML file, then run the command:
 
 ```
 nswtopo init --bounds bounds.kml map.tgz
+scale:    1:25000
+size:     246mm × 314mm
+extent:   6.2km × 7.9km
+area:     48.4km²
+rotation: 0.0°
 ```
 
-This will create a map file covering the specified area. You can also use map corner waypoints for your bounds, or a GPX file of a recorded track. An additional margin can be set with the `--margin` option. (If waypoints or tracks are used to specify the bounds, a 15mm margin will be applied by default.)
+This creates a map file covering the marked area. Information about the map is displayed.
+
+For your bounds, you can also use waypoints (e.g. map corners, rogaine controls) or a GPX file of a recorded track. An additional margin can be set with the `--margin` option. (If waypoints or tracks are used to specify the bounds, a 15mm margin will be applied by default.)
 
 An alternative way to set the map bounds is to specify two or more GPS coordinates using the `--coords` option. Provide a list of longitude & latitude coordinate pairs (e.g. for opposing corners of the map).
 
 # Map Orientation and Size
 
-Maps are north-oriented unless otherwise requested. The `--rotation` option will produce a map with a given rotation angle. Use the `magnetic` keyword to align the map with magnetic north. The keyword `auto` yields a map oriented so as to fit your bounds in the smallest possible area.
+Maps are north-oriented unless otherwise requested. The `--rotation` option will produce a map with a given rotation angle. Use the keyword `magnetic` to align the map with magnetic north. The keyword `auto` yields a map oriented so as to fit your bounds in the smallest possible area.
 
-You can make a map with set dimensions by using the `--dimensions` option, providing a width and height for the map in millimetres. For example, creating an A4 map at a given location:
+You can make a map with set dimensions by using the `--dimensions` option, providing a width and height for the map in millimetres. For example, to create an A4 map at a given location:
 
 ```
-nswtopo init --width 210,297 --coords 148.387,-36.148 map.tgz
+nswtopo init --dimensions 210,297 --coords 148.387,-36.148 map.tgz
 ```
 
 # Map Scale
 
-A 1:25000 scale is conventional and should work well for most applications. Change to a smaller or larger scale using the `--scale` option.
+A 1:25000 scale is conventional and should work well for most purposes. Change to a smaller or larger scale using the `--scale` option.

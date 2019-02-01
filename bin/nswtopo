@@ -221,7 +221,7 @@ begin
     when "contours"
       parser.banner = <<~EOF
         *nswtopo* *contours* - add contours from elevation data
-          usage: _nswtopo_ _contours_ [~options~] <map.tgz> <dem-path>
+          usage: _nswtopo_ _contours_ [~options~] <map.tgz> <dem.zip>
       EOF
       parser.on "-i", "--interval      <interval>",  PositiveInt,   "contour interval in metres (default %s)" % NSWTopo::Contour::DEFAULTS["interval"]
       parser.on "-x", "--index         <index>",     PositiveInt,   "index interval in metres"
@@ -240,7 +240,7 @@ begin
     when "relief"
       parser.banner = <<~EOF
         *nswtopo* *relief* - add shaded relief
-          usage: _nswtopo_ _relief_ [~options~] <map.tgz> <dem-path>
+          usage: _nswtopo_ _relief_ [~options~] <map.tgz> <dem.zip>
       EOF
       parser.on "-r", "--resolution  <resolution>", PositiveFloat, "resolution in metres (default %i)" % NSWTopo::Relief::DEFAULTS["resolution"]
       parser.on "-o", "--opacity     <opacity>",    Opacity,       "opacity (default %s)" % NSWTopo::Relief::DEFAULTS["opacity"]

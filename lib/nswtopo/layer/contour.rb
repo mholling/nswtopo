@@ -35,7 +35,7 @@ module NSWTopo
       raise unless version = JSON.parse(json).dig("features", 0, "properties", "version")
       raise unless (version.split(?-).first.split(?.).map(&:to_i) <=> [3, 3]) >= 0
     rescue OS::Error, JSON::ParserError, RuntimeError
-      raise "contour thinning requires GDAL with SQLite, SpatiaLite and GEOS support"
+      raise "contour thinning requires GDAL with SpatiaLite and GEOS support"
     end
 
     def get_features

@@ -18,7 +18,7 @@ You can also use options to change styles for overlay features:
 
 These options will override styles set in a KML file. There are also useful for GPX files, which do not include style information. Opacities are given as a value between 0 and 1. Colours can be either an *RGB triplet* (e.g. *#800080*), *web colour* name (e.g. *purple*) or *none*.
 
-The *--stroke-dasharray* option is useful for display a track as a dashed line. For example, to add unmarked firetrails to a map as a dashed orange line:
+The `--stroke-dasharray` option is useful for display a track as a dashed line. For example, to add unmarked firetrails to a map as a dashed orange line:
 
 ```
 nswtopo overlay --stroke "#FF7518" --stroke-width 0.3 --stroke-dasharray 1.8,0.6 -s map.tgz tracks.gpx

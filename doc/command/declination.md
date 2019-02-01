@@ -11,3 +11,5 @@ The magnetic declination angle is obtained from the NOAA online calculator using
 Declination lines are spaced at one-kilometre intervals, or according to the `--spacing` option if passed. Small directional arrows are provided periodically along each line at 160mm intervals.
 
 The `--offset` option shifts the lines along the horizontal, if fine-tuning is required.
+
+Change colour using the `--stroke` option, with an *RGB triplet* (e.g. *800080*) or *web colour* name (e.g. *purple*).

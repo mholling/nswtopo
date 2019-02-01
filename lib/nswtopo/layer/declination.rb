@@ -11,11 +11,11 @@ module NSWTopo
       symbol:
         path:
           d: M 0 0 L 0.4 2 L 0 1.3 L -0.4 2 Z
-          fill: darkred
           stroke: none
     YAML
 
     def get_features
+      @params["fill"] ||= @params["stroke"]
       declination = @angle || @map.declination
       col_spacing = 0.001 * @map.scale * @spacing
       row_spacing = 0.001 * @map.scale * @arrows * 0.5

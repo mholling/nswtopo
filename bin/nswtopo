@@ -267,6 +267,7 @@ begin
       parser.on "-i", "--spacing  <spacing>", PositiveFloat, "spacing of lines in mm (default %i)" % NSWTopo::Declination::DEFAULTS["spacing"]
       parser.on "-o", "--offset   <offset>",  Float,         "rightwards offset of lines in mm"
       parser.on "-r", "--arrows   <arrows>",  PositiveFloat, "spacing of arrows in mm (default %i)" % NSWTopo::Declination::DEFAULTS["arrows"]
+      parser.on       "--stroke   <colour>",  Colour,        "stroke colour (name or RGB triplet)"
 
     when "controls"
       parser.banner = <<~EOF

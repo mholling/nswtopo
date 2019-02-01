@@ -33,12 +33,11 @@ require_relative 'nswtopo/formats'
 require_relative 'nswtopo/map'
 require_relative 'nswtopo/layer'
 require_relative 'nswtopo/version'
+require_relative 'nswtopo/config'
 
 module NSWTopo
   PartialFailureError = Class.new RuntimeError
   extend self
-
-  attr_accessor :config
 
   def init(archive, options)
     puts Map.init(archive, options)

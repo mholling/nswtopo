@@ -124,10 +124,6 @@ begin
     values.join ?\s
   end
 
-  config_paths = [Pathname(__dir__).parent, Pathname(Etc.getpwuid&.dir || Dir.home), Pathname.pwd].map do |directory|
-    directory / ".nswtopo"
-  end.select(&:file?)
-
   ansi = lambda do |string|
     string.to_s.gsub(/\*([a-zA-Z0-9]+)\*/) do
       "\e[1m%s\e[0m" % $1
@@ -160,11 +156,9 @@ begin
           remove       remove map layer
           render       render map in various formats
           layers       list available map layers
+          config       configure nswtopo
         command help: _nswtopo_ <command> --help
     EOF
-    parser.on "-c", "--config   <path>", Pathname, "specify additional configuration file" do |path|
-      config_paths << path
-    end
     parser.on "-v", "--version", "show version information" do
       puts NSWTopo::VERSION
       exit
@@ -328,6 +322,19 @@ begin
       EOF
       parser.on "-s", "--state  <#{States.join ?|}>", States, "only show layers for specified state"
 
+    when "config"
+      parser.banner = <<~EOF
+        *nswtopo* *config* - configure nswtopo
+          usage: _nswtopo_ _config_ [~options~] [<layer>]
+      EOF
+      parser.on "-c", "--chrome      <path>",       Pathname,      "set path for Google Chrome"
+      parser.on "-f", "--firefox     <path>",       Pathname,      "set path for Firefox"
+      parser.on "-p", "--path        <path>",       Pathname,      "set path for given layer"
+      parser.on "-r", "--resolution  <resolution>", PositiveFloat, "set resolution for given layer"
+      parser.on "-l", "--list",                                    "list current configuration"
+      parser.on "-d", "--delete      <name>",                      "delete configuration setting"
+      # parser.on       "--local",                                   "use working directory"
+
     when nil
       raise OptionParser::MissingArgument, "no command specified"
 
@@ -349,22 +356,21 @@ begin
   end
   command_parser.order! into: options
 
-  if command == "layers"
+  case command
+  when "layers"
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     NSWTopo.layers options
+    exit
+  when "config"
+    layer = ARGV.shift
+    raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
+    raise OptionParser::MissingArgument, "configuration option required" unless options.any?
+    NSWTopo.config.update *layer, **options
     exit
   end
 
   raise OptionParser::MissingArgument, "no map path specified" if ARGV.empty?
   tgz_path = Pathname(ARGV.shift)
-
-  config_paths.map do |path|
-    YAML.load path.read
-  rescue YAML::Exception
-    log_warn "couldn't parse #{path} - ignoring"
-  end.grep(Hash).inject({}, &:deep_merge).tap do |config|
-    NSWTopo.config = config
-  end
 
   begin
     in_path = case command

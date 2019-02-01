@@ -10,11 +10,11 @@ DEM tiles from the ELVIS website are delivered as doubly-zipped files. It's not 
 # Contour Configuration
 Choose a contour interval in metres using the `--interval` option. A five metre interval is recommended as it conveys excellent detail and is not too dense for 1:25000 maps in most areas. Specify an index contour interval with the `--index` option.
 
-Noise in raw elevation data usually produces unsuitably rough contour lines. Some smoothing of the DEM removes most such artefacts. A default smoothing radius of 0.2mm is applied, configurable with the `--smooth` option. A larger radius produces smoother contours at the expense of detail.
+Noise in raw elevation data usually produces unsuitably rough contour lines. Some smoothing of the DEM removes most such artefacts. A default smoothing radius of 0.2mm is applied, configurable with the `--smooth` option. Increase the radius to produce smoother contours at the expense of detail.
 
 # Layer Position
 
-Use a `--after`, `--before` or `--replace` option to insert the contours in an appropriate layer position. You will most likely want to replace an existing contour layer:
+Use an `--after`, `--before` or `--replace` option to insert the contours in an appropriate layer position. You will most likely want to replace an existing contour layer:
 
 ```
 nswtopo contours --replace nsw.topographic.contours map.tgz DATA_25994.zip

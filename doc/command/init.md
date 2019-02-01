@@ -25,7 +25,7 @@ An alternative way to set the map bounds is to specify two or more GPS coordinat
 
 # Map Orientation and Size
 
-Maps are north-oriented unless otherwise requested. The `--rotation` option will produce a map with a given rotation angle. Use the keyword `magnetic` to align the map with magnetic north. The keyword `auto` yields a map oriented so as to fit your bounds in the smallest possible area.
+Maps are north-oriented unless you request otherwise. The `--rotation` option will produce a map with a given rotation angle. Use the keyword `magnetic` to align the map with magnetic north. The keyword `auto` yields a map oriented so as to fit your bounds in the smallest possible area.
 
 You can make a map with set dimensions by using the `--dimensions` option, providing a width and height for the map in millimetres. For example, to create an A4 map at a given location:
 

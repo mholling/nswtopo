@@ -1,6 +1,6 @@
 # Description
 
-The *relief* command generates shaded relief from a Digital Elevation Model (DEM). Any DEM in a planar projection can be used, but a resolution of 30 metres or better is suggested.
+The *relief* command generates shaded relief from a Digital Elevation Model (DEM). You can use any DEM in a planar projection, but a resolution of 30 metres or better is suggested.
 
 # Obtaining the DEM
 Use the *ELVIS* website [http://elevation.fsdf.org.au] to download DEM tiles for any NSW location. The NSW 2-metre and 5-metre tiles are ideal. 1-metre NSW and ACT tiles also work but are more detailed than necessary. (Do not download Geoscience Australia tiles or point-cloud data.)
@@ -9,9 +9,9 @@ DEM tiles from the ELVIS website are delivered as doubly-zipped files. It's not 
 
 # Configuration
 
-No configuration is needed to get good results from ELVIS data. The following options are available for tweaking:
+No configuration is needed to get good results from ELVIS data. Use the following options to adjust the layer's appearance, if desired:
 
-* **resolution**: resolution for the DEM data; a lower value can reduce file size but yields a smoother effect
+* **resolution**: resolution for the DEM data; a lower value will reduce file size but yields a smoother effect
 * **opacity**: overall layer opacity
 * **altitude**: raking angle of the light from the horizon
 * **azimuth**: azimuth angle of the light, clockwise from north; deviation from the 315° default can be counter-intuitive

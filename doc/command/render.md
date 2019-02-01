@@ -1,6 +1,6 @@
 # Description
 
-With all layers added, use the *render* command to create the map itself. Different output formats are available for various purposes.
+Once you've added your layers, use the *render* command to create the map itself. Different output formats are available for various purposes.
 
 Specify your output format either as a filename with appropriate extension, or just the format extension itself (in which case the map's file name will be used). You can create multiple outputs at once.
 
@@ -22,7 +22,7 @@ The following formats are available:
 
 # Output Resolution
 
-Most of the output formats are *raster* (pixel-based) formats. Use the `--ppi` option to set a resolution for these formats, in pixels per inch (PPI). The choice of PPI is a tradeoff between image quality and file size. The default value of 300 is a good choice for most purposes. A printed map may benefit from a higher value.
+Most of the output formats are *raster* (pixel-based) formats. Use the `--ppi` option to set a resolution for these formats, in pixels per inch (PPI). The choice of PPI is a tradeoff between image quality and file size. The default value of 300 is a good choice for most purposes. Consider a higher PPI when producing a map for printing.
 
 For the *mbtiles* format, resolution values are fixed to zoom levels. The default maximum zoom level of 16 corresponds to around 260 PPI.
 
@@ -40,4 +40,4 @@ nswtopo config --chrome "/Applications/Google Chrome.app/Contents/MacOS/Google C
 
 For raster formats, use the `--dither` option to create the raster in indexed colour mode. This can reduce file size. For best results, have the `pngquant` program available on your command line for the dithering process.
 
-After generating your map in SVG format, you can add further content outside of *nswtopo* using a vector graphics editor such as Inkscape. Use the `--external` option to render from the edited map, instead of the internal copy maintained by *nswtopo*.
+After generating your map in SVG format, you can add content outside of *nswtopo* using a vector graphics editor such as Inkscape. Use the `--external` option to render from the edited map, instead of the internal copy maintained by *nswtopo*.

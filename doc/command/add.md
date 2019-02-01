@@ -12,7 +12,7 @@ Some layers, such as vegetation layers, require a dataset to be present on your 
 
 Raster layers (vegetation, shaded relief) typically have an appropriate image resolution set for that data. If desired, you can choose a different value using the `--resolution` option. Resolution is in metres per pixel, indicating the dataset quality rather than an output resolution such as pixels per inch.
 
-For repeated use, it's easier to set the path or resolution for a layer in a permanent configuration file. Use the `config` command for this task.
+For repeated use, it's easier to set the path or resolution for a layer in a permanent configuration file. Use the *config* command for this task.
 
 # Positioning Layers
 

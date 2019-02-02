@@ -7,7 +7,7 @@ module NSWTopo
     extend self
 
     def glyph_length(*args)
-      chrome_path = NSWTopo.config["chrome"]
+      chrome_path = Config["chrome"]
       case
       when !defined? PTY
         self.extend Generic

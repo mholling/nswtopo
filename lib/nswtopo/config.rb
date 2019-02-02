@@ -1,12 +1,14 @@
 module NSWTopo
-  def config
-    @config ||= Config.new
-  end
-
-  class Config
+  module Config
     include Log
 
-    def initialize
+    def self.method_missing(symbol, *args, &block)
+      extend(self).init
+      singleton_class.remove_method :method_missing
+      send symbol, *args, &block
+    end
+
+    def init
       candidates = []
       %w[XDG_CONFIG_HOME APPDATA].each do |key|
         candidates << [ENV.fetch(key), "nswtopo"]

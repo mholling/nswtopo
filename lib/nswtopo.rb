@@ -107,7 +107,7 @@ module NSWTopo
       raise "couldn't parse #{path}"
     end.map do |name, params|
       params.merge! options.transform_keys(&:to_s)
-      params.merge! NSWTopo.config[name] if NSWTopo.config[name]
+      params.merge! Config[name] if Config[name]
       Layer.new(name, map, params)
     end.tap do |layers|
       raise OptionParser::MissingArgument, "no layers specified" unless layers.any?

@@ -277,7 +277,7 @@ module NSWTopo
       end
 
       labelling_hull = @map.bounding_box(mm: -INSET).coordinates.first.map(&to_mm)
-      debug, debug_features = NSWTopo.config["debug"], []
+      debug, debug_features = Config["debug"], []
       @params = DEBUG_PARAMS.deep_merge @params if debug
 
       candidates = label_features.map.with_index do |collection, label_index|
@@ -605,7 +605,7 @@ module NSWTopo
         end
         labels << label
         counts[label_index] += 1
-      end if NSWTopo.config["allow-overlaps"]
+      end if Config["allow-overlaps"]
 
       grouped = candidates.group_by do |candidate|
         [candidate.label_index, candidate.feature_index]

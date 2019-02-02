@@ -45,9 +45,9 @@ module NSWTopo
         svg.add_element "sodipodi:namedview", "borderlayer" => true
         svg.add_element "rect", "x" => 0, "y" => 0, "width" => width, "height" => height, "fill" => "white"
 
-        labels = Layer.new "labels", self, NSWTopo.config.fetch("labels", {}).merge("type" => "Labels")
+        labels = Layer.new "labels", self, Config.fetch("labels", {}).merge("type" => "Labels")
         layers.reject(&:empty?).each do |layer|
-          next if NSWTopo.config["no-labels"]
+          next if Config["no-labels"]
           labels.add layer if Vector === layer
         end.push(labels).each do |layer|
           log_update "compositing: #{layer.name}"

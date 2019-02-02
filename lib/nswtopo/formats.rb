@@ -37,7 +37,7 @@ module NSWTopo
         src_path = temp_dir / "browser.svg"
         render_svg temp_dir, svg_path, external: external
 
-        NSWTopo.config.with_browser do |browser_name, browser_path|
+        Config.with_browser do |browser_name, browser_path|
           megapixels = dimensions.inject(&:*) / 1024.0 / 1024.0
           log_update "%s: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [browser_name, *dimensions, megapixels, options[:ppi]       ] if options[:ppi]
           log_update "%s: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [browser_name, *dimensions, megapixels, options[:resolution]] if options[:resolution]

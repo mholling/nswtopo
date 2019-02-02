@@ -2,6 +2,7 @@ module NSWTopo
   class Projection
     def initialize(string_or_path)
       @proj4 = OS.gdalsrsinfo("-o", "proj4", string_or_path).chomp.strip
+      raise "no georeferencing found: %s" % string_or_path if @proj4.empty?
     end
 
     %w[wkt wkt_simple wkt_noct wkt_esri mapinfo xml].each do |format|

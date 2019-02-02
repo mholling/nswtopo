@@ -6,7 +6,7 @@ By convention, use a `.tgz` file extension for your map file, since it's in a *g
 
 # Setting Map Location
 
-The easiest way to set bounds is with the `--bounds` option. Using Google Earth, mark out a polygon covering the area you want to map, save as a KML file, then run the command:
+The easiest way to set bounds is with the `--bounds` option. Using *Google Earth*, mark out a polygon covering the area you want to map, save as a KML file, then run the command:
 
 ```
 nswtopo init --bounds bounds.kml map.tgz

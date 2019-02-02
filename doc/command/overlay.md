@@ -4,7 +4,7 @@ Use the *overlay* command to overlay GPX and KML files on the map. You can add b
 
 # Adding Styles
 
-The simplest way to add styles your overlay is with *Google Earth*. When drawing paths and polygons, set their colours and line-widths in the *Style, Color* tab. These styles will be honoured when you subsequently add the KML file to your map.
+The simplest way to add styles your overlay is with Google Earth. When drawing paths and polygons, set their colours and line-widths in the *Style, Color* tab. (Google Earth line-widths are in pixels, about 0.25mm each.) These styles will be honoured when you subsequently add the KML file to your map.
 
 You can also use options to change styles for overlay features:
 

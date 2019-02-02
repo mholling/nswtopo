@@ -30,15 +30,6 @@ module NSWTopo
       OS.gdal_translate "-of", "JPEG", "-co", "QUALITY=90", "-mo", "EXIF_XResolution=#{ppi}", "-mo", "EXIF_YResolution=#{ppi}", "-mo", "EXIF_ResolutionUnit=2", yield(ppi: ppi), jpg_path
     end
 
-    def with_browser
-      browser_name = %w[firefox chrome].find &NSWTopo.config.method(:key?)
-      raise "please specify a path to google chrome (see README)" unless browser_name
-      browser_path = Pathname.new NSWTopo.config[browser_name]
-      yield browser_name, browser_path
-    rescue Errno::ENOENT
-      raise "invalid %s path: %s" % [browser_name, browser_path]
-    end
-
     def rasterise(png_path, external:, **options)
       Dir.mktmppath do |temp_dir|
         dimensions, ppi, resolution = raster_dimensions_at **options
@@ -46,7 +37,7 @@ module NSWTopo
         src_path = temp_dir / "browser.svg"
         render_svg temp_dir, svg_path, external: external
 
-        with_browser do |browser_name, browser_path|
+        NSWTopo.config.with_browser do |browser_name, browser_path|
           megapixels = dimensions.inject(&:*) / 1024.0 / 1024.0
           log_update "%s: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [browser_name, *dimensions, megapixels, options[:ppi]       ] if options[:ppi]
           log_update "%s: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [browser_name, *dimensions, megapixels, options[:resolution]] if options[:resolution]

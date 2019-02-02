@@ -38,7 +38,7 @@ module NSWTopo
     end
 
     extend Forwardable
-    delegate %i[key? [] fetch] => :@config
+    delegate %i[[] fetch] => :@config
 
     def update(layer = nil, chrome: nil, firefox: nil, path: nil, resolution: nil, list: false, delete: false, local: false)
       layer = Layer.sanitise layer
@@ -83,6 +83,15 @@ module NSWTopo
       when local then log_neutral "no configuration in this directory"
       else            log_neutral "no configuration yet"
       end
+    end
+
+    def with_browser
+      browser_name = %w[chrome firefox].find &@config.method(:key?)
+      raise "please configure a path for google chrome" unless browser_name
+      browser_path = Pathname.new @config[browser_name]
+      yield browser_name, browser_path
+    rescue Errno::ENOENT
+      raise "invalid %s path: %s" % [browser_name, browser_path]
     end
   end
 end

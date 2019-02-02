@@ -13,7 +13,7 @@ module NSWTopo
         svg_path.write xml
 
         FileUtils.rm pdf_path if pdf_path.exist?
-        with_browser do |browser_name, browser_path|
+        NSWTopo.config.with_browser do |browser_name, browser_path|
           args = case browser_name
           when "chrome"
             ["--headless", "--disable-gpu", "--print-to-pdf=#{pdf_path}"]

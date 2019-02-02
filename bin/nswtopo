@@ -220,7 +220,6 @@ begin
       parser.on "-i", "--interval      <interval>",  PositiveInt,   "contour interval in metres (default %s)" % NSWTopo::Contour::DEFAULTS["interval"]
       parser.on "-x", "--index         <index>",     PositiveInt,   "index interval in metres"
       parser.on "-s", "--smooth        <radius>",    NonNegFloat,   "DEM smoothing radius in mm (default %s)" % NSWTopo::Contour::DEFAULTS["smooth"]
-      # parser.on "-y", "--simplify      <tolerance>", PositiveFloat, "contour simplification tolerance in metres"
       parser.on "-t", "--thin",                                     "thin intermediate contours in steep areas"
       # parser.on "-d", "--density       <density>",   PositiveFloat, "maximum lines/mm before thinning occurs"
       # parser.on "-m", "--min-length    <length>",    PositiveFloat, "minimum length before contour thinning in mm"

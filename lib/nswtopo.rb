@@ -37,7 +37,7 @@ require_relative 'nswtopo/config'
 
 module NSWTopo
   PartialFailureError = Class.new RuntimeError
-  extend self
+  extend self, Log
 
   def init(archive, options)
     puts Map.init(archive, options)
@@ -184,5 +184,41 @@ module NSWTopo
         puts [indent, path.relative_path_from(root).sub_ext("")].join
       end
     end
+  end
+
+  def config(layer = nil, chrome: nil, firefox: nil, path: nil, resolution: nil, list: false, delete: false)
+    raise "chrome path is not an executable" if chrome && !chrome.executable?
+    raise "firefox path is not an executable" if firefox && !firefox.executable?
+    Config.store("chrome", chrome.to_s) if chrome
+    Config.store("firefox", firefox.to_s) if firefox
+
+    layer = Layer.sanitise layer
+    case
+    when !layer
+      raise OptionParser::InvalidArgument, "no layer name specified for path" if path
+      raise OptionParser::InvalidArgument, "no layer name specified for resolution" if resolution
+    when path || resolution
+      Config.store(layer, "path", path.to_s) if path
+      Config.store(layer, "resolution", resolution) if resolution
+    end
+    Config.delete(*layer, delete) if delete
+
+    if path || resolution || chrome || firefox || delete
+      Config.save
+      log_success "configuration updated"
+    end
+
+    if list
+      puts Config.to_str.each_line.drop(1)
+      log_neutral "no configuration yet" if Config.empty?
+    end
+  end
+
+  def with_browser
+    browser_name, browser_path = Config.slice("chrome", "firefox").first
+    raise "please configure a path for google chrome" unless browser_name
+    yield browser_name, Pathname.new(browser_path)
+  rescue Errno::ENOENT
+    raise "invalid %s path: %s" % [browser_name, browser_path]
   end
 end

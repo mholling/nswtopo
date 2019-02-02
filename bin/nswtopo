@@ -364,7 +364,7 @@ begin
     layer = ARGV.shift
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     raise OptionParser::MissingArgument, "configuration option required" unless options.any?
-    NSWTopo::Config.update *layer, **options
+    NSWTopo.config *layer, **options
     exit
   end
 

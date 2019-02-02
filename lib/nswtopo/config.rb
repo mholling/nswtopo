@@ -1,7 +1,5 @@
 module NSWTopo
   module Config
-    include Log
-
     def self.method_missing(symbol, *args, &block)
       extend(self).init
       singleton_class.remove_method :method_missing
@@ -32,56 +30,34 @@ module NSWTopo
       end
     end
 
-    extend Forwardable
-    delegate %i[[] fetch] => :@config
-
-    def update(layer = nil, chrome: nil, firefox: nil, path: nil, resolution: nil, list: false, delete: false)
-      layer = Layer.sanitise layer
-
-      raise "chrome path is not an executable" if chrome && !chrome.executable?
-      raise "firefox path is not an executable" if firefox && !firefox.executable?
-      @config["chrome"] = chrome.to_s if chrome
-      @config["firefox"] = firefox.to_s if firefox
-
-      case
-      when !layer
-        raise OptionParser::InvalidArgument, "no layer name specified for path" if path
-        raise OptionParser::InvalidArgument, "no layer name specified for resolution" if resolution
-      when path || resolution
-        @config[layer] ||= {}
-        @config[layer]["path"] = path.to_s if path
-        @config[layer]["resolution"] = resolution if resolution
-      end
-
-      case
-      when !delete
-      when !layer
-        @config.delete(delete) || raise("no such setting: %s" % delete)
-      when Hash === @config[layer]
-        @config[layer].delete(delete) || raise("no such setting: %s" % delete)
-        @config.delete(layer) if @config[layer].empty?
-      else
-        raise "no such layer: %s" % layer
-      end
-
-      if path || resolution || chrome || firefox || delete
-        @path.parent.mkpath
-        @path.write @config.to_yaml
-        log_success "configuration updated"
-      end
-
-      return unless list
-      puts @config.to_yaml.each_line.drop(1)
-      log_neutral "no configuration yet" if @config.empty?
+    def store(*entries, key, value)
+      entries.inject(@config) do |config, entry|
+        config[entry] ||= {}
+        Hash === config[entry] ? config[entry] : raise("entry already taken: %s" % entry)
+      end.store key, value
     end
 
-    def with_browser
-      browser_name = %w[chrome firefox].find &@config.method(:key?)
-      raise "please configure a path for google chrome" unless browser_name
-      browser_path = Pathname.new @config[browser_name]
-      yield browser_name, browser_path
-    rescue Errno::ENOENT
-      raise "invalid %s path: %s" % [browser_name, browser_path]
+    def delete(*entries, key)
+      delete_recursive @config, *entries, key
+    end
+
+    def delete_recursive(config, *entries, key)
+      if entry = entries.shift
+        raise "no such entry: %s" % entry unless Hash === config[entry]
+        delete_recursive config[entry], *entries, key
+        config.delete entry if config[entry].empty?
+      else
+        config.delete(key) || raise("no such entry: %s" % key)
+      end
+    end
+
+    extend Forwardable
+    delegate %i[slice empty? [] fetch] => :@config
+    def_delegator :@config, :to_yaml, :to_str
+
+    def save
+      @path.parent.mkpath
+      @path.write @config.to_yaml
     end
   end
 end

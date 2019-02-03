@@ -159,14 +159,17 @@ begin
           config       configure nswtopo
         command help: _nswtopo_ <command> --help
     EOF
-    parser.on "-v", "--version", "show version information" do
+    parser.on "-v", "--version",                   "show version information" do
       puts NSWTopo::VERSION
       exit
     end
-    parser.on "-q", "--quiet", "suppress non-error output" do
+    parser.on "-q", "--quiet",                     "suppress non-error output" do
       $stdout = File.open(File::NULL, "w")
     end
-    parser.on "-h", "--help", "show general help" do
+    parser.on "-c", "--config   <path>", Pathname, "load extra configuration" do |path|
+      NSWTopo::Config.extra_path = path
+    end
+    parser.on "-h", "--help",                      "show general help" do
       puts $stdout.tty? ? ansi[parser] : plain[parser]
       doc = Pathname(__dir__).parent / "doc" / "nswtopo.md"
       puts nil, RDoc::Markdown.parse(doc.read).accept(HelpFormatter.new $stdout.tty?)

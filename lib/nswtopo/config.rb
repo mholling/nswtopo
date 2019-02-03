@@ -1,6 +1,8 @@
 module NSWTopo
   module Config
     include Log
+    singleton_class.attr_writer :extra_path
+
     def self.method_missing(symbol, *args, &block)
       extend(self).init
       singleton_class.remove_method :method_missing
@@ -17,18 +19,14 @@ module NSWTopo
       candidates << [Dir.home, ".config", "nswtopo"]
       candidates << [Dir.home, ".nswtopo"]
 
-      config_dir = candidates.map do |base, *parts|
+      @path = candidates.map do |base, *parts|
         Pathname(base).join(*parts)
       end.first do |dir|
         dir.parent.directory?
-      end
+      end.join("nswtopo.cfg")
 
-      @path, local_path = [config_dir, Pathname.pwd].map do |dir|
-        dir / "nswtopo.cfg"
-      end
-
-      @config, local = [@path, local_path].map do |path|
-        next Hash[] unless path.file?
+      @config, extra = [@path, @extra_path].map do |path|
+        next Hash[] unless path&.file?
         config = YAML.load(path.read)
         Hash === config ? config : raise
       rescue YAML::Exception, RuntimeError
@@ -36,7 +34,7 @@ module NSWTopo
         Hash[]
       end
 
-      @merged = @config.deep_merge local
+      @merged = @config.deep_merge extra
     end
 
     def store(*entries, key, value)

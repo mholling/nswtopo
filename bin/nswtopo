@@ -166,8 +166,10 @@ begin
     parser.on "-q", "--quiet", "suppress non-error output" do
       $stdout = File.open(File::NULL, "w")
     end
-    parser.on "-h", "--help", "show this help" do
+    parser.on "-h", "--help", "show general help" do
       puts $stdout.tty? ? ansi[parser] : plain[parser]
+      doc = Pathname(__dir__).parent / "doc" / "nswtopo.md"
+      puts nil, RDoc::Markdown.parse(doc.read).accept(HelpFormatter.new $stdout.tty?)
       exit
     end
   end

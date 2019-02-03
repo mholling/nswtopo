@@ -54,6 +54,7 @@ module NSWTopo
 
       extend Forwardable
       delegate %i[coordinates properties] => :first
+      delegate %i[reject! select!] => :@features
 
       def to_json(**extras)
         to_h.merge(extras).to_json

@@ -1,7 +1,7 @@
 module NSWTopo
   module Contour
     include Vector, DEM, Log
-    CREATE = %w[interval index smooth simplify thin density min-length fill]
+    CREATE = %w[interval index smooth simplify thin density min-length depression fill]
     DEFAULTS = YAML.load <<~YAML
       interval: 5
       smooth: 0.2
@@ -63,13 +63,30 @@ module NSWTopo
         db_path = temp_dir / "contour"
 
         log_update "%s: generating contour lines" % @name
-        OS.gdal_contour "-nln", "raw", "-a", "elevation", "-i", @interval, *db_flags, blur_path, db_path
+        json = OS.gdal_contour "-q", "-a", "elevation", "-i", @interval, "-f", "GeoJSON", "-lco", "RFC7946=NO", blur_path, "/vsistdout/"
+        contours = GeoJSON::Collection.load json, @map.projection
 
-        OS.ogr2ogr "-update", "-nln", "contour", "-simplify", @simplify, db_path, db_path, "-dialect", "OGRSQL", "-sql", <<~SQL
-          SELECT elevation, id, elevation % #{@index} AS modulo
-          FROM raw
-          WHERE 0 <> elevation
-        SQL
+        if @depression
+          contours.select do |feature|
+            feature.coordinates.last == feature.coordinates.first &&
+            feature.coordinates.anticlockwise?
+          end.each do |feature|
+            feature["depression"] = 1
+          end
+        end
+
+        contours.each do |feature|
+          id, elevation, depression = feature.values_at "ID", "elevation", "depression"
+          feature.properties.replace("id" => id, "elevation" => elevation, "modulo" => elevation % @index, "depression" => depression || 0)
+        end
+
+        contours.reject! do |feature|
+          feature["elevation"].zero?
+        end
+
+        OS.ogr2ogr "-a_srs", @map.projection, "-nln", "contour", "-simplify", @simplify, *db_flags, db_path, "GeoJSON:/vsistdin/" do |stdin|
+          stdin.write contours.to_json
+        end
 
         if @thin
           slope_tif_path = temp_dir / "slope.tif"
@@ -132,19 +149,19 @@ module NSWTopo
                 ST_Relate(contour.geometry, mask.geometry, 'T********')
             )
 
-            SELECT contour.geometry, contour.id, contour.elevation, contour.modulo, 1 AS unmasked, 1 AS unaltered
+            SELECT contour.geometry, contour.id, contour.elevation, contour.modulo, contour.depression, 1 AS unmasked, 1 AS unaltered
             FROM contour
             LEFT JOIN intersecting ON intersecting.contour = contour.rowid
             WHERE intersecting.contour IS NULL
 
-            UNION SELECT ExtractMultiLinestring(ST_Difference(contour.geometry, ST_Collect(mask.geometry))) AS geometry, contour.id, contour.elevation, contour.modulo, 1 AS unmasked, 0 AS unaltered
+            UNION SELECT ExtractMultiLinestring(ST_Difference(contour.geometry, ST_Collect(mask.geometry))) AS geometry, contour.id, contour.elevation, contour.modulo, contour.depression, 1 AS unmasked, 0 AS unaltered
             FROM contour
             INNER JOIN intersecting ON intersecting.contour = contour.rowid
             INNER JOIN mask ON intersecting.mask = mask.rowid
             GROUP BY contour.rowid
             HAVING min(ST_Relate(contour.geometry, mask.geometry, '**T******'))
 
-            UNION SELECT ExtractMultiLinestring(ST_Intersection(contour.geometry, ST_Collect(mask.geometry))) AS geometry, contour.id, contour.elevation, contour.modulo, 0 AS unmasked, 0 AS unaltered
+            UNION SELECT ExtractMultiLinestring(ST_Intersection(contour.geometry, ST_Collect(mask.geometry))) AS geometry, contour.id, contour.elevation, contour.modulo, contour.depression, 0 AS unmasked, 0 AS unaltered
             FROM contour
             INNER JOIN intersecting ON intersecting.contour = contour.rowid
             INNER JOIN mask ON intersecting.mask = mask.rowid
@@ -152,14 +169,14 @@ module NSWTopo
           SQL
 
           OS.ogr2ogr "-nln", "thinned", "-update", "-explodecollections", db_path, db_path, "-dialect", "SQLite", "-sql", <<~SQL
-            SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, id, elevation, modulo, unaltered
+            SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, id, elevation, modulo, depression, unaltered
             FROM divided
             WHERE unmasked OR ST_Length(geometry) < #{min_length}
             GROUP BY id, elevation, modulo, unaltered
           SQL
 
           OS.ogr2ogr "-nln", "contour", "-update", "-overwrite", db_path, db_path, "-dialect", "SQLite", "-sql", <<~SQL
-            SELECT geometry, id, elevation, modulo
+            SELECT geometry, id, elevation, modulo, depression
             FROM thinned
             WHERE unaltered OR ST_Length(geometry) > #{min_length}
           SQL
@@ -167,8 +184,9 @@ module NSWTopo
 
         json = OS.ogr2ogr "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", db_path, "contour"
         GeoJSON::Collection.load(json, @map.projection).each do |feature|
-          elevation, modulo = feature.values_at "elevation", "modulo"
+          elevation, modulo, depression = feature.values_at "elevation", "modulo", "depression"
           category = modulo.zero? ? %w[Index] : %w[Standard]
+          category << "Depression" if depression == 1
           feature.clear
           feature["elevation"] = elevation
           feature["category"] = category

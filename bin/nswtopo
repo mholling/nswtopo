@@ -223,6 +223,7 @@ begin
       parser.on "-t", "--thin",                                     "thin intermediate contours in steep areas"
       # parser.on "-d", "--density       <density>",   PositiveFloat, "maximum lines/mm before thinning occurs"
       # parser.on "-m", "--min-length    <length>",    PositiveFloat, "minimum length before contour thinning in mm"
+      parser.on "-d", "--depression",                               "classify and clean depression contours"
       parser.on "-a", "--after         <layer>",                    "insert after specified layer"
       parser.on "-b", "--before        <layer>",                    "insert before specified layer"
       parser.on "-c", "--replace       <layer>",                    "replace specified layer"

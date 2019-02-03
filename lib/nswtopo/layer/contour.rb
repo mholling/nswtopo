@@ -1,7 +1,7 @@
 module NSWTopo
   module Contour
     include Vector, DEM, Log
-    CREATE = %w[interval index smooth simplify thin density min-length depression fill]
+    CREATE = %w[interval index smooth simplify thin density min-length no-depression fill]
     DEFAULTS = YAML.load <<~YAML
       interval: 5
       smooth: 0.2
@@ -72,7 +72,7 @@ module NSWTopo
         json = OS.gdal_contour "-q", "-a", "elevation", "-i", @interval, "-f", "GeoJSON", "-lco", "RFC7946=NO", blur_path, "/vsistdout/"
         contours = GeoJSON::Collection.load json, @map.projection
 
-        if @depression
+        if @no_depression.nil?
           candidates = contours.select do |feature|
             feature.coordinates.last == feature.coordinates.first &&
             feature.coordinates.anticlockwise?

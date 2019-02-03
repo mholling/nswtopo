@@ -224,6 +224,7 @@ begin
       # parser.on "-d", "--density        <density>",  PositiveFloat, "maximum lines/mm before thinning occurs"
       # parser.on "-m", "--min-length     <length>",   PositiveFloat, "minimum length before contour thinning in mm"
       parser.on       "--no-depression",                            "don't show or clean depression contours"
+      parser.on "-k", "--knolls         <size>",     NonNegFloat,   "minimum knoll size in mm (default %s)" % NSWTopo::Contour::DEFAULTS["knolls"]
       parser.on "-a", "--after          <layer>",                   "insert after specified layer"
       parser.on "-b", "--before         <layer>",                   "insert before specified layer"
       parser.on "-c", "--replace        <layer>",                   "replace specified layer"

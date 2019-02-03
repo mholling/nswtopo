@@ -1,12 +1,13 @@
 module NSWTopo
   module Contour
     include Vector, DEM, Log
-    CREATE = %w[interval index smooth simplify thin density min-length no-depression fill]
+    CREATE = %w[interval index smooth simplify thin density min-length no-depression knolls fill]
     DEFAULTS = YAML.load <<~YAML
       interval: 5
       smooth: 0.2
       density: 4.0
       min-length: 2.0
+      knolls: 0.2
       section: 100
       stroke: "#805100"
       stroke-width: 0.08
@@ -89,6 +90,11 @@ module NSWTopo
               other.coordinates.first.within?(feature.coordinates)
             end
           end
+        end
+
+        contours.reject! do |feature|
+          feature.coordinates.last == feature.coordinates.first &&
+          feature.bounds.all? { |min, max| max - min < @knolls * @map.scale / 1000.0 }
         end
 
         contours.each do |feature|

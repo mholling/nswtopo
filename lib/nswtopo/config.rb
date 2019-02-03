@@ -1,5 +1,6 @@
 module NSWTopo
   module Config
+    include Log
     def self.method_missing(symbol, *args, &block)
       extend(self).init
       singleton_class.remove_method :method_missing
@@ -16,18 +17,26 @@ module NSWTopo
       candidates << [Dir.home, ".config", "nswtopo"]
       candidates << [Dir.home, ".nswtopo"]
 
-      @path = config_dir = candidates.map do |base, *parts|
+      config_dir = candidates.map do |base, *parts|
         Pathname(base).join(*parts)
       end.first do |dir|
         dir.parent.directory?
-      end.join("nswtopo.cfg")
+      end
 
-      @config = begin
-        @path.file? ? YAML.load(@path.read) : Hash[]
-      rescue YAML::Exception
+      @path, local_path = [config_dir, Pathname.pwd].map do |dir|
+        dir / "nswtopo.cfg"
+      end
+
+      @config, local = [@path, local_path].map do |path|
+        next Hash[] unless path.file?
+        config = YAML.load(path.read)
+        Hash === config ? config : raise
+      rescue YAML::Exception, RuntimeError
         log_warn "couldn't parse #{path} - ignoring"
         Hash[]
       end
+
+      @merged = @config.deep_merge local
     end
 
     def store(*entries, key, value)
@@ -52,7 +61,7 @@ module NSWTopo
     end
 
     extend Forwardable
-    delegate %i[slice empty? [] fetch] => :@config
+    delegate %i[slice empty? [] fetch] => :@merged
     def_delegator :@config, :to_yaml, :to_str
 
     def save

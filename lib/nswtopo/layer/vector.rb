@@ -166,8 +166,11 @@ module NSWTopo
 
           when "symbolise"
             next unless content
-            interval = Hash[args]["interval"]
-            symbol_ids = args.map.with_index do |(element, attributes), index|
+            interval, symbols = args.partition do |element, attributes|
+              element == "interval"
+            end
+            interval = Hash[interval]["interval"]
+            symbol_ids = symbols.map.with_index do |(element, attributes), index|
               symbol_id = [*ids, "symbol", index].join(?.).tap do |symbol_id|
                 defs.add_element("g", "id" => symbol_id).add_element(element, attributes)
               end

@@ -27,3 +27,7 @@ Contours are rendered in brown at a thickness of 0.08mm. Change line colour with
 A small contour interval can produce very dense contours in steep terrain. An advanced `--thin` option is available to selectively remove contours in steep areas such as cliffsides. It emulates a manual contour thinning technique. An index multiple of eight (e.g. 5m contours with 40m index contours) produces the most aesthetic results.
 
 (*GDAL* with *SpatiaLite* and *GEOS* support is required to perform contour thinning.)
+
+# Depression Contours
+
+Contours generated from a DEM can include depression artefacts, most noticeabley at pinch-points in flat or closed-in watercourses. These do not usually represent true depression contours, which are rare. Any isolated depression contours are automatically detected and removed. All nested depression contours are retained and rendered as true depression contours. This behaviour can be disabled with the `--no-depression` option.

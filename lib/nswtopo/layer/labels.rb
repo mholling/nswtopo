@@ -1,3 +1,5 @@
+require_relative 'labels/fence'
+
 module NSWTopo
   module Labels
     include Vector, Log
@@ -52,17 +54,17 @@ module NSWTopo
     end
 
     def add_fence(feature, buffer)
-      new_fences = case feature
+      index = fences.length
+      case feature
       when GeoJSON::Point
         [[feature.coordinates.yield_self(&to_mm)] * 2]
       when GeoJSON::LineString
         feature.coordinates.map(&to_mm).segments
       when GeoJSON::Polygon
         feature.coordinates.flat_map { |ring| ring.map(&to_mm).segments }
-      end.map do |segment|
-        [segment, [buffer, fences.length]]
+      end.each do |segment|
+        fences << Fence.new(segment, buffer: buffer, index: index)
       end
-      fences.concat new_fences
     end
 
     def label_features
@@ -270,12 +272,7 @@ module NSWTopo
     end
 
     def drawing_features
-      fence_index = RTree.load(fences) do |segment, (buffer, _)|
-        segment.transpose.map(&:minmax).map do |min, max|
-          [min - buffer, max + buffer]
-        end
-      end
-
+      fence_index = RTree.load(fences, &:bounds)
       labelling_hull = @map.bounding_box(mm: -INSET).coordinates.first.map(&to_mm)
       debug, debug_features = Config["debug"], []
       @params = DEBUG_PARAMS.deep_merge @params if debug
@@ -338,10 +335,9 @@ module NSWTopo
               end
               next unless labelling_hull.surrounds? hull
 
-              fence_count = fence_index.search(hull.transpose.map(&:minmax)).inject(Set[]) do |indices, (fence, (buffer, index))|
-                next indices if indices.include? index
-                next indices unless [hull, fence].overlap?(buffer)
-                indices << index
+              fence_count = fence_index.search(hull.transpose.map(&:minmax)).inject(Set[]) do |indices, fence|
+                next indices if indices === fence.index
+                fence.conflicts_with?(hull) ? indices << fence.index : indices
               end.size
               priority = [fence_count, position_index, feature_index]
               Label.new collection.layer_name, label_index, feature_index, priority, hull, attributes, text_elements
@@ -418,8 +414,8 @@ module NSWTopo
               bounds = segment.transpose.map(&:minmax).map do |min, max|
                 [min - 0.5 * font_size, max + 0.5 * font_size]
               end
-              hash[segment] = fence_index.search(bounds).any? do |fence, (buffer, _)|
-                [segment, fence].overlap?(buffer + 0.5 * font_size)
+              hash[segment] = fence_index.search(bounds).any? do |fence|
+                fence.conflicts_with? segment, 0.5 * font_size
               end
             end
 

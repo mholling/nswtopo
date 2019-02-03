@@ -85,6 +85,7 @@ module NSWTopo
         self
       end
 
+      # TODO: what about empty collections?
       def bounds
         map(&:bounds).transpose.map(&:flatten).map(&:minmax)
       end

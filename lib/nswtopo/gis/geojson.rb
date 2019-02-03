@@ -26,10 +26,6 @@ module NSWTopo
           }
         end
 
-        def bounds
-          coordinates.flatten.each_slice(2).entries.transpose.map(&:minmax)
-        end
-
         extend Forwardable
         delegate %i[[] []= fetch values_at key? store clear] => :@properties
       end
@@ -71,6 +67,10 @@ module NSWTopo
           @coordinates.map do |coordinates|
             single_class.new coordinates, @properties
           end
+        end
+
+        def bounds
+          explode.map(&:bounds).transpose.map(&:flatten).map(&:minmax)
         end
 
         delegate :empty? => :@coordinates

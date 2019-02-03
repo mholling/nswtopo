@@ -10,6 +10,12 @@ module NSWTopo
       section: 100
       stroke: "#805100"
       stroke-width: 0.08
+      Depression:
+        symbolise:
+          interval: 2.0
+          line:
+            stroke-width: 0.12
+            y2: -0.3
       labels:
         font-size: 1.4
         letter-spacing: 0.05
@@ -67,11 +73,21 @@ module NSWTopo
         contours = GeoJSON::Collection.load json, @map.projection
 
         if @depression
-          contours.select do |feature|
+          candidates = contours.select do |feature|
             feature.coordinates.last == feature.coordinates.first &&
             feature.coordinates.anticlockwise?
           end.each do |feature|
             feature["depression"] = 1
+          end
+          index = RTree.load(candidates, &:bounds)
+
+          contours.reject! do |feature|
+            next unless feature["depression"] == 1
+            index.search(feature.bounds).none? do |other|
+              next if other == feature
+              feature.coordinates.first.within?(other.coordinates) ||
+              other.coordinates.first.within?(feature.coordinates)
+            end
           end
         end
 

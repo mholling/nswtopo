@@ -1,6 +1,6 @@
 module NSWTopo
   module Relief
-    include Raster, ArcGISServer, DEM, Log
+    include Raster, ArcGISServer, Shapefile, DEM, Log
     CREATE = %w[altitude azimuth factor sources highlights smooth median bilateral contours]
     DEFAULTS = YAML.load <<~YAML
       altitude: 45
@@ -29,19 +29,19 @@ module NSWTopo
         txe, tye, spat = bounds[0], bounds[1].reverse, bounds.transpose.flatten
         outsize = (bounds.transpose.difference / @resolution).map(&:ceil)
 
-        collection = @contours.map do |url_or_path, attribute|
+        collection = @contours.map do |url_or_path, attribute, layer|
           raise "no elevation attribute specified for #{url_or_path}" unless attribute
           case url_or_path
           when ArcGISServer
             arcgis_layer url_or_path, margin: margin do |index, total|
               log_update "%s: retrieved %i of %i contours" % [@name, index, total]
-            end.each do |feature|
-              feature.properties.replace "elevation" => feature.fetch(attribute, attribute).to_f
             end
-          # when Shapefile
-            # TODO: add contour importing from shapefile path + layer name
+          when Shapefile
+            shapefile_layer source_path, margin: margin, layer: layer
           else
             raise "unrecognised elevation data source: #{url_or_path}"
+          end.each do |feature|
+            feature.properties.replace "elevation" => feature.fetch(attribute, attribute).to_f
           end.reproject_to(@map.projection)
         end.inject(&:merge)
 

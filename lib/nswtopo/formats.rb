@@ -18,15 +18,15 @@ module NSWTopo
       extensions.any? ext
     end
 
-    def render_png(temp_dir, png_path, ppi: PPI, dither: false, **options)
+    def render_png(png_path, ppi: PPI, dither: false, **options)
       FileUtils.cp yield(ppi: ppi, dither: dither), png_path
     end
 
-    def render_tif(temp_dir, tif_path, ppi: PPI, dither: false, **options)
+    def render_tif(tif_path, ppi: PPI, dither: false, **options)
       OS.gdal_translate "-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "ZLEVEL=9", "-a_srs", @projection, yield(ppi: ppi, dither: dither), tif_path
     end
 
-    def render_jpg(temp_dir, jpg_path, ppi: PPI, **options)
+    def render_jpg(jpg_path, ppi: PPI, **options)
       OS.gdal_translate "-of", "JPEG", "-co", "QUALITY=90", "-mo", "EXIF_XResolution=#{ppi}", "-mo", "EXIF_YResolution=#{ppi}", "-mo", "EXIF_ResolutionUnit=2", yield(ppi: ppi), jpg_path
     end
 
@@ -35,7 +35,7 @@ module NSWTopo
         dimensions, ppi, resolution = raster_dimensions_at **options
         svg_path = temp_dir / "map.svg"
         src_path = temp_dir / "browser.svg"
-        render_svg temp_dir, svg_path, external: external
+        render_svg svg_path, external: external
 
         NSWTopo.with_browser do |browser_name, browser_path|
           megapixels = dimensions.inject(&:*) / 1024.0 / 1024.0

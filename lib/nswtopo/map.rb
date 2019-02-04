@@ -269,7 +269,7 @@ module NSWTopo
           ext = path.extname.delete_prefix ?.
           name = path.basename(path.extname)
           out_path = temp_dir / "output.#{index}.#{ext}"
-          send "render_#{ext}", temp_dir, out_path, name: name, external: external, **options do |dither: false, **opts|
+          send "render_#{ext}", out_path, name: name, external: external, **options do |dither: false, **opts|
             (dither ? dithers : rasters)[opts]
           end
           next out_path, path

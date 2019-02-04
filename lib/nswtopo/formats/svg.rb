@@ -1,6 +1,6 @@
 module NSWTopo
   module Formats
-    def render_svg(temp_dir, svg_path, external: nil, **options)
+    def render_svg(svg_path, external: nil, **options)
       case
       when external
         raise "not a file: %s" % external unless external.file?

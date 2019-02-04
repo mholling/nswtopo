@@ -17,7 +17,7 @@ Noise in raw elevation data usually produces unsuitably rough contour lines. Som
 Use an `--after`, `--before` or `--replace` option to insert the contours in an appropriate layer position. You will most likely want to replace an existing contour layer:
 
 ```
-nswtopo contours --replace nsw.topographic.contours map.tgz DATA_25994.zip
+$ nswtopo contours --replace nsw.topographic.contours map.tgz DATA_25994.zip
 ```
 # Style
 

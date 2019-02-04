@@ -33,7 +33,7 @@ To create any output format except SVG, you'll need to have *Google Chrome* inst
 Add the path for your Chrome executable to your *nswtopo* configuration as follows:
 
 ```
-nswtopo config --chrome "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+$ nswtopo config --chrome "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 ```
 
 # Miscellaneous

@@ -21,7 +21,7 @@ By default, layers are added to the map in an appropriate position for the type:
 To instead select a specific position for the new layer, use the `--after` or `--before` option with an existing layer name. For example, to insert a KML overlay between existing topographic layers:
 
 ```
-nswtopo add --after nsw.topographic.urban-areas map.tgz new-suburb.kml
+$ nswtopo add --after nsw.topographic.urban-areas map.tgz new-suburb.kml
 ```
 
 # Other Layers
@@ -29,17 +29,17 @@ nswtopo add --after nsw.topographic.urban-areas map.tgz new-suburb.kml
 While *grid*, *declination*, overlay and *controls* layers each have a dedicated command, it's possible to add them directly if you don't need to change default settings:
 
 ```
-nswtopo add map.tgz out-of-bounds.kml grid controls.gpx
+$ nswtopo add map.tgz out-of-bounds.kml grid controls.gpx
 ```
 
 Georeferenced rasters (e.g. GeoTIFFs) can also be added directly:
 
 ```
-nswtopo add map.tgz underlay.tif
+$ nswtopo add map.tgz underlay.tif
 ```
 
 For advanced users, custom layer definitions can added by referencing the `.yml` definition file:
 
 ```
-nswtopo add --after nsw.topographic.water-areas map.tgz bathymetry.yml
+$ nswtopo add --after nsw.topographic.water-areas map.tgz bathymetry.yml
 ```

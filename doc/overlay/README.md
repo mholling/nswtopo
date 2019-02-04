@@ -21,13 +21,13 @@ These options will override styles set in a KML file. There are also useful for 
 The `--stroke-dasharray` option is useful for display a track as a dashed line. For example, to add unmarked firetrails to a map in dashed orange:
 
 ```
-nswtopo overlay --stroke "#FF7518" --stroke-width 0.3 --stroke-dasharray 1.8,0.6 -s map.tgz tracks.gpx
+$ nswtopo overlay --stroke "#FF7518" --stroke-width 0.3 --stroke-dasharray 1.8,0.6 -s map.tgz tracks.gpx
 ```
 
 Layer- and fill-opacity is best used to mark translucent polygons on the map. For example, to render out-of-bounds areas on a map as translucent black:
 
 ```
-nswtopo overlay --stroke none --fill black --opacity 0.3 map.tgz oob.kml
+$ nswtopo overlay --stroke none --fill black --opacity 0.3 map.tgz oob.kml
 ```
 
 # Simplifying Tracks

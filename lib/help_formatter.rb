@@ -24,13 +24,13 @@ class HelpFormatter < RDoc::Markup::ToAnsi
   end
 
    def accept_verbatim(verbatim)
-    indent = ?\s * (@indent + 4)
+    indent = ?\s * (@indent + (@ansi ? 2 : 4))
     verbatim.parts.map(&:each_line).flat_map(&:entries).each.with_index do |line, index|
       case
       when !@ansi
         @res << indent << line
-      when index.zero?
-        @res << indent << "\e[90m$\e[;3m " << line << "\e[m"
+      when line.start_with?("$ ")
+        @res << indent << "\e[90m$\e[;3m " << line[2..-1] << "\e[m"
       else
         @res << indent << "\e[90m> " << line << "\e[m"
       end

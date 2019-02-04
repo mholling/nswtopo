@@ -9,7 +9,7 @@ By convention, use a `.tgz` file extension for your map file, since it's in a *g
 The easiest way to set bounds is with the `--bounds` option. Using *Google Earth*, mark out a polygon covering the area you want to map, save as a KML file, then run the command:
 
 ```
-nswtopo init --bounds bounds.kml map.tgz
+$ nswtopo init --bounds bounds.kml map.tgz
 scale:    1:25000
 size:     246mm × 314mm
 extent:   6.2km × 7.9km
@@ -30,7 +30,7 @@ Maps are north-oriented unless you request otherwise. The `--rotation` option wi
 You can make a map with set dimensions by using the `--dimensions` option, providing a width and height for the map in millimetres. For example, to create an A4 map at a given location:
 
 ```
-nswtopo init --dimensions 210,297 --coords 148.387,-36.148 map.tgz
+$ nswtopo init --dimensions 210,297 --coords 148.387,-36.148 map.tgz
 ```
 
 # Map Scale

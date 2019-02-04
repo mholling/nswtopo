@@ -297,6 +297,9 @@ begin
       parser.on "-s", "--simplify",                                  "apply track simplification"
       parser.on "-t", "--tolerance        <metres>",  PositiveFloat, "track simplifiction tolerance in metres",
                                                                      "(scale-appropriate value used by default)"
+      parser.on "-a", "--after            <layer>",                  "insert after specified layer"
+      parser.on "-b", "--before           <layer>",                  "insert before specified layer"
+      parser.on "-c", "--replace          <layer>",                  "replace specified layer"
 
     when "remove"
       parser.banner = <<~EOF

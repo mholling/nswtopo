@@ -233,13 +233,13 @@ module NSWTopo
 
     def info(empty: nil)
       StringIO.new.tap do |io|
-        io.puts "%-9s 1:%i" %            ["scale:",    @scale]
-        io.puts "%-9s %imm × %imm" %     ["size:",     *@extents.times(1000.0 / @scale)]
-        io.puts "%-9s %.1fkm × %.1fkm" % ["extent:",   *@extents.times(0.001)]
-        io.puts "%-9s %.1fkm²" %         ["area:",     @extents.inject(&:*) * 0.000001]
-        io.puts "%-9s %.1f°" %           ["rotation:", @rotation]
+        io.puts "%-11s 1:%i" %            ["scale:",      @scale]
+        io.puts "%-11s %imm × %imm" %     ["dimensions:", *@extents.times(1000.0 / @scale)]
+        io.puts "%-11s %.1fkm × %.1fkm" % ["extent:",     *@extents.times(0.001)]
+        io.puts "%-11s %.1fkm²" %         ["area:",       @extents.inject(&:*) * 0.000001]
+        io.puts "%-11s %.1f°" %           ["rotation:",   @rotation]
         layers.reject(&empty ? :nil? : :empty?).inject("layers:") do |heading, layer|
-          io.puts "%-9s %s" % [heading, layer]
+          io.puts "%-11s %s" % [heading, layer]
           nil
         end
       end.string

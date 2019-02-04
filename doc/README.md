@@ -31,11 +31,11 @@ A typical map creation sequence might look as follows. We initialise the map fro
 
 ```
 $ nswtopo init -b bounds.kml map.tgz
-scale:    1:25000
-size:     433mm × 509mm
-extent:   10.8km × 12.7km
-area:     138.0km²
-rotation: 0.0°
+scale:      1:25000
+dimensions: 433mm × 509mm
+extent:     10.8km × 12.7km
+area:       138.0km²
+rotation:   0.0°
 ```
 
 ```

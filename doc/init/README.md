@@ -10,11 +10,11 @@ The easiest way to set bounds is with the `--bounds` option. Using *Google Earth
 
 ```
 $ nswtopo init --bounds bounds.kml map.tgz
-scale:    1:25000
-size:     246mm × 314mm
-extent:   6.2km × 7.9km
-area:     48.4km²
-rotation: 0.0°
+scale:      1:25000
+dimensions: 246mm × 314mm
+extent:     6.2km × 7.9km
+area:       48.4km²
+rotation:   0.0°
 ```
 
 This creates a map file covering the marked area. Information about the map is displayed.
@@ -23,7 +23,7 @@ For your bounds, you can also use waypoints (e.g. map corners, rogaine controls)
 
 An alternative way to set the map bounds is to specify two or more GPS coordinates using the `--coords` option. Provide a list of longitude & latitude coordinate pairs (e.g. for opposing corners of the map).
 
-# Map Orientation and Size
+# Map Orientation and Dimensions
 
 Maps are north-oriented unless you request otherwise. The `--rotation` option will produce a map with a given rotation angle. Use the keyword `magnetic` to align the map with magnetic north. The keyword `auto` yields a map oriented so as to fit your bounds in the smallest possible area.
 

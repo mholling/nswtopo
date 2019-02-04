@@ -171,7 +171,7 @@ begin
     end
     parser.on "-h", "--help",                      "show general help" do
       puts $stdout.tty? ? ansi[parser] : plain[parser]
-      doc = Pathname(__dir__).parent / "doc" / "nswtopo" / "README.md"
+      doc = Pathname(__dir__).parent / "doc" / "README.md"
       puts nil, RDoc::Markdown.parse(doc.read).accept(HelpFormatter.new $stdout.tty?)
       exit
     end
@@ -349,7 +349,7 @@ begin
 
     parser.on "-h", "--help",  "show help for this command" do
       puts $stdout.tty? ? ansi[parser] : plain[parser]
-      doc = Pathname(__dir__).parent / "doc" / "command" / command / "README.md"
+      doc = Pathname(__dir__).parent / "doc" / command / "README.md"
       puts nil, RDoc::Markdown.parse(doc.read).accept(HelpFormatter.new $stdout.tty?)
     rescue Errno::ENOENT
     ensure

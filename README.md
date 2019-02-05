@@ -25,7 +25,7 @@ Some optional software helps with additional functionality:
 Finally, a geographic viewing or mapping program such as [Google Earth Pro](https://www.google.com/earth) is useful for easily defining the area you wish to map, and for viewing your resulting map and other GPS data.
 
 * _Windows_:
-  * A complete Ruby installation for Windows can be [downloaded here](https://rubyinstaller.org) (be sure to select 'Add Ruby executables to your PATH' when installing).
+  * A complete Ruby installation for Windows can be [downloaded here](https://rubyinstaller.org) (be sure to select `Add Ruby executables to your PATH` when installing).
   * Download a pre-built [ImageMagick binary](https://imagemagick.org/script/download.php#windows) for Windows. Be sure to select `Add application directory to your system path` when installing.
   * Install the GDAL utilities using the [OSGeo4W](https://trac.osgeo.org/osgeo4w) installer. Unless you want all the software offered by the installer, use the `advanced install` option to install only GDAL. When presented with packages to install, select `All -> Uninstall` to deselect everything, then open `Commandline Utilites`, choose `Install` for the gdal package (some other required packages will also be selected), and install. Subsequently you should use the *OSGeo4w Shell* to run *nswtopo*.
   * (Other ways of obtaining Windows GDAL utilities are listed [here](https://trac.osgeo.org/gdal/wiki/DownloadingGdalBinaries#Windows), but check the minimum version requirement.)
@@ -41,16 +41,16 @@ Finally, a geographic viewing or mapping program such as [Google Earth Pro](http
 You can check that the tools are correctly installed by using the following commands:
 
 ```sh
-$ ruby -v
+$ ruby --version
 $ identify -version
 $ gdalinfo --version
 ```
 
-You should receive version information for each tool if it is installed correctly and in your path.
+Each program should return version information if it's installed correctly.
 
 # Installation
 
-The *nswtopo* software can be downloaded from [github](https://github.com/mholling/nswtopo). It is best to download from the latest [tagged version](https://github.com/mholling/nswtopo/tags) as this should be stable. Download by clicking the 'ZIP' button. For continued use, I suggest installing the [git](https://git-scm.com) command and typing `git clone https://github.com/mholling/nswtopo.git` to clone the entire repository. You can then update to the latest code at any time with `git pull` from within the directory.
+You can download a zipped copy of the latest *nswtopo* release from [github](https://github.com/mholling/nswtopo/releases). For continued use, I suggest using [git](https://git-scm.com) to clone the repository: `git clone https://github.com/mholling/nswtopo.git`. This way, you can update to the latest code at any time with `git pull` from within the directory.
 
 Add the `bin` directory to your shell's PATH variable so that the `nswtopo` command is available on the command line. For Windows, try [these instructions](https://www.howtogeek.com/118594/how-to-edit-your-system-path-for-easy-command-line-access). In Linux or macOS, this is easily done by adding a line to the `.profile` file in your home directory:
 

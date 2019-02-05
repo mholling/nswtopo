@@ -58,12 +58,25 @@ module NSWTopo
           type_values = types.map do |type|
             type.values_at "id", "name"
           end.to_h
+          subtype_coded_values = types.map do |type|
+            type.values_at "id", "domains"
+          end.map do |id, domains|
+            coded_values = domains.map do |name, domain|
+              [name, domain["codedValues"]]
+            end.select(&:last).map do |name, pairs|
+              values = pairs.map do |pair|
+                pair.values_at "code", "name"
+              end.to_h
+              [name, values]
+            end.to_h
+            [id, coded_values]
+          end.to_h
         end
 
         coded_values = fields.map do |field|
           [field["name"], field.dig("domain", "codedValues")]
-        end.select(&:last).map do |name, coded_values|
-          values = coded_values.map do |pair|
+        end.select(&:last).map do |name, pairs|
+          values = pairs.map do |pair|
             pair.values_at "code", "name"
           end.to_h
           [name, values]
@@ -93,14 +106,20 @@ module NSWTopo
           next unless geometry = feature["geometry"]
           attributes = feature.fetch "attributes", {}
 
-          attributes.entries.each do |name, value|
-            attributes[name] = case
-            when type_id_field == name then type_values[value]
-            when coded_values.key?(name) then coded_values[name][value]
-            when %w[null Null NULL <null> <Null> <NULL>].include?(value) then nil
+          values = attributes.map do |name, value|
+            case
+            when type_id_field == name
+              type_values[value]
+            when decode = subtype_coded_values&.dig(attributes[type_id_field], name)
+              decode[value]
+            when decode = coded_values.dig(name)
+              decode[value]
+            when %w[null Null NULL <null> <Null> <NULL>].include?(value)
+              nil
             else value
             end
           end
+          attributes = attributes.keys.zip(values).to_h
 
           case geometry_type
           when "esriGeometryPoint"

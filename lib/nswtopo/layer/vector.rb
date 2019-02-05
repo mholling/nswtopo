@@ -158,10 +158,15 @@ module NSWTopo
             end
 
           when "pattern"
-            width, height = Hash[args].values_at "width", "height"
+            dimensions, args = args.partition do |key, value|
+              %w[width height].include? key
+            end
+            width, height = Hash[dimensions].values_at "width", "height"
             pattern_id = [*ids, "pattern"].join(?.)
             pattern = defs.add_element "pattern", "id" => pattern_id, "patternUnits" => "userSpaceOnUse", "width" => width, "height" => height
-            args.each &pattern.method(:add_element)
+            args.each do |element, attributes|
+              pattern.add_element element, attributes
+            end
             container.add_attribute "fill", "url(#%s)" % pattern_id
 
           when "symbolise"

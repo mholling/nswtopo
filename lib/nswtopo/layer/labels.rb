@@ -159,6 +159,7 @@ module NSWTopo
               when "smooth"
                 next feature unless feature.respond_to? transform
                 margin = Float(arg) * @map.scale / 1000.0
+                max_turn = attributes["max-turn"] * Math::PI / 180
                 feature.send transform, margin, cutoff_angle: max_turn, **opts
 
               when "minimum-area"
@@ -285,7 +286,7 @@ module NSWTopo
             feature
           when GeoJSON::Polygon
             feature.coordinates.map do |ring|
-              GeoJSON::LineString.new ring
+              GeoJSON::LineString.new ring, feature.properties
             end
           end
         end.map.with_index do |feature, feature_index|

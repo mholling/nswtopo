@@ -192,7 +192,9 @@ module NSWTopo
             next unless content
             symbol_id = [*ids, command].join(?.)
             symbol = defs.add_element "g", "id" => symbol_id
-            args.each &symbol.method(:add_element)
+            args.each do |element, attributes|
+              symbol.add_element element, attributes
+            end
             features.grep(GeoJSON::LineString).map do |feature|
               feature.coordinates.map(&to_mm)
             end.each do |line|

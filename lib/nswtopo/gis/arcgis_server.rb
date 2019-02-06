@@ -23,7 +23,7 @@ module NSWTopo
 
     def self.start(url, &block)
       uri, service_path, id = check_uri url
-      raise Error, "invalid ArcGIS server URL: #{url}" unless uri
+      raise "invalid ArcGIS server URL: %s" % url unless uri
       Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: 600) do |http|
         connection = Connection.new http, service_path
         service = connection.get_json
@@ -44,7 +44,7 @@ module NSWTopo
         id = service["layers"].find do |info|
           layer.to_s == info["name"]
         end&.dig("id") if layer
-        raise Error, "couldn't find ArcGIS layer id: #{url}" unless id
+        id ? nil : layer ? raise("no such ArcGIS layer: %s" % layer) : raise("not an ArcGIS layer url: %s" % url)
 
         layer = connection.get_json id.to_s
         query_path = "#{id}/query"

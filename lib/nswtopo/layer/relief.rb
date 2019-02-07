@@ -29,15 +29,17 @@ module NSWTopo
         txe, tye, spat = bounds[0], bounds[1].reverse, bounds.transpose.flatten
         outsize = (bounds.transpose.difference / @resolution).map(&:ceil)
 
-        collection = @contours.map do |url_or_path, attribute, layer|
-          raise "no elevation attribute specified for #{url_or_path}" unless attribute
+        collection = @contours.map do |url_or_path, attribute_or_hash|
+          raise "no elevation attribute specified for #{url_or_path}" unless attribute_or_hash
+          options   = Hash == attribute_or_hash ? attribute_or_hash.transform_keys(&:to_sym).slice(:where, :layer) : {}
+          attribute = Hash == attribute_or_hash ? attribute_or_hash["attribute"] : attribute_or_hash
           case url_or_path
           when ArcGISServer
-            arcgis_layer url_or_path, margin: margin do |index, total|
+            arcgis_layer url_or_path, margin: margin, **options do |index, total|
               log_update "%s: retrieved %i of %i contours" % [@name, index, total]
             end
           when Shapefile
-            shapefile_layer source_path, margin: margin, layer: layer
+            shapefile_layer source_path, margin: margin, **options
           else
             raise "unrecognised elevation data source: #{url_or_path}"
           end.each do |feature|

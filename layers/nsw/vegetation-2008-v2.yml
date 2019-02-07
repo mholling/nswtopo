@@ -1,4 +1,4 @@
-class: VegetationLayer
+class: Vegetation
 mapping:
   6: 60
   7: 60

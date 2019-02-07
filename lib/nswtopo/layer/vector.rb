@@ -258,9 +258,6 @@ module NSWTopo
           end
         end
       end
-
-      until group.elements.each(".//g[not(*)]", &:remove).empty? do
-      end
     end
   end
 end

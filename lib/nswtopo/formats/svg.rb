@@ -55,6 +55,9 @@ module NSWTopo
           layer.render group, defs, &labels.method(:add_fence)
         end
 
+        until xml.elements.each("svg//g[not(*)]", &:remove).empty? do
+        end
+
         string, formatter = String.new, REXML::Formatters::Pretty.new
         formatter.compact = true
         formatter.write xml, string

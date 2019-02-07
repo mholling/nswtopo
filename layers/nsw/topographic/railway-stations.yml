@@ -1,0 +1,11 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/RFS/MapServer
+  layer: TransportFacilityPoint
+  where: classsubtype = 6
+symbol:
+  circle:
+    stroke: black
+    fill: red
+    stroke-width: 0.15
+    r: 0.4

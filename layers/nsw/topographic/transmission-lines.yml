@@ -1,0 +1,15 @@
+type: Feature
+features:
+  source: https://maptest.environment.nsw.gov.au/arcgis/rest/services/basemap/OEHBasemapnpws_WSG84/MapServer
+  layer: Topo.SDE.ElectricityTransmissionLine
+fence: true
+dupe: dots
+stroke: black
+stroke-width: 0.15
+stroke-dasharray: 8 2
+stroke-dashoffset: 5
+dots:
+  stroke-width: 0.4
+  stroke-dasharray: 0.1 9.9
+  stroke-dashoffset: -4
+  stroke-linecap: round

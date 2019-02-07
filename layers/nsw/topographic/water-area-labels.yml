@@ -1,0 +1,15 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/POI/MapServer/0
+  where: poitype IN ('Natural Waterbody','Manmade Waterbody','Bay / Inlet / Basin','Reach / River Bend')
+  category: poitype
+  draw: false
+  label: poiname
+labels:
+  position: [over, right, above, below, left]
+  margin: 0.7
+  font-family: Calibri, Arial, Helvetica, sans-serif
+  font-style: normal
+  font-size: 1.8
+  letter-spacing: 0.1
+  fill: "#1667DF"

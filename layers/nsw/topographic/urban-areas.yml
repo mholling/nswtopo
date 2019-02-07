@@ -1,0 +1,6 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Urban
+stroke: none
+fill: "#FFFABD"

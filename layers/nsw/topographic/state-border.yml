@@ -1,0 +1,13 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: State_Border
+opacity: 0.5
+dupe: hatching
+stroke: black
+stroke-width: 0.3
+stroke-dasharray: 3 1 10 1
+hatching:
+  stroke-width: 1.5
+  stroke-dasharray: 0.3 14.7
+  stroke-dashoffset: 13.8

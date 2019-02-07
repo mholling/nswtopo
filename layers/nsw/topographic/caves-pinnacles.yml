@@ -1,0 +1,27 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Caves_Pinnacles
+  where: classsubtype IN (1,2)
+  category: classsubtype
+  label: generalname
+Pinnacle:
+  symbol:
+    path:
+      stroke: "#B04BA9"
+      stroke-width: 0.1
+      fill: none
+      d: M -0.5 0 L 0.5 0 M -0.25 0.433 L 0.25 -0.433 M -0.25 -0.433 L 0.25 0.433
+Cave:
+  symbol:
+    path:
+      stroke: black
+      stroke-width: 0.2
+      fill: none
+      d: M 0.4 0.4 A 0.4 0.8 0 0 0 -0.4 0.4
+labels:
+  position: [right, above, below, left, aboveright, belowright, aboveleft, belowleft]
+  margin: 1.0
+  font-family: Arial, Helvetica, sans-serif
+  font-style: italic
+  font-size: 1.4

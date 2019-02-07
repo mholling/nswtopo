@@ -1,0 +1,11 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: CliffTop_Levee
+  where: classsubtype = 4
+dupe: hatching
+stroke: black
+stroke-width: 0.1
+hatching:
+  stroke-width: 1.0
+  stroke-dasharray: 0.1 0.5

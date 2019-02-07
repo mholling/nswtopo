@@ -1,0 +1,16 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Hydrography/MapServer
+  layer: Hydroline
+  where:
+  - classsubtype = 1
+  - hydrotype NOT IN (5, 6)
+  category: relevance
+bezier: 0.5
+stroke: "#4985DF"
+[1, 2, 3, 4]:
+  stroke-width: 0.3
+[5, 6, 7]:
+  stroke-width: 0.2
+[8, 9, 10]:
+  stroke-width: 0.12

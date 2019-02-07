@@ -1,0 +1,16 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: PlacePoint_LS
+  where:
+  - generalname NOT LIKE '% HUT'
+  - generalname NOT LIKE '% SWAMP'
+  category: placetype
+  label: generalname
+labels:
+  position: [over, right, above, below, left]
+  margin: 0.7
+  font-family: Arial, Helvetica, sans-serif
+  font-style: italic
+  font-size: 1.6
+  letter-spacing: 0.2

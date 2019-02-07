@@ -1,0 +1,13 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/RFS/MapServer
+  layer: TankPoint
+stroke: black
+stroke-width: 0.1
+fill: white
+symbol:
+  circle:
+    stroke: black
+    fill: white
+    stroke-width: 0.1
+    r: 0.3

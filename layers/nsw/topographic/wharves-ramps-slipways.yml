@@ -1,0 +1,6 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Wharfs_Ramps
+stroke: black
+stroke-width: 0.25

@@ -1,0 +1,47 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPI_RasterLabels_1/MapServer
+  layer: Raster_Road_Labels
+  where:
+  - operationalstatus NOT IN (3,8)
+  - functionhierarchy NOT IN (7,10,11)
+  - functionhierarchy NOT IN (6) OR relevance < 6
+  - roadnamestring NOT LIKE '%BICENTENNIAL NATIONAL%'
+  - roadnamestring NOT LIKE '%AUSTRALIAN ALPS%'
+  - roadnameoid IS NOT NULL
+  category:
+    functionhierarchy:
+      1: Motorway
+      2: PrimaryRoad
+      3: ArterialRoad
+      4: SubArterialRoad
+      5: DistributorRoad
+      6: LocalRoad
+      7: UrbanServiceLane
+      8: Track-Vehicular
+      9: Path
+      10: DedicatedBusWay
+      11: AccessWay
+  label: roadnamestring
+# # TODO: find a fallback server
+# - fallback: true
+#   source: ???
+labels:
+  font-size: 1.4
+  letter-spacing: 0.1
+  collate: true
+  buffer: [4.0, -2.0]
+  max-turn: 60
+  separation: 100
+  optional: true
+  [Path, Track-Vehicular]:
+    font-size: 1.4
+    buffer: [3.4, -1.7]
+  LocalRoad:
+    font-size: 1.5
+    buffer: [3.6, -1.8]
+  [SubArterialRoad, DistributorRoad]:
+    font-size: 1.6
+  [Motorway, PrimaryRoad, ArterialRoad]:
+    font-size: 1.8
+    word-spacing: 1.0

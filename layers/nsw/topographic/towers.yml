@@ -1,0 +1,18 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Beacon_Tower
+  where: classsubtype = 7
+symbol:
+  circle:
+    fill: white
+    stroke: black
+    stroke-width: 0.1
+    r: 0.5
+  rect:
+    fill: black
+    stroke: none
+    width: 0.4
+    height: 0.4
+    x: -0.2
+    y: -0.2

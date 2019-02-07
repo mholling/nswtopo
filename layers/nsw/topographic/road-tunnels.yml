@@ -1,0 +1,32 @@
+type: Feature
+features:
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/RFS/MapServer
+  layer: RoadSegment
+  where:
+  - operationalstatus NOT IN (3,8)
+  - roadontype = 3
+  - classsubtype <> 8
+  category: functionhierarchy
+- fallback: true
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/Guras/MapServer
+stroke: "#404040"
+stroke-dasharray: 0.5 0.5
+stroke-width: 0.2
+[Motorway, PrimaryRoad, ArterialRoad]:
+  stroke-width: 0.3
+[SubArterialRoad, DistributorRoad]:
+  stroke-width: 0.25
+LocalRoad:
+  stroke-width: 0.2
+[UrbanServiceLane, AccessWay]:
+  stroke-width: 0.1
+Path:
+  stroke-width: 0.2
+[Motorway, PrimaryRoad, ArterialRoad, SubArterialRoad, DistributorRoad, LocalRoad]:
+  endpoint:
+    path:
+      stroke-dasharray: none
+      stroke: black
+      stroke-width: 0.2
+      fill: none
+      d: M -0.4 0.6 L 0.1 0.4 L 0.1 -0.4 L -0.4 -0.6

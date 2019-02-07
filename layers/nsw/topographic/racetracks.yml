@@ -1,0 +1,11 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Damwall_Racetrack
+  where: classsubtype = 6
+  category: generalculturaltype
+stroke-width: 0.3
+stroke-dasharray: 1.2 0.4
+stroke: "#444444"
+[TrottingTrack, DogTrack]:
+  stroke: "#008800"

@@ -1,0 +1,8 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Building_Large
+  where: classsubtype = 9
+fill: "#B3E6E4"
+stroke: "#4985DF"
+stroke-width: 0.12

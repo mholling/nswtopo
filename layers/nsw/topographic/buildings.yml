@@ -1,0 +1,33 @@
+type: Feature
+features:
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Dwellings_Buildings
+  category: small
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Building_Large
+  where: classsubtype = 5
+  category: large
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/POI/MapServer/0
+  where:
+  - poigroup = 1
+  - poitype = 'Homestead' OR (poitype = 'Community Facility' AND poiname LIKE '% HUT')
+  category: poitype
+  draw: false
+  label: poiname
+fill: "#808080"
+stroke: none
+symbol:
+  rect:
+    width: 0.5
+    height: 0.5
+    x: -0.25
+    y: -0.25
+    stroke: none
+    fill: black
+labels:
+  position: [right, above, below, left, aboveright, belowright, aboveleft, belowleft]
+  margin: 1.0
+  format: "'%s'"
+  font-family: Cambria, Times, serif
+  font-style: italic
+  font-size: 1.5

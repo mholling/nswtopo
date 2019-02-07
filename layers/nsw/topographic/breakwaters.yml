@@ -1,0 +1,55 @@
+type: Feature
+features:
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Damwall_Racetrack
+  where: classsubtype = 5
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/POI/MapServer/0
+  where: poitype = 'Breakwater'
+  draw: false
+  label: poiname
+stroke: none
+symbolise:
+- interval: 0.8
+- path:
+    stroke: black
+    stroke-width: 50
+    fill: white
+    transform: scale(0.001) translate(-500,-500)
+    d: M 833 153 L 599 18 L 464 145 L 347 65 L 109 268 L 180 432 L 37 604 L 166 694 L 302 675 L 290 893 L 509 932 L 635 775 L 722 947 L 896 785 M 406 238 L 260 140 M 401 390 L 160 386 M 412 572 L 98 647 M 521 722 L 297 771 M 844 699 L 672 848 M 657 167 L 497 114
+- path:
+    stroke: black
+    stroke-width: 50
+    fill: white
+    transform: scale(0.001) translate(-500,-500)
+    d: M 908 228 L 730 212 L 782 38 L 353 17 L 392 228 L 137 159 L 170 356 L 58 493 L 201 655 L 29 742 L 126 971 L 336 820 L 439 919 L 548 625 L 691 918 L 877 856 M 361 525 L 118 560 M 285 757 L 63 820 M 591 184 L 368 100 M 361 298 L 167 335 M 815 649 L 593 714
+- path:
+    stroke: black
+    stroke-width: 50
+    fill: white
+    transform: scale(0.001) translate(-500,-500)
+    d: M 834 282 L 593 12 L 378 520 L 133 223 L 19 491 L 158 625 L 25 846 L 282 961 L 356 757 L 601 966 L 607 675 L 866 895 L 955 766 M 702 263 L 499 234 M 564 493 L 437 385 M 245 511 L 54 414 M 239 842 L 71 770 M 823 692 L 700 749 M 547 708 L 391 787
+- path:
+    stroke: black
+    stroke-width: 50
+    fill: white
+    transform: scale(0.001) translate(-500,-500)
+    d: M 802 322 L 638 43 L 519 217 L 248 30 L 182 199 L 305 414 L 206 483 L 353 600 L 201 777 L 284 964 L 388 841 L 418 943 L 563 758 L 655 951 L 823 874 M 354 242 L 191 183 M 486 466 L 246 458 M 495 704 L 288 677 M 357 786 L 229 839 M 673 314 L 540 189 M 766 739 L 597 829
+- path:
+    stroke: black
+    stroke-width: 50
+    fill: white
+    transform: scale(0.001) translate(-500,-500)
+    d: M 871 302 L 645 430 L 493 204 L 172 342 L 292 585 L 135 749 L 264 831 L 529 693 L 553 805 L 778 772 L 843 614 M 444 402 L 310 285 M 429 508 L 236 471 M 392 665 L 179 776 M 724 649 L 590 799
+- path:
+    stroke: black
+    stroke-width: 50
+    fill: white
+    transform: scale(0.001) translate(-500,-500)
+    d: M 859 172 L 710 -47 L 555 -33 L 454 223 L 329 26 L 156 268 L 364 517 L 171 616 L 165 815 L 323 800 L 373 1054 L 538 830 L 696 1021 L 862 958 L 810 719 M 694 170 L 521 57 M 361 271 L 209 197 M 472 409 L 309 448 M 466 648 L 167 736 M 760 863 L 588 889 M 437 825 L 349 927
+labels:
+  position: [over, right, above, below, left]
+  margin: 0.7
+  font-family: Calibri, Arial, Helvetica, sans-serif
+  font-style: normal
+  font-size: 1.8
+  letter-spacing: 0.1

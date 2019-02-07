@@ -1,0 +1,35 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Railway_onbridge_LS
+  where:
+  - operationalstatus NOT IN (3,8)
+  - classsubtype IN (1,2,4)
+  - railontype = 2
+  category: classsubtype
+stroke: black
+stroke-width: 0.2
+HeavyRail:
+  dupe: [blockout, hatching]
+  stroke-width: 0.25
+LightRail:
+  stroke-width: 0.2
+  dupe: [blockout, hatching]
+HeavyRailSiding:
+  stroke-width: 0.1
+HeavyRail hatching:
+  stroke-width: 0.8
+  stroke-dasharray: 0.25 2.5
+  stroke-dashoffset: 1.25
+LightRail hatching:
+  stroke-width: 0.6
+  stroke-dasharray: 0.2 4
+  stroke-dashoffset: 2
+HeavyRail blockout:
+  stroke-width: 0.9
+  stroke-dasharray: none
+  stroke: white
+LightRail blockout:
+  stroke-width: 0.7
+  stroke-dasharray: none
+  stroke: white

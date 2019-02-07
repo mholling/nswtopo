@@ -1,0 +1,15 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Runway
+  category: runwaydefinition
+RunwayPerimeter:
+  stroke: black
+  stroke-width: 0.15
+  stroke-dasharray: 0.8 0.2
+RunwayCentreline:
+  stroke: "#989898"
+  stroke-width: 0.7
+LandingGround:
+  stroke: "#A8A8A8"
+  stroke-width: 0.7

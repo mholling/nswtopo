@@ -1,0 +1,32 @@
+type: Feature
+features:
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Stream_Names
+  category: relevance
+  draw: false
+  label: hydronamestring
+- fallback: true
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Hydrography/MapServer
+  layer: Named Watercourse LS
+labels:
+  font-family: Arial, Helvetica, sans-serif
+  font-style: italic
+  font-size: 1.4
+  letter-spacing: 0.1
+  word-spacing: 2.0
+  fill: "#1667DF"
+  buffer: [7.5, -5]
+  max-turn: 90
+  separation: 80
+  [1, 2]:
+    font-size: 1.9
+    buffer: [10.5, -7]
+    separation: 120
+  [3, 4]:
+    font-size: 1.7
+    buffer: [9, -6]
+    separation: 120
+  [5, 6]:
+    font-size: 1.5
+  [7, 8, 9, 10]:
+    font-size: 1.4

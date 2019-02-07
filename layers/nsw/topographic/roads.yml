@@ -1,0 +1,52 @@
+type: Feature
+features:
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/RFS/MapServer
+  layer: RoadSegment
+  where:
+  - operationalstatus NOT IN (3,8)
+  - roadontype <> 3
+  - classsubtype <> 8
+  category:
+  - surface
+  - classsubtype
+  - functionhierarchy
+  - roadontype
+- fallback: true
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/Guras/MapServer
+fence: true
+order:
+- UnknownSurface Pathway
+- UnsealedSurface Pathway
+- SealedSurface Pathway
+- UnknownSurface
+- SF_Unsealed4WDSurface
+- Unsealed4WDSurface
+- UnsealedSurface
+- SealedSurface
+stroke-width: 0.4
+[SealedSurface, UnknownSurface]:
+  stroke: red
+[UnsealedSurface, Unsealed4WDSurface, SF_Unsealed4WDSurface]:
+  stroke: "#FF7518"
+Path:
+  stroke: black
+  stroke-width: 0.25
+  stroke-dasharray: 1.4 0.7
+VehicularTrack:
+  stroke-width: 0.4
+  stroke-dasharray: 3 1
+[Unsealed4WDSurface, SF_Unsealed4WDSurface]:
+  stroke-width: 0.3
+  stroke-dasharray: 1.8 0.6
+[Motorway, PrimaryRoad, ArterialRoad]:
+  stroke-width: 0.6
+[SubArterialRoad, DistributorRoad]:
+  stroke-width: 0.5
+LocalRoad:
+  stroke-width: 0.4
+[UrbanServiceLane, AccessWay]:
+  stroke-width: 0.25
+AccessWay:
+  stroke-dasharray: 1.8 0.6
+ThroughWater:
+  stroke: "#4985DF"

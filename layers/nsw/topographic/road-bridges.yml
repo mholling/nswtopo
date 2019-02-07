@@ -1,0 +1,42 @@
+type: Feature
+features:
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/RFS/MapServer
+  layer: RoadSegment
+  where:
+  - operationalstatus NOT IN (3,8)
+  - roadontype = 2
+  - classsubtype <> 8
+  category:
+  - functionhierarchy
+  - classsubtype
+  - surface
+- fallback: true
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/Guras/MapServer
+dupe: outline
+stroke-width: 0.4
+stroke-linecap: square
+[SealedSurface, UnknownSurface]:
+  stroke: red
+[UnsealedSurface, Unsealed4WDSurface, SF_Unsealed4WDSurface]:
+  stroke: "#FF7518"
+Path:
+  stroke: white
+  stroke-width: 0.25
+  stroke-linecap: butt
+[Motorway, PrimaryRoad, ArterialRoad]:
+  stroke-width: 0.6
+[SubArterialRoad, DistributorRoad]:
+  stroke-width: 0.5
+LocalRoad:
+  stroke-width: 0.4
+outline:
+  stroke: black
+  stroke-width: 0.65
+  stroke-linecap: butt
+Path outline:
+  stroke: black
+  stroke-width: 0.55
+[Motorway outline, PrimaryRoad outline, ArterialRoad outline]:
+  stroke-width: 0.85
+[SubArterialRoad outline, DistributorRoad outline]:
+  stroke-width: 0.75

@@ -1,0 +1,23 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Railway_intunnel_LS
+  where:
+  - operationalstatus NOT IN (3,8)
+  - classsubtype IN (1,2)
+  - railontype = 3
+  category: classsubtype
+stroke: "#404040"
+stroke-dasharray: 0.6 0.6
+stroke-width: 0.2
+HeavyRail:
+  stroke-width: 0.25
+LightRail:
+  stroke-width: 0.2
+endpoint:
+  path:
+    stroke-dasharray: none
+    stroke-width: 0.2
+    stroke: black
+    fill: none
+    d: M -0.6 0.6 A 0.6 0.6 0 0 0 -0.6 -0.6

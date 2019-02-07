@@ -1,0 +1,41 @@
+type: Feature
+features:
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/Boundaries/MapServer
+  layer: NPWS Reserve
+  where: classsubtype IN (1,2,4,5,7)
+  category: classsubtype
+  label: [reservename, reservetype]
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/Boundaries/MapServer
+  layer: State Forest
+  category: StateForest
+  label: stateforestname
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Building_Large
+  where: classsubtype = 3
+  category: classsubtype
+  label: generalname
+opacity: 0.5
+fill: none
+stroke: "#008800"
+stroke-width: 0.4
+RestrictedArea:
+  stroke: "#777777"
+  stroke-width: 0.8
+  stroke-dasharray: 4 2
+labels:
+  minimum-area: 800
+  buffer: -6.5
+  separation: 150
+  font-family: Arial, Helvetica, sans-serif
+  font-weight: bold
+  font-style: normal
+  font-size: 2.5
+  letter-spacing: 0.3
+  fill: "#006400"
+  fill-opacity: 0.5
+  StateForest:
+    format: "%s State Forest"
+  RestrictedArea:
+    fill: "#777777"
+
+

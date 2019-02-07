@@ -1,0 +1,22 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Ridge_Beach
+  where: generalname <> 'GREAT DIVIDING RANGE'
+  category: fuzzylinefeaturetype
+  label: generalname
+labels:
+  separation: 100
+  font-family: Calibri, Arial, Helvetica, sans-serif
+  font-style: normal
+  font-size: 1.8
+  word-spacing: 3
+  letter-spacing: 0.5
+  [RangeLike, DuneLike, GeneralLocality]:
+    smooth: 4
+  [Beach, ValleyLike]:
+    buffer: [5, -2.5]
+  [RangeLike, ValleyLike, DuneLike]:
+    font-size: 2.2
+    fill: "#404040"
+    opacity: 0.7

@@ -1,0 +1,21 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Beacon_Tower
+  where: classsubtype = 12
+  label: generalname
+symbol:
+  path:
+    d: M 0 1.155 L -0.3333 0.5774 L -1.0 0.5774 L -0.6667 0 L -1.0 -0.5774 L -0.3333 -0.5774 L 0 -1.155 L 0.3333 -0.5774 L 1.0 -0.5774 L 0.6667 0 L 1.0 0.5774 L 0.3333 0.5774 Z
+    fill: black
+    stroke: none
+  circle:
+    r: 0.5
+    fill: white
+    stroke: none
+labels:
+  font-family: Cambria, Times, serif
+  font-size: 1.5
+  font-style: italic
+  position: [right, aboveright, belowright, left, aboveleft, belowleft, above, below]
+  margin: 1.6

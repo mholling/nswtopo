@@ -1,0 +1,13 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/POI/MapServer/0
+  where: poitype IN ('Gap / Pass / Saddle','Headland','Mountain/Hill/Peak','Peninsula / Spit','Plateau / Tableland','Island','Rapids','Sandbar / Shoal','Lock')
+  category: poitype
+  label: poiname
+labels:
+  position: [over, right, left, above, below]
+  margin: 0.7
+  font-family: Calibri, Arial, Helvetica, sans-serif
+  font-style: normal
+  font-size: 1.8
+  letter-spacing: 0.1

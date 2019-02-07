@@ -1,0 +1,14 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Damwall_Racetrack
+  where: classsubtype = 2
+dupe: hatching
+stroke: "#444444"
+stroke-width: 0.1
+stroke-dasharray: 1.4 0.6
+stroke-dashoffset: 1.0
+hatching:
+  stroke-width: 0.4
+  stroke-dasharray: 0.1 1.9
+  stroke-dashoffset: 1.3

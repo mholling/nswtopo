@@ -1,0 +1,32 @@
+type: Feature
+features:
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Cliffs_Reefs_Mangroves
+  where: classsubtype = 11
+  category: classsubtype
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: CliffTop_Levee
+  where: classsubtype = 1
+  category: classsubtype
+- source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/POI/MapServer/0
+  where: poitype = 'Cliff'
+  category: poitype
+  draw: false
+  label: poiname
+CliffArea:
+  fill: "#C8C8C8"
+  stroke: none
+CliffTop:
+  stroke: "#B04BA9"
+  stroke-width: 0.2
+  symbolise:
+    interval: 1.0
+    line:
+      y2: 0.5
+labels:
+  position: [over, right, above, below, left]
+  margin: 0.7
+  font-family: Calibri, Arial, Helvetica, sans-serif
+  font-style: normal
+  font-size: 1.8
+  letter-spacing: 0.1

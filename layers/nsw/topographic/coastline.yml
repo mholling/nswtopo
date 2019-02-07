@@ -1,0 +1,8 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: Oceans_Bays
+  where: classsubtype = 3
+fill: none
+stroke: black
+stroke-width: 0.2

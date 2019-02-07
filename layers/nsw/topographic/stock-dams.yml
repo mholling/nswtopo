@@ -1,0 +1,21 @@
+type: Feature
+features:
+  source: https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/LPIMap/MapServer
+  layer: StockDams
+  category: hydrotype
+ManMadeWaterBody:
+  symbol:
+    rect:
+      stroke: none
+      fill: "#4985DF"
+      width: 0.6
+      height: 0.6
+      x: -0.3
+      y: -0.3
+NaturalWaterBody:
+  symbol:
+    circle:
+      stroke: "#4985DF"
+      stroke-width: 0.1
+      fill: "#B3E6E4"
+      r: 0.3

@@ -40,7 +40,7 @@ These layers (`nsw/reference-topo-current` and `nsw/reference-topo-s1`) contain 
 
 ## SPOT5 Vegetation
 
-Use the *SPOT5 woody extent and foliage projective cover (FPC) (5-10m) 2011* dataset for a high-resolution woody vegetation underlay. This data is at 5-metre resolution, and classifies woody areas by their foliage projective cover (the fraction of green foliage). The dataset is [described here](http://www.auscover.org.au/xwiki/bin/view/Product+pages/nsw+5m+woody+extent+and+fpc), with a direct FTP download currently at [`ftp://qld.auscover.org.au/spot/woody_fpc_extent/nsw-2011/s5hgps_nsw_y20082012_bcvl0.tif`](ftp://qld.auscover.org.au/spot/woody_fpc_extent/nsw-2011/s5hgps_nsw_y20082012_bcvl0.tif). It's a arge 8.6Gb download, but worth it if you wish to make many maps. The same FTP server also has individual tiles available at more reasonable sizes (choose the `bcvm` file), but you'll need to determine which tile contains your map area.
+Use the *SPOT5 woody extent and foliage projective cover (FPC) (5-10m) 2011* dataset for a high-resolution woody vegetation underlay. This data is at 5-metre resolution, and classifies woody areas by their foliage projective cover (the fraction of green foliage). The dataset is [described here](http://www.auscover.org.au/xwiki/bin/view/Product+pages/nsw+5m+woody+extent+and+fpc), with a direct FTP download currently at <ftp://qld.auscover.org.au/spot/woody_fpc_extent/nsw-2011/s5hgps_nsw_y20082012_bcvl0.tif>. It's a large 8.6Gb download, but worth it if you wish to make many maps. The same FTP server also has individual tiles available at more reasonable sizes (choose the `bcvm` file), but you'll need to determine which tile contains your map area.
 
 Configure *nswtopo* with the path to the data as follows:
 

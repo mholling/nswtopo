@@ -96,6 +96,7 @@ General usage for the *nswtopo* program is [described here](docs). Detailed docu
 * [*info*](docs/info.md): display map layers and metadata
 * [*add*](docs/add.md): add named map layer
 * [*contours*](docs/contours.md): add contours from elevation data
+* [*spot-heights*](docs/spot-heights.md): add spot heights from elevation data
 * [*relief*](docs/relief.md): add shaded relief
 * [*grid*](docs/grid.md): add UTM grid
 * [*declination*](docs/declination.md): add magnetic declination lines

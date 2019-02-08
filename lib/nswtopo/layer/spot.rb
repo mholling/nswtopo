@@ -1,7 +1,7 @@
 module NSWTopo
   module Spot
     include Vector, DEM, Log
-    CREATE = %w[spacing smooth]
+    CREATE = %w[spacing smooth prefer]
     DEFAULTS = YAML.load <<~YAML
       spacing: 15
       smooth: 0.2
@@ -42,12 +42,20 @@ module NSWTopo
     end
 
     module Candidate
-      def conflicts
-        @conflicts ||= Set[]
+      module PreferKnolls
+        def ordinal; [conflicts.size, -self["elevation"]] end
       end
 
-      def ordinal
-        [self.conflicts.size, self["elevation"]]
+      module PreferSaddles
+        def ordinal; [conflicts.size, self["elevation"]] end
+      end
+
+      module PreferNeither
+        def ordinal; conflicts.size end
+      end
+
+      def conflicts
+        @conflicts ||= Set[]
       end
 
       def <=>(other)
@@ -56,6 +64,14 @@ module NSWTopo
 
       def bounds(buffer = 0)
         coordinates.map { |coordinate| [coordinate - buffer, coordinate + buffer] }
+      end
+    end
+
+    def ordering
+      @ordering ||= case @prefer
+      when "knolls" then Candidate::PreferKnolls
+      when "saddles" then Candidate::PreferSaddles
+      else Candidate::PreferNeither
       end
     end
 
@@ -103,8 +119,10 @@ module NSWTopo
           elevations = raster_values dem_path, pixels
 
           locations.zip(elevations).map do |coordinates, elevation|
-            GeoJSON::Point.new(coordinates, "knoll" => knoll, "elevation" => elevation).extend(Candidate)
-          end.compact
+            GeoJSON::Point.new coordinates, "knoll" => knoll, "elevation" => elevation
+          end.each do |feature|
+            feature.extend Candidate, ordering
+          end
         end
       end
     end

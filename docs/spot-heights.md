@@ -12,6 +12,8 @@ Use the `--spacing` option to determine the maximum density of spot heights on t
 
 Choose the amount of smoothing to apply to the DEM with the `--smooth` option. The value represents a smoothing radius in millimetres. For consistency, the same smoothing radius shoult be used for both contours and spot heights.
 
+Use the `--prefer` option to favour `knolls` or `saddles` when selecting spot locations. No preference is taken by default.
+
 # Layer Position
 
 Use an `--after`, `--before` or `--replace` option to insert the spot heights in an appropriate layer position. You will most likely want to replace an existing spot heights layer:

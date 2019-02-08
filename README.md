@@ -156,7 +156,7 @@ The following workflow is suggested to create a rogaine map.
 1.  Create a new map with your desired dimensions:
 
     ```sh
-    nswtopo init --bounds controls.kml --dimensions 210,297 --rotation magnetic rogaine.tgz
+    $ nswtopo init --bounds controls.kml --dimensions 210,297 --rotation magnetic rogaine.tgz
     ```
 
     If you have trouble fitting your controls to the map sheet, you can use the automatic rotation feature (`--rotation auto`) to minimise the map area.

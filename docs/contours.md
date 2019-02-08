@@ -34,4 +34,4 @@ Contours generated from a DEM can include depression artefacts, most noticeabley
 
 Contours for tiny knolls are also removed. Use the `--knolls` option to specify the minimum size for knolls to be retained.
 
-You can use the *spot-heights* command to generate spot heights for knolls and depressions, using the same DEM.
+When creating contours from a DEM, it's recommended to also generate a new spot heights layer. Use the *spot-heights* command to generate them using the same DEM.

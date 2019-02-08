@@ -62,8 +62,16 @@ module NSWTopo
 
     attr_reader :header, :values, :nodata
 
+    def nrows
+      @nrows ||= @header["NROWS"].to_i
+    end
+
+    def ncols
+      @ncols ||= @header["NCOLS"].to_i
+    end
+
     def rows
-      @values.each_slice @header["NCOLS"].to_i
+      @values.each_slice ncols
     end
   end
 end

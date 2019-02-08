@@ -125,17 +125,17 @@ begin
   end
 
   ansi = lambda do |string|
-    string.to_s.gsub(/\*([a-zA-Z0-9]+)\*/) do
+    string.to_s.gsub(/\*([-a-zA-Z0-9]+)\*/) do
       "\e[1m%s\e[0m" % $1
-    end.gsub(/_([a-zA-Z0-9]+)_/) do
+    end.gsub(/_([-a-zA-Z0-9]+)_/) do
       "\e[4m%s\e[0m" % $1
-    end.gsub(/~([a-zA-Z0-9]+)~/) do
+    end.gsub(/~([-a-zA-Z0-9]+)~/) do
       "\e[3m%s\e[0m" % $1
     end
   end
 
   plain = lambda do |string|
-    string.to_s.gsub(/\*([a-zA-Z0-9]+)\*/) { $1 }.gsub(/_([a-zA-Z0-9]+)_/) { $1 }.gsub(/~([a-zA-Z0-9]+)~/) { $1 }
+    string.to_s.gsub(/\*([-a-zA-Z0-9]+)\*/) { $1 }.gsub(/_([-a-zA-Z0-9]+)_/) { $1 }.gsub(/~([-a-zA-Z0-9]+)~/) { $1 }
   end
 
   base_parser = OptionParser.new do |parser|
@@ -144,19 +144,20 @@ begin
       *nswtopo* - download and create vector topographic maps
         usage: _nswtopo_ [~options~] [<command> ...]
         commands:
-          init         initialise map bounds and scale
-          info         display map layers and metadata
-          add          add named map layer
-          contours     add contours from elevation data
-          relief       add shaded relief
-          grid         add UTM grid
-          declination  add magnetic declination lines
-          controls     add rogaine control markers
-          overlay      add KML or GPX overlay
-          remove       remove map layer
-          render       render map in various formats
-          layers       list available map layers
-          config       configure nswtopo
+          init          initialise map bounds and scale
+          info          display map layers and metadata
+          add           add named map layer
+          contours      add contours from elevation data
+          spot-heights  add spot heights from elevation data
+          relief        add shaded relief
+          grid          add UTM grid
+          declination   add magnetic declination lines
+          controls      add rogaine control markers
+          overlay       add KML or GPX overlay
+          remove        remove map layer
+          render        render map in various formats
+          layers        list available map layers
+          config        configure nswtopo
         command help: _nswtopo_ <command> --help
     EOF
     parser.on "-v", "--version",                   "show version information" do
@@ -236,6 +237,17 @@ begin
       parser.on       "--stroke         <colour>",   Colour,        "stroke colour (name or RGB triplet)"
       parser.on       "--stroke-width   <width>",    PositiveFloat, "stroke width in mm"
       parser.on       "--fill           <colour>",   Colour,        "label colour (defaults to stroke colour)"
+
+    when "spot-heights"
+      parser.banner = <<~EOF
+        *nswtopo* *spot-heights* - add spot heights from elevation data
+          usage: _nswtopo_ _spot-heights_ [~options~] <map.tgz> <dem.zip>
+      EOF
+      parser.on       "--spacing  <spacing>", PositiveFloat, "minimum spot spacing in mm (default %i)" % NSWTopo::Spot::DEFAULTS["spacing"]
+      parser.on "-s", "--smooth   <radius>",  NonNegFloat,   "DEM smoothing radius in mm (default %s)" % NSWTopo::Spot::DEFAULTS["smooth"]
+      parser.on "-a", "--after    <layer>",                  "insert after specified layer"
+      parser.on "-b", "--before   <layer>",                  "insert before specified layer"
+      parser.on "-c", "--replace  <layer>",                  "replace specified layer"
 
     when "relief"
       parser.banner = <<~EOF
@@ -389,6 +401,8 @@ begin
       raise "#{tgz_path} is not a file" unless tgz_path.file?
       tgz_path
     end
+
+    command = command.tr ?-, ?_
     arity, error = NSWTopo.method(command).arity, nil
 
     NSWTopo::Archive.open(tgz_path, *in_path) do |archive|

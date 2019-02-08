@@ -5,6 +5,7 @@ require_relative 'layer/import'
 require_relative 'layer/arcgis_raster'
 require_relative 'layer/feature'
 require_relative 'layer/contour'
+require_relative 'layer/spot'
 require_relative 'layer/overlay'
 require_relative 'layer/relief'
 require_relative 'layer/grid'
@@ -14,7 +15,7 @@ require_relative 'layer/labels'
 
 module NSWTopo
   class Layer
-    TYPES = Set[Vegetation, Import, ArcGISRaster, Feature, Contour, Overlay, Relief, Grid, Declination, Control, Labels]
+    TYPES = Set[Vegetation, Import, ArcGISRaster, Feature, Contour, Spot, Overlay, Relief, Grid, Declination, Control, Labels]
 
     def initialize(name, map, params)
       @type = begin
@@ -43,6 +44,7 @@ module NSWTopo
       when ArcGISRaster == @type then 1
       when Feature      == @type then 2
       when Contour      == @type then 2
+      when Spot         == @type then 2
       when Overlay      == @type then 3
       when Relief       == @type then 4
       when Grid         == @type then 5

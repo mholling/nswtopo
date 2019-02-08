@@ -33,3 +33,5 @@ A small contour interval can produce very dense contours in steep terrain. An ad
 Contours generated from a DEM can include depression artefacts, most noticeabley at pinch-points in flat or closed-in watercourses. These do not usually represent true depression contours, which are rare. Any isolated depression contours are automatically detected and removed. All nested depression contours are retained and rendered as true depression contours. This behaviour can be disabled with the `--no-depression` option.
 
 Contours for tiny knolls are also removed. Use the `--knolls` option to specify the minimum size for knolls to be retained.
+
+You can use the *spot-heights* command to generate spot heights for knolls and depressions, using the same DEM.

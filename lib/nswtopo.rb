@@ -68,6 +68,8 @@ module NSWTopo
           yielder << [path.basename(path.extname).to_s, "type" => "Import", "path" => path]
         when "contours"
           yielder << [layer, "type" => "Contour"]
+        when "spot-heights"
+          yielder << [layer, "type" => "Spot"]
         when "relief"
           yielder << [layer, "type" => "Relief"]
         when "grid"
@@ -120,6 +122,10 @@ module NSWTopo
 
   def contours(archive, dem_path, options)
     add archive, "contours", options.merge(path: Pathname(dem_path))
+  end
+
+  def spot_heights(archive, dem_path, options)
+    add archive, "spot-heights", options.merge(path: Pathname(dem_path))
   end
 
   def relief(archive, dem_path, options)

@@ -108,7 +108,7 @@ module NSWTopo
           text = case
           when REXML::Element === label then label
           when attributes["format"] then attributes["format"] % label
-          else Array(label).map(&:strip).join(?\s)
+          else Array(label).map(&:to_s).map(&:strip).join(?\s)
           end
           text.upcase! if String === text && attributes["upcase"]
 

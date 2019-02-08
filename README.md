@@ -161,12 +161,15 @@ The following workflow is suggested to create a rogaine map.
 
     If you have trouble fitting your controls to the map sheet, you can use the automatic rotation feature (`--rotation auto`) to minimise the map area.
 
+1.  Download elevation data for your area from [ELVIS](http://elevation.fsdf.org.au). NSW two- or five-metre DEM tiles are best. (ACT and NSW one-metre tiles will also work well, but are slower.)
+
 1.  Add all your layers:
 
     ```sh
     $ nswtopo add rogaine.tgz nsw/vegetation-spot5
     $ nswtopo add rogaine.tgz nsw/topographic
     $ nswtopo contours -i 5 -x 50 --replace nsw.topographic.contours rogaine.tgz DATA_25994.zip
+    $ nswtopo spot-heights --replace nsw.topographic.spot-heights rogaine.tgz DATA_25994.zip
     $ nswtopo overlay rogaine.tgz boundaries.kml
     $ nswtopo relief rogaine.tgz DATA_25994.zip
     $ nswtopo declination rogaine.tgz

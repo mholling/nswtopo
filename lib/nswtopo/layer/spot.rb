@@ -84,7 +84,7 @@ module NSWTopo
           end.flatten.values_at(0,3,6,7,8,5,2,1,0)
 
           aspect.nrows.times do |i|
-            log_update "%s: finding inflection points: %.1f%%" % [@name, 100.0 * i / aspect.nrows]
+            log_update "%s: finding flat areas: %.1f%%" % [@name, 100.0 * i / aspect.nrows]
             aspect.ncols.times do |j|
               indices.map!(&:next)
               next if i < 1 || j < 1 || i > aspect.nrows - 2 || j > aspect.ncols - 2

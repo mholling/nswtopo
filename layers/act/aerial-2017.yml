@@ -1,0 +1,3 @@
+type: ArcGISRaster
+url: http://data.actmapi.act.gov.au/arcgis/rest/services/actmapi/imagery2017mga/ImageServer
+resolution: 2.0

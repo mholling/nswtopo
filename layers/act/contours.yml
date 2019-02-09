@@ -1,0 +1,38 @@
+type: Feature
+features:
+- source: http://data.actmapi.act.gov.au/arcgis/rest/services/actmapi/contours_2015/MapServer
+  layer: 2015 Contours - 5m
+  where: FLOOR(Contour / 25) * 25 < Contour
+  category: Standard
+- source: http://data.actmapi.act.gov.au/arcgis/rest/services/actmapi/contours_2015/MapServer
+  layer: 2015 Contours - 5m
+  where: FLOOR(Contour / 25) * 25 = Contour
+  label: Contour
+  category: Standard
+- source: http://data.actmapi.act.gov.au/arcgis/rest/services/actmapi/contours_2015/MapServer
+  layer: 2015 Contours - 10m
+  where: FLOOR(Contour / 50) * 50 < Contour
+  category: Standard
+- source: http://data.actmapi.act.gov.au/arcgis/rest/services/actmapi/contours_2015/MapServer
+  layer: 2015 Contours - 10m
+  where: FLOOR(Contour / 50) * 50 = Contour
+  label: Contour
+  category: Index
+stroke: "#805100"
+stroke-width: 0.08
+Index:
+  stroke-width: 0.16
+labels:
+  font-family: Gill Sans, Arial, Helvetica, sans-serif
+  font-style: italic
+  font-size: 1.4
+  letter-spacing: 0.05
+  fill: "#805100"
+  orientation: uphill
+  collate: true
+  min-radius: 1
+  max-turn: 50
+  sample: 1
+  separation: 40
+  separation-all: 15
+  separation-along: 80

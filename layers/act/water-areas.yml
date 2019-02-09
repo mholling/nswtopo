@@ -1,0 +1,15 @@
+type: Feature
+features:
+  source: http://data.actmapi.act.gov.au/arcgis/rest/services/data_extract/Water/MapServer
+  layer: ACT Water Features polygon
+  category: WATER_BODY_TYPE
+  where: WATER_BODY_TYPE NOT IN ('SWAMP')
+mask: true
+dupe: outline
+fence: true
+fill: "#B3E6E4"
+stroke: none
+outline:
+  stroke: "#4985DF"
+  stroke-width: 0.24
+  fill: none

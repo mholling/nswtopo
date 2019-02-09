@@ -23,22 +23,18 @@ module NSWTopo
     end
 
     def raster_values(path, pixels)
-      pixels.each_slice(500).flat_map do |pixels|
-        OS.gdallocationinfo "-valonly", path do |stdin|
-          pixels.each { |pixel| stdin.puts "%i %i" % pixel }
-        end.each_line.map do |line|
-          Float(line) rescue nil
-        end
+      OS.gdallocationinfo "-valonly", path do |stdin|
+        pixels.each { |pixel| stdin.puts "%i %i" % pixel }
+      end.each_line.map do |line|
+        Float(line) rescue nil
       end
     end
 
     def raster_locations(path, pixels)
-      pixels.each_slice(500).flat_map do |pixels|
-        OS.gdaltransform "-output_xy", path do |stdin|
-          pixels.each { |pixel| stdin.puts "%i %i" % pixel }
-        end.each_line.map do |line|
-          line.chomp.split(?\s).map(&:to_f)
-        end
+      OS.gdaltransform "-output_xy", path do |stdin|
+        pixels.each { |pixel| stdin.puts "%i %i" % pixel }
+      end.each_line.map do |line|
+        line.chomp.split(?\s).map(&:to_f)
       end
     end
 

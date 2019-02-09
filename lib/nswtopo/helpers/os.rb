@@ -54,16 +54,17 @@ module NSWTopo
       OS.const_get(package).each do |command|
         define_method command do |*args, &block|
           Open3.popen3 command, *args.map(&:to_s) do |stdin, stdout, stderr, thread|
-            begin
+            thr_in = Thread.new do
               block.call(stdin) if block
             rescue Errno::EPIPE
             ensure
               stdin.close
             end
-            out = Thread.new { stdout.read }
-            err = Thread.new { stderr.read }
-            raise Error, "#{command}: #{err.value.empty? ? out.value : err.value}" unless thread.value.success?
-            out.value
+            thr_out = Thread.new { stdout.read }
+            thr_err = Thread.new { stderr.read }
+            [thr_in, thr_out, thr_err].each(&:join)
+            raise Error, "#{command}: #{thr_err.value.empty? ? thr_out.value : thr_err.value}" unless thread.value.success?
+            thr_out.value
           end
         rescue Errno::ENOENT
           raise Missing, "#{package} not installed"

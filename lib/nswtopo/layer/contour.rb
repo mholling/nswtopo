@@ -47,7 +47,7 @@ module NSWTopo
 
     def get_features
       @simplify ||= [0.5 * @interval / Math::tan(Math::PI * 85 / 180), 0.001 * 0.05 * @map.scale].min
-      @index ||= 5 * @interval
+      @index ||= 10 * @interval
       @params = {
         "Index" => { "stroke-width" => 2 * @params["stroke-width"] },
         "labels" => { "fill" => @fill || @params["stroke"] }

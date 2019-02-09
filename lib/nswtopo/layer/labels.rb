@@ -569,7 +569,8 @@ module NSWTopo
           end
           labelled = counts[candidate.label_index].zero? ? 0 : 1
           optional = candidate.optional? ? 1 : 0
-          ordinal = [optional, conflict_count, labelled, candidate.priority]
+          grid = candidate.layer_name == "grid" ? 0 : 1
+          ordinal = [grid, optional, conflict_count, labelled, candidate.priority]
           next if candidate.ordinal == ordinal
           remaining.delete candidate
           candidate.ordinal = ordinal

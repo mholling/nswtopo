@@ -8,10 +8,10 @@ features:
   where: classsubtype = 3
   category: classsubtype
 order:
-  - MainlyDry
-  - NonPerennial
-  - Perennial
-  - SeaLike
+- MainlyDry
+- NonPerennial
+- Perennial
+- SeaLike
 Perennial:
   dupe: outline
 [Perennial, SeaLike]:

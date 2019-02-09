@@ -30,6 +30,8 @@ Layer- and fill-opacity is best used to mark translucent polygons on the map. Fo
 $ nswtopo overlay --stroke none --fill black --opacity 0.3 map.tgz oob.kml
 ```
 
-# Simplifying Tracks
+# Track Simplification
 
-When importing GPS tracks, you may notice that GPS noise produces unwanted irregularities or roughness. Use the `--simplify` option to smooth out these artefacts and produce a better-looking track. The default tolerance ensures that the track position will not be adjusted by more than 0.5 millimetres on the map. (Use the `--tolerance` option to override this value.)
+When importing GPS tracks, noise can produce unwanted irregularities or roughness. Some simplification is applied to GPX tracks to smooth out these artefacts and produce a better-looking track. Use the `--simplify` option to apply simplification to KML linestrings as well.
+
+The default tolerance ensures that the track position will not be adjusted by more than 0.5 millimetres on the map. Tolerance can be adjusted by providing a `--tolerance` value.

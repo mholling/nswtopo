@@ -1,4 +1,4 @@
-class: Relief
+type: Relief
 contours:
   http://services.thelist.tas.gov.au/arcgis/rest/services/Public/OpenDataWFS/MapServer/16: ELEVATION
   http://services.thelist.tas.gov.au/arcgis/rest/services/Public/OpenDataWFS/MapServer/15: 0

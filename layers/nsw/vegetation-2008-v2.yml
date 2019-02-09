@@ -1,4 +1,4 @@
-class: Vegetation
+type: Vegetation
 mapping:
   6: 60
   7: 60

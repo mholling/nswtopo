@@ -16,6 +16,7 @@ module NSWTopo
         margin: 0.7
         position: [right, above, below, left, aboveright, belowright, aboveleft, belowleft]
     YAML
+    NOISE_MM = 2.0 # TODO: noise sensitivity should depend on contour interval
 
     def margin
       { mm: 3 * @smooth }
@@ -133,7 +134,7 @@ module NSWTopo
 
       log_update "%s: choosing candidates" % @name
       candidates.to_set.each do |candidate|
-        buffer = 2.0 * @map.scale / 1000.0
+        buffer = NOISE_MM * @map.scale / 1000.0
         index.search(candidate.bounds(buffer)).each do |other|
           next unless candidate["knoll"] ^ other["knoll"]
           next if [candidate, other].map(&:coordinates).distance > buffer

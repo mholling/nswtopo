@@ -23,10 +23,16 @@ begin
 rescue LoadError
 end
 
-require_relative 'helpers'
-require_relative 'avl_tree'
-require_relative 'geometry'
 require_relative 'nswtopo/helpers'
+require_relative 'nswtopo/avl_tree'
+require_relative 'nswtopo/geometry'
+require_relative 'nswtopo/log'
+require_relative 'nswtopo/safely'
+require_relative 'nswtopo/os'
+require_relative 'nswtopo/dither'
+require_relative 'nswtopo/zip'
+require_relative 'nswtopo/font'
+require_relative 'nswtopo/archive'
 require_relative 'nswtopo/gis'
 require_relative 'nswtopo/formats'
 require_relative 'nswtopo/map'

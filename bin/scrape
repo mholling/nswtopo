@@ -5,7 +5,7 @@ require 'json'
 require 'ostruct'
 require 'optparse'
 require 'rexml/document'
-require_relative '../lib/geometry'
+require_relative '../lib/nswtopo/geometry'
 
 FORMATS, TILE = %w[shp tab gpkg sqlite], 1000
 ServerError = Class.new StandardError

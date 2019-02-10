@@ -23,7 +23,7 @@ begin
   require 'yaml'
   require 'rdoc'
   require_relative '../lib/nswtopo.rb'
-  require_relative '../lib/help_formatter.rb'
+  require_relative '../lib/nswtopo/help_formatter.rb'
 
   extend NSWTopo::Log
   Thread::report_on_exception = false

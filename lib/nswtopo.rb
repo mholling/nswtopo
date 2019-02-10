@@ -191,11 +191,12 @@ module NSWTopo
     end
   end
 
-  def config(layer = nil, chrome: nil, firefox: nil, path: nil, resolution: nil, list: false, delete: false)
+  def config(layer = nil, chrome: nil, firefox: nil, path: nil, resolution: nil, labelling: nil, list: false, delete: false)
     raise "chrome path is not an executable" if chrome && !chrome.executable?
     raise "firefox path is not an executable" if firefox && !firefox.executable?
     Config.store("chrome", chrome.to_s) if chrome
     Config.store("firefox", firefox.to_s) if firefox
+    Config.store("labelling", labelling) unless labelling.nil?
 
     layer = Layer.sanitise layer
     case
@@ -208,7 +209,7 @@ module NSWTopo
     end
     Config.delete(*layer, delete) if delete
 
-    if path || resolution || chrome || firefox || delete
+    if path || resolution || chrome || firefox || delete || !labelling.nil?
       Config.save
       log_success "configuration updated"
     end

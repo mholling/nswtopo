@@ -47,7 +47,7 @@ module NSWTopo
 
         labels = Layer.new "labels", self, Config.fetch("labels", {}).merge("type" => "Labels")
         layers.reject(&:empty?).each do |layer|
-          next if Config["no-labels"]
+          next if Config["labelling"] == false
           labels.add layer if Vector === layer
         end.push(labels).each do |layer|
           log_update "compositing: #{layer.name}"

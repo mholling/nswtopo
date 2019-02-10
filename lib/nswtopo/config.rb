@@ -49,12 +49,15 @@ module NSWTopo
     end
 
     def delete_recursive(config, *entries, key)
-      if entry = entries.shift
+      case
+      when entry = entries.shift
         raise "no such entry: %s" % entry unless Hash === config[entry]
         delete_recursive config[entry], *entries, key
         config.delete entry if config[entry].empty?
+      when config.key?(key)
+        config.delete key
       else
-        config.delete(key) || raise("no such entry: %s" % key)
+        raise "no such entry: %s" % key
       end
     end
 

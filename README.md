@@ -50,12 +50,10 @@ Each program should return version information if it's installed correctly.
 
 # Installation
 
-You can download a zipped copy of the latest *nswtopo* release from [github](https://github.com/mholling/nswtopo/releases). For continued use, I suggest using [git](https://git-scm.com) to clone the repository: `git clone https://github.com/mholling/nswtopo.git`. This way, you can update to the latest code at any time with `git pull` from within the directory.
-
-Add the `bin` directory to your shell's PATH variable so that the `nswtopo` command is available on the command line. For Windows, try [these instructions](https://www.howtogeek.com/118594/how-to-edit-your-system-path-for-easy-command-line-access). In Linux or macOS, this is easily done by adding a line to the `.profile` file in your home directory:
+The easiest way to install the latest *nswtopo* release is with Ruby's built-in *gem* package manager:
 
 ```sh
-export PATH=/path/to/nswtopo/bin:$PATH
+$ gem install nswtopo
 ```
 
 Verify that the `nswtopo` command is available in your terminal of choice by issuing the following command. You should see the current version number:
@@ -63,6 +61,10 @@ Verify that the `nswtopo` command is available in your terminal of choice by iss
 ```sh
 $ nswtopo -v
 ```
+
+## Installing with Git
+
+Alternatively, you can use [git](https://git-scm.com) to clone the repository: `git clone https://github.com/mholling/nswtopo.git`. This way, you can update the code at any time with `git pull` from within the directory. This method requires adding the `bin` directory to your shell's PATH variable to make the `nswtopo` command available. (The method for this varies according to operating system.)
 
 # Usage
 

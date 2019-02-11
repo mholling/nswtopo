@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.authors               = ["Matthew Hollingworth"]
   spec.homepage              = "https://github.com/mholling/nswtopo"
   spec.license               = "GPL-3.0"
-  spec.files                 = Dir["lib/**/*.rb", "bin/nswtopo", "docs/**/*.md", "layers/**/*.yml", "COPYING"]
+  spec.files                 = Dir["lib/**/*.rb", "bin/nswtopo", "docs/**/*.md", "COPYING"]
   spec.required_ruby_version = ">= 2.5.0"
   spec.executables  << "nswtopo"
   spec.requirements << "GDAL >= v2.3"

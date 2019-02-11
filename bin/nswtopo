@@ -58,7 +58,6 @@ begin
   AltitudeAngle = 0..90
   Opacity       = /\A#{float}%?\z/
   DashArray     = /\A#{float}(?:(?:,#{float})*|(?: #{float})*)\z/
-  States        = Pathname(__dir__).parent.join("layers").children.select(&:directory?).map(&:basename).map(&:to_s)
 
   OptionParser.accept PositiveInt, PositiveInt do |string|
     raise OptionParser::InvalidArgument, string unless string.to_i.positive?
@@ -342,20 +341,20 @@ begin
         *nswtopo* *layers* - list available map layers
           usage: _nswtopo_ _layers_ [~options~]
       EOF
-      parser.on "-s", "--state  <#{States.join ?|}>", States, "only show layers for specified state"
 
     when "config"
       parser.banner = <<~EOF
         *nswtopo* *config* - configure nswtopo
           usage: _nswtopo_ _config_ [~options~] [<layer>]
       EOF
+      parser.on "-l", "--list",                                      "list current configuration"
+      parser.on "-d", "--delete        <name>",                      "delete configuration setting"
       parser.on "-c", "--chrome        <path>",       Pathname,      "set path for Google Chrome"
       parser.on "-f", "--firefox       <path>",       Pathname,      "set path for Firefox"
       parser.on "-p", "--path          <path>",       Pathname,      "set path for given layer"
       parser.on "-r", "--resolution    <resolution>", PositiveFloat, "set resolution for given layer"
+      parser.on       "--layers        <path>",       Pathname,      "set an extra layer directory"
       parser.on       "--[no-]labelling",                            "enable or disable map labelling"
-      parser.on "-l", "--list",                                      "list current configuration"
-      parser.on "-d", "--delete        <name>",                      "delete configuration setting"
 
     when nil
       raise OptionParser::MissingArgument, "no command specified"

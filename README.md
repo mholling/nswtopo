@@ -10,19 +10,18 @@ The *nswtopo* software is written in the Ruby language and runs as a command-lin
 
 The following software is required in order to run *nswtopo*:
 
-* The [Ruby programming language](https://www.ruby-lang.org). You'll need at least Ruby 2.5.
-* The [GDAL](https://gdal.org) command-line utilities, version 2.3 or later, for geospatial data processing.
-* [ImageMagick](https://imagemagick.org), a command-line image manipulation tool.
-* The [Google Chrome](https://www.google.com/chrome) web browser, for getting font information and rendering your map.
+* The [*Ruby* programming language](https://www.ruby-lang.org). You'll need at least Ruby 2.5.
+* The [*GDAL*](https://gdal.org) command-line utilities, version 2.3 or later, for geospatial data processing.
+* [*ImageMagick*](https://imagemagick.org), a command-line image manipulation tool.
+* The [*Google Chrome*](https://www.google.com/chrome) web browser, for getting font information and rendering your map.
 
 Some optional software helps with additional functionality:
 
-* [Git](https://git-scm.com), for easily installing and updating the *nswtopo* code.
-* A zip command utility (either zip or 7z), if you wish to produce KMZ maps.
-* [pngquant](https://pngquant.org), if you wish to produce indexed colour map images.
-* [Inkscape](https://inkscape.org), if you wish to make manual edits or additions to your map.
+* A zip command utility (either *zip* or *7z*), if you wish to produce KMZ maps.
+* [*pngquant*](https://pngquant.org), if you wish to produce indexed colour map images.
+* [*Inkscape*](https://inkscape.org), if you wish to make manual edits or additions to your map.
 
-Finally, a geographic viewing or mapping program such as [Google Earth Pro](https://www.google.com/earth) is useful for easily defining the area you wish to map, and for viewing your resulting map and other GPS data.
+Finally, a geographic viewing or mapping program such as [*Google Earth Pro*](https://www.google.com/earth) is useful for easily defining the area you wish to map, and for viewing your resulting map and other GPS data.
 
 * _Windows_:
   * A complete Ruby installation for Windows can be [downloaded here](https://rubyinstaller.org) (be sure to select `Add Ruby executables to your PATH` when installing).
@@ -62,9 +61,36 @@ Verify that the `nswtopo` command is available in your terminal of choice by iss
 $ nswtopo -v
 ```
 
-## Installing with Git
+## Installing Layers
 
-Alternatively, you can use [git](https://git-scm.com) to clone the repository: `git clone https://github.com/mholling/nswtopo.git`. This way, you can update the code at any time with `git pull` from within the directory. This method requires adding the `bin` directory to your shell's PATH variable to make the `nswtopo` command available. (The method for this varies according to operating system.)
+Layer definitions are kept in a separate [*nswtopo-layers* repository](https://github.com/mholling/nswtopo-layers), enabling their maintenance independent of the *nswtopo* codebase. Install the layers as follows:
+
+```sh
+$ gem install nswtopo-layers
+```
+
+Refer to the [repository](https://github.com/mholling/nswtopo-layers) for layer documentation.
+
+## Manual Installation
+
+Installation via ruby gem is not strictly necessary. It's possible use the [git](https://git-scm.com) repositories directly:
+
+```sh
+$ git clone https://github.com/mholling/nswtopo.git
+```
+
+Add the program to your PATH: in Windows, by [editing the environment variable](https://www.howtogeek.com/118594/how-to-edit-your-system-path-for-easy-command-line-access) in Control Panel; in Linux or macOS, by adding to your home directory's `.profile` file:
+
+```sh
+export PATH=/path/to/nswtopo/bin:$PATH
+```
+
+Finally, reload your terminal and install the layers:
+
+```sh
+$ git clone https://github.com/mholling/nswtopo-layers.git
+$ nswtopo config --layers nswtopo-layers/layers
+```
 
 # Usage
 
@@ -108,10 +134,6 @@ General usage for the *nswtopo* program is [described here](docs). Detailed docu
 * [*render*](docs/render.md): render map in various formats
 * [*layers*](docs/layers.md): list available map layers
 * [*config*](docs/config.md): configure nswtopo
-
-## Layers
-
-Description of the available layers can be found in the [layers directory](layers).
 
 # Workflow for Rogaine Setters
 
@@ -177,7 +199,7 @@ The following workflow is suggested to create a rogaine map.
     $ nswtopo controls rogaine.tgz controls.kml
     ```
 
-    Optionally, you can add any unmarked tracks you've found on the course. Trace them out with Google Earth, or record them with a GPS or phone while setting. Then add them to your map:
+1.  Optionally, you can add any unmarked tracks you've found on the course. Trace them out with Google Earth, or record them with a GPS or phone while setting. Then add them to your map:
 
     ```sh
     $ nswtopo overlay --stroke "#FF7518" --stroke-width 0.3 --stroke-dasharray 1.8,0.6 rogaine.tgz unmarked.kml
@@ -187,7 +209,7 @@ The following workflow is suggested to create a rogaine map.
 
 1.  At this point you will need to render the map before adding peripheral information such as a map title, credits, safety information and control descriptions. There are two ways to do this:
 
-    1.  Render the map to a high-resolution raster and make the edits in a raster graphics editor such as Photoshop or [GIMP](https://www.gimp.org). First choose a print resolution (say 600 ppi) to render the map in PNG format:
+    1.  Render the map to a high-resolution raster and make the edits in a raster graphics editor such as *Photoshop* or [*GIMP*](https://www.gimp.org). First choose a print resolution (say 600 ppi) to render the map in PNG format:
 
         ```sh
         $ nswtopo render --ppi 600 rogaine.tgz rogaine.png
@@ -195,7 +217,7 @@ The following workflow is suggested to create a rogaine map.
 
         Open the PNG in the graphics editor, then add your information layers there. Export directly (usually in TIFF format) for sending to the printers.
 
-    1.  Keep the map in vector (SVG) format and make your edits in a vector graphics editor such as [Inkscape](https://inkscape.org).
+    1.  Keep the map in vector (SVG) format and make your edits in a vector graphics editor such as [*Inkscape*](https://inkscape.org).
 
         ```sh
         $ nswtopo render rogaine.tgz rogaine.svg
@@ -207,4 +229,4 @@ The following workflow is suggested to create a rogaine map.
         $ nswtopo render --external rogaine.svg --ppi 600 rogaine.tgz rogaine.tif
         ```
 
-    I recommend the first method. Inkscape can be difficult to use. More importantly, it doesn't fully comply with the SVG standard, so some errors may be introduced. By using a raster graphics editor, you can be confident in the final appearance of the printed map. If your PC struggles with the image size at 600 ppi, a resolution as low as 300 ppi will still yield satisfactory results.
+    I recommend the first method. Inkscape can be difficult to use. More importantly, it is not SVG standards-compliant, so some errors may be introduced. By using a raster graphics editor, you can be confident in the final appearance of the printed map. If your PC struggles with the image size at 600 ppi, a resolution as low as 300 ppi will still yield satisfactory results.

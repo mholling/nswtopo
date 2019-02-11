@@ -1,9 +1,0 @@
-type: Relief
-contours:
-  http://services.thelist.tas.gov.au/arcgis/rest/services/Public/OpenDataWFS/MapServer/16: ELEVATION
-  http://services.thelist.tas.gov.au/arcgis/rest/services/Public/OpenDataWFS/MapServer/15: 0
-resolution: 15
-sources: 3
-factor: 2.0
-altitude: 35
-opacity: 0.25

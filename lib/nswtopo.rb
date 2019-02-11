@@ -48,6 +48,10 @@ module NSWTopo
     puts Map.init(archive, options)
   end
 
+  def layer_dirs
+    @layer_dirs ||= Array(Config["layers"]).map(&Pathname.method(:new)) << Pathname.pwd
+  end
+
   def info(archive, options)
     puts Map.load(archive).info(options)
   end
@@ -104,7 +108,7 @@ module NSWTopo
         else
           path = Pathname("#{layer}.yml")
           raise "#{layer} is not a relative path" unless path.relative?
-          basedir ||= [Pathname.pwd, Pathname(__dir__).parent / "layers"].find do |root|
+          basedir ||= layer_dirs.find do |root|
             path.expand_path(root).file?
           end
           layers.prepend [path.to_s, basedir]
@@ -182,27 +186,32 @@ module NSWTopo
     end
   end
 
-  def layers(state: nil, root: nil, indent: state ? "#{state}/" : "")
-    directory = [Pathname(__dir__).parent, "layers", *state].inject(&:/)
-    root ||= directory
-    directory.children.sort.each do |path|
+  def layers(state: nil, indent: "")
+    layer_dirs.grep_v(Pathname.pwd).flat_map do |directory|
+      Array(state).inject(directory, &:/).glob("*")
+    end.sort.each do |path|
       case
       when path.directory?
-        puts [indent, path.relative_path_from(root)].join
-        layers state: [*state, path.basename], root: root, indent: "  " + indent
+        next if path.glob("**/*.yml").none?
+        puts [indent, path.basename.sub_ext("")].join
+        layers state: [*state, path.basename], indent: "  " + indent
       when path.sub_ext("").directory?
       when path.extname == ".yml"
-        puts [indent, path.relative_path_from(root).sub_ext("")].join
+        puts [indent, path.basename.sub_ext("")].join
       end
+    end.tap do |paths|
+      log_warn "no layers installed" if paths.none?
     end
   end
 
-  def config(layer = nil, chrome: nil, firefox: nil, path: nil, resolution: nil, labelling: nil, list: false, delete: false)
+  def config(layer = nil, chrome: nil, firefox: nil, path: nil, resolution: nil, layers: nil, labelling: nil, list: false, delete: false)
+    raise "not a directory: %s" % layers if layers && !layers.directory?
     raise "chrome path is not an executable" if chrome && !chrome.executable?
     raise "firefox path is not an executable" if firefox && !firefox.executable?
     Config.store("chrome", chrome.to_s) if chrome
     Config.store("firefox", firefox.to_s) if firefox
     Config.store("labelling", labelling) unless labelling.nil?
+    Config.store("layers", layers.to_s) if layers
 
     layer = Layer.sanitise layer
     case
@@ -215,7 +224,7 @@ module NSWTopo
     end
     Config.delete(*layer, delete) if delete
 
-    if path || resolution || chrome || firefox || delete || !labelling.nil?
+    if path || resolution || chrome || firefox || delete || layers || !labelling.nil?
       Config.save
       log_success "configuration updated"
     end
@@ -233,4 +242,9 @@ module NSWTopo
   rescue Errno::ENOENT
     raise "invalid %s path: %s" % [browser_name, browser_path]
   end
+end
+
+begin
+  require 'nswtopo/layers'
+rescue LoadError
 end

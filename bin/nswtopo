@@ -29,8 +29,8 @@ begin
   Thread::report_on_exception = false
 
   GDAL_VERSION = begin
-    stdout, * = Open3.capture3 "gdal-config", "--version"
-    stdout.chomp
+    stdout, * = Open3.capture3 "gdalinfo", "--version"
+    stdout[/\d+(?:\.\d+){1,2}/]
   rescue Errno::ENOENT
     log_abort "GDAL not installed"
   end
@@ -172,7 +172,7 @@ begin
     parser.on "-h", "--help",                      "show general help" do
       puts $stdout.tty? ? ansi[parser] : plain[parser]
       doc = Pathname(__dir__).parent / "docs" / "README.md"
-      puts nil, RDoc::Markdown.parse(doc.read).accept(HelpFormatter.new $stdout.tty?)
+      puts nil, RDoc::Markdown.parse(doc.read encoding: Encoding::UTF_8).accept(HelpFormatter.new $stdout.tty?)
       exit
     end
   end
@@ -365,7 +365,7 @@ begin
     parser.on "-h", "--help",  "show help for this command" do
       puts $stdout.tty? ? ansi[parser] : plain[parser]
       doc = Pathname(__dir__).parent / "docs" / "#{command}.md"
-      puts nil, RDoc::Markdown.parse(doc.read).accept(HelpFormatter.new $stdout.tty?)
+      puts nil, RDoc::Markdown.parse(doc.read encoding: Encoding::UTF_8).accept(HelpFormatter.new $stdout.tty?)
     rescue Errno::ENOENT
     ensure
       exit

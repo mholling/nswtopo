@@ -23,21 +23,7 @@ Some optional software helps with additional functionality:
 
 Finally, a geographic viewing or mapping program such as [*Google Earth Pro*](https://www.google.com/earth) is useful for easily defining the area you wish to map, and for viewing your resulting map and other GPS data.
 
-* _Windows_:
-  * A complete Ruby installation for Windows can be [downloaded here](https://rubyinstaller.org) (be sure to select `Add Ruby executables to your PATH` when installing).
-  * Download a pre-built [ImageMagick binary](https://imagemagick.org/script/download.php#windows) for Windows. Be sure to select `Add application directory to your system path` when installing.
-  * Install the GDAL utilities using the [OSGeo4W](https://trac.osgeo.org/osgeo4w) installer. Unless you want all the software offered by the installer, use the `advanced install` option to install only GDAL. When presented with packages to install, select `All -> Uninstall` to deselect everything, then open `Commandline Utilites`, choose `Install` for the gdal package (some other required packages will also be selected), and install. Subsequently you should use the *OSGeo4w Shell* to run *nswtopo*.
-  * (Other ways of obtaining Windows GDAL utilities are listed [here](https://trac.osgeo.org/gdal/wiki/DownloadingGdalBinaries#Windows), but check the minimum version requirement.)
-  * Download and install [Google Chrome](https://www.google.com/chrome).
-  * If you want to create KMZ maps, install [7-Zip](https://www.7-zip.org) and add its location, `C:\Program Files\7-Zip`, to your PATH following [these instructions](https://www.howtogeek.com/118594/how-to-edit-your-system-path-for-easy-command-line-access).
-* _macOS_:
-  * ImageMagick and GDAL can obtained for macOS by first setting up [MacPorts](https://www.macports.org), a macOS package manager; follow [these instructions](https://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install gdal` and `sudo port install imagemagick`
-  * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software/frameworks) for GDAL, and the instructions [here](https://imagemagick.org/script/download.php#macosx) for ImageMagick. (This may or may not be quicker/easier than installing XCode and MacPorts!)
-  * Type `ruby -v` in a terminal window to see whether a version 2.3 or greater Ruby already exists. If not, you can install Ruby a number of ways, as explained [here](https://www.ruby-lang.org/en/downloads). (If you are using MacPorts, `sudo port install ruby25 +nosuffix` should also work.)
-  * Download and install [Google Chrome](https://www.google.com/chrome).
-* _Linux_: You should be able to install the appropriate Ruby, ImageMagick and GDAL packages using your distro's package manager (Pacman, RPM, Aptitude, etc).
-
-You can check that the tools are correctly installed by using the following commands:
+You can check that the required tools are correctly installed by using the following commands:
 
 ```sh
 $ ruby --version
@@ -46,6 +32,32 @@ $ gdalinfo --version
 ```
 
 Each program should return version information if it's installed correctly.
+
+## Windows
+  * A complete Ruby installation for Windows can be [downloaded here](https://rubyinstaller.org) (be sure to select `Add Ruby executables to your PATH` when installing).
+  * Download a pre-built [ImageMagick binary](https://imagemagick.org/script/download.php#windows) for Windows. Be sure to select `add application directory to your system path` and `install legacy utilities` when installing.
+  * Install the GDAL utilities using the [OSGeo4W](https://trac.osgeo.org/osgeo4w) installer. Use the `advanced install` option as only the GDAL package is required. When presented with the package list, select `All -> Uninstall` to deselect everything, then open `Commandline Utilites` and choose `Install` for the GDAL package. (Accept the required dependencies on the following page.)
+  Make GDAL available on the command line with the following:
+    ```sh
+    setx PATH "%PATH%;C:\OSGeo4W64\bin"
+    setx GDAL_DATA "C:\OSGeo4W64\share\gdal"
+    ```
+  * (Other ways of obtaining Windows GDAL utilities are listed [here](https://trac.osgeo.org/gdal/wiki/DownloadingGdalBinaries#Windows), but check the minimum version requirement.)
+  * Download and install [Google Chrome](https://www.google.com/chrome).
+  * If you want to create KMZ maps, install [7-Zip](https://www.7-zip.org) and add its location to your PATH:
+    ```sh
+    setx PATH "%PATH%;C:\Program Files\7-Zip"
+    ```
+
+## macOS
+  * ImageMagick and GDAL can obtained for macOS by first setting up [MacPorts](https://www.macports.org), a macOS package manager; follow [these instructions](https://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install gdal` and `sudo port install imagemagick`
+  * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software/frameworks) for GDAL, and the instructions [here](https://imagemagick.org/script/download.php#macosx) for ImageMagick. (This may or may not be quicker/easier than installing XCode and MacPorts!)
+  * Type `ruby -v` in a terminal window to see whether a compatible Ruby version already exists. If not, you can install Ruby a number of ways, as explained [here](https://www.ruby-lang.org/en/downloads). (If you are using MacPorts, `sudo port install ruby25 +nosuffix` should also work.)
+  * Download and install [Google Chrome](https://www.google.com/chrome).
+
+## Linux
+
+Linux is the preferred environment for running *nswtopo*, as dependencies are easy to install. The appropriate Ruby, ImageMagick and GDAL packages should all be available using your distro's package manager (Pacman, RPM, Aptitude, etc).
 
 # Installation
 

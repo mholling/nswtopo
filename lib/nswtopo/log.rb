@@ -1,9 +1,9 @@
 module NSWTopo
   module Log
-    SUCCESS = $stdout.tty? ? "\r\e[K\e[32mnswtopo:\e[0m %s" : "nswtopo: %s"
-    FAILURE = $stderr.tty? ? "\r\e[K\e[31mnswtopo:\e[0m %s" : "nswtopo: %s"
-    NEUTRAL = $stdout.tty? ? "\r\e[Knswtopo: %s" : "nswtopo: %s"
-    UPDATE  = "\r\e[K%s"
+    SUCCESS = $stdout.tty? ? "\r\e[2K\e[32mnswtopo:\e[0m %s" : "nswtopo: %s"
+    FAILURE = $stderr.tty? ? "\r\e[2K\e[31mnswtopo:\e[0m %s" : "nswtopo: %s"
+    NEUTRAL = $stdout.tty? ? "\r\e[2Knswtopo: %s" : "nswtopo: %s"
+    UPDATE  = "\r\e[2K%s"
 
     def log_success(message)
       puts SUCCESS % message

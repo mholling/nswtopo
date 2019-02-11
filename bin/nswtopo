@@ -347,13 +347,12 @@ begin
         *nswtopo* *config* - configure nswtopo
           usage: _nswtopo_ _config_ [~options~] [<layer>]
       EOF
-      parser.on "-l", "--list",                                      "list current configuration"
       parser.on "-d", "--delete        <name>",                      "delete configuration setting"
       parser.on "-c", "--chrome        <path>",       Pathname,      "set path for Google Chrome"
       parser.on "-f", "--firefox       <path>",       Pathname,      "set path for Firefox"
       parser.on "-p", "--path          <path>",       Pathname,      "set path for given layer"
       parser.on "-r", "--resolution    <resolution>", PositiveFloat, "set resolution for given layer"
-      parser.on       "--layers        <path>",       Pathname,      "set an extra layer directory"
+      parser.on       "--layer-dir     <path>",       Pathname,      "set an extra layer directory"
       parser.on       "--[no-]labelling",                            "enable or disable map labelling"
 
     when nil
@@ -385,7 +384,6 @@ begin
   when "config"
     layer = ARGV.shift
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
-    raise OptionParser::MissingArgument, "configuration option required" unless options.any?
     NSWTopo.config *layer, **options
     exit
   end

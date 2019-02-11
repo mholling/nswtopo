@@ -89,7 +89,7 @@ Finally, reload your terminal and install the layers:
 
 ```sh
 $ git clone https://github.com/mholling/nswtopo-layers.git
-$ nswtopo config --layers nswtopo-layers/layers
+$ nswtopo config --layer-dir nswtopo-layers/layers
 ```
 
 # Usage

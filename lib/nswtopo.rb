@@ -49,7 +49,7 @@ module NSWTopo
   end
 
   def layer_dirs
-    @layer_dirs ||= Array(Config["layers"]).map(&Pathname.method(:new)) << Pathname.pwd
+    @layer_dirs ||= Array(Config["layer-dir"]).map(&Pathname.method(:new)) << Pathname.pwd
   end
 
   def info(archive, options)
@@ -204,14 +204,15 @@ module NSWTopo
     end
   end
 
-  def config(layer = nil, chrome: nil, firefox: nil, path: nil, resolution: nil, layers: nil, labelling: nil, list: false, delete: false)
-    raise "not a directory: %s" % layers if layers && !layers.directory?
+  def config(layer = nil, **options)
+    chrome, firefox, path, resolution, layer_dir, labelling, delete = options.values_at :chrome, :firefox, :path, :resolution, :"layer-dir", :labelling, :delete
+    raise "not a directory: %s" % layer_dir if layer_dir && !layer_dir.directory?
     raise "chrome path is not an executable" if chrome && !chrome.executable?
     raise "firefox path is not an executable" if firefox && !firefox.executable?
     Config.store("chrome", chrome.to_s) if chrome
     Config.store("firefox", firefox.to_s) if firefox
     Config.store("labelling", labelling) unless labelling.nil?
-    Config.store("layers", layers.to_s) if layers
+    Config.store("layer-dir", layer_dir.to_s) if layer_dir
 
     layer = Layer.sanitise layer
     case
@@ -224,14 +225,12 @@ module NSWTopo
     end
     Config.delete(*layer, delete) if delete
 
-    if path || resolution || chrome || firefox || delete || layers || !labelling.nil?
-      Config.save
-      log_success "configuration updated"
-    end
-
-    if list
+    if options.empty?
       puts Config.to_str.each_line.drop(1)
       log_neutral "no configuration yet" if Config.empty?
+    else
+      Config.save
+      log_success "configuration updated"
     end
   end
 

@@ -1,13 +1,13 @@
 module NSWTopo
   module Relief
     include Raster, ArcGISServer, Shapefile, DEM, Log
-    CREATE = %w[altitude azimuth factor sources highlights smooth median bilateral contours]
+    CREATE = %w[altitude azimuth factor sources yellow smooth median bilateral contours]
     DEFAULTS = YAML.load <<~YAML
       altitude: 45
       azimuth: 315
       factor: 2.0
       sources: 3
-      highlights: 20
+      yellow: 0.2
       smooth: 4
       resolution: 5.0
       opacity: 0.3
@@ -127,7 +127,7 @@ module NSWTopo
         when index < shade
           color_table.add_element "Entry", "c1" => 0, "c2" => 0, "c3" => 0, "c4" => (shade - index) * 255 / shade
         when index > sun
-          color_table.add_element "Entry", "c1" => 255, "c2" => 255, "c3" => 0, "c4" => (index - sun) * 255 * @highlights / ((255 - sun) * 100)
+          color_table.add_element "Entry", "c1" => 255, "c2" => 255, "c3" => 0, "c4" => ((index - sun) * 255 * @yellow / (255 - sun)).to_i
         else
           color_table.add_element "Entry", "c1" => 0, "c2" => 0, "c3" => 0, "c4" => 0
         end

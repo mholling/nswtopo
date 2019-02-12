@@ -259,6 +259,8 @@ begin
       parser.on "-a", "--altitude    <altitude>",   AltitudeAngle, "altitude angle in degrees (default %i)" % NSWTopo::Relief::DEFAULTS["altitude"]
       parser.on "-z", "--azimuth     <azimuth>",    Float,         "azimuth in degrees (default %i)" % NSWTopo::Relief::DEFAULTS["azimuth"]
       parser.on "-s", "--sources     <sources>",    PositiveInt,   "number of light sources (default %i)" % NSWTopo::Relief::DEFAULTS["sources"]
+      parser.on "-y", "--yellow      <fraction>",   Opacity,       "yellow illumination as a fraction",
+                                                                   "of shading (default %s)" % NSWTopo::Relief::DEFAULTS["yellow"]
       parser.on "-f", "--factor      <factor>",     PositiveFloat, "exaggeration factor (default %s)" % NSWTopo::Relief::DEFAULTS["factor"]
 
     when "grid"

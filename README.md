@@ -51,6 +51,8 @@ Each program should return version information if it's installed correctly.
     setx PATH "%PATH%;C:\Program Files\7-Zip"
     ```
 
+    **Note**: When using the Windows Command Prompt, I strongly recommend disabling *QuickEdit* mode in the *Properties* window to avoid frustration.
+
 ## macOS
   * ImageMagick and GDAL can obtained for macOS by first setting up [MacPorts](https://www.macports.org), a macOS package manager; follow [these instructions](https://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install gdal` and `sudo port install imagemagick`
   * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software/frameworks) for GDAL, and the instructions [here](https://imagemagick.org/script/download.php#macosx) for ImageMagick. (This may or may not be quicker/easier than installing XCode and MacPorts!)

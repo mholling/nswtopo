@@ -19,6 +19,7 @@ module NSWTopo
 
     def get_raster(temp_dir)
       dem_path = temp_dir / "dem.tif"
+      flat_relief = (Math::sin(@altitude * Math::PI / 180) * 255).to_i
 
       case
       when @path
@@ -83,7 +84,7 @@ module NSWTopo
         log_update "%s: combining shaded relief" % @name
         reliefs.map do |azimuth, relief|
           [relief.values, aspect.values].transpose.map do |relief, aspect|
-            relief ? aspect ? 2 * relief * Math::sin((aspect - azimuth) * Math::PI / 180)**2 : relief : 0
+            relief ? aspect ? 2 * relief * Math::sin((aspect - azimuth) * Math::PI / 180)**2 : relief : flat_relief
           end
         end.transpose.map do |values|
           values.inject(&:+) / @sources
@@ -95,7 +96,7 @@ module NSWTopo
       end
 
       tif_path = temp_dir / "relief.tif"
-      OS.gdalwarp "-co", "TFW=YES", "-s_srs", @map.projection, "-srcnodata", 0, "-dstalpha", bil_path, tif_path
+      OS.gdalwarp "-co", "TFW=YES", "-s_srs", @map.projection, "-dstnodata", "None", bil_path, tif_path
 
       filters = []
       if @median
@@ -111,16 +112,31 @@ module NSWTopo
         OS.mogrify "-virtual-pixel", "edge", *filters, tif_path
       end
 
-      log_update "%s: finalising shaded relief" % @name
-      threshold = Math::sin(@altitude * Math::PI / 180)
-      shade = %W[-colorspace Gray -fill white -opaque none -level #{   90*threshold}%,0%                             -alpha Copy -fill black  +opaque black ]
-      sun   = %W[-colorspace Gray -fill black -opaque none -level #{10+90*threshold}%,100% +level 0%,#{@highlights}% -alpha Copy -fill yellow +opaque yellow]
+      log_update "%s: rendering shaded relief" % @name
+      vrt_path = temp_dir / "coloured.vrt"
+      OS.gdalbuildvrt vrt_path, tif_path
 
-      temp_dir.join("composite.tif").tap do |composite_path|
-        OS.convert "-quiet", ?(, tif_path, *shade, ?), ?(, tif_path, *sun, ?), "-composite", composite_path
-        FileUtils.mv composite_path, tif_path
+      xml = REXML::Document.new vrt_path.read
+      vrt_raster_band = xml.elements["VRTDataset/VRTRasterBand[ColorInterp[text()='Gray']]"]
+      vrt_raster_band.elements["ColorInterp[text()='Gray']"].text = "Palette"
+      color_table = vrt_raster_band.add_element "ColorTable"
+
+      shade, sun = 90 * flat_relief / 100, (10 + 90 * flat_relief) / 100
+      256.times do |index|
+        case
+        when index < shade
+          color_table.add_element "Entry", "c1" => 0, "c2" => 0, "c3" => 0, "c4" => (shade - index) * 255 / shade
+        when index > sun
+          color_table.add_element "Entry", "c1" => 255, "c2" => 255, "c3" => 0, "c4" => (index - sun) * 255 * @highlights / ((255 - sun) * 100)
+        else
+          color_table.add_element "Entry", "c1" => 0, "c2" => 0, "c3" => 0, "c4" => 0
+        end
       end
 
+      vrt_path.write xml
+      coloured_path = temp_dir / "coloured.tif"
+      OS.gdal_translate "-expand", "rgba", vrt_path, coloured_path
+      FileUtils.mv coloured_path, tif_path
       return @resolution, tif_path
     end
   end

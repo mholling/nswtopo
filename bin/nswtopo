@@ -374,7 +374,7 @@ begin
     warn ansi[base_parser] if $stderr.tty?
     raise error.message
   end
-  command_parser.order! into: options
+  command_parser.parse! into: options
 
   case command
   when "layers"

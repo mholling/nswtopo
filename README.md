@@ -112,7 +112,7 @@ Interaction with *nswtopo* is significantly revamped for version 2.0. Map data i
 $ nswtopo <command> [options] <map.tgz> [...]
 ```
 
-Command options are given as short- or long-version *switches* (e.g. `-b` or `--bounds`), some of which take a value. The options you choose determine how the command is run. Commands will run with sensible defaults when no options are selected.
+Command options are given as short- or long-version *switches* (e.g. `-b` or `--bounds`), some of which take a value. The options you choose determine how the command is run. Commands will run with sensible defaults when no options are selected. Positioning of command options is permissive: you can add them before or after non-option arguments (such as layer names, filenames, etc).
 
 The `map.tgz` argument is the filename of your map file. Any name can be used. The `.tgz` extension is suggested as it reflects the actual file format (a *gzipped tar* archive).
 

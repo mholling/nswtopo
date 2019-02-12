@@ -8,6 +8,8 @@ The *nswtopo* software is written in the Ruby language and runs as a command-lin
 
 # Prerequisites
 
+The preferred operating system for *nswtopo* is a Unix-style OS such as Linux or macOS. These systems have conventional command-line interfaces. Operation in Windows is possible but you're more likely to encounter problems, since I do not frequently test the software in a Windows environment.
+
 The following software is required in order to run *nswtopo*:
 
 * The [*Ruby* programming language](https://www.ruby-lang.org). You'll need at least Ruby 2.5.
@@ -57,7 +59,7 @@ Each program should return version information if it's installed correctly.
 
 ## Linux
 
-Linux is the preferred environment for running *nswtopo*, as dependencies are easy to install. The appropriate Ruby, ImageMagick and GDAL packages should all be available using your distro's package manager (Pacman, RPM, Aptitude, etc).
+Dependencies should be easy to install on a Linux PC. The appropriate Ruby, ImageMagick and GDAL packages should all be available using your distro's package manager (Pacman, RPM, Aptitude, etc).
 
 # Installation
 

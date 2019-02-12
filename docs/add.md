@@ -43,3 +43,7 @@ For advanced users, custom layer definitions can added by referencing the `.yml`
 ```
 $ nswtopo add --after nsw.topographic.water-areas map.tgz bathymetry.yml
 ```
+
+# Failed Layers
+
+Map servers can sometimes be uncooperative, resulting in layers which fail to download. In this event, simply run the `add` command again to retry the failed layers. Existing layers will not be re-downloaded.

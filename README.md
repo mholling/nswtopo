@@ -19,7 +19,8 @@ The following software is required in order to run *nswtopo*:
 
 Some optional software helps with additional functionality:
 
-* A zip command utility (either *zip* or *7z*), if you wish to produce KMZ maps.
+* A zip command utility (either *zip* or *7z*), if you wish to produce *KMZ* maps.
+* [*SQLite*](https://sqlite.org), if you need to produce maps in *mbtiles* format.
 * [*pngquant*](https://pngquant.org), if you wish to produce indexed colour map images.
 * [*Inkscape*](https://inkscape.org), if you wish to make manual edits or additions to your map.
 

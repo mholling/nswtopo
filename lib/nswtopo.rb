@@ -159,14 +159,14 @@ module NSWTopo
     add archive, gps_path, options.merge(path: Pathname(gps_path))
   end
 
-  def remove(archive, *names, options)
+  def delete(archive, *names, options)
     map = Map.load archive
     names.map do |name|
       Layer.sanitise name
     end.uniq.map do |name|
       name[?*] ? %r[^#{name.gsub(?., '\.').gsub(?*, '.*')}$] : name
     end.tap do |names|
-      map.remove *names
+      map.delete *names
     end
   end
 

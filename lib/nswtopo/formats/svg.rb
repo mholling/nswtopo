@@ -14,8 +14,8 @@ module NSWTopo
         end
         FileUtils.cp external, svg_path
 
-      when uptodate?("map.svg", "map.yml")
-        svg_path.write read("map.svg")
+      when @archive.uptodate?("map.svg", "map.yml")
+        svg_path.write @archive.read("map.svg")
 
       else
         width, height = extents.times(1000.0 / scale)

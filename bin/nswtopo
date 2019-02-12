@@ -153,7 +153,7 @@ begin
           declination   add magnetic declination lines
           controls      add rogaine control markers
           overlay       add KML or GPX overlay
-          remove        remove map layer
+          delete        delete map layer
           render        render map in various formats
           layers        list available map layers
           config        configure nswtopo
@@ -315,10 +315,10 @@ begin
       parser.on "-b", "--before           <layer>",                  "insert before specified layer"
       parser.on "-c", "--replace          <layer>",                  "replace specified layer"
 
-    when "remove"
+    when "delete"
       parser.banner = <<~EOF
-        *nswtopo* *remove* - remove map layers
-          usage: _nswtopo_ _remove_ [~options~] <map.tgz> <layer> [<layer> ...]
+        *nswtopo* *delete* - delete map layers
+          usage: _nswtopo_ _delete_ [~options~] <map.tgz> <layer> [<layer> ...]
       EOF
 
     when "render"

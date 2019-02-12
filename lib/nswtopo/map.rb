@@ -13,7 +13,7 @@ module NSWTopo
     attr_reader :projection, :scale, :centre, :extents, :rotation
 
     extend Forwardable
-    delegate %i[write mtime delete read uptodate?] => :@archive
+    delegate %i[write mtime read] => :@archive
 
     def self.init(archive, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, margins: nil)
       wgs84_points = case
@@ -94,7 +94,7 @@ module NSWTopo
     end
 
     def save
-      tap { write "map.yml", YAML.dump(proj4: @projection.proj4, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
+      tap { @archive.write "map.yml", YAML.dump(proj4: @projection.proj4, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
     end
 
     def layers
@@ -209,13 +209,13 @@ module NSWTopo
       end.tap do |ordered_layers, changed, follow, errors|
         if changed
           @layers.replace Hash[ordered_layers.map(&:pair)]
-          replace ? remove(replace) : save
+          replace ? delete(replace) : save
         end
         raise PartialFailureError, "failed to create %s" % [layers.one? ? "layer" : errors.one? ? "1 layer" : "#{errors.length} layers"] if errors.any?
       end
     end
 
-    def remove(*names)
+    def delete(*names)
       raise OptionParser::MissingArgument, "no layers specified" unless names.any?
       names.inject Set[] do |matched, name|
         matches = @layers.keys.grep(name)
@@ -225,8 +225,8 @@ module NSWTopo
         raise "no matching layers found" unless names.any?
       end.each do |name|
         params = @layers.delete name
-        delete Layer.new(name, self, params).filename
-        log_success "removed layer: %s" % name
+        @archive.delete Layer.new(name, self, params).filename
+        log_success "deleted layer: %s" % name
       end
       save
     end
@@ -247,7 +247,7 @@ module NSWTopo
     alias to_s info
 
     def render(*paths, worldfile: false, force: false, external: nil, **options)
-      delete "map.svg" if force
+      @archive.delete "map.svg" if force
       Dir.mktmppath do |temp_dir|
         rasters = Hash.new do |rasters, opts|
           png_path = temp_dir / "raster.#{rasters.size}.png"

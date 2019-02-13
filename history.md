@@ -40,4 +40,4 @@
 * 6/5/2017: version 1.5: calculate shaded relief from contour data instead of DEM; fix bug in rotated maps where shaded relief mask was not rotated; fix magnetic declination calculator; add mbtiles output format; improve Electron raster reliability (sorta)
 * 11/8/2018: version 1.6: fix bug with shaded relief when coastline is present; switch to Google Chrome as preferred rasterising method; more accurate font sizing when using Chrome; add ACT map source for 5-metre contours; numerous internal changes and fixes
   *  12/8/2018: version 1.6.1: Windows bugfix
-* 13/2/2019: version 2.0.0-beta1: major rewrite with new command structure
+* 13/2/2019: version 2.0.0: major rewrite with new command structure

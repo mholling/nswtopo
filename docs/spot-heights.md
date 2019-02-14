@@ -19,5 +19,5 @@ Use the `--prefer` option to favour `knolls` or `saddles` when selecting spot lo
 Use an `--after`, `--before` or `--replace` option to insert the spot heights in an appropriate layer position. You will most likely want to replace an existing spot heights layer:
 
 ```
-$ nswtopo contours --replace nsw.topographic.spot-heights map.tgz DATA_25994.zip
+$ nswtopo spot-heights --replace nsw.topographic.spot-heights map.tgz DATA_25994.zip
 ```

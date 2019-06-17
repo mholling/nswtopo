@@ -41,7 +41,7 @@ module NSWTopo
           tif_path, tfw_path = %w[tif tfw].map { |ext| temp_dir / "#{name}.mbtiles.#{zoom}.#{ext}" }
           WorldFile.write topleft, resolution, 0, tfw_path
           OS.convert "-size", dimensions.join(?x), "canvas:none", "-type", "TrueColorAlpha", "-depth", 8, tif_path
-          OS.gdalwarp "-s_srs", @projection, "-t_srs", "EPSG:3857", "-r", "lanczos", "-dstalpha", png_path, tif_path
+          OS.gdalwarp "-s_srs", @projection, "-t_srs", "EPSG:3857", "-r", "cubic", "-dstalpha", png_path, tif_path
           OS.convert tif_path, "-quiet", "+repage", "-crop", "#{Mbtiles::TILE_SIZE}x#{Mbtiles::TILE_SIZE}", tile_path
         end.map do |resolution, indices, dimensions, topleft, tile_path, zoom|
           indices[1].to_a.reverse.product(indices[0].to_a).map.with_index do |(row, col), index|

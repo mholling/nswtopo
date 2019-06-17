@@ -14,7 +14,7 @@ module NSWTopo
           img_path = index.zero? ? png_path : temp_dir / "#{name}.avenza.#{level}.png"
           tile_path = temp_dir.join("#{name}.avenza.tile.#{level}.%09d.png").to_s
 
-          OS.convert png_path, "-filter", "Lanczos", "-resize", "%ix%i!" % dimensions, img_path unless img_path.exist?
+          OS.convert png_path, "-filter", "Cubic", "-resize", "%ix%i!" % dimensions, img_path unless img_path.exist?
           OS.convert img_path, "+repage", "-crop", "256x256", tile_path
 
           dimensions.reverse.map do |dimension|

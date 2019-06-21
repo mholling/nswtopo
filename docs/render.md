@@ -15,7 +15,8 @@ The following formats are available:
 * **pdf**: *Portable Document Format*, either in the original vector form, or as a raster by setting a resolution with `--ppi`
 * **kmz**: for use with *Google Earth* (add as a network link for best results)
 * **zip**: a tiled format used by the *Avenza Maps* mobile app
-* **mbtiles**: a tiled format for use with mobile GPS apps including *Locus Map* and *Guru Maps*
+* **mbtiles**: a tiled format for use with mobile GPS apps including *Locus Map* and *OruxMaps*
+* **gemf**: a fast tiled format compatible with *Locus Map*
 * **svgz**: a compressed SVG format, viewable directly in some browsers
 * **png**: the well-known *Portable Network Graphics* format
 * **jpg**: the well-known *JPEG* format (not well-suited to maps)

@@ -1,6 +1,6 @@
 module NSWTopo
   class Map
-    include Formats, Dither, Zip, Log, Safely
+    include Formats, Dither, Zip, Log, Safely, TiledWebMap
 
     def initialize(archive, proj4:, scale:, centre:, extents:, rotation:, layers: {})
       @archive, @scale, @centre, @extents, @rotation, @layers = archive, scale, centre, extents, rotation, layers

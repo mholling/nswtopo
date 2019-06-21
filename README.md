@@ -191,7 +191,7 @@ The following workflow is suggested to create a rogaine map.
     $ nswtopo render preliminary.tgz svg tif
     ```
 
-1.  Use the preliminary map to assist you in setting your rogaine. I recommend using a mobile mapping app such as [Avenza Maps](https://www.avenza.com/avenza-maps), [Locus Map](https://www.locusmap.eu) or [Galileo Maps/Guru Maps](https://galileo-app.com). Save in the *tif* or *zip* format for Avenza Maps, or *mbtiles* format for Locus or Guru. During setting, use the app (or a handheld GPS unit) to record waypoints for the locations you flag.
+1.  Use the preliminary map to assist you in setting your rogaine. I recommend using a mobile mapping app such as [Avenza Maps](https://www.avenza.com/avenza-maps), [Locus Map](https://www.locusmap.eu) or [OruxMaps](https://www.oruxmaps.com). Save in the *tif* or *zip* format for Avenza Maps, or *mbtiles* format for Locus Map or OruxMaps. During setting, use the app (or a handheld GPS unit) to record waypoints for the locations you flag.
 
 1.  Use Google Earth to finalise your control locations. Name each waypoint with its control number. Add extra waypoints named *HH* (hash house), *W* (water drop) and *ANC* (all-night cafe), as appropriate. Save the waypoints as a `controls.kml` file.
 

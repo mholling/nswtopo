@@ -270,6 +270,7 @@ begin
       EOF
       parser.on "-i", "--interval  <interval>", PositiveFloat, "interval between grid lines in",
                                                                "metres (default %i)" % NSWTopo::Grid::DEFAULTS["interval"]
+      parser.on "-u", "--unlabeled",                           "don't add grid labels"
 
     when "declination"
       parser.banner = <<~EOF

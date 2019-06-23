@@ -78,6 +78,7 @@ module NSWTopo
     end
 
     def labeling_features
+      return [] if @params["unlabeled"]
       label_params = @params["labels"]
       font_size = label_params["font-size"]
       offset = 0.85 * font_size * @map.scale / 1000.0

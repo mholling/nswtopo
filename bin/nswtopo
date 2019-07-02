@@ -58,6 +58,7 @@ begin
   AltitudeAngle = 0..90
   Opacity       = /\A#{float}%?\z/
   DashArray     = /\A#{float}(?:(?:,#{float})*|(?: #{float})*)\z/
+  Zoom          = /\A(?:#{digits},)?#{digits}\z/
 
   OptionParser.accept PositiveInt, PositiveInt do |string|
     raise OptionParser::InvalidArgument, string unless string.to_i.positive?
@@ -121,6 +122,12 @@ begin
     values = string.split(/[, ]/).map(&:to_f)
     raise OptionParser::InvalidArgument, string if values.any?(&:negative?)
     values.join ?\s
+  end
+
+  OptionParser.accept Zoom, Zoom do |string|
+    values = string.split(?,).map(&:to_i)
+    raise OptionParser::InvalidArgument, string unless values.all?(10..19)
+    values
   end
 
   ansi = lambda do |string|
@@ -331,7 +338,7 @@ begin
       EOF
       parser.on "-p", "--ppi        <ppi>",     PositiveInt, "resolution for raster formats in pixels",
                                                              "per inch (default %i)" % NSWTopo::Formats::PPI
-      parser.on "-z", "--zoom       <zoom>",    Integer,     "maximum mbtiles/gemf zoom (default %i)" % NSWTopo::TiledWebMap::DEFAULT_ZOOM
+      parser.on "-z", "--zoom       <zoom>",    Zoom,        "maximum tile zoom (10-19, default %i)" % NSWTopo::TiledWebMap::DEFAULT_ZOOM
       parser.on "-d", "--dither",                            "use indexed colour for raster formats"
       parser.on "-w", "--worldfile",                         "save additional projection (.prj) and",
                                                              "world file (.wld) for raster formats"

@@ -14,6 +14,8 @@ Choose the amount of smoothing to apply to the DEM with the `--smooth` option. T
 
 Use the `--prefer` option to favour `knolls` or `saddles` when selecting spot locations. No preference is taken by default.
 
+DEM tiles are normally processed at their maximumum native resolution. Change this using the `--resolution` option. A reduced resolution (say 5 metres) can markedly improve processing speed for 1- and 2-metre tiles.
+
 # Layer Position
 
 Use an `--after`, `--before` or `--replace` option to insert the spot heights in an appropriate layer position. You will most likely want to replace an existing spot heights layer:

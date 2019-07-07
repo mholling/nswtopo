@@ -12,6 +12,8 @@ Choose a contour interval in metres using the `--interval` option. A five metre 
 
 Noise in raw elevation data usually produces unsuitably rough contour lines. Some smoothing of the DEM removes most such artefacts. A default smoothing radius of 0.2mm is applied, configurable with the `--smooth` option. Increase the radius to produce smoother contours at the expense of detail.
 
+DEM tiles are normally processed at their maximumum native resolution. Change this using the `--resolution` option. A reduced resolution (say 5 metres) can markedly improve processing speed for 1- and 2-metre tiles.
+
 # Layer Position
 
 Use an `--after`, `--before` or `--replace` option to insert the contours in an appropriate layer position. You will most likely want to replace an existing contour layer:

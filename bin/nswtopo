@@ -229,32 +229,34 @@ begin
         *nswtopo* *contours* - add contours from elevation data
           usage: _nswtopo_ _contours_ [~options~] <map.tgz> <dem.zip>
       EOF
-      parser.on "-i", "--interval       <interval>", PositiveInt,   "contour interval in metres (default %s)" % NSWTopo::Contour::DEFAULTS["interval"]
-      parser.on "-x", "--index          <index>",    PositiveInt,   "index interval in metres"
-      parser.on "-s", "--smooth         <radius>",   NonNegFloat,   "DEM smoothing radius in mm (default %s)" % NSWTopo::Contour::DEFAULTS["smooth"]
-      parser.on "-t", "--thin",                                     "thin intermediate contours in steep areas"
-      # parser.on "-d", "--density        <density>",  PositiveFloat, "maximum lines/mm before thinning occurs"
-      # parser.on "-m", "--min-length     <length>",   PositiveFloat, "minimum length before contour thinning in mm"
-      parser.on       "--no-depression",                            "don't show or clean depression contours"
-      parser.on "-k", "--knolls         <size>",     NonNegFloat,   "minimum knoll size in mm (default %s)" % NSWTopo::Contour::DEFAULTS["knolls"]
-      parser.on "-a", "--after          <layer>",                   "insert after specified layer"
-      parser.on "-b", "--before         <layer>",                   "insert before specified layer"
-      parser.on "-c", "--replace        <layer>",                   "replace specified layer"
-      parser.on       "--stroke         <colour>",   Colour,        "stroke colour (name or RGB triplet)"
-      parser.on       "--stroke-width   <width>",    PositiveFloat, "stroke width in mm"
-      parser.on       "--fill           <colour>",   Colour,        "label colour (defaults to stroke colour)"
+      parser.on "-i", "--interval      <interval>",   PositiveInt,   "contour interval in metres (default %s)" % NSWTopo::Contour::DEFAULTS["interval"]
+      parser.on "-x", "--index         <index>",      PositiveInt,   "index interval in metres"
+      parser.on "-s", "--smooth        <radius>",     NonNegFloat,   "DEM smoothing radius in mm (default %s)" % NSWTopo::Contour::DEFAULTS["smooth"]
+      parser.on "-t", "--thin",                                      "thin intermediate contours in steep areas"
+      # parser.on "-d", "--density       <density>",    PositiveFloat, "maximum lines/mm before thinning occurs"
+      # parser.on "-m", "--min-length    <length>",     PositiveFloat, "minimum length before contour thinning in mm"
+      parser.on       "--no-depression",                             "don't show or clean depression contours"
+      parser.on "-k", "--knolls        <size>",       NonNegFloat,   "minimum knoll size in mm (default %s)" % NSWTopo::Contour::DEFAULTS["knolls"]
+      parser.on "-a", "--after         <layer>",                     "insert after specified layer"
+      parser.on "-b", "--before        <layer>",                     "insert before specified layer"
+      parser.on "-c", "--replace       <layer>",                     "replace specified layer"
+      parser.on       "--stroke        <colour>",     Colour,        "stroke colour (name or RGB triplet)"
+      parser.on       "--stroke-width  <width>",      PositiveFloat, "stroke width in mm"
+      parser.on       "--fill          <colour>",     Colour,        "label colour (defaults to stroke colour)"
+      parser.on "-r", "--resolution    <resolution>", PositiveFloat, "DEM processing resolution in metres"
 
     when "spot-heights"
       parser.banner = <<~EOF
         *nswtopo* *spot-heights* - add spot heights from elevation data
           usage: _nswtopo_ _spot-heights_ [~options~] <map.tgz> <dem.zip>
       EOF
-      parser.on "-s", "--smooth   <radius>",         NonNegFloat,        "DEM smoothing radius in mm (default %s)" % NSWTopo::Spot::DEFAULTS["smooth"]
-      parser.on       "--spacing  <spacing>",        PositiveFloat,      "minimum spot spacing in mm (default %i)" % NSWTopo::Spot::DEFAULTS["spacing"]
-      parser.on "-p", "--prefer   <knolls|saddles>", %w[knolls saddles], "preferred spot locations"
-      parser.on "-a", "--after    <layer>",                              "insert after specified layer"
-      parser.on "-b", "--before   <layer>",                              "insert before specified layer"
-      parser.on "-c", "--replace  <layer>",                              "replace specified layer"
+      parser.on "-s", "--smooth      <radius>",         NonNegFloat,        "DEM smoothing radius in mm (default %s)" % NSWTopo::Spot::DEFAULTS["smooth"]
+      parser.on       "--spacing     <spacing>",        PositiveFloat,      "minimum spot spacing in mm (default %i)" % NSWTopo::Spot::DEFAULTS["spacing"]
+      parser.on "-p", "--prefer      <knolls|saddles>", %w[knolls saddles], "preferred spot locations"
+      parser.on "-a", "--after       <layer>",                              "insert after specified layer"
+      parser.on "-b", "--before      <layer>",                              "insert before specified layer"
+      parser.on "-c", "--replace     <layer>",                              "replace specified layer"
+      parser.on "-r", "--resolution  <resolution>",     PositiveFloat,      "DEM processing resolution in metres"
 
     when "relief"
       parser.banner = <<~EOF

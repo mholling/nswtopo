@@ -8,7 +8,7 @@ module NSWTopo
 
       png_path = nil
       max_zoom, min_zoom = *zoom.sort.reverse
-      max_zoom.down_to(0).map do |zoom|
+      max_zoom.downto(0).map do |zoom|
         indices, dimensions, topleft = web_mercator_bounds.map do |lower, upper|
           (2**zoom * (lower + HALF) / HALF / 2).floor ... (2**zoom * (upper + HALF) / HALF / 2).ceil
         end.map.with_index do |indices, axis|

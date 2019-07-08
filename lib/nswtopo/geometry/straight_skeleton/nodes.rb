@@ -137,7 +137,7 @@ module StraightSkeleton
           end
           pending.subtract nodes
           nodes << nodes.first if nodes.first == nodes.last.next
-          result << nodes
+          result << nodes unless nodes.one?
         end
       end
     end

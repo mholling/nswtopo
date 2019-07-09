@@ -20,7 +20,7 @@ module NSWTopo
       end.select do |*, indices, zoom|
         next true if zoom == max_zoom
         next zoom >= min_zoom if min_zoom
-        indices.all? { |indices| indices.size < 3 } 
+        !indices.all?(&:one?)
       end.tap do |(resolution, *), *|
         png_path = yield(resolution: resolution)
       end.tap do |levels|

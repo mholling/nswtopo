@@ -10,9 +10,11 @@ DEM tiles from the ELVIS website are delivered as doubly-zipped files. It's not 
 # Spot Height Configuration
 Use the `--spacing` option to determine the maximum density of spot heights on the map. The value in millimetres represents the minimum distance between any two spot heights.
 
-Choose the amount of smoothing to apply to the DEM with the `--smooth` option. The value represents a smoothing radius in millimetres. For consistency, the same smoothing radius shoult be used for both contours and spot heights.
+Choose the amount of smoothing to apply to the DEM with the `--smooth` option. The value represents a smoothing radius in millimetres. For consistency in elevation, the same smoothing radius should be used for both contours and spot heights.
 
 Use the `--prefer` option to favour `knolls` or `saddles` when selecting spot locations. No preference is taken by default.
+
+Use the `--extent` option to set a minimum size in millimetres when searching for spot-height features. Smaller, localised knolls and saddles will be rejected.
 
 DEM tiles are normally processed at their maximumum native resolution. Change this using the `--resolution` option. A reduced resolution (say 5 metres) can markedly improve processing speed for 1- and 2-metre tiles.
 

@@ -253,6 +253,7 @@ begin
       parser.on "-s", "--smooth      <radius>",         NonNegFloat,        "DEM smoothing radius in mm (default %s)" % NSWTopo::Spot::DEFAULTS["smooth"]
       parser.on       "--spacing     <spacing>",        PositiveFloat,      "minimum spot spacing in mm (default %i)" % NSWTopo::Spot::DEFAULTS["spacing"]
       parser.on "-p", "--prefer      <knolls|saddles>", %w[knolls saddles], "preferred spot locations"
+      parser.on "-e", "--extent      <extent>",         PositiveFloat,      "minimum feature extent in mm (default %i)" % NSWTopo::Spot::DEFAULTS["extent"]
       parser.on "-a", "--after       <layer>",                              "insert after specified layer"
       parser.on "-b", "--before      <layer>",                              "insert before specified layer"
       parser.on "-c", "--replace     <layer>",                              "replace specified layer"

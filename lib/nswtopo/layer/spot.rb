@@ -1,10 +1,11 @@
 module NSWTopo
   module Spot
     include Vector, DEM, Log
-    CREATE = %w[spacing smooth prefer]
+    CREATE = %w[spacing smooth prefer extent]
     DEFAULTS = YAML.load <<~YAML
       spacing: 15
       smooth: 0.2
+      extent: 4
       symbol:
         circle:
           r: 0.2
@@ -16,7 +17,6 @@ module NSWTopo
         margin: 0.7
         position: [right, above, below, left, aboveright, belowright, aboveleft, belowleft]
     YAML
-    NOISE_MM = 2.0 # TODO: noise sensitivity should depend on contour interval
 
     def margin
       { mm: 3 * @smooth }
@@ -39,12 +39,14 @@ module NSWTopo
     end
 
     module Candidate
+      attr_accessor :elevation, :knoll
+
       module PreferKnolls
-        def ordinal; [conflicts.size, -self["elevation"]] end
+        def ordinal; [conflicts.size, -elevation] end
       end
 
       module PreferSaddles
-        def ordinal; [conflicts.size, self["elevation"]] end
+        def ordinal; [conflicts.size, elevation] end
       end
 
       module PreferNeither
@@ -72,75 +74,79 @@ module NSWTopo
       end
     end
 
+    def pixels_knolls(dem_path, &block)
+      Enumerator.new do |yielder|
+        log_update "%s: calculating aspect map" % @name
+        aspect_path = dem_path.sub_ext ".bil"
+        OS.gdaldem "aspect", dem_path, aspect_path, "-trigonometric"
+        aspect = ESRIHdr.new aspect_path, -9999
+
+        offsets = [-1..1, -1..1].map(&:entries).inject(&:product).map do |row, col|
+          row * aspect.ncols + col - 1
+        end.values_at(0,3,6,7,8,5,2,1,0)
+
+        aspect.nrows.times do |row|
+          log_update "%s: finding flat areas: %.1f%%" % [@name, 100.0 * (row + 1) / aspect.nrows]
+          aspect.ncols.times do |col|
+            offsets.map!(&:next)
+            next if row < 1 || col < 1 || row >= aspect.nrows - 1 || col >= aspect.ncols - 1
+            next if block&.call col, row
+            ccw, cw = offsets.each_cons(2).inject([true, true]) do |(ccw, cw), (o1, o2)|
+              break unless ccw || cw
+              a1, a2 = aspect.values.values_at o1, o2
+              break unless a1 && a2
+              (a2 - a1) % 360 < 180 ? [ccw, false] : [false, cw]
+            end
+            yielder << [[col, row], true] if ccw
+            yielder << [[col, row], false] if cw
+          end
+        end
+      end
+    end
+
     def candidates
       @candidates ||= Dir.mktmppath do |temp_dir|
         raw_path = temp_dir / "raw.tif"
-        dem_path = temp_dir / "dem.tif"
-        aspect_path = temp_dir / "aspect.bil"
+        dem_hr_path = temp_dir / "dem.hr.tif"
+        dem_lr_path = temp_dir / "dem.lr.tif"
 
         if @smooth.zero?
-          get_dem temp_dir, dem_path
+          get_dem temp_dir, dem_hr_path
         else
           get_dem temp_dir, raw_path
-          blur_dem raw_path, dem_path
+          blur_dem raw_path, dem_hr_path
         end
 
-        log_update "%s: calculating aspect map" % @name
-        OS.gdaldem "aspect", dem_path, aspect_path, "-trigonometric"
+        low_resolution = 0.5 * @extent * @map.scale / 1000.0
+        OS.gdalwarp "-r", "med", "-tr", low_resolution, low_resolution, dem_hr_path, dem_lr_path
 
-        Enumerator.new do |yielder|
-          aspect = ESRIHdr.new aspect_path, -9999
-          indices = [-1, 0, 1].map do |row|
-            [-1, 0, 1].map do |col|
-              row * aspect.ncols + col - 1
-            end
-          end.flatten.values_at(0,3,6,7,8,5,2,1,0)
+        mask = pixels_knolls(dem_lr_path).map(&:first).to_set
+        pixels, knolls = pixels_knolls(dem_hr_path) do |col, row|
+          !mask.include? [(col * @resolution / low_resolution).floor, (row * @resolution / low_resolution).floor]
+        end.entries.transpose
 
-          aspect.nrows.times do |i|
-            log_update "%s: finding flat areas: %.1f%%" % [@name, 100.0 * i / aspect.nrows]
-            aspect.ncols.times do |j|
-              indices.map!(&:next)
-              next if i < 1 || j < 1 || i > aspect.nrows - 2 || j > aspect.ncols - 2
-              ring = aspect.values.values_at *indices
-              next if ring.any?(&:nil?)
-              anticlockwise = ring.each_cons(2).map do |a1, a2|
-                (a2 - a1) % 360 < 180
-              end
-              yielder << [[j + 1, i + 1], true] if anticlockwise.all?
-              yielder << [[j + 1, i + 1], false] if anticlockwise.none?
-            end
-          end
-        end.group_by(&:last).flat_map do |knoll, group|
-          pixels = group.map(&:first)
-          locations = raster_locations dem_path, pixels
-          elevations = raster_values dem_path, pixels
+        locations = raster_locations dem_hr_path, pixels
+        elevations = raster_values dem_hr_path, pixels
 
-          locations.zip(elevations).map do |coordinates, elevation|
-            GeoJSON::Point.new coordinates, "knoll" => knoll, "elevation" => elevation
-          end.each do |feature|
+        locations.zip(elevations, knolls).map do |coordinates, elevation, knoll|
+          GeoJSON::Point.new(coordinates).tap do |feature|
             feature.extend Candidate, ordering
+            feature.knoll, feature.elevation = knoll, elevation
+            feature["label"] = elevation.round
           end
         end
       end
     end
 
     def get_features
-      selected, rejected, remaining = [], Set[], AVLTree.new
-      index = RTree.load(candidates, &:bounds)
+      selected, remaining = [], AVLTree.new
+      spatial_index = RTree.load(candidates, &:bounds)
+      buffer = @spacing * @map.scale / 1000.0
 
-      log_update "%s: choosing candidates" % @name
-      candidates.to_set.each do |candidate|
-        buffer = NOISE_MM * @map.scale / 1000.0
-        index.search(candidate.bounds(buffer)).each do |other|
-          next unless candidate["knoll"] ^ other["knoll"]
-          next if [candidate, other].map(&:coordinates).distance > buffer
-          rejected << candidate << other
-        end
-      end.difference(rejected).each do |candidate|
-        buffer = @spacing * @map.scale / 1000.0
-        index.search(candidate.bounds(buffer)).each do |other|
+      candidates.each.with_index do |candidate, index|
+        log_update "%s: examining candidates: %.1f%%" % [@name, 100.0 * index  / candidates.length]
+        spatial_index.search(candidate.bounds(buffer)).each do |other|
           next if other == candidate
-          next if rejected === other
           next if [candidate, other].map(&:coordinates).distance > buffer
           candidate.conflicts << other
         end
@@ -161,11 +167,7 @@ module NSWTopo
         end
       end
 
-      selected.each do |feature|
-        feature.properties.replace "label" => feature["elevation"].round
-      end.yield_self do |features|
-        GeoJSON::Collection.new @map.projection, features
-      end
+      GeoJSON::Collection.new @map.projection, selected
     end
   end
 end

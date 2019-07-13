@@ -1,6 +1,6 @@
 module Segment
   def segments
-    self[0..-2].zip self[1..-1]
+    each_cons(2).entries
   end
 
   def ring

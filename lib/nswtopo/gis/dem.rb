@@ -28,7 +28,7 @@ module NSWTopo
         @resolution ||= resolutions.first
 
         indexed_dem_path = temp_dir / "dem.#{index}.tif"
-        OS.gdalbuildvrt "-overwrite", "-input_file_list", txt_path, vrt_path
+        OS.gdalbuildvrt "-overwrite", "-allow_projection_difference", "-a_srs", projection, "-input_file_list", txt_path, vrt_path
         OS.gdalwarp "-t_srs", @map.projection, "-te", *te, "-tr", @resolution, @resolution, "-r", "bilinear", vrt_path, indexed_dem_path
         indexed_dem_path
       end.tap do |dem_paths|

@@ -50,15 +50,15 @@ module NSWTopo
 
       vrt = OS.gdalbuildvrt "/vsistdout/", dem_path
       xml = REXML::Document.new vrt
-      xml.elements.each("//ComplexSource") do |complex_source|
-        kernel_filtered_source = complex_source.parent.add_element("KernelFilteredSource")
-        complex_source.elements.each("SourceFilename|OpenOptions|SourceBand|SourceProperties|SrcRect|DstRect") do |element|
+      xml.elements.each("//ComplexSource|//SimpleSource") do |source|
+        kernel_filtered_source = source.parent.add_element("KernelFilteredSource")
+        source.elements.each("SourceFilename|OpenOptions|SourceBand|SourceProperties|SrcRect|DstRect") do |element|
           kernel_filtered_source.add_element element
         end
         kernel = kernel_filtered_source.add_element("Kernel", "normalized" => 1)
         kernel.add_element("Size").text = coeffs.size
         kernel.add_element("Coefs").text = coeffs.join ?\s
-        complex_source.parent.delete complex_source
+        source.parent.delete source
       end
 
       log_update "%s: smoothing DEM raster" % @name

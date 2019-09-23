@@ -59,6 +59,7 @@ begin
   Opacity       = /\A#{float}%?\z/
   DashArray     = /\A#{float}(?:(?:,#{float})*|(?: #{float})*)\z/
   Zoom          = /\A(?:#{digits},)?#{digits}\z/
+  ZlibLevel     = /\A\d\z/
 
   OptionParser.accept PositiveInt, PositiveInt do |string|
     raise OptionParser::InvalidArgument, string unless string.to_i.positive?
@@ -128,6 +129,10 @@ begin
     values = string.split(?,).map(&:to_i)
     raise OptionParser::InvalidArgument, string unless values.all?(10..19)
     values
+  end
+
+  OptionParser.accept ZlibLevel, ZlibLevel do |string|
+    Integer(string)
   end
 
   ansi = lambda do |string|
@@ -367,6 +372,7 @@ begin
       parser.on "-r", "--resolution    <resolution>", PositiveFloat, "set resolution for given layer"
       parser.on       "--layer-dir     <path>",       Pathname,      "set an extra layer directory"
       parser.on       "--[no-]labelling",                            "enable or disable map labelling"
+      parser.on "-z", "--zlib-level    <0-9>",        ZlibLevel,     "set zlib compression level"
 
     when nil
       raise OptionParser::MissingArgument, "no command specified"

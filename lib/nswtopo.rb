@@ -206,7 +206,7 @@ module NSWTopo
   end
 
   def config(layer = nil, **options)
-    chrome, firefox, path, resolution, layer_dir, labelling, delete = options.values_at :chrome, :firefox, :path, :resolution, :"layer-dir", :labelling, :delete
+    chrome, firefox, path, resolution, layer_dir, labelling, zlib_level, delete = options.values_at :chrome, :firefox, :path, :resolution, :"layer-dir", :labelling, :"zlib-level", :delete
     raise "not a directory: %s" % layer_dir if layer_dir && !layer_dir.directory?
     raise "chrome path is not an executable" if chrome && !chrome.executable?
     raise "firefox path is not an executable" if firefox && !firefox.executable?
@@ -214,6 +214,7 @@ module NSWTopo
     Config.store("firefox", firefox.to_s) if firefox
     Config.store("labelling", labelling) unless labelling.nil?
     Config.store("layer-dir", layer_dir.to_s) if layer_dir
+    Config.store("zlib-level", zlib_level) if zlib_level
 
     layer = Layer.sanitise layer
     case

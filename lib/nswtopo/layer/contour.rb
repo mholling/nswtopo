@@ -123,16 +123,13 @@ module NSWTopo
           OS.gdal_translate "-srcwin", *srcwin, "-a_nodata", "none", "-of", "VRT", slope_tif_path, slope_vrt_path
 
           multiplier = @index / @interval
-          case multiplier
-          when  4 then [ [1,3], 2 ]
-          when  5 then [ [1,4], [2,3] ]
-          when  6 then [ [1,4], [2,5], 3 ]
-          when  7 then [ [2,5], [1,3,6], 4 ]
-          when  8 then [ [1,3,5,7], [2,6], 4 ]
-          when  9 then [ [1,4,7], [2,5,8], [3,6] ]
-          when 10 then [ [2,5,8], [1,4,6,9], [3,7] ]
-          else raise "contour thinning not available for specified index interval"
-          end.inject(multiplier) do |count, (*drop)|
+          Enumerator.new do |yielder|
+            keep = 0...multiplier
+            until keep.one?
+              keep, drop = keep.count.even? ? keep.each_slice(2).entries.transpose : [[0], keep.drop(1)]
+              yielder << drop
+            end
+          end.inject(multiplier) do |count, drop|
             angle = Math::atan(1000.0 * @index * @density / @map.scale / count) * 180.0 / Math::PI
             mask_path = temp_dir / "mask.#{count}.sqlite"
 

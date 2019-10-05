@@ -269,7 +269,7 @@ begin
         *nswtopo* *relief* - add shaded relief
           usage: _nswtopo_ _relief_ [~options~] <map.tgz> <dem.zip>
       EOF
-      parser.on "-r", "--resolution  <resolution>", PositiveFloat, "resolution in metres (default %i)" % NSWTopo::Relief::DEFAULTS["resolution"]
+      parser.on "-r", "--resolution  <resolution>", PositiveFloat, "resolution in metres"
       parser.on "-o", "--opacity     <opacity>",    Opacity,       "opacity (default %s)" % NSWTopo::Relief::DEFAULTS["opacity"]
       parser.on "-a", "--altitude    <altitude>",   AltitudeAngle, "altitude angle in degrees (default %i)" % NSWTopo::Relief::DEFAULTS["altitude"]
       parser.on "-z", "--azimuth     <azimuth>",    Float,         "azimuth in degrees (default %i)" % NSWTopo::Relief::DEFAULTS["azimuth"]

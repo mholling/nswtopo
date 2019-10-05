@@ -9,7 +9,6 @@ module NSWTopo
       sources: 3
       yellow: 0.2
       smooth: 4
-      resolution: 5.0
       opacity: 0.3
     YAML
 

@@ -216,6 +216,7 @@ begin
         usage: _nswtopo_ _info_ [~options~] <map.tgz>
       EOF
       parser.on "-e", "--empty", "show empty layers"
+      parser.on "-j", "--json",  "show map bounds as GeoJSON string"
 
     when "add"
       parser.banner = <<~EOF

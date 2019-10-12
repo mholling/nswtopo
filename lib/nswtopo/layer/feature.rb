@@ -76,7 +76,7 @@ module NSWTopo
           properties["category"] = categories if categories.any?
           properties["label"] = labels if labels.any?
           properties["draw"] = false if options[:draw] == false
-          properties["draw"] = false if @name =~ /-labels$/
+          properties["draw"] = false if @name =~ /[-_]labels$/
           properties["rotation"] = rotation if rotation
 
           feature.properties.replace properties

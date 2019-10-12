@@ -54,6 +54,7 @@ module NSWTopo
   end
 
   def info(archive, options)
+    raise OptionParser::InvalidArgument, "one output option only" if options.slice(:json, :proj).length > 1
     puts Map.load(archive).info(options)
   end
 

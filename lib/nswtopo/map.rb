@@ -231,8 +231,10 @@ module NSWTopo
       save
     end
 
-    def info(empty: nil, json: false)
+    def info(empty: nil, json: false, proj: false)
       return JSON.pretty_generate bounding_box.reproject_to_wgs84.first.to_h if json
+      return @projection.proj4 if proj
+      # TODO: raise error if both --proj and --json are specified
       StringIO.new.tap do |io|
         io.puts "%-11s 1:%i" %            ["scale:",      @scale]
         io.puts "%-11s %imm × %imm" %     ["dimensions:", *@extents.times(1000.0 / @scale)]

@@ -112,7 +112,7 @@ begin
   objectid_field, geometry_field = %w[esriFieldTypeOID esriFieldTypeGeometry].map do |type|
     layer['fields'].find do |field|
       type == field['type']
-    end.fetch('name')
+    end&.fetch('name')
   end
 
   if layer['typeIdField']
@@ -167,6 +167,7 @@ begin
         end
       end
     when /Map/
+      raise "no OBJECT_ID field available for this layer" unless object_id
       raise OptionParser::InvalidOption, "can't use --epsg with this server" if options.epsg
       raise OptionParser::InvalidOption, "can't use --geometry with this server" if options.geometry
       wkid = layer['extent']['spatialReference']['latestWkid'] || layer['extent']['spatialReference']['wkid']

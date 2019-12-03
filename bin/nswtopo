@@ -285,9 +285,10 @@ begin
         *nswtopo* *grid* - add UTM grid
           usage: _nswtopo_ _grid_ [~options~] <map.tgz>
       EOF
-      parser.on "-i", "--interval  <interval>", PositiveFloat, "interval between grid lines in",
-                                                               "metres (default %i)" % NSWTopo::Grid::DEFAULTS["interval"]
-      parser.on "-u", "--unlabeled",                           "don't add grid labels"
+      parser.on "-i", "--interval      <interval>", PositiveFloat, "interval between grid lines in",
+                                                                   "metres (default %i)" % NSWTopo::Grid::DEFAULTS["interval"]
+      parser.on "-u", "--unlabeled",                               "don't add grid labels"
+      parser.on       "--stroke-width  <width>",    PositiveFloat, "stroke width in mm (default %s)" % NSWTopo::Grid::DEFAULTS["stroke-width"]
 
     when "declination"
       parser.banner = <<~EOF

@@ -130,9 +130,10 @@ module VectorSequence
     trim(0.5 * (path_length - length))
   end
 
-  def sample_at(interval, along: false, angle: false)
+  def sample_at(interval, along: false, angle: false, offset: nil)
     Enumerator.new do |yielder|
-      segments.inject [0.5, 0] do |(alpha, sum), segment|
+      alpha = (0.5 + Float(offset || 0) / interval) % 1.0
+      segments.inject [alpha, 0] do |(alpha, sum), segment|
         loop do
           fraction = alpha * interval / segment.distance
           break unless fraction < 1

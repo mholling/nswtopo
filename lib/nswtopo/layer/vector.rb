@@ -170,10 +170,10 @@ module NSWTopo
 
           when "symbolise"
             next unless content
-            interval, symbols = args.partition do |element, attributes|
-              element == "interval"
+            args, symbols = args.partition do |element, attributes|
+              %w[interval offset].include? element
             end
-            interval = Hash[interval]["interval"]
+            interval, offset = Hash[args].values_at "interval", "offset"
             symbol_ids = symbols.map.with_index do |(element, attributes), index|
               symbol_id = [*ids, "symbol", index].join(?.).tap do |symbol_id|
                 defs.add_element("g", "id" => symbol_id).add_element(element, attributes)
@@ -182,7 +182,7 @@ module NSWTopo
             lines_or_rings = features.grep(GeoJSON::LineString).map(&:coordinates)
             lines_or_rings += features.grep(GeoJSON::Polygon).map(&:coordinates).flatten(1)
             lines_or_rings.each do |points|
-              points.map(&to_mm).sample_at(interval, angle: true).each do |point, angle|
+              points.map(&to_mm).sample_at(interval, angle: true, offset: offset).each do |point, angle|
                 transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*point, 180.0 * angle / Math::PI]
                 content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_ids.sample
               end

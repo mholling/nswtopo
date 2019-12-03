@@ -22,7 +22,7 @@ module NSWTopo
       when coords
         coords
       when bounds
-        gps = GPS.load bounds
+        gps = GPS.load(bounds).explode
         margins ||= [15, 15] unless dimensions || gps.polygons.any?
         case
         when gps.polygons.any?

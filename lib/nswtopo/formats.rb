@@ -10,6 +10,7 @@ module NSWTopo
   module Formats
     include Log
     PPI = 300
+    PAGE = 2000
 
     def self.extensions
       instance_methods.grep(/^render_([a-z]+)/) { $1 }
@@ -33,22 +34,22 @@ module NSWTopo
 
     def rasterise(png_path, external:, **options)
       Dir.mktmppath do |temp_dir|
-        dimensions, ppi, resolution = raster_dimensions_at **options
+        raster_dimensions, ppi, resolution = raster_dimensions_at **options
         svg_path = temp_dir / "map.svg"
         src_path = temp_dir / "browser.svg"
         render_svg svg_path, external: external
 
         NSWTopo.with_browser do |browser_name, browser_path|
-          megapixels = dimensions.inject(&:*) / 1024.0 / 1024.0
-          log_update "%s: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [browser_name, *dimensions, megapixels, options[:ppi]       ] if options[:ppi]
-          log_update "%s: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [browser_name, *dimensions, megapixels, options[:resolution]] if options[:resolution]
+          megapixels = raster_dimensions.inject(&:*) / 1024.0 / 1024.0
+          log_update "%s: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [browser_name, *raster_dimensions, megapixels, options[:ppi]       ] if options[:ppi]
+          log_update "%s: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [browser_name, *raster_dimensions, megapixels, options[:resolution]] if options[:resolution]
 
-          render = lambda do |width, height|
+          render = lambda do |png_path|
             args = case browser_name
             when "firefox"
-              ["--window-size=#{width},#{height}", "-headless", "-screenshot", png_path.to_s]
+              ["--window-size=#{PAGE},#{PAGE}", "-headless", "-screenshot", png_path.to_s]
             when "chrome"
-              ["--window-size=#{width},#{height}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu"]
+              ["--window-size=#{PAGE},#{PAGE}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu"]
             end
             FileUtils.rm png_path if png_path.exist?
             stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{src_path}"
@@ -59,18 +60,33 @@ module NSWTopo
           end
 
           src_path.write %Q[<?xml version='1.0' encoding='UTF-8'?><svg version='1.1' baseProfile='full' xmlns='http://www.w3.org/2000/svg'></svg>]
-          render.call 1000, 1000
-          json = NSWTopo::OS.gdalinfo "-json", png_path
-          scaling = JSON.parse(json)["size"][0] / 1000.0
+          empty_path = temp_dir / "empty.png"
+          render.call empty_path
+          json = OS.gdalinfo "-json", empty_path
+          page = JSON.parse(json)["size"][0]
 
-          svg = %w[width height].inject(svg_path.read) do |svg, attribute|
-            svg.sub(/#{attribute}='(.*?)mm'/) { %Q[#{attribute}='#{$1.to_f * ppi / 96.0 / scaling}mm'] }
+          viewbox_matcher = /viewBox='(.*?)'/
+          origin, svg_dimensions = *svg_path.read.match(viewbox_matcher) do |match|
+            match[1].split.map(&:to_f)
+          end.each_slice(2)
+
+          viewport_dimensions = svg_dimensions.map do |dimension|
+            dimension * 96.0 / ppi * page / PAGE
           end
-          src_path.write svg
-          render.call *(dimensions / scaling).map(&:ceil)
-        end
 
-        OS.mogrify "+repage", "-crop", "#{dimensions.join ?x}+0+0", "-background", "white", "-flatten", "-alpha", "Off", "-units", "PixelsPerInch", "-density", ppi, "-define", "PNG:exclude-chunk=bkgd,itxt,ztxt,text,chrm", png_path
+          svg_dimensions.map do |dimension|
+            (dimension * ppi / 25.4 / page).ceil.times.map do |index|
+              [index * page, index * page * 25.4 / ppi]
+            end
+          end.inject(&:product).map(&:transpose).flat_map do |raster_offset, viewport_offset|
+            page_path = temp_dir.join("page.%i.%i.png" % raster_offset)
+            src_path.write svg_path.read.sub(viewbox_matcher, "viewBox='%s %s %s %s'" % [*viewport_offset, *viewport_dimensions])
+            render.call page_path
+            ["-page", "+%i+%i" % raster_offset, page_path]
+          end.tap do |args|
+            OS.convert *args, "-layers", "merge", "+repage", "-crop", "#{raster_dimensions.join ?x}+0+0", "-background", "white", "-alpha", "Remove", "-units", "PixelsPerInch", "-density", ppi, "-define", "PNG:exclude-chunk=bkgd,itxt,ztxt,text,chrm", png_path
+          end
+        end
       end
     end
   end

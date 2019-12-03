@@ -46,7 +46,8 @@ module NSWTopo
 
         txt_path.write rasters.map(&:first).join(?\n)
         OS.gdalbuildvrt "-overwrite", "-input_file_list", txt_path, vrt_path
-        OS.gdal_translate "-projwin", *@map.projwin(projection), "-r", "near", "-co", "TFW=YES", vrt_path, indexed_tif_path
+        projwin = @map.projwin projection, metres: 2 * @map.get_raster_resolution(vrt_path)
+        OS.gdal_translate "-projwin", *projwin, "-r", "near", "-co", "TFW=YES", vrt_path, indexed_tif_path
         OS.gdal_translate "-of", "VRT", indexed_tif_path, indexed_vrt_path
 
         xml = REXML::Document.new indexed_vrt_path.read

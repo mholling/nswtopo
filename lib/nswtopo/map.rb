@@ -129,8 +129,8 @@ module NSWTopo
       end.coordinates.first.transpose.map(&:minmax)
     end
 
-    def projwin(projection)
-      bounds(projection: projection).flatten.values_at(0,3,1,2)
+    def projwin(projection, **margin)
+      bounds(projection: projection, margin: margin).flatten.values_at(0,3,1,2)
     end
 
     def write_world_file(path, resolution: nil, ppi: nil)

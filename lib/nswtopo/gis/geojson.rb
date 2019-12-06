@@ -12,6 +12,7 @@ module NSWTopo
           raise Error, "invalid feature properties" unless Hash === properties
           raise Error, "invalid feature geometry" unless Array === coordinates
           @coordinates, @properties = coordinates, properties
+          validate!
         end
         attr_accessor :coordinates, :properties
 
@@ -60,6 +61,7 @@ module NSWTopo
         end
 
         delegate :clip => :multi
+        alias validate! itself
       end
 
       multi_class.class_eval do
@@ -67,6 +69,10 @@ module NSWTopo
           @coordinates.map do |coordinates|
             single_class.new coordinates, @properties
           end
+        end
+
+        def validate!
+          explode.each &:validate!
         end
 
         def bounds

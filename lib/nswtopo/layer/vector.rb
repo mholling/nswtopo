@@ -232,15 +232,22 @@ module NSWTopo
           when "shield"
             next unless content
             content.elements.each("text") do |element|
-              next unless text_length = element.elements["./ancestor-or-self::[@textLength]/@textLength"]&.value&.to_f
-              shield = REXML::Element.new("g")
-              width, height = text_length + SHIELD_X * font_size, (1 + SHIELD_Y) * font_size
-              shield.add_element "rect", "x" => -0.5 * width, "y" => -0.5 * height, "width" => width, "height" => height, "rx" => font_size * 0.3, "ry" => font_size * 0.3, "stroke" => "none", "fill" => args
-              text_transform = element.attributes.get_attribute "transform"
-              text_transform.remove
-              shield.attributes << text_transform
-              element.parent.elements << shield
-              shield << element
+              case
+              when text_length = element.elements["./ancestor-or-self::[@textLength]/@textLength"]&.value&.to_f
+                shield = REXML::Element.new("g")
+                width, height = text_length + SHIELD_X * font_size, (1 + SHIELD_Y) * font_size
+                shield.add_element "rect", "x" => -0.5 * width, "y" => -0.5 * height, "width" => width, "height" => height, "rx" => font_size * 0.3, "ry" => font_size * 0.3, "stroke" => "none", "fill" => args
+                text_transform = element.attributes.get_attribute "transform"
+                text_transform.remove
+                shield.attributes << text_transform
+                element.parent.elements << shield
+                shield << element
+              when href = element.elements["./textPath[@xlink:href]/@xlink:href"]&.value
+                shield = REXML::Element.new("g")
+                shield.add_element "use", "xlink:href" => href, "stroke-width" => (1 + SHIELD_Y) * font_size, "stroke" => args, "stroke-linecap" => "round"
+                element.parent.elements << shield
+                shield << element
+              end
             end
 
           when *SVG_ATTRIBUTES

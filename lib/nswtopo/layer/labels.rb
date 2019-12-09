@@ -7,7 +7,7 @@ module NSWTopo
     DEFAULT_SAMPLE = 5
     INSET = 1
 
-    PROPERTIES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format categories optional sample line-height upcase shield curved]
+    PROPERTIES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format categories optional sample line-height upcase shield curved coexist]
     TRANSFORMS = %w[reduce fallback offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
 
     DEFAULTS = YAML.load <<~YAML
@@ -257,6 +257,10 @@ module NSWTopo
 
       def categories
         attributes["categories"]
+      end
+
+      def coexists_with?(other)
+        Array(attributes["coexist"]).include? other.layer_name
       end
 
       def conflicts
@@ -529,6 +533,8 @@ module NSWTopo
       candidates.map(&:hull).overlaps.map do |indices|
         candidates.values_at *indices
       end.each do |candidate1, candidate2|
+        next if candidate1.coexists_with? candidate2
+        next if candidate2.coexists_with? candidate1
         candidate1.conflicts << candidate2
         candidate2.conflicts << candidate1
       end

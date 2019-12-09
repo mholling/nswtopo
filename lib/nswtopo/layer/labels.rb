@@ -246,7 +246,7 @@ module NSWTopo
       end
     end
 
-    Label = Struct.new(:layer_name, :label_index, :feature_index, :priority, :hull, :attributes, :elements, :along) do
+    Label = Struct.new(:layer_name, :label_index, :feature_index, :priority, :hull, :attributes, :elements, :along, :fixed) do
       def point?
         along.nil?
       end
@@ -481,12 +481,13 @@ module NSWTopo
 
               case collection.text
               when REXML::Element
+                fixed = true
                 text_element.add_element collection.text, "xlink:href" => "#%s" % path_id
               when String
                 text_path = text_element.add_element "textPath", "xlink:href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
               end
-              Label.new collection.layer_name, label_index, feature_index, priority, hull, attributes, [text_element, path_element], along
+              Label.new collection.layer_name, label_index, feature_index, priority, hull, attributes, [text_element, path_element], along, fixed
             end.compact.map do |candidate|
               [candidate, []]
             end.to_h.tap do |matrix|
@@ -575,8 +576,8 @@ module NSWTopo
           end
           labelled = counts[candidate.label_index].zero? ? 0 : 1
           optional = candidate.optional? ? 1 : 0
-          grid = candidate.layer_name == "grid" ? 0 : 1
-          ordinal = [grid, optional, conflict_count, labelled, candidate.priority]
+          fixed = candidate.fixed ? 0 : 1
+          ordinal = [fixed, optional, conflict_count, labelled, candidate.priority]
           next if candidate.ordinal == ordinal
           remaining.delete candidate
           candidate.ordinal = ordinal

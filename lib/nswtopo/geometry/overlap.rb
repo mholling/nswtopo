@@ -42,37 +42,6 @@ module Overlap
   def overlap?(buffer = 0)
     !separated_by?(buffer)
   end
-
-  def overlaps(buffer = 0)
-    return [] if empty?
-    axis = flatten(1).transpose.map { |values| values.max - values.min }.map.with_index.max.last
-    events, tops, bots, results = AVLTree.new, [], [], []
-    margin = [buffer, 0]
-    each.with_index do |hull, index|
-      min, max = hull.map { |point| point.rotate axis }.minmax
-      events << [min.minus(margin), index, :start]
-      events << [max.plus( margin), index, :stop ]
-    end
-    events.each do |point, index, event|
-      top, bot = at(index).transpose[1-axis].minmax
-      case event
-      when :start
-        not_above = bots.select { |bot, other| bot >= top - buffer }.map(&:last)
-        not_below = tops.select { |top, other| top <= bot + buffer }.map(&:last)
-        (not_below & not_above).reject do |other|
-          values_at(index, other).separated_by? buffer
-        end.each do |other|
-          results << [index, other]
-        end
-        tops << [top, index]
-        bots << [bot, index]
-      when :stop
-        tops.delete [top, index]
-        bots.delete [bot, index]
-      end
-    end
-    results
-  end
 end
 
 Array.send :include, Overlap

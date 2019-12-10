@@ -246,7 +246,7 @@ module NSWTopo
       end
     end
 
-    Label = Struct.new(:layer_name, :label_index, :feature_index, :priority, :hull, :attributes, :elements, :along, :fixed) do
+    Label = Struct.new(:layer_name, :label_index, :feature_index, :priority, :hulls, :attributes, :elements, :along, :fixed) do
       def point?
         along.nil?
       end
@@ -274,6 +274,25 @@ module NSWTopo
 
       alias hash object_id
       alias eql? equal?
+
+      def bounds
+        hulls.flatten(1).transpose.map(&:minmax)
+      end
+
+      def self.overlaps(labels, buffer = 0)
+        index = RTree.load(labels) do |label|
+          label.bounds.map { |min, max| next min - 0.5 * buffer, max + 0.5 * buffer }
+        end
+        labels.flat_map do |label|
+          index.search(label.bounds).map do |other|
+            [label, other]
+          end.select do |pair|
+            pair.map(&:hulls).inject(&:product).any? do |hulls|
+              hulls.overlap?(buffer)
+            end
+          end
+        end
+      end
     end
 
     def drawing_features
@@ -309,43 +328,50 @@ module NSWTopo
             point = feature.coordinates.yield_self(&to_mm)
             lines = Font.in_two collection.text, attributes
             lines = [[collection.text, Font.glyph_length(collection.text, attributes)]] if lines.map(&:first).map(&:length).min == 1
-            width = lines.map(&:last).max
             height = lines.map { font_size }.inject { |total| total + line_height }
-            if attributes["shield"]
-              width += SHIELD_X * font_size
-              height += SHIELD_Y * font_size
-            end
-            [*attributes["position"] || "over"].map.with_index do |position, position_index|
+            # if attributes["shield"]
+            #   width += SHIELD_X * font_size
+            #   height += SHIELD_Y * font_size
+            # end
+
+            [*attributes["position"] || "over"].map do |position|
               dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
-              f = dx * dy == 0 ? 1 : 0.707
-              origin = [dx, dy].times(f * margin).plus(point)
+              next dx, dy, dx * dy == 0 ? 1 : 0.707
+            end.uniq.map.with_index do |(dx, dy, f), position_index|
+              text_elements, hulls = lines.map.with_index do |(line, text_length), index|
+                anchor = point.dup
+                anchor[0] += dx * (f * margin + 0.5 * text_length)
+                anchor[1] += dy * (f * margin + 0.5 * height)
+                anchor[1] += (index - 0.5) * 0.5 * height unless lines.one?
 
-              text_elements = lines.map.with_index do |(line, text_length), index|
-                y = (lines.one? ? 0 : dy == 0 ? index - 0.5 : index + 0.5 * (dy - 1)) * line_height
-                y += (CENTRELINE_FRACTION + 0.5 * dy) * font_size
-                REXML::Element.new("text").tap do |text|
-                  text.add_attribute "transform", "translate(%s)" % POINT % origin
-                  text.add_attribute "text-anchor", dx > 0 ? "start" : dx < 0 ? "end" : "middle"
-                  text.add_attribute "textLength", VALUE % text_length
-                  text.add_attribute "y", VALUE % y
-                  text.add_text line
-                end
+                text_element = REXML::Element.new("text")
+                text_element.add_attribute "transform", "translate(%s)" % POINT % anchor
+                text_element.add_attribute "text-anchor", "middle"
+                text_element.add_attribute "textLength", VALUE % text_length
+                text_element.add_attribute "y", VALUE % (CENTRELINE_FRACTION * font_size)
+                text_element.add_text line
+
+                hull = [text_length, font_size].zip(anchor).map do |size, origin|
+                  [origin - 0.5 * size, origin + 0.5 * size]
+                end.inject(&:product).values_at(0,2,3,1)
+
+                next text_element, hull
+              end.transpose
+
+              next unless hulls.all? do |hull|
+                labelling_hull.surrounds? hull
               end
 
-              hull = [[dx, width], [dy, height]].map do |d, l|
-                [d * f * margin + (d - 1) * 0.5 * l, d * f * margin + (d + 1) * 0.5 * l]
-              end.inject(&:product).values_at(0,2,3,1).map do |corner|
-                corner.plus point
-              end
-              next unless labelling_hull.surrounds? hull
-
-              fence_count = fence_index.search(hull.transpose.map(&:minmax)).inject(Set[]) do |indices, fence|
+              fence_count = fence_index.search(hulls.flatten(1).transpose.map(&:minmax)).inject(Set[]) do |indices, fence|
                 next indices if indices === fence.index
-                fence.conflicts_with?(hull) ? indices << fence.index : indices
+                hulls.any? do |hull|
+                  indices << fence.index if fence.conflicts_with? hull
+                end
+                indices
               end.size
               priority = [fence_count, position_index, feature_index]
-              Label.new collection.layer_name, label_index, feature_index, priority, hull, attributes, text_elements
+              Label.new collection.layer_name, label_index, feature_index, priority, hulls, attributes, text_elements
             end.compact.tap do |candidates|
               candidates.combination(2).each do |candidate1, candidate2|
                 candidate1.conflicts << candidate2
@@ -487,7 +513,7 @@ module NSWTopo
                 text_path = text_element.add_element "textPath", "xlink:href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
               end
-              Label.new collection.layer_name, label_index, feature_index, priority, hull, attributes, [text_element, path_element], along, fixed
+              Label.new collection.layer_name, label_index, feature_index, priority, [hull], attributes, [text_element, path_element], along, fixed
             end.compact.map do |candidate|
               [candidate, []]
             end.to_h.tap do |matrix|
@@ -526,14 +552,12 @@ module NSWTopo
         end
       end.flatten
 
-      candidates.each do |candidate|
-        debug_features << [candidate.hull, Set["debug", "candidate"]]
+      candidates.flat_map(&:hulls).each do |hull|
+        debug_features << [hull, Set["debug", "candidate"]]
       end if debug
       return debug_features if %w[features candidates].include? debug
 
-      candidates.map(&:hull).overlaps.map do |indices|
-        candidates.values_at *indices
-      end.each do |candidate1, candidate2|
+      Label.overlaps(candidates).each do |candidate1, candidate2|
         next if candidate1.coexists_with? candidate2
         next if candidate2.coexists_with? candidate1
         candidate1.conflicts << candidate2
@@ -543,9 +567,7 @@ module NSWTopo
       candidates.group_by do |candidate|
         [candidate.label_index, candidate.attributes["separation"]]
       end.each do |(label_index, buffer), candidates|
-        candidates.map(&:hull).overlaps(buffer).map do |indices|
-          candidates.values_at *indices
-        end.each do |candidate1, candidate2|
+        Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
           candidate1.conflicts << candidate2
           candidate2.conflicts << candidate1
         end if buffer
@@ -554,9 +576,7 @@ module NSWTopo
       candidates.group_by do |candidate|
         [candidate.layer_name, candidate.attributes["separation-all"]]
       end.each do |(layer_name, buffer), candidates|
-        candidates.map(&:hull).overlaps(buffer).map do |indices|
-          candidates.values_at *indices
-        end.each do |candidate1, candidate2|
+        Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
           candidate1.conflicts << candidate2
           candidate2.conflicts << candidate1
         end if buffer

@@ -280,16 +280,9 @@ module NSWTopo
       end
 
       def self.overlaps(labels, buffer = 0)
-        index = RTree.load(labels) do |label|
-          label.bounds.map { |min, max| next min - 0.5 * buffer, max + 0.5 * buffer }
-        end
-        labels.flat_map do |label|
-          index.search(label.bounds).map do |other|
-            [label, other]
-          end.select do |pair|
-            pair.map(&:hulls).inject(&:product).any? do |hulls|
-              hulls.overlap?(buffer)
-            end
+        RTree.load(labels, &:bounds).overlaps(buffer).select do |pair|
+          pair.map(&:hulls).inject(&:product).any? do |hulls|
+            hulls.overlap?(buffer)
           end
         end
       end

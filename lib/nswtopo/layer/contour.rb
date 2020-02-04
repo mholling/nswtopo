@@ -106,8 +106,11 @@ module NSWTopo
           feature["elevation"].zero?
         end
 
-        OS.ogr2ogr "-a_srs", @map.projection, "-nln", "contour", "-simplify", @simplify, *db_flags, db_path, "GeoJSON:/vsistdin/" do |stdin|
-          stdin.write contours.to_json
+        contours.each_slice(100).inject(nil) do |update, features|
+          OS.ogr2ogr "-a_srs", @map.projection, "-nln", "contour", *update, "-simplify", @simplify, *db_flags, db_path, "GeoJSON:/vsistdin/" do |stdin|
+            stdin.write GeoJSON::Collection.new(@map.projection, features).to_json
+          end
+          %w[-update -append]
         end
 
         if @thin

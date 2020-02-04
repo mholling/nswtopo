@@ -40,9 +40,15 @@ module NSWTopo
 
       @values = case path_or_object
       when Pathname
-        path_or_object.sub_ext(".bil").binread.unpack(@format).map do |value|
-          value == @nodata ? nil : value
+        data = []
+        path_or_object.sub_ext(".bil").open("rb") do |file|
+          while !file.eof?
+            data += file.read(32*1024*1024).unpack(@format).map do |value|
+              value == @nodata ? nil : value
+            end
+          end
         end
+        data
       when ESRIHdr then args[0]
       end
     end

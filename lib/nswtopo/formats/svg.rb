@@ -43,7 +43,7 @@ module NSWTopo
 
         defs = svg.add_element "defs"
         svg.add_element "sodipodi:namedview", "borderlayer" => true
-        svg.add_element "rect", "x" => 0, "y" => 0, "width" => width, "height" => height, "fill" => "white"
+        svg.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "white"
 
         labels = Layer.new "labels", self, Config.fetch("labels", {}).merge("type" => "Labels")
         layers.reject(&:empty?).each do |layer|

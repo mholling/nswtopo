@@ -25,7 +25,17 @@ module NSWTopo
     end
 
     def render_tif(tif_path, ppi: PPI, dither: false, **options)
-      OS.gdal_translate "-of", "GTiff", "-co", "COMPRESS=DEFLATE", "-co", "ZLEVEL=9", "-a_srs", @projection, yield(ppi: ppi, dither: dither), tif_path
+      OS.gdal_translate(
+        "-of", "GTiff",
+        "-co", "COMPRESS=DEFLATE",
+        "-co", "ZLEVEL=9",
+        "-mo", "TIFFTAG_XRESOLUTION=#{ppi}",
+        "-mo", "TIFFTAG_YRESOLUTION=#{ppi}",
+        "-mo", "TIFFTAG_RESOLUTIONUNIT=2",
+        "-a_srs", @projection,
+        yield(ppi: ppi, dither: dither),
+        tif_path
+      )
     end
 
     def render_jpg(jpg_path, ppi: PPI, **options)

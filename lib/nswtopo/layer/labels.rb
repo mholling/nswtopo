@@ -28,6 +28,7 @@ module NSWTopo
         fill: none
         stroke-width: 0.25
         stroke-opacity: 0.75
+        stroke-linejoin: round
         blur: 0.06
     YAML
 

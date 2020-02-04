@@ -69,6 +69,10 @@ module NSWTopo
             end unless status.success? && png_path.file?
           end
 
+          svg = svg_path.read
+          svg.sub!( /width='(.*?)mm'/) {  %Q[width='%smm'] % ($1.to_f * ppi / 96.0) }
+          svg.sub!(/height='(.*?)mm'/) { %Q[height='%smm'] % ($1.to_f * ppi / 96.0) }
+
           src_path.write %Q[<?xml version='1.0' encoding='UTF-8'?><svg version='1.1' baseProfile='full' xmlns='http://www.w3.org/2000/svg'></svg>]
           empty_path = temp_dir / "empty.png"
           render.call empty_path
@@ -76,12 +80,12 @@ module NSWTopo
           page = JSON.parse(json)["size"][0]
 
           viewbox_matcher = /viewBox='(.*?)'/
-          origin, svg_dimensions = *svg_path.read.match(viewbox_matcher) do |match|
+          origin, svg_dimensions = *svg.match(viewbox_matcher) do |match|
             match[1].split.map(&:to_f)
           end.each_slice(2)
 
           viewport_dimensions = svg_dimensions.map do |dimension|
-            dimension * 96.0 / ppi * page / PAGE
+            dimension * page / PAGE
           end
 
           svg_dimensions.map do |dimension|
@@ -90,11 +94,11 @@ module NSWTopo
             end
           end.inject(&:product).map(&:transpose).flat_map do |raster_offset, viewport_offset|
             page_path = temp_dir.join("page.%i.%i.png" % raster_offset)
-            src_path.write svg_path.read.sub(viewbox_matcher, "viewBox='%s %s %s %s'" % [*viewport_offset, *viewport_dimensions])
+            src_path.write svg.sub(viewbox_matcher, "viewBox='%s %s %s %s'" % [*viewport_offset, *viewport_dimensions])
             render.call page_path
             ["-page", "+%i+%i" % raster_offset, page_path]
           end.tap do |args|
-            OS.convert *args, "-layers", "merge", "+repage", "-crop", "#{raster_dimensions.join ?x}+0+0", "-background", "white", "-alpha", "Remove", "-units", "PixelsPerInch", "-density", ppi, "-define", "PNG:exclude-chunk=bkgd,itxt,ztxt,text,chrm", png_path
+            OS.convert *args, "-layers", "merge", "+repage", "-crop", "#{raster_dimensions.join ?x}+0+0", "+repage", "-background", "white", "-alpha", "Remove", "-units", "PixelsPerInch", "-density", ppi, "-define", "PNG:exclude-chunk=bkgd,itxt,ztxt,text,chrm", png_path
           end
         end
       end

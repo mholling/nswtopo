@@ -55,7 +55,7 @@ module NSWTopo
         distances = extras.segments.map(&:distance)
         offsets = midpoints.zip(distances).segments.map(&:transpose).map do |segment, distance|
           segment.along(distance.first / distance.inject(&:+))
-        end.zip(points).map(&:difference)
+        end.zip(points).map(&:diff)
         controls = midpoints.segments.zip(offsets).map do |segment, offset|
           segment.map { |point| [point, point.plus(offset)].along(fraction) }
         end.flatten(1).drop(1).each_slice(2).entries.prepend(nil)
@@ -203,7 +203,7 @@ module NSWTopo
               when "outpoint" then [line.last(2).rotate]
               when "endpoint" then [line.first(2), line.last(2).rotate]
               end.each do |segment|
-                transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*segment.first, 180.0 * segment.difference.angle / Math::PI]
+                transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*segment.first, 180.0 * segment.diff.angle / Math::PI]
                 container.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
               end
             end

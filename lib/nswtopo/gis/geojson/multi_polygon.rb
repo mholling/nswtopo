@@ -24,7 +24,7 @@ module NSWTopo
             insides.select do |segment, inside|
               inside.inject(&:^)
             end.each do |segment, inside|
-              segment[inside[0] ? 1 : 0] = segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
+              segment[inside[0] ? 1 : 0] = segment.along(vertex.minus(segment[0]).dot(perp) / segment.diff.dot(perp))
             end.sort_by do |segment, inside|
               segment[inside[0] ? 1 : 0].minus(vertex).cross(perp) * (lefthanded ? -1 : 1)
             end.map(&:first).each_slice(2) do |segment0, segment1|

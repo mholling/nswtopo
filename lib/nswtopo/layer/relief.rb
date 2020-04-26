@@ -27,7 +27,7 @@ module NSWTopo
       when @contours
         bounds = @map.bounds(margin: margin)
         txe, tye, spat = bounds[0], bounds[1].reverse, bounds.transpose.flatten
-        outsize = (bounds.transpose.difference / @resolution).map(&:ceil)
+        outsize = (bounds.transpose.diff / @resolution).map(&:ceil)
 
         collection = @contours.map do |url_or_path, attribute_or_hash|
           raise "no elevation attribute specified for #{url_or_path}" unless attribute_or_hash

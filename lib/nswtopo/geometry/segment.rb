@@ -7,12 +7,12 @@ module Segment
     zip rotate
   end
 
-  def difference
+  def diff
     last.minus first
   end
 
   def distance
-    difference.norm
+    diff.norm
   end
 
   def along(fraction)

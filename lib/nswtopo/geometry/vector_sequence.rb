@@ -1,6 +1,6 @@
 module VectorSequence
   def perps
-    ring.map(&:difference).map(&:perp)
+    ring.map(&:diff).map(&:perp)
   end
 
   def signed_area
@@ -23,7 +23,7 @@ module VectorSequence
   end
 
   def convex?
-    ring.map(&:difference).ring.all? do |directions|
+    ring.map(&:diff).ring.all? do |directions|
       directions.inject(&:cross) >= 0
     end
   end
@@ -101,7 +101,7 @@ module VectorSequence
   end
 
   def path_length
-    segments.map(&:difference).sum(&:norm)
+    segments.map(&:diff).sum(&:norm)
   end
 
   def trim(margin)
@@ -141,7 +141,7 @@ module VectorSequence
           sum += alpha * interval
           yielder << case
           when along then [segment[0], sum]
-          when angle then [segment[0], segment.difference.angle]
+          when angle then [segment[0], segment.diff.angle]
           else segment[0]
           end
           alpha = 1.0

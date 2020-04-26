@@ -50,7 +50,7 @@ module NSWTopo
       degree_resolution = 180.0 * metre_resolution / Math::PI / Kmz::EARTH_RADIUS
 
       wgs84_bounds = bounds(projection: Projection.wgs84)
-      wgs84_dimensions = wgs84_bounds.transpose.difference / degree_resolution
+      wgs84_dimensions = wgs84_bounds.transpose.diff / degree_resolution
       max_zoom = Math::log2(wgs84_dimensions.max).ceil - Math::log2(Kmz::TILE_SIZE).to_i
       topleft = [wgs84_bounds[0][0], wgs84_bounds[1][1]]
       png_path = yield(ppi: ppi)
@@ -59,7 +59,7 @@ module NSWTopo
         pyramid = (0..max_zoom).map do |zoom|
           resolution = degree_resolution * 2**(max_zoom - zoom)
           degrees_per_tile = resolution * Kmz::TILE_SIZE
-          counts = (wgs84_bounds.transpose.difference / degrees_per_tile).map(&:ceil)
+          counts = (wgs84_bounds.transpose.diff / degrees_per_tile).map(&:ceil)
           dimensions = counts.times Kmz::TILE_SIZE
 
           tfw_path = temp_dir / "#{name}.kmz.zoom.#{zoom}.tfw"

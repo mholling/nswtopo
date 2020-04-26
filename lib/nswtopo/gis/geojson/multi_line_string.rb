@@ -13,10 +13,10 @@ module NSWTopo
                 lines.last << segment[0]
               when inside[0]
                 lines.last << segment[0]
-                lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
+                lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.diff.dot(perp))
               when inside[1]
                 lines << []
-                lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.difference.dot(perp))
+                lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.diff.dot(perp))
               end
               lines
             end

@@ -17,7 +17,7 @@ module StraightSkeleton
       end.map.with_index do |(*points, point), index|
         points.first == point ? [points, :ring, (index unless points.hole?)] : [points << point, :segments, nil]
       end.each do |points, pair, index|
-        normals = points.send(pair).map(&:difference).map(&:normalised).map(&:perp)
+        normals = points.send(pair).map(&:diff).map(&:normalised).map(&:perp)
         points.map do |point|
           Vertex.new self, point
         end.each do |node|

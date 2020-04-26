@@ -407,7 +407,7 @@ module NSWTopo
             points << data.last unless closed
 
             segments = points.send(pairs)
-            vectors = segments.map(&:difference)
+            vectors = segments.map(&:diff)
             distances = vectors.map(&:norm)
 
             cumulative = distances.inject([0]) do |memo, distance|

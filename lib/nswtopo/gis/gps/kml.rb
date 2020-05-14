@@ -3,7 +3,9 @@ module NSWTopo
     module KML
       def styles(placemark)
         style_url = placemark.elements["styleUrl"]&.text&.delete_prefix(?#)
-        style_element = @xml.elements["/kml/Document/[@id='%s']" % style_url]
+        return {} unless style_url
+
+        style_element = @xml.elements["/kml/Document/*[@id='%s']" % style_url]
         result = {}
 
         case style_element&.name
@@ -39,25 +41,29 @@ module NSWTopo
 
       def collection
         GeoJSON::Collection.new.tap do |collection|
-          @xml.elements.each "/kml//Placemark[Point/coordinates]" do |placemark|
-            coords = placemark.elements["Point/coordinates"].text.split(',').take(2).map(&:to_f)
-            collection.add_point coords, properties(placemark).merge("styles" => {})
-          end
-          @xml.elements.each "/kml//Placemark[LineString/coordinates]" do |placemark|
-            coords = placemark.elements["LineString/coordinates"].text.split(' ').map { |triplet| triplet.split(',')[0..1].map(&:to_f) }
-            collection.add_linestring coords, properties(placemark).merge("styles" => styles(placemark))
-          end
-          @xml.elements.each "/kml//Placemark[gx:Track]" do |placemark|
-            coords = placemark.elements.collect("gx:Track/gx:coord") { |coord| coord.text.split(?\s).take(2).map(&:to_f) }
-            collection.add_linestring coords, properties(placemark).merge("styles" => styles(placemark))
-          end
-          @xml.elements.each "/kml//Placemark[Polygon/outerBoundaryIs/LinearRing/coordinates]" do |placemark|
-            coords = [placemark.elements["Polygon/outerBoundaryIs/LinearRing/coordinates"].text]
-            coords += placemark.elements.collect("Polygon/innerBoundaryIs/LinearRing/coordinates", &:text)
-            coords.map! do |text|
-              text.split(' ').map { |triplet| triplet.split(?,).take(2).map(&:to_f) }
+          @xml.elements.each "/kml//Placemark" do |placemark|
+            %w[. MultiGeometry].each do |container|
+              placemark.elements.each "#{container}/Point/coordinates" do |coordinates|
+                coords = coordinates.text.split(',').take(2).map(&:to_f)
+                collection.add_point coords, properties(placemark).merge("styles" => {})
+              end
+              placemark.elements.each "#{container}/LineString/coordinates" do |coordinates|
+                coords = coordinates.text.split(' ').map { |triplet| triplet.split(',')[0..1].map(&:to_f) }
+                collection.add_linestring coords, properties(placemark).merge("styles" => styles(placemark))
+              end
+              placemark.elements.each "#{container}/gx:Track[gx:coord]" do |track|
+                coords = track.collect("gx:coord") { |coord| coord.text.split(?\s).take(2).map(&:to_f) }
+                collection.add_linestring coords, properties(placemark).merge("styles" => styles(placemark))
+              end
+              placemark.elements.each "#{container}/Polygon[outerBoundaryIs/LinearRing/coordinates]" do |polygon|
+                coords = [polygon.elements["outerBoundaryIs/LinearRing/coordinates"].text]
+                coords += polygon.elements.collect("innerBoundaryIs/LinearRing/coordinates", &:text)
+                coords.map! do |text|
+                  text.split(' ').map { |triplet| triplet.split(?,).take(2).map(&:to_f) }
+                end
+                collection.add_polygon coords, properties(placemark).merge("styles" => styles(placemark))
+              end
             end
-            collection.add_polygon coords, properties(placemark).merge("styles" => styles(placemark))
           end
         end
       end

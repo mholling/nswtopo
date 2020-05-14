@@ -95,7 +95,7 @@ module NSWTopo
             yield total - object_ids.length, total if block_given? && total > 0
             yielder << begin
               connection.get_json query_path, outFields: ?*, objectIds: object_ids.take(per_page).join(?,)
-            rescue Error => error
+            rescue *ERRORS, Error => error
               (per_page /= 2) > 0 ? retry : raise(error)
             end
             object_ids.shift per_page

@@ -81,7 +81,7 @@ module NSWTopo
 
           feature.properties.replace properties
         end
-      end.map(&:first).inject(&:merge)
+      end.map(&:first).inject(&:merge).rename(@name)
     end
   end
 end

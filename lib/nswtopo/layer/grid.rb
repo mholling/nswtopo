@@ -39,7 +39,7 @@ module NSWTopo
         end
 
         eastings, northings = [grid, grid.transpose].map.with_index do |lines, index|
-          lines.inject GeoJSON::Collection.new(utm) do |collection, line|
+          lines.inject GeoJSON::Collection.new(projection: utm) do |collection, line|
             coord = line[0][index]
             label = [coord / 100000, (coord / 1000) % 100]
             label << coord % 1000 unless @interval % 1000 == 0

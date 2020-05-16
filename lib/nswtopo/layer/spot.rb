@@ -167,7 +167,7 @@ module NSWTopo
         end
       end
 
-      GeoJSON::Collection.new @map.projection, selected
+      GeoJSON::Collection.new projection: @map.projection, features: selected
     end
   end
 end

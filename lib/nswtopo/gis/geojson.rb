@@ -43,8 +43,8 @@ module NSWTopo
         grep klass
       end
 
-      define_singleton_method type.downcase do |coordinates, projection: nil, properties: {}|
-        Collection.new(*projection) << klass.new(coordinates, properties)
+      define_singleton_method type.downcase do |coordinates, projection: DEFAULT_PROJECTION, properties: {}|
+        Collection.new(projection: projection) << klass.new(coordinates, properties)
       end
     end
 

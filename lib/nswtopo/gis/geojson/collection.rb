@@ -1,22 +1,24 @@
 module NSWTopo
   module GeoJSON
+    DEFAULT_PROJECTION = Projection.wgs84
+
     class Collection
-      def initialize(projection = Projection.wgs84, features = [])
-        @projection, @features = projection, features
+      def initialize(projection: DEFAULT_PROJECTION, features: [], name: nil)
+        @projection, @features, @name = projection, features, name
       end
-      attr_reader :projection, :features
+      attr_reader :projection, :features, :name
 
       def self.load(json, projection = nil)
         collection = JSON.parse(json)
         proj4 = collection.dig "crs", "properties", "name"
-        projection ||= proj4 ? Projection.new(proj4) : Projection.wgs84
+        projection ||= proj4 ? Projection.new(proj4) : DEFAULT_PROJECTION
         collection["features"].map do |feature|
           geometry, properties = feature.values_at "geometry", "properties"
           type, coordinates = geometry.values_at "type", "coordinates"
           raise Error, "unsupported geometry type: #{type}" unless TYPES === type
           GeoJSON.const_get(type).new coordinates, properties
         end.yield_self do |features|
-          new projection, features
+          new projection: projection, features: features, name: collection["name"]
         end
       rescue JSON::ParserError
         raise Error, "invalid GeoJSON data"
@@ -49,7 +51,9 @@ module NSWTopo
           "type" => "FeatureCollection",
           "crs" => { "type" => "name", "properties" => { "name" => @projection } },
           "features" => map(&:to_h)
-        }
+        }.tap do |hash|
+          hash["name"] = @name if @name
+        end
       end
 
       extend Forwardable
@@ -61,16 +65,16 @@ module NSWTopo
       end
 
       def explode
-        Collection.new @projection, flat_map(&:explode)
+        Collection.new projection: @projection, features: flat_map(&:explode)
       end
 
       def multi
-        Collection.new @projection, map(&:multi)
+        Collection.new projection: @projection, features: map(&:multi)
       end
 
       def merge(other)
         raise Error, "can't merge different projections" unless @projection == other.projection
-        Collection.new @projection, @features + other.features
+        Collection.new projection: @projection, features: @features + other.features
       end
 
       def merge!(other)
@@ -83,6 +87,10 @@ module NSWTopo
           feature.clip hull
         end.compact!
         self
+      end
+
+      def rename(name = nil)
+        tap { @name = name }
       end
 
       # TODO: what about empty collections?

@@ -25,7 +25,7 @@ module NSWTopo
       j_max = (radius / col_spacing).ceil
       i_max = (radius / row_spacing).ceil
 
-      collection = GeoJSON::Collection.new(@map.projection)
+      collection = GeoJSON::Collection.new(projection: @map.projection)
       (-j_max..j_max).each do |j|
         x = j * col_spacing + col_offset
         coordinates = [[x, -radius], [x, radius]].map do |point|

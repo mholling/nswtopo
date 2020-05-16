@@ -108,7 +108,7 @@ module NSWTopo
 
         contours.each_slice(100).inject(nil) do |update, features|
           OS.ogr2ogr "-a_srs", @map.projection, "-nln", "contour", *update, "-simplify", @simplify, *db_flags, db_path, "GeoJSON:/vsistdin/" do |stdin|
-            stdin.write GeoJSON::Collection.new(@map.projection, features).to_json
+            stdin.write GeoJSON::Collection.new(projection: @map.projection, features: features).to_json
           end
           %w[-update -append]
         end

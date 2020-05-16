@@ -48,7 +48,7 @@ module NSWTopo
 
         layer = connection.get_json id.to_s
         query_path = "#{id}/query"
-        max_record_count, fields, types, type_id_field, geometry_type, capabilities = layer.values_at "maxRecordCount", "fields", "types", "typeIdField", "geometryType", "capabilities"
+        max_record_count, fields, types, type_id_field, geometry_type, capabilities, layer_name = layer.values_at "maxRecordCount", "fields", "types", "typeIdField", "geometryType", "capabilities", "name"
         raise Error, "no query capability available: #{url}" unless capabilities =~ /Query|Data/
 
         if type_id_field && types
@@ -87,7 +87,7 @@ module NSWTopo
         query = { geometry: geometry, geometryType: "esriGeometryPolygon", returnIdsOnly: true, where: where }
 
         object_ids = connection.get_json(query_path, query)["objectIds"]
-        next GeoJSON::Collection.new projection unless object_ids
+        next GeoJSON::Collection.new projection: projection, name: layer_name unless object_ids
 
         features = Enumerator.new do |yielder|
           per_page, total = [*per_page, *max_record_count, 500].min, object_ids.length
@@ -148,7 +148,7 @@ module NSWTopo
           end
         end.compact
 
-        GeoJSON::Collection.new projection, features
+        GeoJSON::Collection.new projection: projection, features: features, name: layer_name
       end
     end
   end

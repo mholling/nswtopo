@@ -232,7 +232,7 @@ module NSWTopo
             when GeoJSON::MultiPolygon    then line_attributes
             end
           end.yield_self do |features|
-            GeoJSON::Collection.new(@map.projection, features).explode.extend(LabelFeatures)
+            GeoJSON::Collection.new(projection: @map.projection, features: features).explode.extend(LabelFeatures)
           end.tap do |collection|
             collection.text, collection.layer_name = text, layer.name
           end

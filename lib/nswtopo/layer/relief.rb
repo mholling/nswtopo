@@ -35,7 +35,7 @@ module NSWTopo
           attribute = Hash == attribute_or_hash ? attribute_or_hash["attribute"] : attribute_or_hash
           case url_or_path
           when ArcGISServer
-            arcgis_layer url_or_path, margin: margin, **options do |index, total|
+            arcgis_layer url_or_path, **options, geometry: @map.bounding_box(margin) do |index, total|
               log_update "%s: retrieved %i of %i contours" % [@name, index, total]
             end
           when Shapefile

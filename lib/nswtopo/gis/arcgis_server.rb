@@ -39,7 +39,7 @@ module NSWTopo
       raise Error, error.message
     end
 
-    def arcgis_layer(url, where: nil, layer: nil, per_page: nil, margin: {})
+    def arcgis_layer(url, where: nil, layer: nil, per_page: nil, geometry: nil)
       ArcGISServer.start url do |connection, service, projection, id|
         id = service["layers"].find do |info|
           layer.to_s == info["name"]
@@ -82,9 +82,13 @@ module NSWTopo
           [name, values]
         end.to_h
 
-        geometry = { rings: @map.bounding_box(margin).reproject_to(projection).coordinates.map(&:reverse) }.to_json
-        where = Array(where).map { |clause| "(#{clause})"}.join " AND "
-        query = { geometry: geometry, geometryType: "esriGeometryPolygon", returnIdsOnly: true, where: where }
+        where = Array(where).map { |clause| "(#{clause})" }.join " AND "
+        query = { returnIdsOnly: true, where: where }
+        if geometry
+          raise "polgyon geometry required" unless geometry.polygon?
+          query[:geometry] = { rings: geometry.reproject_to(projection).coordinates.map(&:reverse) }.to_json
+          query[:geometryType] = "esriGeometryPolygon"
+        end
 
         object_ids = connection.get_json(query_path, query)["objectIds"]
         next GeoJSON::Collection.new projection: projection, name: layer_name unless object_ids

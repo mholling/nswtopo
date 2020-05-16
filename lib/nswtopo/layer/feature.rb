@@ -18,7 +18,7 @@ module NSWTopo
           log_update "%s: %s" % [@name, fallback ? "failed to retrieve features, trying fallback source" : "retrieving features"]
           raise "#{@source.basename}: no feature source defined" unless source
           options.merge! args
-          break options, arcgis_layer(source, margin: MARGIN, **options.slice(:where, :layer, :per_page)) do |index, total|
+          break options, arcgis_layer(source, **options.slice(:where, :layer, :per_page), geometry: @map.bounding_box(MARGIN)) do |index, total|
             log_update "%s: retrieved %i of %i feature%s" % [@name, index, total, (?s if total > 1)]
           end if ArcGISServer === source
           source_path = Pathname(source).expand_path(@source.parent)

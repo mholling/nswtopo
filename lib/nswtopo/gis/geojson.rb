@@ -43,6 +43,10 @@ module NSWTopo
         grep klass
       end
 
+      Collection.define_method "#{type}?".downcase do
+        one? && klass === first
+      end
+
       define_singleton_method type.downcase do |coordinates, projection: DEFAULT_PROJECTION, properties: {}|
         Collection.new(projection: projection) << klass.new(coordinates, properties)
       end

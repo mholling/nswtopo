@@ -377,6 +377,22 @@ begin
       parser.on       "--[no-]labelling",                            "enable or disable map labelling"
       parser.on "-z", "--zlib-level    <0-9>",        ZlibLevel,     "set zlib compression level"
 
+    when "scrape"
+      parser.banner = <<~EOF
+        *nswtopo* *scrape* - scrape data from an ArcGIS REST endpoint
+          usage: _nswtopo_ _scrape_ [~options~] <url> <path>
+      EOF
+      parser.on "-l", "--layer     <layer>",               String,                  "name of ArcGIS service layer"
+      parser.on "-w", "--where     <where>",               String,                  "filtering clause"
+      parser.on "-c", "--coords    <x0,y0,x1,y1>",         CoordList,               "WGS84 coordinates of bounding box corners"
+      parser.on "-f", "--format    <shp|sqlite|gpkg|tab>", %w[shp sqlite gpkg tab], "output file format"
+      parser.on "-n", "--name      <name>",                /^\w+$/,                 "name of saved layer"
+      parser.on       "--fields    <field,...>",           Array,                   "comma-separated list of fields"
+      parser.on "-d", "--decode",                                                   "convert coded values where possible"
+      parser.on "-e", "--epsg      <number>",              PositiveInt,             "EPSG number for reprojection"
+      parser.on "-p", "--paginate  <number>",              PositiveInt,             "number of records per request"
+      parser.on       "--chunk",                                                    "save features in chunks"
+
     when nil
       raise OptionParser::MissingArgument, "no command specified"
 
@@ -407,6 +423,16 @@ begin
     layer = ARGV.shift
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     NSWTopo.config *layer, **options
+    exit
+  when "scrape"
+    url, path = ARGV.shift, ARGV.shift
+    raise OptionParser::MissingArgument, "no url specified" unless url
+    raise OptionParser::MissingArgument, "no path specified" unless path
+    raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
+    raise OptionParser::InvalidArgument, url unless NSWTopo::ArcGISServer === url
+    path = Pathname(path).expand_path
+    raise OptionParser::InvalidArgument, "#{path} is invalid" unless path.parent.directory?
+    NSWTopo.scrape url, path, **options
     exit
   end
 

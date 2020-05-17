@@ -9,8 +9,9 @@ module NSWTopo
     def self.check_uri(url)
       uri = URI.parse url
       return unless URI::HTTP === uri
+      return unless uri.path
       instance, (id, *) = uri.path.split(?/).slice_after(SERVICE).take(2)
-      return unless instance.last =~ SERVICE
+      return unless SERVICE === instance&.last
       return unless !id || id =~ /^\d+$/
       return uri, instance.join(?/), id
     rescue URI::Error
@@ -39,121 +40,143 @@ module NSWTopo
       raise Error, error.message
     end
 
-    def arcgis_layer(url, where: nil, layer: nil, per_page: nil, geometry: nil)
-      ArcGISServer.start url do |connection, service, projection, id|
-        id = service["layers"].find do |info|
-          layer.to_s == info["name"]
-        end&.dig("id") if layer
-        id ? nil : layer ? raise("no such ArcGIS layer: %s" % layer) : raise("not an ArcGIS layer url: %s" % url)
+    def arcgis_pages(url, where: nil, layer: nil, per_page: nil, geometry: nil, decode: nil, fields: nil, mixed: true, &block)
+      Enumerator.new do |yielder|
+        ArcGISServer.start url do |connection, service, projection, id|
+          id = service["layers"].find do |info|
+            layer.to_s == info["name"]
+          end&.dig("id") if layer
+          id ? nil : layer ? raise("no such ArcGIS layer: %s" % layer) : raise("not an ArcGIS layer url: %s" % url)
 
-        layer = connection.get_json id.to_s
-        query_path = "#{id}/query"
-        max_record_count, fields, types, type_id_field, geometry_type, capabilities, layer_name = layer.values_at "maxRecordCount", "fields", "types", "typeIdField", "geometryType", "capabilities", "name"
-        raise Error, "no query capability available: #{url}" unless capabilities =~ /Query|Data/
+          layer = connection.get_json id.to_s
+          max_record_count, layer_fields, types, type_id_field, geometry_type, capabilities, layer_name = layer.values_at "maxRecordCount", "fields", "types", "typeIdField", "geometryType", "capabilities", "name"
+          raise Error, "no query capability available: #{url}" unless capabilities =~ /Query|Data/
 
-        if type_id_field && types
-          type_id_field = fields.find do |field|
-            field.values_at("alias", "name").include? type_id_field
-          end&.fetch("name")
-          type_values = types.map do |type|
-            type.values_at "id", "name"
-          end.to_h
-          subtype_coded_values = types.map do |type|
-            type.values_at "id", "domains"
-          end.map do |id, domains|
-            coded_values = domains.map do |name, domain|
-              [name, domain["codedValues"]]
-            end.select(&:last).map do |name, pairs|
-              values = pairs.map do |pair|
-                pair.values_at "code", "name"
-              end.to_h
-              [name, values]
+          out_fields = fields.map do |name|
+            layer_fields.find(-> { raise "invalid field name: #{name}" }) do |field|
+              field.values_at("alias", "name").include? name
+            end.fetch("name")
+          end.join(?,) if fields
+
+          if type_id_field && !type_id_field.empty? && types
+            type_id_field = layer_fields.find do |field|
+              field.values_at("alias", "name").include? type_id_field
+            end&.fetch("name")
+            type_values = types.map do |type|
+              type.values_at "id", "name"
             end.to_h
-            [id, coded_values]
+            subtype_coded_values = types.map do |type|
+              type.values_at "id", "domains"
+            end.map do |id, domains|
+              coded_values = domains.map do |name, domain|
+                [name, domain["codedValues"]]
+              end.select(&:last).map do |name, pairs|
+                values = pairs.map do |pair|
+                  pair.values_at "code", "name"
+                end.to_h
+                [name, values]
+              end.to_h
+              [id, coded_values]
+            end.to_h
+          end
+
+          coded_values = layer_fields.map do |field|
+            [field["name"], field.dig("domain", "codedValues")]
+          end.select(&:last).map do |name, pairs|
+            values = pairs.map do |pair|
+              pair.values_at "code", "name"
+            end.to_h
+            [name, values]
           end.to_h
-        end
 
-        coded_values = fields.map do |field|
-          [field["name"], field.dig("domain", "codedValues")]
-        end.select(&:last).map do |name, pairs|
-          values = pairs.map do |pair|
-            pair.values_at "code", "name"
-          end.to_h
-          [name, values]
-        end.to_h
+          query = { returnIdsOnly: true }
+          query[:where] = Array(where).map do |clause|
+            "(#{clause})"
+          end.join(" AND ") if where
 
-        where = Array(where).map { |clause| "(#{clause})" }.join " AND "
-        query = { returnIdsOnly: true, where: where }
-        if geometry
-          raise "polgyon geometry required" unless geometry.polygon?
-          query[:geometry] = { rings: geometry.reproject_to(projection).coordinates.map(&:reverse) }.to_json
-          query[:geometryType] = "esriGeometryPolygon"
-        end
+          case
+          when geometry
+            raise "polgyon geometry required" unless geometry.polygon?
+            query[:geometry] = { rings: geometry.reproject_to(projection).coordinates.map(&:reverse) }.to_json
+            query[:geometryType] = "esriGeometryPolygon"
+          when where
+          else
+            oid_field = layer_fields.find do |field|
+              field["type"] == "esriFieldTypeOID"
+            end&.fetch("name")
+            query[:where] = oid_field ? "#{oid_field} IS NOT NULL" : "1=1"
+          end
 
-        object_ids = connection.get_json(query_path, query)["objectIds"]
-        next GeoJSON::Collection.new projection: projection, name: layer_name unless object_ids
-
-        features = Enumerator.new do |yielder|
+          query_path = "#{id}/query"
+          object_ids = connection.get_json(query_path, query)["objectIds"] || []
           per_page, total = [*per_page, *max_record_count, 500].min, object_ids.length
+
+          yielder << GeoJSON::Collection.new(projection: projection, name: layer_name) if object_ids.none?
           while object_ids.any?
-            yield total - object_ids.length, total if block_given? && total > 0
-            yielder << begin
-              connection.get_json query_path, outFields: ?*, objectIds: object_ids.take(per_page).join(?,)
-            rescue *ERRORS, Error => error
-              (per_page /= 2) > 0 ? retry : raise(error)
+            yield total - object_ids.length, total if block_given?
+            begin
+              connection.get_json query_path, outFields: out_fields || ?*, objectIds: object_ids.take(per_page).join(?,)
+            rescue *ERRORS, Error
+              (per_page /= 2) > 0 ? retry : raise
+            end.fetch("features", []).map do |feature|
+              next unless geometry = feature["geometry"]
+              attributes = feature.fetch "attributes", {}
+
+              values = attributes.map do |name, value|
+                case
+                when %w[null Null NULL <null> <Null> <NULL>].include?(value)
+                  nil
+                when !decode
+                  value
+                when type_id_field == name
+                  type_values[value]
+                when lookup = subtype_coded_values&.dig(attributes[type_id_field], name)
+                  lookup[value]
+                when lookup = coded_values.dig(name)
+                  lookup[value]
+                else value
+                end
+              end
+              attributes = attributes.keys.zip(values).to_h
+
+              case geometry_type
+              when "esriGeometryPoint"
+                point = geometry.values_at "x", "y"
+                next unless point.all?
+                next GeoJSON::Point.new point, attributes
+              when "esriGeometryMultipoint"
+                points = geometry["points"]
+                next unless points&.any?
+                next GeoJSON::MultiPoint.new points.transpose.take(2).transpose, attributes
+              when "esriGeometryPolyline"
+                raise Error, "ArcGIS curve geometries not supported" if geometry.key? "curvePaths"
+                paths = geometry["paths"]
+                next unless paths&.any?
+                next GeoJSON::LineString.new paths[0], attributes if mixed && paths.one?
+                next GeoJSON::MultiLineString.new paths, attributes
+              when "esriGeometryPolygon"
+                raise Error, "ArcGIS curve geometries not supported" if geometry.key? "curveRings"
+                rings = geometry["rings"]
+                next unless rings&.any?
+                rings.each(&:reverse!) unless rings[0].anticlockwise?
+                polys = rings.slice_before(&:anticlockwise?)
+                next GeoJSON::Polygon.new polys.first, attributes if mixed && polys.one?
+                next GeoJSON::MultiPolygon.new polys.entries, attributes
+              else
+                raise Error, "unsupported ArcGIS geometry type: #{geometry_type}"
+              end
+            end.compact.tap do |features|
+              yielder << GeoJSON::Collection.new(projection: projection, features: features, name: layer_name)
             end
             object_ids.shift per_page
           end
-        end.inject [] do |features, page|
-          features += page["features"]
-        end.map do |feature|
-          next unless geometry = feature["geometry"]
-          attributes = feature.fetch "attributes", {}
-
-          values = attributes.map do |name, value|
-            case
-            when type_id_field == name
-              type_values[value]
-            when decode = subtype_coded_values&.dig(attributes[type_id_field], name)
-              decode[value]
-            when decode = coded_values.dig(name)
-              decode[value]
-            when %w[null Null NULL <null> <Null> <NULL>].include?(value)
-              nil
-            else value
-            end
-          end
-          attributes = attributes.keys.zip(values).to_h
-
-          case geometry_type
-          when "esriGeometryPoint"
-            point = geometry.values_at "x", "y"
-            next unless point.all?
-            next GeoJSON::Point.new point, attributes
-          when "esriGeometryMultipoint"
-            points = geometry["points"]
-            next unless points&.any?
-            next GeoJSON::MultiPoint.new points.transpose.take(2).transpose, attributes
-          when "esriGeometryPolyline"
-            raise Error, "ArcGIS curve geometries not supported" if geometry.key? "curvePaths"
-            paths = geometry["paths"]
-            next unless paths&.any?
-            next GeoJSON::LineString.new paths[0], attributes if paths.one?
-            next GeoJSON::MultiLineString.new paths, attributes
-          when "esriGeometryPolygon"
-            raise Error, "ArcGIS curve geometries not supported" if geometry.key? "curveRings"
-            rings = geometry["rings"]
-            next unless rings&.any?
-            rings.each(&:reverse!) unless rings[0].anticlockwise?
-            next GeoJSON::Polygon.new rings, attributes if rings.one?
-            next GeoJSON::MultiPolygon.new rings.slice_before(&:anticlockwise?).to_a, attributes
-          else
-            raise Error, "unsupported ArcGIS geometry type: #{geometry_type}"
-          end
-        end.compact
-
-        GeoJSON::Collection.new projection: projection, features: features, name: layer_name
+          yield total, total if block_given?
+        end
       end
+    end
+
+    def arcgis_layer(url, **options, &block)
+      arcgis_pages(url, **options, &block).inject(&:merge!)
     end
   end
 end

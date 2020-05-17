@@ -97,6 +97,10 @@ module NSWTopo
       def bounds
         map(&:bounds).transpose.map(&:flatten).map(&:minmax)
       end
+
+      def bbox
+        GeoJSON.polygon [bounds.inject(&:product).values_at(0,2,3,1,0)], projection: @projection
+      end
     end
   end
 end

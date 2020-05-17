@@ -33,8 +33,9 @@ module NSWTopo
 
       def process_json(response)
         JSON.parse(response.body).tap do |result|
-          # raise Error, result["error"].values_at("message", "details").compact.join(?\n) if result["error"]
-          raise Error, result["error"]["message"] if result["error"]
+          next unless error = result["error"]
+          # raise Error, error.values_at("message", "details").compact.join(?\n)
+          raise Error, error.values_at("message", "code").map(&:to_s).reject(&:empty?).first
         end
       rescue JSON::ParserError
         raise Error, "unexpected ArcGIS response format"

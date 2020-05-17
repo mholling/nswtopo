@@ -237,6 +237,43 @@ module NSWTopo
     end
   end
 
+  def scrape(url, path, coords: nil, format: nil, name: nil, epsg: nil, paginate: nil, chunk: nil, **options)
+    flags  = %w[-skipfailures]
+    flags += %W[-t_srs epsg:#{epsg}] if epsg
+    flags += %W[-nln #{name}] if name
+
+    case format || path.extname[1..-1]
+    when "sqlite", "sqlite3", "db"
+      format_flags = %w[-f SQLite -dsco SPATIALITE=YES]
+      options[:mixed] = false if chunk
+    when "gpkg"
+      format_flags = %w[-f GPKG]
+      options[:mixed] = false if chunk
+    when "tab"
+      format_flags = ["-f", "MapInfo File"]
+    else
+      format_flags = ["-f", "ESRI Shapefile"]
+      chunk = nil # laundered field names cause trouble otherwise
+    end
+
+    options[:geometry] = GeoJSON.multipoint(coords).bbox if coords
+    options[:per_page] = paginate if paginate
+
+    server = Object.new.extend(ArcGISServer)
+    server.arcgis_pages(url, **options) do |index, total|
+      precision = total < 10000 ? 0 : total < 100000 ? 1 : 2
+      log_update "nswtopo: retrieved %.#{precision}f%% of %i feature%s" % [100.0 * index / total, total, (?s unless total == 1)]
+    end.yield_self do |pages|
+      chunk ? pages : [pages.inject(&:merge!)]
+    end.inject([0, format_flags]) do |(count, format_flags), collection|
+      stdout, stderr, status = Open3.capture3 *%W[ogr2ogr #{path} /vsistdin/], *flags, *format_flags, stdin_data: collection.to_json
+      raise "couldn't save features" unless status.success?
+      next count + collection.count, %w[-update -append]
+    end.tap do |count, _|
+      log_success "saved #{count} features"
+    end
+  end
+
   def with_browser
     browser_name, browser_path = Config.slice("chrome", "firefox").first
     raise "please configure a path for google chrome" unless browser_name

@@ -391,7 +391,7 @@ begin
       parser.on "-d", "--decode",                                                   "convert coded values where possible"
       parser.on "-e", "--epsg      <number>",              PositiveInt,             "EPSG number for reprojection"
       parser.on "-p", "--paginate  <number>",              PositiveInt,             "number of records per request"
-      parser.on       "--chunk",                                                    "save features in chunks"
+      parser.on       "--concat",                                                   "collect all features before saving"
 
     when nil
       raise OptionParser::MissingArgument, "no command specified"

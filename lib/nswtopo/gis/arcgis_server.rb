@@ -40,7 +40,7 @@ module NSWTopo
       raise Error, error.message
     end
 
-    def arcgis_pages(url, where: nil, layer: nil, per_page: nil, geometry: nil, decode: nil, fields: nil, mixed: true, &block)
+    def arcgis_pages(url, where: nil, layer: nil, per_page: nil, geometry: nil, decode: nil, fields: nil, mixed: true, launder: nil, &block)
       Enumerator.new do |yielder|
         ArcGISServer.start url do |connection, service, projection, id|
           id = service["layers"].find do |info|
@@ -57,6 +57,23 @@ module NSWTopo
               field.values_at("alias", "name").include? name
             end.fetch("name")
           end.join(?,) if fields
+
+          launder = layer_fields.map do |field|
+            next field["name"], case launder
+            when Integer then field["name"].downcase.gsub(/[^\w]+/, ?_).slice(0...launder)
+            when true then    field["name"].downcase.gsub(/[^\w]+/, ?_)
+            else              field["name"]
+            end
+          end.partition do |name, truncated|
+            name == truncated
+          end.inject(&:+).inject(Hash[]) do |lookup, (name, truncated)|
+            suffix, index, candidate = "_2", 3, truncated
+            while lookup.key? candidate
+              suffix, index, candidate = "_#{index}", index + 1, (Integer === launder ? truncated.slice(0, launder - suffix.length) : truncated) + suffix
+              raise "can't launder field name #{name}" if Integer === launder && suffix.length >= launder
+            end
+            lookup.merge candidate => name
+          end.invert
 
           if type_id_field && !type_id_field.empty? && types
             type_id_field = layer_fields.find do |field|
@@ -137,7 +154,7 @@ module NSWTopo
                 else value
                 end
               end
-              attributes = attributes.keys.zip(values).to_h
+              attributes = launder.values_at(*attributes.keys).zip(values).to_h
 
               case geometry_type
               when "esriGeometryPoint"

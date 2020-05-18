@@ -246,13 +246,16 @@ module NSWTopo
     when "sqlite", "sqlite3", "db"
       format_flags = %w[-f SQLite -dsco SPATIALITE=YES]
       options[:mixed] = false if chunk
+      options[:launder] = true
     when "gpkg"
       format_flags = %w[-f GPKG]
       options[:mixed] = false if chunk
+      options[:launder] = true
     when "tab"
       format_flags = ["-f", "MapInfo File"]
     else
       format_flags = ["-f", "ESRI Shapefile"]
+      options[:launder] = 10
       chunk = nil # laundered field names cause trouble otherwise
     end
 

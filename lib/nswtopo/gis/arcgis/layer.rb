@@ -1,7 +1,7 @@
 module NSWTopo
   module ArcGIS
     class Layer
-      def initialize(service, id: nil, layer: nil, where: nil, geometry: nil, fields: nil, launder: nil, decode: nil, mixed: true)
+      def initialize(service, id: nil, layer: nil, where: nil, geometry: nil, fields: nil, launder: nil, truncate: nil, decode: nil, mixed: true)
         @service, @decode, @mixed = service, decode, mixed
 
         raise Error, "no ArcGIS layer name or url provided" unless layer || id
@@ -50,18 +50,18 @@ module NSWTopo
           end.fetch("name")
         end.join(?,) if fields
 
-        @launder = layer_fields.map do |field|
-          next field["name"], case launder
-          when Integer then field["name"].downcase.gsub(/[^\w]+/, ?_).slice(0...launder)
-          when true then    field["name"].downcase.gsub(/[^\w]+/, ?_)
-          else              field["name"]
-          end
-        end.partition do |name, truncated|
-          name == truncated
-        end.inject(&:+).inject(Hash[]) do |lookup, (name, truncated)|
-          suffix, index, candidate = "_2", 3, truncated
+        @rename = layer_fields.map do |field|
+          field["name"]
+        end.map do |name|
+          next name, launder ? name.downcase.gsub(/[^\w]+/, ?_) : name
+        end.map do |name, substitute|
+          next name, truncate ? substitute.slice(0...truncate) : substitute
+        end.partition do |name, substitute|
+          name == substitute
+        end.inject(&:+).inject(Hash[]) do |lookup, (name, substitute)|
+          suffix, index, candidate = "_2", 3, substitute
           while lookup.key? candidate
-            suffix, index, candidate = "_#{index}", index + 1, (Integer === launder ? truncated.slice(0, launder - suffix.length) : truncated) + suffix
+            suffix, index, candidate = "_#{index}", index + 1, (Integer === launder ? substitute.slice(0, launder - suffix.length) : substitute) + suffix
             raise "can't launder field name #{name}" if Integer === launder && suffix.length >= launder
           end
           lookup.merge candidate => name
@@ -122,7 +122,7 @@ module NSWTopo
                 else value
                 end
               end
-              attributes = @launder.values_at(*attributes.keys).zip(values).to_h
+              attributes = @rename.values_at(*attributes.keys).zip(values).to_h
 
               case @geometry_type
               when "esriGeometryPoint"

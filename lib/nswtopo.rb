@@ -253,7 +253,7 @@ module NSWTopo
       format_flags = ["-f", "MapInfo File"]
     else
       format_flags = ["-f", "ESRI Shapefile"]
-      options.merge! launder: 10
+      options.merge! truncate: 10
     end
 
     options[:geometry] = GeoJSON.multipoint(coords).bbox if coords

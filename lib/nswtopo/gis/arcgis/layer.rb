@@ -68,9 +68,7 @@ module NSWTopo
         end.invert
 
         query = { returnIdsOnly: true }
-        query[:where] = Array(where).map do |clause|
-          "(#{clause})"
-        end.join(" AND ") if where
+        query[:where] = "(" << Array(where).join(") AND (") << ")" if where
 
         case
         when geometry

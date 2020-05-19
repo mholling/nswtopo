@@ -1,6 +1,6 @@
 module NSWTopo
   module Feature
-    include Vector, Shapefile, Log
+    include Vector, Log
     CREATE = %w[features]
 
     def get_features
@@ -17,6 +17,7 @@ module NSWTopo
           source = @path if @path
           log_update "%s: %s" % [@name, fallback ? "failed to retrieve features, trying fallback source" : "retrieving features"]
           raise "#{@source.basename}: no feature source defined" unless source
+          source_path = Pathname(source).expand_path(@source.parent)
           options.merge! args
           case
           when ArcGIS::Service === source
@@ -24,11 +25,10 @@ module NSWTopo
             break options, layer.features do |count, total|
               log_update "%s: retrieved %i of %i feature%s" % [@name, count, total, (?s if total > 1)]
             end
-          # when Shapefile === source_path
-          #   TODO
+          when Shapefile === source_path
+            features = Shapefile.new(source_path).features(**options.slice(:where, :sql, :layer), geometry: @map.bounding_box(MARGIN), projection: @map.projection)
+            break options, features
           end
-          source_path = Pathname(source).expand_path(@source.parent)
-          break options, shapefile_layer(source_path, margin: MARGIN, **options.slice(:where, :sql, :layer)) if Shapefile === source_path
           raise "#{@source.basename}: invalid feature source: #{source}"
         rescue ArcGIS::Error => error
           next options, nil, error

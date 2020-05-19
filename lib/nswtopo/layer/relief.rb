@@ -1,6 +1,6 @@
 module NSWTopo
   module Relief
-    include Raster, Shapefile, DEM, Log
+    include Raster, DEM, Log
     CREATE = %w[altitude azimuth factor sources yellow smooth median bilateral contours]
     DEFAULTS = YAML.load <<~YAML
       altitude: 45
@@ -40,7 +40,7 @@ module NSWTopo
               log_update "%s: retrieved %i of %i contours" % [@name, count, total]
             end
           when Shapefile
-            shapefile_layer source_path, margin: margin, **options
+            Shapefile.new(url_or_path).features(**options, geometry: @map.bounding_box(margin), projection: @map.projection)
           else
             raise "unrecognised elevation data source: #{url_or_path}"
           end.each do |feature|

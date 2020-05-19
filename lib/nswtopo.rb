@@ -40,6 +40,7 @@ require_relative 'nswtopo/map'
 require_relative 'nswtopo/layer'
 require_relative 'nswtopo/version'
 require_relative 'nswtopo/config'
+require_relative 'nswtopo/commands'
 
 module NSWTopo
   PartialFailureError = Class.new RuntimeError
@@ -186,105 +187,6 @@ module NSWTopo
     end.tap do |paths|
       Map.load(archive).render *paths, options
     end
-  end
-
-  def layers(state: nil, indent: "")
-    layer_dirs.grep_v(Pathname.pwd).flat_map do |directory|
-      Array(state).inject(directory, &:/).glob("*")
-    end.sort.each do |path|
-      case
-      when path.directory?
-        next if path.glob("**/*.yml").none?
-        puts [indent, path.basename.sub_ext("")].join
-        layers state: [*state, path.basename], indent: "  " + indent
-      when path.sub_ext("").directory?
-      when path.extname == ".yml"
-        puts [indent, path.basename.sub_ext("")].join
-      end
-    end.tap do |paths|
-      log_warn "no layers installed" if paths.none?
-    end
-  end
-
-  def config(layer = nil, **options)
-    chrome, firefox, path, resolution, layer_dir, labelling, zlib_level, delete = options.values_at :chrome, :firefox, :path, :resolution, :"layer-dir", :labelling, :"zlib-level", :delete
-    raise "not a directory: %s" % layer_dir if layer_dir && !layer_dir.directory?
-    raise "chrome path is not an executable" if chrome && !chrome.executable?
-    raise "firefox path is not an executable" if firefox && !firefox.executable?
-    Config.store("chrome", chrome.to_s) if chrome
-    Config.store("firefox", firefox.to_s) if firefox
-    Config.store("labelling", labelling) unless labelling.nil?
-    Config.store("layer-dir", layer_dir.to_s) if layer_dir
-    Config.store("zlib-level", zlib_level) if zlib_level
-
-    layer = Layer.sanitise layer
-    case
-    when !layer
-      raise OptionParser::InvalidArgument, "no layer name specified for path" if path
-      raise OptionParser::InvalidArgument, "no layer name specified for resolution" if resolution
-    when path || resolution
-      Config.store(layer, "path", path.to_s) if path
-      Config.store(layer, "resolution", resolution) if resolution
-    end
-    Config.delete(*layer, delete) if delete
-
-    if options.empty?
-      puts Config.to_str.each_line.drop(1)
-      log_neutral "no configuration yet" if Config.empty?
-    else
-      Config.save
-      log_success "configuration updated"
-    end
-  end
-
-  def scrape(url, path, coords: nil, format: nil, name: nil, epsg: nil, paginate: nil, concat: nil, **options)
-    flags  = %w[-skipfailures]
-    flags += %W[-t_srs epsg:#{epsg}] if epsg
-    flags += %W[-nln #{name}] if name
-
-    case format || path.extname[1..-1]
-    when "sqlite", "sqlite3", "db"
-      format_flags = %w[-f SQLite -dsco SPATIALITE=YES]
-      options.merge! mixed: concat, launder: true
-    when "gpkg"
-      format_flags = %w[-f GPKG]
-      options.merge! mixed: concat, launder: true
-    when "tab"
-      format_flags = ["-f", "MapInfo File"]
-    else
-      format_flags = ["-f", "ESRI Shapefile"]
-      options.merge! truncate: 10
-    end
-
-    options[:geometry] = GeoJSON.multipoint(coords).bbox if coords
-
-    log_update "nswtopo: retrieving features"
-    layer = ArcGIS::Service.new(url).layer(**options)
-
-    percent = layer.count < 10000 ? "%.0f%%" : layer.count < 100000 ? "%.1f%%" : "%.2f%%"
-    message = "nswtopo: saving #{percent} of #{layer.count} feature#{?s unless layer.count == 1}"
-
-    queue, count = Queue.new, 0
-    thread = Thread.new do
-      while page = queue.pop
-        log_update message % [100.0 * count / layer.count]
-        *, status = Open3.capture3 *%W[ogr2ogr #{path} /vsistdin/], *flags, *format_flags, stdin_data: page.to_json
-        count, format_flags = count + page.count, %w[-update -append]
-        queue.close unless status.success?
-      end
-      status
-    end
-
-    layer.pages(per_page: paginate).yield_self do |pages|
-      concat ? [pages.inject(&:merge!)] : pages
-    end.inject(queue) do |queue, page|
-      queue << page
-    rescue ClosedQueueError
-      break queue
-    end.close
-
-    raise "error while saving features" unless thread.value.success?
-    log_success "saved #{count} feature#{?s unless layer.count == 1}"
   end
 
   def with_browser

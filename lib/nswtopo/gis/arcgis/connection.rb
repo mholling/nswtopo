@@ -1,9 +1,14 @@
 module NSWTopo
-  module ArcGISServer
+  module ArcGIS
+    Error = Class.new RuntimeError
+
     class Connection
-      def initialize(http, service_path)
-        @http, @service_path, @headers = http, service_path, { "User-Agent" => "Ruby/#{RUBY_VERSION}", "Referer" => "%s://%s" % [http.use_ssl? ? "https" : "http", http.address] }
-        http.max_retries = 0
+      ERRORS = [Timeout::Error, Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EINVAL, Errno::ECONNRESET, Errno::ECONNREFUSED, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError]
+
+      def initialize(uri, service_path)
+        @http = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: 600)
+        @service_path, @headers = service_path, { "User-Agent" => "Ruby/#{RUBY_VERSION}", "Referer" => "%s://%s" % [@http.use_ssl? ? "https" : "http", @http.address] }
+        @http.max_retries = 0
       end
 
       def repeatedly_request(request)
@@ -13,7 +18,7 @@ module NSWTopo
         yield response
       rescue *ERRORS, Error => error
         interval = intervals.shift
-        interval ? sleep(interval) : raise(error)
+        interval ? sleep(interval) : raise(Error, error.message)
         retry
       end
 

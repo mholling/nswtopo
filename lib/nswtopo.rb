@@ -257,27 +257,34 @@ module NSWTopo
     end
 
     options[:geometry] = GeoJSON.multipoint(coords).bbox if coords
-    options[:per_page] = paginate if paginate
 
-    queue, count, success = Queue.new, 0, true
+    log_update "nswtopo: retrieving features"
+    layer = ArcGIS::Service.new(url).layer(**options)
+
+    percent = layer.count < 10000 ? "%.0f%%" : layer.count < 100000 ? "%.1f%%" : "%.2f%%"
+    message = "nswtopo: saving #{percent} of #{layer.count} feature#{?s unless layer.count == 1}"
+
+    queue, count = Queue.new, 0
     thread = Thread.new do
       while page = queue.pop
-        stdout, stderr, status = Open3.capture3 *%W[ogr2ogr #{path} /vsistdin/], *flags, *format_flags, stdin_data: page.to_json if success
-        success &&= status.success?
+        log_update message % [100.0 * count / layer.count]
+        *, status = Open3.capture3 *%W[ogr2ogr #{path} /vsistdin/], *flags, *format_flags, stdin_data: page.to_json
         count, format_flags = count + page.count, %w[-update -append]
+        queue.close unless status.success?
       end
-      raise "couldn't save features" unless success
+      status
     end
 
-    Object.new.extend(ArcGISServer).arcgis_pages(url, **options) do |index, total|
-      precision = total < 10000 ? 0 : total < 100000 ? 1 : 2
-      log_update "nswtopo: retrieved %.#{precision}f%% of %i feature%s" % [100.0 * index / total, total, (?s unless total == 1)]
-    end.yield_self do |pages|
+    layer.pages(per_page: paginate).yield_self do |pages|
       concat ? [pages.inject(&:merge!)] : pages
-    end.inject(queue, &:<<).close
-    log_update "nswtopo: saving features"
-    thread.join
-    log_success "saved #{count} features"
+    end.inject(queue) do |queue, page|
+      queue << page
+    rescue ClosedQueueError
+      break queue
+    end.close
+
+    raise "error while saving features" unless thread.value.success?
+    log_success "saved #{count} feature#{?s unless layer.count == 1}"
   end
 
   def with_browser

@@ -1,6 +1,6 @@
 module NSWTopo
   module Relief
-    include Raster, ArcGISServer, Shapefile, DEM, Log
+    include Raster, Shapefile, DEM, Log
     CREATE = %w[altitude azimuth factor sources yellow smooth median bilateral contours]
     DEFAULTS = YAML.load <<~YAML
       altitude: 45
@@ -34,9 +34,10 @@ module NSWTopo
           options   = Hash == attribute_or_hash ? attribute_or_hash.transform_keys(&:to_sym).slice(:where, :layer) : {}
           attribute = Hash == attribute_or_hash ? attribute_or_hash["attribute"] : attribute_or_hash
           case url_or_path
-          when ArcGISServer
-            arcgis_layer url_or_path, **options, geometry: @map.bounding_box(margin) do |index, total|
-              log_update "%s: retrieved %i of %i contours" % [@name, index, total]
+          when ArcGIS::Service
+            layer = ArcGIS::Service.new(url_or_path).layer(**options, geometry: @map.bounding_box(margin))
+            layer.features do |count, total|
+              log_update "%s: retrieved %i of %i contours" % [@name, count, total]
             end
           when Shapefile
             shapefile_layer source_path, margin: margin, **options

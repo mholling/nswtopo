@@ -203,8 +203,8 @@ module NSWTopo
           index = layers.index { |other| (other <=> layer) > 0 } || -1
         end
         next layers.insert(index, layer), true, layer.name, errors
-      rescue ArcGISServer::Error, RuntimeError => error
-        log_warn ArcGISServer::Error === error ? "couldn't download layer: #{layer.name}" : error.message
+      rescue ArcGIS::Error, RuntimeError => error
+        log_warn ArcGIS::Error === error ? "couldn't download layer: #{layer.name}" : error.message
         next layers, changed, follow, errors << error
       end.tap do |ordered_layers, changed, follow, errors|
         if changed

@@ -429,9 +429,9 @@ begin
     raise OptionParser::MissingArgument, "no url specified" unless url
     raise OptionParser::MissingArgument, "no path specified" unless path
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
-    raise OptionParser::InvalidArgument, url unless NSWTopo::ArcGISServer === url
+    raise OptionParser::InvalidArgument, url unless NSWTopo::ArcGIS::Service === url
     path = Pathname(path).expand_path
-    raise OptionParser::InvalidArgument, "#{path} is invalid" unless path.parent.directory?
+    raise OptionParser::InvalidArgument, "invalid path: #{path}" unless path.parent.directory?
     NSWTopo.scrape url, path, **options
     exit
   end

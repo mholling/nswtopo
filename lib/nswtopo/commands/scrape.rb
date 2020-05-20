@@ -1,21 +1,24 @@
 module NSWTopo
-  def scrape(url, path, coords: nil, format: nil, name: nil, epsg: nil, paginate: nil, concat: nil, **options)
+  def scrape(url, path, coords: nil, name: nil, epsg: nil, paginate: nil, concat: nil, **options)
     flags  = %w[-skipfailures]
     flags += %W[-t_srs epsg:#{epsg}] if epsg
     flags += %W[-nln #{name}] if name
 
-    case format || path.extname[1..-1]
-    when "sqlite", "sqlite3", "db"
-      format_flags = %w[-f SQLite -dsco SPATIALITE=YES]
-      options.merge! mixed: concat, launder: true
-    when "gpkg"
-      format_flags = %w[-f GPKG]
-      options.merge! mixed: concat, launder: true
-    when "tab"
-      format_flags = ["-f", "MapInfo File"]
-    else
-      format_flags = ["-f", "ESRI Shapefile"]
-      options.merge! truncate: 10
+    format_flags = case path.to_s
+    when Shapefile     then %w[-update -overwrite]
+    when /\.sqlite3?$/ then %w[-f SQLite -dsco SPATIALITE=YES]
+    when /\.db$/       then %w[-f SQLite -dsco SPATIALITE=YES]
+    when /\.gpkg$/     then %w[-f GPKG]
+    when /\.tab$/      then ["-f", "MapInfo File"]
+    else                    ["-f", "ESRI Shapefile"]
+    end
+
+    options.merge! case path.to_s
+    when /\.sqlite3?$/ then { mixed: concat, launder: true }
+    when /\.db$/       then { mixed: concat, launder: true }
+    when /\.gpkg$/     then { mixed: concat, launder: true }
+    when /\.tab$/      then { }
+    else                    { truncate: 10 }
     end
 
     options[:geometry] = GeoJSON.multipoint(coords).bbox if coords

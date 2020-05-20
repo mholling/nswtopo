@@ -11,14 +11,11 @@ module NSWTopo
         @http.max_retries = 0
       end
 
-      def repeatedly_request(request)
-        intervals ||= 5.times.map(&1.4142.method(:**))
-        response = @http.request(request)
-        response.error! unless Net::HTTPSuccess === response
-        yield response
+      def repeatedly_request(request, &block)
+        intervals ||= 4.times.map(&1.4142.method(:**))
+        @http.request(request).tap(&:value).yield_self(&block)
       rescue *ERRORS, Error => error
-        interval = intervals.shift
-        interval ? sleep(interval) : raise(Error, error.message)
+        intervals.any? ? sleep(intervals.shift) : raise(Error, error.message)
         retry
       end
 

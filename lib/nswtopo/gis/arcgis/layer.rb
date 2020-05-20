@@ -12,19 +12,26 @@ module NSWTopo
         end&.dig("id")
         raise Error, "no such ArcGIS layer: #{layer || id}" unless @id
 
-        @name, @max_record_count, layer_fields, types, @type_id_field, @geometry_type, capabilities = get_json("#{@id}").values_at "name", "maxRecordCount", "fields", "types", "typeIdField", "geometryType", "capabilities"
+        info = get_json "#{@id}"
+        @name, @max_record_count, @fields, @geometry_type, capabilities = info.values_at *%w[name maxRecordCount fields geometryType capabilities]
         raise Error, "no query capability available for layer: #{@name}" unless capabilities =~ /Query|Data/
 
-        if @type_id_field && !@type_id_field.empty? && types
-          @type_id_field = layer_fields.find do |field|
-            field.values_at("alias", "name").include? @type_id_field
+        [[%w[typeIdField], %w[subtypeField subtypeFieldName]], %w[types subtypes], %w[id code]].transpose.map do |name_keys, lookup_key, value_key|
+          next info.values_at(*name_keys).compact.reject(&:empty?).first, info[lookup_key], value_key
+        end.find do |name_or_alias, lookup, value_key|
+          name_or_alias && lookup&.any?
+        end&.tap do |name_or_alias, lookup, value_key|
+          @type_field = @fields.find do |field|
+            field.values_at("alias", "name").compact.include? name_or_alias
           end&.fetch("name")
-          @type_values = types.map do |type|
-            type.values_at "id", "name"
+
+          @type_values = lookup.map do |type|
+            type.values_at value_key, "name"
           end.to_h
-          @subtype_coded_values = types.map do |type|
-            type.values_at "id", "domains"
-          end.map do |id, domains|
+
+          @subtype_values = lookup.map do |type|
+            type.values_at value_key, "domains"
+          end.map do |code, domains|
             coded_values = domains.map do |name, domain|
               [name, domain["codedValues"]]
             end.select(&:last).map do |name, pairs|
@@ -33,11 +40,11 @@ module NSWTopo
               end.to_h
               [name, values]
             end.to_h
-            [id, coded_values]
+            [code, coded_values]
           end.to_h
         end
 
-        @coded_values = layer_fields.map do |field|
+        @coded_values = @fields.map do |field|
           [field["name"], field.dig("domain", "codedValues")]
         end.select(&:last).map do |name, pairs|
           values = pairs.map do |pair|
@@ -46,19 +53,19 @@ module NSWTopo
           [name, values]
         end.to_h
 
-        fields ||= layer_fields.reject do |field|
+        fields ||= @fields.reject do |field|
           EXCLUDED_TYPES === field["type"]
         end.map do |field|
           field["name"]
         end
 
         @out_fields = fields.map do |name|
-          layer_fields.find(-> { raise "invalid field name: #{name}" }) do |field|
+          @fields.find(-> { raise "invalid field name: #{name}" }) do |field|
             field.values_at("alias", "name").include? name
           end.fetch("name")
         end.join(?,)
 
-        @rename = layer_fields.map do |field|
+        @rename = @fields.map do |field|
           field["name"]
         end.map do |name|
           next name, launder ? name.downcase.gsub(/[^\w]+/, ?_) : name
@@ -85,7 +92,7 @@ module NSWTopo
           query[:geometryType] = "esriGeometryPolygon"
         when where
         else
-          oid_field = layer_fields.find do |field|
+          oid_field = @fields.find do |field|
             field["type"] == "esriFieldTypeOID"
           end&.fetch("name")
           query[:where] = oid_field ? "#{oid_field} IS NOT NULL" : "1=1"
@@ -113,22 +120,21 @@ module NSWTopo
               next unless geometry = feature["geometry"]
               attributes = feature.fetch "attributes", {}
 
-              values = attributes.map do |name, value|
-                case
+              attributes = attributes.map do |name, value|
+                next @rename[name], case
                 when %w[null Null NULL <null> <Null> <NULL>].include?(value)
                   nil
                 when !@decode
                   value
-                when @type_id_field == name
+                when @type_field == name
                   @type_values[value]
-                when lookup = @subtype_coded_values&.dig(attributes[@type_id_field], name)
+                when lookup = @subtype_values&.dig(attributes[@type_field], name)
                   lookup[value]
                 when lookup = @coded_values.dig(name)
                   lookup[value]
                 else value
                 end
-              end
-              attributes = @rename.values_at(*attributes.keys).zip(values).to_h
+              end.to_h
 
               case @geometry_type
               when "esriGeometryPoint"

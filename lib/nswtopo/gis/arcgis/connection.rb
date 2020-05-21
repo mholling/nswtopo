@@ -20,14 +20,14 @@ module NSWTopo
       end
 
       def get(relative_path, **query, &block)
-        path = Pathname(@service_path).join(relative_path).to_s
+        path = Pathname(@service_path).join(relative_path.to_s).to_s
         path << ?? << URI.encode_www_form(query) unless query.empty?
         request = Net::HTTP::Get.new(path, @headers)
         repeatedly_request(request, &block)
       end
 
       def post(relative_path, **query, &block)
-        path = Pathname(@service_path).join(relative_path).to_s
+        path = Pathname(@service_path).join(relative_path.to_s).to_s
         request = Net::HTTP::Post.new(path, @headers)
         request.body = URI.encode_www_form(query)
         repeatedly_request(request, &block)

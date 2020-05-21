@@ -12,7 +12,7 @@ module NSWTopo
         end&.dig("id")
         raise Error, "no such ArcGIS layer: #{layer || id}" unless @id
 
-        info = get_json "#{@id}"
+        info = get_json @id
         @name, @max_record_count, @fields, @geometry_type, capabilities = info.values_at *%w[name maxRecordCount fields geometryType capabilities]
         raise Error, "no query capability available for layer: #{@name}" unless capabilities =~ /Query|Data/
 
@@ -76,8 +76,8 @@ module NSWTopo
         end.inject(&:+).inject(Hash[]) do |lookup, (name, substitute)|
           suffix, index, candidate = "_2", 3, substitute
           while lookup.key? candidate
-            suffix, index, candidate = "_#{index}", index + 1, (Integer === launder ? substitute.slice(0, launder - suffix.length) : substitute) + suffix
-            raise "can't launder field name #{name}" if Integer === launder && suffix.length >= launder
+            suffix, index, candidate = "_#{index}", index + 1, (concat ? substitute.slice(0, concat - suffix.length) : substitute) + suffix
+            raise "can't individualise field name: #{name}" if concat && suffix.length >= concat
           end
           lookup.merge candidate => name
         end.invert

@@ -68,9 +68,9 @@ module NSWTopo
               end
               delimiters.rotate! and redo if rows.any? { |row| row.length > 1 + names.length }
               rows.each do |objectid, *values|
-                attributes = table[objectid.to_i]
+                properties = table[objectid.to_i]
                 values.zip(types, names).each do |value, type, name|
-                  attributes[name] = case
+                  properties[name] = case
                   when value == "<Null>" then nil
                   when value == "" then nil
                   when type == "esriFieldTypeOID" then Integer(value)
@@ -110,10 +110,10 @@ module NSWTopo
           sets = table.group_by(&:last).map(&:last).sort_by(&:length)
           yielder << GeoJSON::Collection.new(projection: projection, name: @name) if sets.none?
 
-          while objectids_attributes = sets.shift
-            while objectids_attributes.any?
+          while objectids_properties = sets.shift
+            while objectids_properties.any?
               begin
-                objectids, attributes = objectids_attributes.take(per_page).transpose
+                objectids, properties = objectids_properties.take(per_page).transpose
                 dynamic_layers = [@dynamic_layer.merge(definitionExpression: "#{@objectid_field} IN (#{objectids.join ?,})")]
                 export = get_json "export", format: "svg", dynamicLayers: dynamic_layers.to_json, bbox: bbox, size: size, mapScale: scale, dpi: dpi
                 href = URI.parse export["href"]
@@ -162,24 +162,24 @@ module NSWTopo
                 end
                 coords
               end.tap do |coords|
-                raise "unexpected SVG response" unless coords.length == attributes.length
-              end.zip(attributes).map do |coords, attributes|
+                raise "unexpected SVG response" unless coords.length == properties.length
+              end.zip(properties).map do |coords, properties|
                 case @geometry_type
                 when "esriGeometryPoint"
                   raise "unexpected SVG response (bad point symbol)" unless coords.map(&:length) == [ 4 ]
                   point = coords[0].transpose.map { |coords| coords.sum / coords.length }
-                  GeoJSON::Point.new point, attributes
+                  GeoJSON::Point.new point, properties
                 when "esriGeometryPolyline"
-                  GeoJSON::MultiLineString.new coords, attributes
+                  GeoJSON::MultiLineString.new coords, properties
                 when "esriGeometryPolygon"
                   coords.each(&:reverse!) unless coords[0].anticlockwise?
                   polys = coords.slice_before(&:anticlockwise?)
-                  GeoJSON::MultiPolygon.new polys.entries, attributes
+                  GeoJSON::MultiPolygon.new polys.entries, properties
                 end
               end
 
               yielder << GeoJSON::Collection.new(projection: projection, name: @name, features: features)
-              objectids_attributes.shift per_page
+              objectids_properties.shift per_page
             end
           end
         end

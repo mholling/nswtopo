@@ -23,9 +23,10 @@ module NSWTopo
 
     options[:geometry] = GeoJSON.multipoint(coords).bbox if coords
 
-    log_update "nswtopo: retrieving features"
+    log_update "nswtopo: contacting server"
     layer = ArcGIS::Service.new(url).layer(**options)
 
+    log_update "nswtopo: retrieving #{layer.count} feature#{?s unless layer.count == 1}"
     percent = layer.count < 1000 ? "%.0f%%" : layer.count < 10000 ? "%.1f%%" : "%.2f%%"
     message = "nswtopo: saving #{percent} of #{layer.count} feature#{?s unless layer.count == 1}"
 

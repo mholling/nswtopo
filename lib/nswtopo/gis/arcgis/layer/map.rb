@@ -8,6 +8,7 @@ module NSWTopo
       NoGeometryError = Class.new RuntimeError
 
       def prepare(where: nil, geometry: nil, unique: nil)
+        @where = where
         @objectid_field = @layer["fields"].find do |field|
           field["type"] == "esriFieldTypeOID"
         end&.fetch("name")
@@ -39,55 +40,55 @@ module NSWTopo
         @count = renderer["uniqueValueInfos"].sum do |info|
           info["count"]
         end
-
-        @table = Hash.new do |hash, objectid|
-          hash[objectid] = { }
-        end
-
-        names_types = @layer["fields"].select do |field|
-          FIELD_TYPES === field["type"]
-        end.map do |field|
-          [field["name"], field.values_at("name", "type")]
-        end.to_h.values_at(*@fields)
-
-        max, delimiters = 0, %w[| ~ ^]
-        while @table.length < @count
-          min, max = max, max + 10000
-          names_types.each_slice(2).yield_self do |pairs|
-            pairs.any? ? pairs.map(&:transpose) : [[[],[]]]
-          end.each do |names, types|
-            paged_where = join_clauses "#{@objectid_field}>=#{min}", "#{@objectid_field}<#{max}", *where
-            classification_def = { type: "uniqueValueDef", uniqueValueFields: [@objectid_field, *names], fieldDelimiter: delimiters.first }
-            response = get_json "dynamicLayer/generateRenderer", where: paged_where, layer: @dynamic_layer.to_json, classificationDef: classification_def.to_json
-            rows = response["uniqueValueInfos"].map do |info|
-              info["value"].split(delimiters.first).map(&:strip)
-            end
-            delimiters.rotate! and redo if rows.any? { |row| row.length > 1 + names.length }
-            rows.each do |objectid, *values|
-              attributes = @table[objectid.to_i]
-              values.zip(types, names).each do |value, type, name|
-                attributes[name] = case
-                when value == "<Null>" then nil
-                when value == "" then nil
-                when type == "esriFieldTypeOID" then Integer(value)
-                when type == "esriFieldTypeInteger" then Integer(value)
-                when type == "esriFieldTypeSmallInteger" then Integer(value)
-                when type == "esriFieldTypeDouble" then Float(value)
-                when type == "esriFieldTypeSingle" then Float(value)
-                when type == "esriFieldTypeString" then String(value)
-                when type == "esriFieldTypeGUID" then String(value)
-                when type == "esriFieldTypeDate" then String(value)
-                end
-              rescue ArgumentError
-                raise "could not interpret #{value.inspect} as #{type}"
-              end
-            end
-          end
-        end
       end
 
       def pages(per_page: nil)
         Enumerator.new do |yielder|
+          table = Hash.new do |hash, objectid|
+            hash[objectid] = { }
+          end
+
+          names_types = @layer["fields"].select do |field|
+            FIELD_TYPES === field["type"]
+          end.map do |field|
+            [field["name"], field.values_at("name", "type")]
+          end.to_h.values_at(*@fields)
+
+          max, delimiters = 0, %w[| ~ ^]
+          while table.length < @count
+            min, max = max, max + 10000
+            names_types.each_slice(2).yield_self do |pairs|
+              pairs.any? ? pairs.map(&:transpose) : [[[],[]]]
+            end.each do |names, types|
+              paged_where = join_clauses "#{@objectid_field}>=#{min}", "#{@objectid_field}<#{max}", *@where
+              classification_def = { type: "uniqueValueDef", uniqueValueFields: [@objectid_field, *names], fieldDelimiter: delimiters.first }
+              response = get_json "dynamicLayer/generateRenderer", where: paged_where, layer: @dynamic_layer.to_json, classificationDef: classification_def.to_json
+              rows = response["uniqueValueInfos"].map do |info|
+                info["value"].split(delimiters.first).map(&:strip)
+              end
+              delimiters.rotate! and redo if rows.any? { |row| row.length > 1 + names.length }
+              rows.each do |objectid, *values|
+                attributes = table[objectid.to_i]
+                values.zip(types, names).each do |value, type, name|
+                  attributes[name] = case
+                  when value == "<Null>" then nil
+                  when value == "" then nil
+                  when type == "esriFieldTypeOID" then Integer(value)
+                  when type == "esriFieldTypeInteger" then Integer(value)
+                  when type == "esriFieldTypeSmallInteger" then Integer(value)
+                  when type == "esriFieldTypeDouble" then Float(value)
+                  when type == "esriFieldTypeSingle" then Float(value)
+                  when type == "esriFieldTypeString" then String(value)
+                  when type == "esriFieldTypeGUID" then String(value)
+                  when type == "esriFieldTypeDate" then String(value)
+                  end
+                rescue ArgumentError
+                  raise "could not interpret #{value.inspect} as #{type}"
+                end
+              end
+            end
+          end
+
           parent = @layer
           scale = loop do
             break parent["minScale"] if parent["minScale"]&.nonzero?
@@ -106,7 +107,7 @@ module NSWTopo
           bbox, size = %W[#{cx},#{cy},#{cx},#{cy} #{TILE},#{TILE}]
           dpi = bounds.map { |b0, b1| 0.0254 * TILE * scale / (b1 - b0) }.min * 0.999
 
-          sets = @table.group_by(&:last).map(&:last).sort_by(&:length)
+          sets = table.group_by(&:last).map(&:last).sort_by(&:length)
           yielder << GeoJSON::Collection.new(projection: projection, name: @name) if sets.none?
 
           while objectids_attributes = sets.shift

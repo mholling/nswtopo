@@ -142,7 +142,7 @@ begin
       "\e[4m%s\e[0m" % $1
     end.gsub(/~([-a-zA-Z0-9]+)~/) do
       "\e[3m%s\e[0m" % $1
-    end
+    end.prepend("\r\e[K")
   end
 
   plain = lambda do |string|
@@ -382,15 +382,16 @@ begin
         *nswtopo* *scrape* - scrape data from an ArcGIS REST endpoint
           usage: _nswtopo_ _scrape_ [~options~] <url> <path>
       EOF
-      parser.on "-l", "--layer     <layer>",               String,                  "name of ArcGIS service layer"
-      parser.on "-w", "--where     <where>",               String,                  "filtering clause"
-      parser.on "-c", "--coords    <x0,y0,x1,y1>",         CoordList,               "WGS84 coordinates of bounding box corners"
-      parser.on "-n", "--name      <name>",                /^\w+$/,                 "name of saved layer"
-      parser.on       "--fields    <field,...>",           Array,                   "comma-separated list of fields"
-      parser.on "-d", "--decode",                                                   "convert coded values where possible"
-      parser.on "-e", "--epsg      <number>",              PositiveInt,             "EPSG number for reprojection"
-      parser.on "-p", "--paginate  <number>",              PositiveInt,             "number of records per request"
-      parser.on       "--concat",                                                   "collect all features before saving"
+      parser.on "-l", "--layer     <layer>",       String,      "name of ArcGIS service layer"
+      parser.on "-w", "--where     <where>",       String,      "filtering clause"
+      parser.on "-c", "--coords    <x0,y0,x1,y1>", CoordList,   "WGS84 coordinates of bounding box corners"
+      parser.on "-n", "--name      <name>",        /^\w+$/,     "name of saved layer"
+      parser.on       "--fields    <field,...>",   Array,       "comma-separated list of fields"
+      parser.on "-d", "--decode",                               "convert coded values where possible"
+      parser.on "-e", "--epsg      <number>",      PositiveInt, "EPSG number for reprojection"
+      parser.on "-p", "--paginate  <number>",      PositiveInt, "number of records per request"
+      parser.on       "--concat",                               "collect all features before saving"
+      parser.on "-u", "--unique    <field>",       String,      "field for counting map-only features"
 
     when nil
       raise OptionParser::MissingArgument, "no command specified"

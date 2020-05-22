@@ -26,13 +26,13 @@ module NSWTopo
     log_update "nswtopo: retrieving features"
     layer = ArcGIS::Service.new(url).layer(**options)
 
-    percent = layer.count < 10000 ? "%.0f%%" : layer.count < 100000 ? "%.1f%%" : "%.2f%%"
+    percent = layer.count < 1000 ? "%.0f%%" : layer.count < 10000 ? "%.1f%%" : "%.2f%%"
     message = "nswtopo: saving #{percent} of #{layer.count} feature#{?s unless layer.count == 1}"
 
     queue, count = Queue.new, 0
     thread = Thread.new do
       while page = queue.pop
-        log_update message % [100.0 * count / layer.count]
+        log_update message % [100.0 * (count + page.count) / layer.count]
         *, status = Open3.capture3 *%W[ogr2ogr #{path} /vsistdin/], *flags, *format_flags, stdin_data: page.to_json
         count, format_flags = count + page.count, %w[-update -append]
         queue.close unless status.success?
@@ -40,7 +40,7 @@ module NSWTopo
       status
     end
 
-    layer.pages(per_page: paginate).yield_self do |pages|
+    layer.paged(per_page: paginate).yield_self do |pages|
       concat ? [pages.inject(&:merge!)] : pages
     end.inject(queue) do |queue, page|
       queue << page
@@ -49,6 +49,10 @@ module NSWTopo
     end.close
 
     raise "error while saving features" unless thread.value.success?
-    log_success "saved #{count} feature#{?s unless layer.count == 1}"
+    log_success "saved #{count} feature#{?s unless count == 1}"
+  rescue ArcGIS::Map::NoUniqueFieldError
+    raise OptionParser::InvalidOption, "--unique option required for this layer"
+  rescue ArcGIS::Map::NoGeometryError
+    raise OptionParser::InvalidOption, "--coords option not possible for this layer"
   end
 end

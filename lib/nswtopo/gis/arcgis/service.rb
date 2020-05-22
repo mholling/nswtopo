@@ -29,7 +29,7 @@ module NSWTopo
         when wkt  = @service.dig("spatialReference", "wkt") then Projection.new(wkt)
         when wkid = @service.dig("spatialReference", "latestWkid") then Projection.new("EPSG:#{wkid}")
         when wkid = @service.dig("spatialReference", "wkid") then Projection.new("EPSG:#{wkid == 102100 ? 3857 : wkid}")
-        else raise Error, "no spatial reference found: #{uri}"
+        else raise "no spatial reference found: #{uri}"
         end
       end
 

@@ -106,18 +106,14 @@ module NSWTopo
           bbox, size = %W[#{cx},#{cy},#{cx},#{cy} #{TILE},#{TILE}]
           dpi = bounds.map { |b0, b1| 0.0254 * TILE * scale / (b1 - b0) }.min * 0.999
 
-          sets = @table.group_by(&:last).map do |attributes, objectids_attributes|
-            [attributes, objectids_attributes.transpose.first]
-          end.sort_by do |attributes, objectids|
-            objectids.length
-          end
+          sets = @table.group_by(&:last).map(&:last).sort_by(&:length)
           yielder << GeoJSON::Collection.new(projection: projection, name: @name) if sets.none?
 
-          while (attributes, objectids = sets.shift)
-            while objectids.any?
+          while objectids_attributes = sets.shift
+            while objectids_attributes.any?
               begin
-                ids = objectids.take per_page
-                dynamic_layers = [@dynamic_layer.merge(definitionExpression: "#{@objectid_field} IN (#{ids.join ?,})")]
+                objectids, attributes = objectids_attributes.take(per_page).transpose
+                dynamic_layers = [@dynamic_layer.merge(definitionExpression: "#{@objectid_field} IN (#{objectids.join ?,})")]
                 export = get_json "export", format: "svg", dynamicLayers: dynamic_layers.to_json, bbox: bbox, size: size, mapScale: scale, dpi: dpi
                 href = URI.parse export["href"]
                 xml = Connection.new(href).get(href.path, &:body)
@@ -128,7 +124,7 @@ module NSWTopo
 
               features = REXML::Document.new(xml).elements.collect("svg//g[@transform]//g[@transform][path[@d]]") do |group|
                 a, b, c, d, e, f = group.attributes["transform"].match(/matrix\((.*)\)/)[1].split(?\s).map(&:to_f)
-                lines = []
+                coords = []
                 group.elements["path[@d]"].attributes["d"].gsub(/\ *([MmZzLlHhVvCcSsQqTtAa])\ */) do
                   ?\s + $1 + ?\s
                 end.strip.split(?\s).slice_before(/[MmZzLlHhVvCcSsQqTtAa]/).each do |command, *numbers|
@@ -139,12 +135,12 @@ module NSWTopo
                   end
                   case command
                   when ?Z then next
-                  when ?M then lines << coordinates
-                  when ?L then lines.last.concat coordinates
+                  when ?M then coords << coordinates
+                  when ?L then coords.last.concat coordinates
                   when ?C
                     coordinates.each_slice(3) do |points|
                       raise "unexpected SVG response (bad path data)" unless points.length == 3
-                      curves = [[lines.last.last, *points]]
+                      curves = [[coords.last.last, *points]]
                       while curve = curves.shift
                         next if curve.first == curve.last
                         if curve.values_at(0,-1).distance < 0.99 * curve.segments.map(&:distance).sum
@@ -156,30 +152,33 @@ module NSWTopo
                           curves.unshift reduced.map(&:last).reverse
                           curves.unshift reduced.map(&:first)
                         else
-                          lines.last << curve.last
+                          coords.last << curve.last
                         end
                       end
                     end
                   else raise "can't handle SVG path data command: #{command}"
                   end
                 end
-
+                coords
+              end.tap do |coords|
+                raise "unexpected SVG response" unless coords.length == attributes.length
+              end.zip(attributes).map do |coords, attributes|
                 case @geometry_type
                 when "esriGeometryPoint"
-                  raise "unexpected SVG response (bad point symbol)" unless lines.map(&:length) == [ 4 ]
-                  point = lines[0].transpose.map { |coords| coords.sum / coords.length }
-                  GeoJSON::Point.new point, attributes.dup
+                  raise "unexpected SVG response (bad point symbol)" unless coords.map(&:length) == [ 4 ]
+                  point = coords[0].transpose.map { |coords| coords.sum / coords.length }
+                  GeoJSON::Point.new point, attributes
                 when "esriGeometryPolyline"
-                  GeoJSON::MultiLineString.new lines, attributes.dup
+                  GeoJSON::MultiLineString.new coords, attributes
                 when "esriGeometryPolygon"
-                  lines.each(&:reverse!) unless lines[0].anticlockwise?
-                  polys = lines.slice_before(&:anticlockwise?)
-                  GeoJSON::MultiPolygon.new polys, attributes.dup
+                  coords.each(&:reverse!) unless coords[0].anticlockwise?
+                  polys = coords.slice_before(&:anticlockwise?)
+                  GeoJSON::MultiPolygon.new polys, attributes
                 end
               end
-              raise "unexpected SVG response" unless features.length == ids.length
+
               yielder << GeoJSON::Collection.new(projection: projection, name: @name, features: features)
-              objectids.shift per_page
+              objectids_attributes.shift per_page
             end
           end
         end

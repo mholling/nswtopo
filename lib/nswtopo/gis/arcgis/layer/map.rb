@@ -173,7 +173,7 @@ module NSWTopo
                 when "esriGeometryPolygon"
                   coords.each(&:reverse!) unless coords[0].anticlockwise?
                   polys = coords.slice_before(&:anticlockwise?)
-                  GeoJSON::MultiPolygon.new polys, attributes
+                  GeoJSON::MultiPolygon.new polys.entries, attributes
                 end
               end
 

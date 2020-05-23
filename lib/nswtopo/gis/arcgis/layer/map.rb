@@ -31,7 +31,9 @@ module NSWTopo
         @dynamic_layer = { source: { type: "mapLayer", mapLayerId: @id }, drawingInfo: { showLabels: false, renderer: renderer } }
 
         unique ||= @type_field
-        unique ||= @layer.dig("drawingInfo", "renderer", "field1") if @layer.dig("drawingInfo", "renderer", "type") == "uniqueValue"
+        unique ||= @layer["fields"].find do |field|
+          field.values_at("name", "alias").map(&:downcase).include? @layer.dig("drawingInfo", "renderer", "field1")&.downcase
+        end&.fetch("name")
         raise NoUniqueFieldError unless unique
 
         classification_def = { type: "uniqueValueDef", uniqueValueFields: [unique,unique] }

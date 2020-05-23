@@ -120,7 +120,7 @@ module NSWTopo
 
       def paged(per_page: nil)
         per_page = [*per_page, *@layer["maxRecordCount"], 500].min
-        Enumerator::Lazy.new pages(per_page: per_page) do |yielder, page|
+        Enumerator::Lazy.new pages(per_page) do |yielder, page|
           page.each(&@transform)
           yielder << page
         end

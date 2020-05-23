@@ -25,7 +25,7 @@ module NSWTopo
         @count = @object_ids.count
       end
 
-      def pages(per_page:)
+      def pages(per_page)
         Enumerator.new do |yielder|
           yielder << GeoJSON::Collection.new(projection: projection, name: @name) if @object_ids.none?
 

@@ -42,7 +42,7 @@ module NSWTopo
         end
       end
 
-      def pages(per_page: nil)
+      def pages(per_page)
         Enumerator.new do |yielder|
           table = Hash.new do |hash, objectid|
             hash[objectid] = { }

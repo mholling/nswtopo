@@ -32,7 +32,7 @@ module NSWTopo
 
         unique ||= @type_field
         unique ||= @layer.dig("drawingInfo", "renderer", "field1") if @layer.dig("drawingInfo", "renderer", "type") == "uniqueValue"
-        raise NoUniqueFieldError, "couldn't determine a unique-values field for layer: #{@name}" unless unique
+        raise NoUniqueFieldError unless unique
 
         classification_def = { type: "uniqueValueDef", uniqueValueFields: [unique,unique] }
         renderer = get_json "dynamicLayer/generateRenderer", layer: @dynamic_layer.to_json, classificationDef: classification_def.to_json

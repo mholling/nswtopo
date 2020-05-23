@@ -52,8 +52,10 @@ module NSWTopo
     raise "error while saving features" unless thread.value.success?
     log_success "saved #{count} feature#{?s unless count == 1}"
   rescue ArcGIS::Map::NoUniqueFieldError
-    raise OptionParser::InvalidOption, "--unique option required for this layer"
+    raise OptionParser::InvalidOption, "--unique required for this layer"
   rescue ArcGIS::Map::NoGeometryError
-    raise OptionParser::InvalidOption, "--coords option not possible for this layer"
+    raise OptionParser::InvalidOption, "--coords not available for this layer"
+  rescue ArcGIS::Query::UniqueFieldError
+    raise OptionParser::InvalidOption, "--unique not available for this layer"
   end
 end

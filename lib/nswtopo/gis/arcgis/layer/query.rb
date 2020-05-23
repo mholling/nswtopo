@@ -1,10 +1,14 @@
 module NSWTopo
   module ArcGIS
     module Query
-      def prepare(where: nil, geometry: nil, **)
+      UniqueFieldError = Class.new RuntimeError
+
+      def prepare(where: nil, geometry: nil, unique: nil)
         query = { returnIdsOnly: true, where: join_clauses(*where) }
 
         case
+        when unique
+          raise UniqueFieldError
         when geometry
           raise "polgyon geometry required" unless geometry.polygon?
           query[:geometry] = { rings: geometry.reproject_to(projection).coordinates.map(&:reverse) }.to_json

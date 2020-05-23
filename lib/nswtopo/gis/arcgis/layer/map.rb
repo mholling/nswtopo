@@ -169,13 +169,15 @@ module NSWTopo
                 when "esriGeometryPoint"
                   raise "unexpected SVG response (bad point symbol)" unless coords.map(&:length) == [ 4 ]
                   point = coords[0].transpose.map { |coords| coords.sum / coords.length }
-                  GeoJSON::Point.new point, properties
+                  next GeoJSON::Point.new point, properties
                 when "esriGeometryPolyline"
-                  GeoJSON::MultiLineString.new coords, properties
+                  next GeoJSON::LineString.new coords[0], properties if @mixed && coords.one?
+                  next GeoJSON::MultiLineString.new coords, properties
                 when "esriGeometryPolygon"
                   coords.each(&:reverse!) unless coords[0].anticlockwise?
-                  polys = coords.slice_before(&:anticlockwise?)
-                  GeoJSON::MultiPolygon.new polys.entries, properties
+                  polys = coords.slice_before(&:anticlockwise?).entries
+                  next GeoJSON::Polygon.new polys.first, properties if @mixed && polys.one?
+                  next GeoJSON::MultiPolygon.new polys, properties
                 end
               end
 

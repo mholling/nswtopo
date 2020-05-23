@@ -13,7 +13,7 @@ module NSWTopo
         end&.values_at("id", "name")
         raise "ArcGIS layer does not exist: #{layer || id}" unless @id
 
-        @service = service
+        @service, @mixed = service, mixed
         @layer = get_json @id
         raise "ArcGIS layer is not a feature layer: #{@name}" unless @layer["type"] == "Feature Layer"
 

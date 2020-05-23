@@ -58,9 +58,9 @@ module NSWTopo
                 rings = geometry["rings"]
                 next unless rings&.any?
                 rings.each(&:reverse!) unless rings[0].anticlockwise?
-                polys = rings.slice_before(&:anticlockwise?)
+                polys = rings.slice_before(&:anticlockwise?).entries
                 next GeoJSON::Polygon.new polys.first, properties if @mixed && polys.one?
-                next GeoJSON::MultiPolygon.new polys.entries, properties
+                next GeoJSON::MultiPolygon.new polys, properties
               else
                 raise "unsupported ArcGIS geometry type: #{@geometry_type}"
               end

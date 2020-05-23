@@ -162,7 +162,8 @@ module NSWTopo
                 end
                 coords
               end.tap do |coords|
-                raise "unexpected SVG response" unless coords.length == properties.length
+                lengths = [properties.length, coords.length]
+                raise "unexpected SVG response (expected %i features, received %i)" % lengths if lengths.inject(&:<)
               end.zip(properties).map do |coords, properties|
                 case @geometry_type
                 when "esriGeometryPoint"

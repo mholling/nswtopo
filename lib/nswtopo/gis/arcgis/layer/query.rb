@@ -26,9 +26,9 @@ module NSWTopo
       end
 
       def pages(per_page)
-        Enumerator.new do |yielder|
-          yielder << GeoJSON::Collection.new(projection: projection, name: @name) if @object_ids.none?
+        return [GeoJSON::Collection.new(projection: projection, name: @name)].each if @count.zero?
 
+        Enumerator.new do |yielder|
           while @object_ids.any?
             begin
               get_json "#{@id}/query", outFields: @fields.join(?,), objectIds: @object_ids.take(per_page).join(?,)

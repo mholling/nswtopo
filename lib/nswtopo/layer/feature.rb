@@ -21,8 +21,8 @@ module NSWTopo
           options.merge! args
           case
           when ArcGIS::Service === source
-            layer = ArcGIS::Service.new(source).layer(**options.slice(:layer, :where, :per_page), geometry: @map.bounding_box(MARGIN), decode: true)
-            break options, layer.features do |count, total|
+            layer = ArcGIS::Service.new(source).layer(**options.slice(:layer, :where), geometry: @map.bounding_box(MARGIN), decode: true)
+            break options, layer.features(**options.slice(:per_page)) do |count, total|
               log_update "%s: retrieved %i of %i feature%s" % [@name, count, total, (?s if total > 1)]
             end
           when Shapefile === source_path
@@ -30,7 +30,7 @@ module NSWTopo
             break options, features
           end
           raise "#{@source.basename}: invalid feature source: #{source}"
-        rescue ArcGIS::Error => error
+        rescue ArcGIS::Connection::Error => error
           next options, nil, error
         end
 

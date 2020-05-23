@@ -1,7 +1,5 @@
 module NSWTopo
   class Shapefile
-    Error = Class.new RuntimeError
-
     def self.===(path)
       OS.ogrinfo "-ro", "-so", path
       true

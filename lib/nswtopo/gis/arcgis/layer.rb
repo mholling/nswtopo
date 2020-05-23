@@ -29,7 +29,7 @@ module NSWTopo
           @layer["fields"].find(-> { raise "invalid field name: #{name}" }) do |field|
             field.values_at("alias", "name").include? name
           end.fetch("name")
-        end
+        end.uniq
 
         [[%w[typeIdField], %w[subtypeField subtypeFieldName]], %w[types subtypes], %w[id code]].transpose.map do |name_keys, lookup_key, value_key|
           next @layer.values_at(*name_keys).compact.reject(&:empty?).first, @layer[lookup_key], value_key
@@ -68,9 +68,7 @@ module NSWTopo
           [name, values]
         end.to_h
 
-        rename = @layer["fields"].map do |field|
-          field["name"]
-        end.map do |name|
+        rename = @fields.map do |name|
           next name, launder ? name.downcase.gsub(/[^\w]+/, ?_) : name
         end.map do |name, substitute|
           next name, truncate ? substitute.slice(0...truncate) : substitute

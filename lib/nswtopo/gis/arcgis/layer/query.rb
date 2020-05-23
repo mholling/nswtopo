@@ -32,31 +32,31 @@ module NSWTopo
               (per_page /= 2) > 0 ? retry : raise
             end.fetch("features", []).map do |feature|
               next unless geometry = feature["geometry"]
-              attributes = feature.fetch("attributes", {})
+              properties = feature.fetch("attributes", {}).slice(*@fields)
 
               case @geometry_type
               when "esriGeometryPoint"
                 point = geometry.values_at "x", "y"
                 next unless point.all?
-                next GeoJSON::Point.new point, attributes
+                next GeoJSON::Point.new point, properties
               when "esriGeometryMultipoint"
                 points = geometry["points"]
                 next unless points&.any?
-                next GeoJSON::MultiPoint.new points.transpose.take(2).transpose, attributes
+                next GeoJSON::MultiPoint.new points.transpose.take(2).transpose, properties
               when "esriGeometryPolyline"
                 raise "ArcGIS curve geometries not supported" if geometry.key? "curvePaths"
                 paths = geometry["paths"]
                 next unless paths&.any?
-                next GeoJSON::LineString.new paths[0], attributes if @mixed && paths.one?
-                next GeoJSON::MultiLineString.new paths, attributes
+                next GeoJSON::LineString.new paths[0], properties if @mixed && paths.one?
+                next GeoJSON::MultiLineString.new paths, properties
               when "esriGeometryPolygon"
                 raise "ArcGIS curve geometries not supported" if geometry.key? "curveRings"
                 rings = geometry["rings"]
                 next unless rings&.any?
                 rings.each(&:reverse!) unless rings[0].anticlockwise?
                 polys = rings.slice_before(&:anticlockwise?)
-                next GeoJSON::Polygon.new polys.first, attributes if @mixed && polys.one?
-                next GeoJSON::MultiPolygon.new polys.entries, attributes
+                next GeoJSON::Polygon.new polys.first, properties if @mixed && polys.one?
+                next GeoJSON::MultiPolygon.new polys.entries, properties
               else
                 raise "unsupported ArcGIS geometry type: #{@geometry_type}"
               end

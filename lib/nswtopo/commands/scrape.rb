@@ -26,24 +26,25 @@ module NSWTopo
     log_update "nswtopo: contacting server"
     layer = ArcGIS::Service.new(url).layer(**options)
 
-    log_update "nswtopo: retrieving #{layer.count} feature#{?s unless layer.count == 1}"
-    percent = layer.count < 1000 ? "%.0f%%" : layer.count < 10000 ? "%.1f%%" : "%.2f%%"
-    message = "nswtopo: saving #{percent} of #{layer.count} feature#{?s unless layer.count == 1}"
-
-    queue, count = Queue.new, 0
+    queue = Queue.new
     thread = Thread.new do
       while page = queue.pop
-        log_update message % [100.0 * (count + page.count) / layer.count]
         *, status = Open3.capture3 *%W[ogr2ogr #{path} /vsistdin/], *flags, *format_flags, stdin_data: page.to_json
-        count, format_flags = count + page.count, %w[-update -append]
+        format_flags = %w[-update -append]
         queue.close unless status.success?
       end
       status
     end
 
+    total_features = "#{layer.count} feature#{?s unless layer.count == 1}"
+    percent = layer.count < 1000 ? "%.0f%%" : layer.count < 10000 ? "%.1f%%" : "%.2f%%"
+    message = "nswtopo: retrieving #{percent} of #{total_features}"
+
+    log_update "nswtopo: retrieving #{total_features}"
     Enumerator.new do |yielder|
-      hold, ok = [], nil
+      hold, ok, count = [], nil, 0
       layer.paged(per_page: paginate).each do |page|
+        log_update message % [100.0 * (count += page.count) / layer.count]
         next hold << page if concat
         next yielder << page if ok
         next hold << page if page.all? do |feature|
@@ -60,8 +61,9 @@ module NSWTopo
       break queue
     end.close
 
+    log_update "nswtop: saving #{total_features}"
     raise "error while saving features" unless thread.value&.success?
-    log_success "saved #{count} feature#{?s unless count == 1}"
+    log_success "saved #{total_features}"
   rescue ArcGIS::Map::NoUniqueFieldError
     raise OptionParser::InvalidOption, "--unique required for this layer"
   rescue ArcGIS::Map::NoGeometryError

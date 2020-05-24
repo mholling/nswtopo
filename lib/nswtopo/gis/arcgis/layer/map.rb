@@ -37,7 +37,7 @@ module NSWTopo
         raise NoUniqueFieldError unless unique
 
         classification_def = { type: "uniqueValueDef", uniqueValueFields: [unique,unique] }
-        renderer = get_json "dynamicLayer/generateRenderer", layer: @dynamic_layer.to_json, classificationDef: classification_def.to_json
+        renderer = get_json "dynamicLayer/generateRenderer", where: join_clauses(*where), layer: @dynamic_layer.to_json, classificationDef: classification_def.to_json
 
         @count = renderer["uniqueValueInfos"].sum do |info|
           info["count"]

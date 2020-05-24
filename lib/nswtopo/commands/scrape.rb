@@ -41,15 +41,26 @@ module NSWTopo
       status
     end
 
-    layer.paged(per_page: paginate).yield_self do |pages|
-      concat ? [pages.inject(&:merge!)] : pages
+    Enumerator.new do |yielder|
+      hold, ok = [], nil
+      layer.paged(per_page: paginate).each do |page|
+        next hold << page if concat
+        next yielder << page if ok
+        next hold << page if page.all? do |feature|
+          feature.properties.values.any?(&:nil?)
+        end
+        yielder << page
+        ok = true
+      end
+      next hold.inject(yielder, &:<<) if ok && !concat
+      next yielder << hold.inject(&:merge!) if hold.any?
     end.inject(queue) do |queue, page|
       queue << page
     rescue ClosedQueueError
       break queue
     end.close
 
-    raise "error while saving features" unless thread.value.success?
+    raise "error while saving features" unless thread.value&.success?
     log_success "saved #{count} feature#{?s unless count == 1}"
   rescue ArcGIS::Map::NoUniqueFieldError
     raise OptionParser::InvalidOption, "--unique required for this layer"

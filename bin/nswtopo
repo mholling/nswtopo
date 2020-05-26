@@ -393,6 +393,17 @@ begin
       parser.on       "--concat",                               "collect all features before saving"
       parser.on "-u", "--unique    <field>",       String,      "field for counting map-only features"
 
+    when "inspect"
+      parser.banner = <<~EOF
+        *nswtopo* *inspect* - inspect data from an ArcGIS REST endpoint or local data source
+          usage: _nswtopo_ inspect [~options~] <url-or-path>
+      EOF
+      parser.on "-l", "--layer     <layer>",       String,      "name of layer"
+      parser.on "-w", "--where     <where>",       String,      "filtering clause"
+      # parser.on "-c", "--coords    <x0,y0,x1,y1>", CoordList,   "WGS84 coordinates of bounding box corners"
+      parser.on       "--fields    <field,...>",   Array,       "comma-separated list of fields"
+      parser.on "-d", "--decode",                               "convert coded values where possible"
+
     when nil
       raise OptionParser::MissingArgument, "no command specified"
 
@@ -430,9 +441,22 @@ begin
     raise OptionParser::MissingArgument, "no path specified" unless path
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     raise OptionParser::InvalidArgument, url unless NSWTopo::ArcGIS::Service === url
+    raise OptionParser::InvalidOption, "--fields requires at least one field" if options[:fields]&.empty?
     path = Pathname(path).expand_path
     raise OptionParser::InvalidArgument, "invalid path: #{path}" unless path.parent.directory?
     NSWTopo.scrape url, path, **options
+    exit
+  when "inspect"
+    url_or_path = ARGV.shift
+    case url_or_path
+    when NSWTopo::ArcGIS::Service
+    when NSWTopo::Shapefile
+    when nil then raise OptionParser::MissingArgument, "no url or path specified"
+    else raise OptionParser::InvalidArgument, url_or_path
+    end
+    raise OptionParser::InvalidOption, "--fields requires at least one field" if options[:fields]&.empty?
+    raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
+    NSWTopo.inspect url_or_path, **options
     exit
   end
 

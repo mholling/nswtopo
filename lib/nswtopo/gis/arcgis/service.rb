@@ -41,6 +41,24 @@ module NSWTopo
       def layer(id: @id, **options)
         Layer.new(self, id: id, **options)
       end
+
+      def to_s
+        max_id = @service["layers"].map do |layer|
+          layer["id"]
+        end.max
+        indents, padded = [], "%#{max_id.to_s.size}i"
+
+        StringIO.new.tap do |io|
+          io.puts "layers:"
+          @service["layers"].each do |layer|
+            indent = indents.pop
+            io.puts "  %s%s: %s" % [indent, padded % layer["id"], layer["name"]]
+            layer["subLayerIds"]&.size&.times do
+              indents << "#{indent}  "
+            end
+          end
+        end.string
+      end
     end
   end
 end

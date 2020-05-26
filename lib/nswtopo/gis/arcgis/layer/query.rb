@@ -3,17 +3,17 @@ module NSWTopo
     module Query
       UniqueFieldError = Class.new RuntimeError
 
-      def prepare(where: nil, geometry: nil, unique: nil)
-        query = { returnIdsOnly: true, where: join_clauses(*where) }
+      def pages(per_page)
+        query = { returnIdsOnly: true, where: join_clauses(*@where) }
 
         case
-        when unique
+        when @unique
           raise UniqueFieldError
-        when geometry
-          raise "polgyon geometry required" unless geometry.polygon?
-          query[:geometry] = { rings: geometry.reproject_to(projection).coordinates.map(&:reverse) }.to_json
+        when @geometry
+          raise "polgyon geometry required" unless @geometry.polygon?
+          query[:geometry] = { rings: @geometry.reproject_to(projection).coordinates.map(&:reverse) }.to_json
           query[:geometryType] = "esriGeometryPolygon"
-        when where
+        when @where
         else
           oid_field = @layer["fields"].find do |field|
             field["type"] == "esriFieldTypeOID"
@@ -21,22 +21,25 @@ module NSWTopo
           query[:where] = oid_field ? "#{oid_field} IS NOT NULL" : "1=1"
         end
 
-        @object_ids = get_json("#{@id}/query", **query)["objectIds"] || []
-        @count = @object_ids.count
-      end
-
-      def pages(per_page)
+        objectids = get_json("#{@id}/query", **query)["objectIds"] || []
+        @count = objectids.count
         return [GeoJSON::Collection.new(projection: projection, name: @name)].each if @count.zero?
 
+        fields = @fields || @layer["fields"].select do |field|
+          Layer::FIELD_TYPES === field["type"]
+        end.map do |field|
+          field["name"]
+        end
+
         Enumerator.new do |yielder|
-          while @object_ids.any?
+          while objectids.any?
             begin
-              get_json "#{@id}/query", outFields: @fields.join(?,), objectIds: @object_ids.take(per_page).join(?,)
+              get_json "#{@id}/query", outFields: fields.join(?,), objectIds: objectids.take(per_page).join(?,)
             rescue Connection::Error
               (per_page /= 2) > 0 ? retry : raise
             end.fetch("features", []).map do |feature|
               next unless geometry = feature["geometry"]
-              properties = feature.fetch("attributes", {}).slice(*@fields)
+              properties = feature.fetch("attributes", {}).slice(*fields)
 
               case @geometry_type
               when "esriGeometryPoint"
@@ -67,7 +70,7 @@ module NSWTopo
             end.compact.tap do |features|
               yielder << GeoJSON::Collection.new(projection: projection, features: features, name: @name)
             end
-            @object_ids.shift per_page
+            objectids.shift per_page
           end
         end
       end

@@ -36,15 +36,15 @@ module NSWTopo
       status
     end
 
-    total_features = "#{layer.count} feature#{?s unless layer.count == 1}"
-    percent = layer.count < 1000 ? "%.0f%%" : layer.count < 10000 ? "%.1f%%" : "%.2f%%"
-    message = "nswtopo: retrieving #{percent} of #{total_features}"
-
-    log_update "nswtopo: retrieving #{total_features}"
+    total_features, percent = "%i feature%s", "%%.%if%%%%"
     Enumerator.new do |yielder|
       hold, ok, count = [], nil, 0
-      layer.paged(per_page: paginate).each do |page|
-        log_update message % [100.0 * (count += page.count) / layer.count]
+      layer.paged(per_page: paginate).tap do
+        total_features %= [layer.count, (?s unless layer.count == 1)]
+        percent %= layer.count < 1000 ? 0 : layer.count < 10000 ? 1 : 2
+        log_update "nswtopo: retrieving #{total_features}"
+      end.each do |page|
+        log_update "nswtopo: retrieving #{percent} of #{total_features}" % [100.0 * (count += page.count) / layer.count]
         next hold << page if concat
         next yielder << page if ok
         next hold << page if page.all? do |feature|

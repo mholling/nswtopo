@@ -4,32 +4,28 @@ require_relative 'layer/map'
 module NSWTopo
   module ArcGIS
     class Layer
-      EXCLUDE = %w[esriFieldTypeGeometry esriFieldTypeDate esriFieldTypeBlob esriFieldTypeRaster esriFieldTypeXML].to_set
+      FIELD_TYPES = %W[esriFieldTypeOID esriFieldTypeInteger esriFieldTypeSmallInteger esriFieldTypeDouble esriFieldTypeSingle esriFieldTypeString esriFieldTypeGUID].to_set
+      NoLayerError = Class.new RuntimeError
 
-      def initialize(service, id: nil, layer: nil, fields: nil, launder: nil, truncate: nil, decode: nil, mixed: true, **options)
-        raise "no ArcGIS layer name or url provided" unless layer || id
+      def initialize(service, id: nil, layer: nil, where: nil, fields: nil, launder: nil, truncate: nil, decode: nil, mixed: true, geometry: nil, unique: nil)
+        raise NoLayerError, "no ArcGIS layer name or url provided" unless layer || id
         @id, @name = service["layers"].find do |info|
           layer ? String(layer) == info["name"] : Integer(id) == info["id"]
         end&.values_at("id", "name")
         raise "ArcGIS layer does not exist: #{layer || id}" unless @id
 
-        @service, @mixed = service, mixed
+        @service, @where, @mixed, @geometry, @unique = service, where, mixed, geometry, unique
+
         @layer = get_json @id
         raise "ArcGIS layer is not a feature layer: #{@name}" unless @layer["type"] == "Feature Layer"
 
         @geometry_type = @layer["geometryType"]
 
-        fields ||= @layer["fields"].reject do |field|
-          EXCLUDE === field["type"]
-        end.map do |field|
-          field["name"]
-        end
-
-        @fields = fields.map do |name|
+        @fields = fields&.map do |name|
           @layer["fields"].find(-> { raise "invalid field name: #{name}" }) do |field|
             field.values_at("alias", "name").include? name
           end.fetch("name")
-        end.uniq
+        end
 
         [[%w[typeIdField], %w[subtypeField subtypeFieldName]], %w[types subtypes], %w[id code]].transpose.map do |name_keys, lookup_key, value_key|
           next @layer.values_at(*name_keys).compact.reject(&:empty?).first, @layer[lookup_key], value_key
@@ -68,13 +64,15 @@ module NSWTopo
           [name, values]
         end.to_h
 
-        rename = @fields.map do |name|
+        rename = @layer["fields"].map do |field|
+          field["name"]
+        end.map do |name|
           next name, launder ? name.downcase.gsub(/[^\w]+/, ?_) : name
         end.map do |name, substitute|
           next name, truncate ? substitute.slice(0...truncate) : substitute
-        end.partition do |name, substitute|
-          name == substitute
-        end.inject(&:+).inject(Hash[]) do |lookup, (name, substitute)|
+        end.sort_by do |name, substitute|
+          [@fields&.include?(name) ? 0 : 1, substitute == name ? 0 : 1]
+        end.inject(Hash[]) do |lookup, (name, substitute)|
           suffix, index, candidate = "_2", 3, substitute
           while lookup.key? candidate
             suffix, index, candidate = "_#{index}", index + 1, (truncate ? substitute.slice(0, truncate - suffix.length) : substitute) + suffix
@@ -107,7 +105,7 @@ module NSWTopo
         when /Query/ then extend Query
         when /Map/   then extend Map
         else raise "ArcGIS layer does not include Query or Map capability: #{@name}"
-        end.prepare(**options)
+        end
       end
 
       extend Forwardable
@@ -131,6 +129,92 @@ module NSWTopo
           yield collection.count, self.count if block_given?
           collection.merge! page
         end
+      end
+
+      def classify(*fields, where: nil)
+        raise "too many fields" unless fields.size <= 3 # TODO
+        types = fields.map do |name|
+          @layer["fields"].find do |field|
+            field["name"] == name
+          end&.fetch("type")
+        end
+
+        counts, values = 2.times do |repeat|
+          counts, values = %w[| ~ ^].find do |delimiter|
+            classification_def = { type: "uniqueValueDef", uniqueValueFields: fields.take(repeat) + fields, fieldDelimiter: delimiter }
+            unique_values = get_json("#{@id}/generateRenderer", where: join_clauses(*where), classificationDef: classification_def.to_json).fetch("uniqueValueInfos")
+
+            values = unique_values.map do |info|
+              info["value"].split(delimiter).map(&:strip)
+            end
+            next unless values.all? do |values|
+              values.length == fields.length + repeat
+            end
+            repeat.times { values.each(&:shift) }
+            counts = unique_values.map do |info|
+              info["count"]
+            end
+            break counts, values
+          end
+          raise "couldn't delimit values" unless values # TODO
+          next if 0 == repeat && fields.one? && (counts.all?(1) || counts.all?(0))
+          break counts, values
+        end
+
+        values.map do |values|
+          values.zip(types).map do |value, type|
+            case
+            when value == "<Null>" then nil
+            when value == "" then nil
+            when type == "esriFieldTypeOID" then Integer(value)
+            when type == "esriFieldTypeInteger" then Integer(value)
+            when type == "esriFieldTypeSmallInteger" then Integer(value)
+            when type == "esriFieldTypeDouble" then Float(value)
+            when type == "esriFieldTypeSingle" then Float(value)
+            when type == "esriFieldTypeString" then String(value)
+            when type == "esriFieldTypeGUID" then String(value)
+            when type == "esriFieldTypeDate" then String(value)
+            end
+          rescue ArgumentError
+            raise "could not interpret #{value.inspect} as #{type}"
+          end.yield_self do |values|
+            fields.zip values
+          end.to_h
+        end.zip counts
+      end
+
+      def to_s
+        StringIO.new.tap do |io|
+          if @fields
+            subdivide = lambda do |attributes_counts, indent = nil|
+              attributes_counts.group_by do |attributes, count|
+                attributes.shift
+              end.each do |(name, value), attributes_counts|
+                count = attributes_counts.sum(&:last)
+                io.puts "%s%s: %s (%i)" % [indent, name, value.inspect, count]
+                next if attributes_counts.first.first.empty?
+                subdivide.call attributes_counts, "#{indent}   "
+              end
+            end
+            classify(*@fields, where: @where).tap(&subdivide)
+          else
+            io.puts "name: %s" % @layer["name"]
+            io.puts "id: %i" % @layer["id"]
+            io.puts "geometry: %s" % case @geometry_type
+            when "esriGeometryPoint" then "Point"
+            when "esriGeometryMultipoint" then "Multipoint"
+            when "esriGeometryPolyline" then "LineString"
+            when "esriGeometryPolygon" then "Polygon"
+            else @geometry_type.sub("esriGeometry", "")
+            end
+
+            @layer["fields"].tap do
+              io.puts "fields:"
+            end.each do |field|
+              io.puts "  %s: %s" % [field["name"], field["type"].sub("esriFieldType", "")]
+            end if @layer["fields"]&.any?
+          end
+        end.string
       end
     end
   end

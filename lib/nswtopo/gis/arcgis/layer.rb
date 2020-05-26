@@ -219,7 +219,8 @@ module NSWTopo
                 when grouped.size - 1 then "└─ "
                 else                       "├─ "
                 end if indent
-                io.puts template % [name, new_indent.join, /[^\w\s-]|[\t\n\r]/ === value ? value.inspect : value, attributes_counts.sum(&:last)]
+                display_value = value.nil? || /[^\w\s-]|[\t\n\r]/ === value ? value.inspect : value
+                io.puts template % [name, new_indent.join, display_value, attributes_counts.sum(&:last)]
                 subdivide.call attributes_counts, new_indent
               end
             end

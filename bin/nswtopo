@@ -398,10 +398,11 @@ begin
         *nswtopo* *inspect* - inspect data from an ArcGIS REST endpoint or local data source
           usage: _nswtopo_ inspect [~options~] <url-or-path>
       EOF
-      parser.on "-l", "--layer     <layer>",       String,      "name of layer"
-      parser.on "-w", "--where     <where>",       String,      "filtering clause"
-      parser.on "-f", "--fields    <field,...>",   Array,       "comma-separated list of fields"
-      parser.on "-d", "--decode",                               "convert coded values where possible"
+      parser.on "-l", "--layer     <layer>",       String,          "name of layer"
+      parser.on "-w", "--where     <where>",       String,          "filtering clause"
+      parser.on "-f", "--fields    <field,...>",   Array,           "comma-separated list of fields"
+      parser.on "-d", "--decode",                                   "convert coded values where possible"
+      parser.on "-s", "--sort      <count|value>", %w[count value], "sort fields by count or value"
 
     when nil
       raise OptionParser::MissingArgument, "no command specified"
@@ -454,6 +455,7 @@ begin
     else raise OptionParser::InvalidArgument, url_or_path
     end
     raise OptionParser::InvalidOption, "--fields requires at least one field" if options[:fields]&.empty?
+    raise OptionParser::InvalidOption, "--sort requires --fields" if options[:sort] && !options[:fields]
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     NSWTopo.inspect url_or_path, **options
     exit

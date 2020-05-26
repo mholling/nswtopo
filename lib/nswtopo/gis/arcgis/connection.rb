@@ -8,6 +8,8 @@ module NSWTopo
         @http = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: 600)
         @prefix, @headers = Pathname(prefix_path.to_s), { "User-Agent" => "Ruby/#{RUBY_VERSION}", "Referer" => "%s://%s" % [@http.use_ssl? ? "https" : "http", @http.address] }
         @http.max_retries = 0
+      rescue *ERRORS => error
+        raise Error, error.message
       end
 
       def repeatedly_request(request, &block)

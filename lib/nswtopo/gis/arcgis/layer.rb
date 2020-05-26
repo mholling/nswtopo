@@ -14,7 +14,7 @@ module NSWTopo
         end&.values_at("id", "name")
         raise "ArcGIS layer does not exist: #{layer || id}" unless @id
 
-        @service, @where, @mixed, @geometry, @unique = service, where, mixed, geometry, unique
+        @service, @where, @decode, @mixed, @geometry, @unique = service, where, decode, mixed, geometry, unique
 
         @layer = get_json @id
         raise "ArcGIS layer is not a feature layer: #{@name}" unless @layer["type"] == "Feature Layer"
@@ -53,6 +53,8 @@ module NSWTopo
             end.to_h
             [code, coded_values]
           end.to_h
+
+          @subtype_fields = @subtype_values.values.flat_map(&:keys).uniq
         end
 
         coded_values = @layer["fields"].map do |field|
@@ -64,7 +66,7 @@ module NSWTopo
           [name, values]
         end.to_h
 
-        rename = @layer["fields"].map do |field|
+        @rename = @layer["fields"].map do |field|
           field["name"]
         end.map do |name|
           next name, launder ? name.downcase.gsub(/[^\w]+/, ?_) : name
@@ -79,25 +81,21 @@ module NSWTopo
             raise "can't individualise field name: #{name}" if truncate && suffix.length >= truncate
           end
           lookup.merge candidate => name
-        end.invert
+        end.invert.to_proc
 
-        @transform = lambda do |feature|
-          feature.properties.map do |name, value|
-            next rename[name], case
-            when %w[null Null NULL <null> <Null> <NULL>].include?(value)
-              nil
-            when !decode
-              value
-            when @type_field == name
-              @type_values[value]
-            when lookup = @subtype_values&.dig(feature.properties[@type_field], name)
-              lookup[value]
-            when lookup = coded_values.dig(name)
-              lookup[value]
-            else value
-            end
-          end.to_h.tap do |properties|
-            feature.properties.replace properties
+        @revalue = lambda do |name, value, properties|
+          case
+          when %w[null Null NULL <null> <Null> <NULL>].include?(value)
+            nil
+          when !decode
+            value
+          when @type_field == name
+            @type_values[value]
+          when lookup = @subtype_values&.dig(properties[@type_field], name)
+            lookup[value]
+          when lookup = coded_values.dig(name)
+            lookup[value]
+          else value
           end
         end
 
@@ -112,14 +110,22 @@ module NSWTopo
       delegate %i[get get_json projection] => :@service
       attr_reader :count
 
-      def join_clauses(*clauses)
-        "(" << clauses.join(") AND (") << ")" if clauses.any?
+      def decode(attributes)
+        attributes.map do |name, value|
+          [name, @revalue[name, value, attributes]]
+        end.to_h.yield_self do |decoded|
+          attributes.replace decoded
+        end
+      end
+
+      def transform(feature)
+        decode(feature.properties).transform_keys!(&@rename)
       end
 
       def paged(per_page: nil)
         per_page = [*per_page, *@layer["maxRecordCount"], 500].min
         Enumerator::Lazy.new pages(per_page) do |yielder, page|
-          page.each(&@transform)
+          page.each(&method(:transform))
           yielder << page
         end
       end
@@ -129,6 +135,10 @@ module NSWTopo
           yield collection.count, self.count if block_given?
           collection.merge! page
         end
+      end
+
+      def join_clauses(*clauses)
+        "(" << clauses.join(") AND (") << ")" if clauses.any?
       end
 
       def classify(*fields, where: nil)
@@ -196,7 +206,20 @@ module NSWTopo
                 subdivide.call attributes_counts, "#{indent}   "
               end
             end
-            classify(*@fields, where: @where).tap(&subdivide)
+
+            extra_field = case
+            when !@decode || !@type_field
+            when @fields.include?(@type_field)
+            when (@subtype_fields & @fields).any? then @type_field
+            end
+
+            classify(*@fields, *extra_field, where: @where).each do |attributes, count|
+              decode attributes
+            end.group_by do |attributes, count|
+              attributes.slice *@fields
+            end.map do |attributes, attributes_counts|
+              [attributes, attributes_counts.sum(&:last)]
+            end.tap(&subdivide)
           else
             io.puts "name: %s" % @layer["name"]
             io.puts "id: %i" % @layer["id"]

@@ -196,14 +196,23 @@ module NSWTopo
       def to_s
         StringIO.new.tap do |io|
           if @fields
+            template = "%#{@fields.map(&:size).max}s: %s%s (%i)"
             subdivide = lambda do |attributes_counts, indent = nil|
-              attributes_counts.group_by do |attributes, count|
+              grouped = attributes_counts.group_by do |attributes, count|
                 attributes.shift
-              end.each do |(name, value), attributes_counts|
-                count = attributes_counts.sum(&:last)
-                io.puts "%s%s: %s (%i)" % [indent, name, value.inspect, count]
-                next if attributes_counts.first.first.empty?
-                subdivide.call attributes_counts, "#{indent}   "
+              end.entries.select(&:first)
+              grouped.each.with_index do |((name, value), attributes_counts), index|
+                *new_indent, last = indent
+                case last
+                when "├─ " then new_indent << "│  "
+                when "└─ " then new_indent << "   "
+                end
+                new_indent << case index
+                when grouped.size - 1 then "└─ "
+                else                       "├─ "
+                end if indent
+                io.puts template % [name, new_indent.join, value, attributes_counts.sum(&:last)]
+                subdivide.call attributes_counts, new_indent
               end
             end
 

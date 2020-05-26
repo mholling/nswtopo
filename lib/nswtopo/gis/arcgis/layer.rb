@@ -110,10 +110,18 @@ module NSWTopo
       delegate %i[get get_json projection] => :@service
       attr_reader :count
 
+      def extra_field
+        case
+        when !@decode || !@type_field || !@fields
+        when @fields.include?(@type_field)
+        when (@subtype_fields & @fields).any? then @type_field
+        end
+      end
+
       def decode(attributes)
         attributes.map do |name, value|
           [name, @revalue[name, value, attributes]]
-        end.to_h.yield_self do |decoded|
+        end.to_h.slice(*@fields).yield_self do |decoded|
           attributes.replace decoded
         end
       end
@@ -216,17 +224,9 @@ module NSWTopo
               end
             end
 
-            extra_field = case
-            when !@decode || !@type_field
-            when @fields.include?(@type_field)
-            when (@subtype_fields & @fields).any? then @type_field
-            end
-
             classify(*@fields, *extra_field, where: @where).each do |attributes, count|
               decode attributes
-            end.group_by do |attributes, count|
-              attributes.slice *@fields
-            end.map do |attributes, attributes_counts|
+            end.group_by(&:first).map do |attributes, attributes_counts|
               [attributes, attributes_counts.sum(&:last)]
             end.tap(&subdivide)
           else

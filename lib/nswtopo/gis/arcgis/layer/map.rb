@@ -28,7 +28,7 @@ module NSWTopo
           hash[objectid] = { }
         end
 
-        fields = @fields || @layer["fields"].select do |field|
+        @fields ||= @layer["fields"].select do |field|
           Layer::FIELD_TYPES === field["type"]
         end.map do |field|
           field["name"]
@@ -39,7 +39,7 @@ module NSWTopo
           min, max = max, max + 10000
           paged_where = ["#{objectid_field}>=#{min}", "#{objectid_field}<#{max}", *@where]
           fields.each_slice(2) do |fields|
-            classify(objectid_field, *fields, where: paged_where).each do |attributes, count|
+            classify(objectid_field, *@fields, *extra_field, where: paged_where).each do |attributes, count|
               objectid = attributes.delete objectid_field
               table[objectid].merge! attributes
             end

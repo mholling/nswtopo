@@ -25,21 +25,22 @@ module NSWTopo
         @count = objectids.count
         return [GeoJSON::Collection.new(projection: projection, name: @name)].each if @count.zero?
 
-        fields = @fields || @layer["fields"].select do |field|
+        @fields ||= @layer["fields"].select do |field|
           Layer::FIELD_TYPES === field["type"]
         end.map do |field|
           field["name"]
         end
 
         Enumerator.new do |yielder|
+          out_fields = [*@fields, *extra_field].join ?,
           while objectids.any?
             begin
-              get_json "#{@id}/query", outFields: fields.join(?,), objectIds: objectids.take(per_page).join(?,)
+              get_json "#{@id}/query", outFields: out_fields, objectIds: objectids.take(per_page).join(?,)
             rescue Connection::Error
               (per_page /= 2) > 0 ? retry : raise
             end.fetch("features", []).map do |feature|
               next unless geometry = feature["geometry"]
-              properties = feature.fetch("attributes", {}).slice(*fields)
+              properties = feature.fetch("attributes", {})
 
               case @geometry_type
               when "esriGeometryPoint"

@@ -386,7 +386,7 @@ begin
       parser.on "-w", "--where     <where>",       String,      "filtering clause"
       parser.on "-c", "--coords    <x0,y0,x1,y1>", CoordList,   "WGS84 coordinates of bounding box corners"
       parser.on "-n", "--name      <name>",        /^\w+$/,     "name of saved layer"
-      parser.on       "--fields    <field,...>",   Array,       "comma-separated list of fields"
+      parser.on "-f", "--fields    <field,...>",   Array,       "comma-separated list of fields"
       parser.on "-d", "--decode",                               "convert coded values where possible"
       parser.on "-e", "--epsg      <number>",      PositiveInt, "EPSG number for reprojection"
       parser.on "-p", "--paginate  <number>",      PositiveInt, "number of records per request"
@@ -400,8 +400,7 @@ begin
       EOF
       parser.on "-l", "--layer     <layer>",       String,      "name of layer"
       parser.on "-w", "--where     <where>",       String,      "filtering clause"
-      # parser.on "-c", "--coords    <x0,y0,x1,y1>", CoordList,   "WGS84 coordinates of bounding box corners"
-      parser.on       "--fields    <field,...>",   Array,       "comma-separated list of fields"
+      parser.on "-f", "--fields    <field,...>",   Array,       "comma-separated list of fields"
       parser.on "-d", "--decode",                               "convert coded values where possible"
 
     when nil

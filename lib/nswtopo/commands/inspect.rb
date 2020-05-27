@@ -20,11 +20,8 @@ module NSWTopo
     end
 
     source = case url_or_path
-    when ArcGIS::Service
-      ArcGIS::Service.new(url_or_path)
-    when Shapefile
-      raise "TODO: not implemented"
-      Shapefile.new(url_or_path)
+    when ArcGIS::Service then ArcGIS::Service.new(url_or_path)
+    when Shapefile::Source then Shapefile::Source.new(url_or_path)
     else raise OptionParser::InvalidArgument, url_or_path
     end
     layer = source.layer(**options)
@@ -59,7 +56,7 @@ module NSWTopo
       end
     end
 
-  rescue ArcGIS::Layer::NoLayerError
+  rescue ArcGIS::Layer::NoLayerError, Shapefile::Layer::NoLayerError
     options.each do |flag, value|
       raise OptionParser::InvalidOption, "--#{flag} requires a layer name"
     end

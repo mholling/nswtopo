@@ -5,12 +5,12 @@ module NSWTopo
     flags += %W[-nln #{name}] if name
 
     format_flags = case path.to_s
-    when Shapefile     then %w[-update -overwrite]
-    when /\.sqlite3?$/ then %w[-f SQLite -dsco SPATIALITE=YES]
-    when /\.db$/       then %w[-f SQLite -dsco SPATIALITE=YES]
-    when /\.gpkg$/     then %w[-f GPKG]
-    when /\.tab$/      then ["-f", "MapInfo File"]
-    else                    ["-f", "ESRI Shapefile"]
+    when Shapefile::Source then %w[-update -overwrite]
+    when /\.sqlite3?$/     then %w[-f SQLite -dsco SPATIALITE=YES]
+    when /\.db$/           then %w[-f SQLite -dsco SPATIALITE=YES]
+    when /\.gpkg$/         then %w[-f GPKG]
+    when /\.tab$/          then ["-f", "MapInfo File"]
+    else                        ["-f", "ESRI Shapefile"]
     end
 
     options.merge! case path.to_s

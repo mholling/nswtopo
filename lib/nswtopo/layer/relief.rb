@@ -39,8 +39,8 @@ module NSWTopo
             layer.features do |count, total|
               log_update "%s: retrieved %i of %i contours" % [@name, count, total]
             end
-          when Shapefile
-            Shapefile.new(url_or_path).features(**options, geometry: @map.bounding_box(margin), projection: @map.projection)
+          when Shapefile::Source
+            Shapefile::Source.new(url_or_path).layer(**options, geometry: @map.bounding_box(margin), projection: @map.projection).features
           else
             raise "unrecognised elevation data source: #{url_or_path}"
           end.each do |feature|

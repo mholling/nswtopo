@@ -1,26 +1,80 @@
 module NSWTopo
-  class Shapefile
-    def self.===(path)
-      OS.ogrinfo "-ro", "-so", path
-      true
-    rescue OS::Error
-      false
+  module Shapefile
+    class Source
+      def self.===(path)
+        OS.ogrinfo "-ro", "-so", path
+        true
+      rescue OS::Error
+        false
+      end
+
+      def initialize(path)
+        @path = path
+      end
+      attr_accessor :path
+
+      def layer(**options)
+        Layer.new self, **options
+      end
+
+      def info
+        OS.ogrinfo("-ro", "-so", @path).each_line.grep(/^\w*\d+: (.*)$/) do |info|
+          [info, []]
+        end
+      end
     end
 
-    def initialize(path)
-      @path = path
-    end
+    class Layer
+      NoLayerError = Class.new RuntimeError
 
-    def features(where: nil, sql: nil, layer: nil, geometry:, projection: nil)
-      raise "can't specify both SQL and where clause" if sql && where
-      raise "can't specify both SQL and layer name" if sql && layer
-      sql   = ["-sql", sql] if sql
-      where = ["-where", "(" << Array(where).join(") AND (") << ")"] if where
-      srs   = ["-t_srs", projection] if projection
-      spat  = ["-spat", *geometry.bounds.transpose.flatten, "-spat_srs", geometry.projection]
-      misc  = %w[-mapFieldType Date=Integer,DateTime=Integer -dim XY]
-      json = OS.ogr2ogr *(sql || where), *srs, *spat, *misc, *%w[-f GeoJSON -lco RFC7946=NO /vsistdout/], @path, *layer
-      GeoJSON::Collection.load json, *projection
+      def initialize(source, layer: nil, where: nil, fields: nil, sql: nil, geometry: nil, projection: nil)
+        @source, @layer, @where, @fields, @sql, @layer, @geometry, @projection = source, layer, where, fields, sql, layer, geometry, projection
+      end
+
+      def features
+        raise "can't specify both SQL and where clause" if @sql && @where
+        raise "can't specify both SQL and layer name" if @sql && @layer
+        raise "no layer name or SQL specified" unless @layer || @sql
+        sql   = ["-sql", sql] if @sql
+        where = ["-where", "(" << Array(@where).join(") AND (") << ")"] if @where
+        srs   = ["-t_srs", @projection] if @projection
+        spat  = ["-spat", *@geometry.bounds.transpose.flatten, "-spat_srs", @geometry.projection] if @geometry
+        misc  = %w[-mapFieldType Date=Integer,DateTime=Integer -dim XY]
+        json = OS.ogr2ogr *(sql || where), *srs, *spat, *misc, *%w[-f GeoJSON -lco RFC7946=NO /vsistdout/], @source.path, @layer
+        GeoJSON::Collection.load json, *@projection
+      rescue OS::Error => error
+        raise unless /Couldn't fetch requested layer (.*)!/ === error.message
+        raise "no such layer: #{$1}"
+      end
+
+      def counts
+        raise NoLayerError, "no layer name provided" unless @layer
+        sql = <<~SQL % [@fields.join(", "), @layer, @fields.join(", ")]
+          SELECT %s, count(*) AS count
+          FROM %s
+          GROUP BY %s
+        SQL
+        json = OS.ogr2ogr *%w[-f GeoJSON -dialect sqlite -sql], sql, "/vsistdout/", @source.path
+        JSON.parse(json)["features"].map do |feature|
+          feature["properties"]
+        end.map do |properties|
+          [properties.slice(*@fields), properties["count"]]
+        end
+      rescue OS::Error => error
+        raise unless /no such column: (.*)$/ === error.message
+        raise "invalid field: #{$1}"
+      end
+
+      def info
+        raise NoLayerError, "no layer name provided" unless @layer
+        info = OS.ogrinfo *%w[-ro -so -nocount -noextent], @source.path, @layer
+        geom_type = info.match(/^Geometry: (.*)$/)&.[](1)&.delete(?\s)
+        fields = info.scan(/^(.*): (.*?) \(\d+\.\d+\)$/).to_h
+        { name: @layer, geometry: geom_type, fields: (fields unless fields.empty?) }.compact
+      rescue OS::Error => error
+        raise unless /Couldn't fetch requested layer (.*)!/ === error.message
+        raise "no such layer: #{$1}"
+      end
     end
   end
 end

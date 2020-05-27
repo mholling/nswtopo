@@ -40,7 +40,7 @@ module NSWTopo
       attr_reader :projection
 
       def layer(id: @id, **options)
-        Layer.new(self, id: id, **options)
+        Layer.new self, id: id, **options
       end
 
       def info

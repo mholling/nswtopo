@@ -25,9 +25,9 @@ module NSWTopo
             break options, layer.features(**options.slice(:per_page)) do |count, total|
               log_update "%s: retrieved %i of %i feature%s" % [@name, count, total, (?s if total > 1)]
             end
-          when Shapefile === source_path
-            features = Shapefile.new(source_path).features(**options.slice(:where, :sql, :layer), geometry: @map.bounding_box(MARGIN), projection: @map.projection)
-            break options, features
+          when Shapefile::Source === source_path
+            layer = Shapefile::Source.new(source_path).layer(**options.slice(:where, :sql, :layer), geometry: @map.bounding_box(MARGIN), projection: @map.projection)
+            break options, layer.features
           end
           raise "#{@source.basename}: invalid feature source: #{source}"
         rescue ArcGIS::Connection::Error => error

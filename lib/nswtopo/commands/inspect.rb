@@ -1,20 +1,20 @@
 module NSWTopo
   def inspect(url_or_path, sort: nil, **options)
-    subdivide = lambda do |items, indent = nil, &block|
+    indent = lambda do |items, parts = nil, &block|
       Enumerator.new do |yielder|
         grouped = block[items]
         grouped.each.with_index do |(item, group), index|
-          *new_indent, last = indent
-          case last
-          when "├─ " then new_indent << "│  "
-          when "└─ " then new_indent << "   "
+          *new_parts, last_part = parts
+          case last_part
+          when "├─ " then new_parts << "│  "
+          when "└─ " then new_parts << "   "
           end
-          new_indent << case index
+          new_parts << case index
           when grouped.size - 1 then "└─ "
           else                       "├─ "
-          end if indent
-          yielder << [new_indent, item]
-          subdivide[group, new_indent, &block].inject(yielder, &:<<)
+          end if parts
+          yielder << [new_parts, item]
+          indent[group, new_parts, &block].inject(yielder, &:<<)
         end
       end
     end
@@ -28,7 +28,7 @@ module NSWTopo
 
     if fields = options[:fields]
       template = "%#{fields.map(&:size).max}s: %s%s (%i)"
-      subdivide[layer.counts] do |counts|
+      indent[layer.counts] do |counts|
         counts.group_by do |attributes, count|
           attributes.shift
         end.entries.select(&:first).map.with_index do |((name, value), counts), index|
@@ -47,7 +47,7 @@ module NSWTopo
         puts template % [name, indents.join, display_value, count]
       end
     else
-      subdivide[layer.info] do |hash|
+      indent[layer.info] do |hash|
         hash.map do |key, value|
           Hash === value ? ["#{key}:", value] : ["#{key}: #{value}", []]
         end
@@ -60,7 +60,7 @@ module NSWTopo
     options.each do |flag, value|
       raise OptionParser::InvalidOption, "--#{flag} requires a layer name"
     end
-    subdivide[source.info, &:itself].each do |indents, info|
+    indent[source.info, &:itself].each do |indents, info|
       puts indents.join << info
     end
   end

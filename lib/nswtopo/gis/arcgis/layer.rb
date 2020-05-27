@@ -216,10 +216,10 @@ module NSWTopo
           when "esriGeometryMultipoint" then "Multipoint"
           when "esriGeometryPolyline" then "LineString"
           when "esriGeometryPolygon" then "Polygon"
-          else @geometry_type.sub("esriGeometry", "")
+          else @geometry_type.delete_prefix("esriGeometry")
           end
           info["fields"] = @layer["fields"].map do |field|
-            [field["name"], field["type"].sub("esriFieldType", "")]
+            [field["name"], field["type"].delete_prefix("esriFieldType")]
           end.sort_by(&:first).to_h if @layer["fields"]&.any?
         end
       end

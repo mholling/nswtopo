@@ -440,7 +440,6 @@ begin
     raise OptionParser::MissingArgument, "no url specified" unless url
     raise OptionParser::MissingArgument, "no path specified" unless path
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
-    raise OptionParser::InvalidArgument, url unless NSWTopo::ArcGIS::Service === url
     raise OptionParser::InvalidOption, "--fields requires at least one field" if options[:fields]&.empty?
     path = Pathname(path).expand_path
     raise OptionParser::InvalidArgument, "invalid path: #{path}" unless path.parent.directory?
@@ -448,12 +447,7 @@ begin
     exit
   when "inspect"
     url_or_path = ARGV.shift
-    case url_or_path
-    when NSWTopo::ArcGIS::Service
-    when NSWTopo::Shapefile
-    when nil then raise OptionParser::MissingArgument, "no url or path specified"
-    else raise OptionParser::InvalidArgument, url_or_path
-    end
+    raise OptionParser::MissingArgument, "no url or path specified" unless url_or_path
     raise OptionParser::InvalidOption, "--fields requires at least one field" if options[:fields]&.empty?
     raise OptionParser::InvalidOption, "--sort requires --fields" if options[:sort] && !options[:fields]
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?

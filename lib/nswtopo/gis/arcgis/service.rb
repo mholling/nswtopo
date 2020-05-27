@@ -2,6 +2,7 @@ module NSWTopo
   module ArcGIS
     class Service
       SERVICE = /^(?:MapServer|FeatureServer|ImageServer)$/
+      InvalidURLError = Class.new RuntimeError
 
       def self.check_uri(url)
         uri = URI.parse url
@@ -21,7 +22,7 @@ module NSWTopo
 
       def initialize(url)
         uri, service_path, @id = Service.check_uri url
-        raise "invalid ArcGIS server URL: %s" % url unless uri
+        raise InvalidURLError, "invalid ArcGIS server URL: %s" % url unless uri
         @connection = Connection.new uri, service_path
         @service = get_json ""
 

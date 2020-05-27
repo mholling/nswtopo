@@ -70,5 +70,7 @@ module NSWTopo
     raise OptionParser::InvalidOption, "--coords not available for this layer"
   rescue ArcGIS::Query::UniqueFieldError
     raise OptionParser::InvalidOption, "--unique not available for this layer"
+  rescue ArcGIS::Service::InvalidURLError
+    raise OptionParser::InvalidArgument, url
   end
 end

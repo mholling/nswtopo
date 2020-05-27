@@ -25,6 +25,7 @@ module NSWTopo
     when Shapefile
       raise "TODO: not implemented"
       Shapefile.new(url_or_path)
+    else raise OptionParser::InvalidArgument, url_or_path
     end
     layer = source.layer(**options)
 

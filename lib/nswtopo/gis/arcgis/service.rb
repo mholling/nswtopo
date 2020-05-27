@@ -42,22 +42,14 @@ module NSWTopo
         Layer.new(self, id: id, **options)
       end
 
-      def to_s
-        max_id = @service["layers"].map do |layer|
-          layer["id"]
-        end.max
-        indents, padded = [], "%#{max_id.to_s.size}i"
-
-        StringIO.new.tap do |io|
-          io.puts "layers:"
-          @service["layers"].each do |layer|
-            indent = indents.pop
-            io.puts "  %s%s: %s" % [indent, padded % layer["id"], layer["name"]]
-            layer["subLayerIds"]&.size&.times do
-              indents << "#{indent}  "
-            end
-          end
-        end.string
+      def info
+        children = @service["layers"].group_by do |layer|
+          layer["parentLayerId"]
+        end
+        tree = lambda do |layer|
+          [layer.values_at("id", "name").join(": "), children.fetch(layer["id"], []).map(&tree).to_h]
+        end
+        children[-1].map(&tree).to_h
       end
     end
   end

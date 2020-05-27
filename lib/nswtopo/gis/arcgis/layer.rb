@@ -7,14 +7,14 @@ module NSWTopo
       FIELD_TYPES = %W[esriFieldTypeOID esriFieldTypeInteger esriFieldTypeSmallInteger esriFieldTypeDouble esriFieldTypeSingle esriFieldTypeString esriFieldTypeGUID].to_set
       NoLayerError = Class.new RuntimeError
 
-      def initialize(service, id: nil, layer: nil, where: nil, fields: nil, launder: nil, truncate: nil, decode: nil, mixed: true, geometry: nil, unique: nil, sort: nil)
+      def initialize(service, id: nil, layer: nil, where: nil, fields: nil, launder: nil, truncate: nil, decode: nil, mixed: true, geometry: nil, unique: nil)
         raise NoLayerError, "no ArcGIS layer name or url provided" unless layer || id
         @id, @name = service["layers"].find do |info|
           layer ? String(layer) == info["name"] : Integer(id) == info["id"]
         end&.values_at("id", "name")
         raise "ArcGIS layer does not exist: #{layer || id}" unless @id
 
-        @service, @where, @decode, @mixed, @geometry, @unique, @sort = service, where, decode, mixed, geometry, unique, sort
+        @service, @where, @decode, @mixed, @geometry, @unique = service, where, decode, mixed, geometry, unique
 
         @layer = get_json @id
         raise "ArcGIS layer is not a feature layer: #{@name}" unless @layer["type"] == "Feature Layer"
@@ -201,61 +201,27 @@ module NSWTopo
         end.zip counts
       end
 
-      def to_s
-        StringIO.new.tap do |io|
-          if @fields
-            template = "%#{@fields.map(&:size).max}s: %s%s (%i)"
-            subdivide = lambda do |attributes_counts, indent = nil|
-              grouped = attributes_counts.group_by do |attributes, count|
-                attributes.shift
-              end.entries.select(&:first).map.with_index do |((name, value), attributes_counts), index|
-                [name, value, attributes_counts.sum(&:last), attributes_counts, index]
-              end.sort do |(name1, value1, count1, ac1, index1), (name2, value2, count2, ac2, index2)|
-                case @sort
-                when "value" then value1 && value2 ? value1 <=> value2 : value1 ? 1 : value2 ? -1 : 0
-                when "count" then count2 <=> count1
-                else index1 <=> index2
-                end
-              end
-              grouped.each do |name, value, count, attributes_counts, index|
-                *new_indent, last = indent
-                case last
-                when "├─ " then new_indent << "│  "
-                when "└─ " then new_indent << "   "
-                end
-                new_indent << case index
-                when grouped.size - 1 then "└─ "
-                else                       "├─ "
-                end if indent
-                display_value = value.nil? || /[^\w\s-]|[\t\n\r]/ === value ? value.inspect : value
-                io.puts template % [name, new_indent.join, display_value, count]
-                subdivide.call attributes_counts, new_indent
-              end
-            end
+      def counts
+        classify(*@fields, *extra_field, where: @where).each do |attributes, count|
+          decode attributes
+        end.group_by(&:first).map do |attributes, attributes_counts|
+          [attributes, attributes_counts.sum(&:last)]
+        end
+      end
 
-            classify(*@fields, *extra_field, where: @where).each do |attributes, count|
-              decode attributes
-            end.group_by(&:first).map do |attributes, attributes_counts|
-              [attributes, attributes_counts.sum(&:last)]
-            end.tap(&subdivide)
-          else
-            io.puts "name: %s" % @layer["name"]
-            io.puts "id: %i" % @layer["id"]
-            io.puts "geometry: %s" % case @geometry_type
-            when "esriGeometryPoint" then "Point"
-            when "esriGeometryMultipoint" then "Multipoint"
-            when "esriGeometryPolyline" then "LineString"
-            when "esriGeometryPolygon" then "Polygon"
-            else @geometry_type.sub("esriGeometry", "")
-            end
-
-            @layer["fields"].tap do
-              io.puts "fields:"
-            end.each do |field|
-              io.puts "  %s: %s" % [field["name"], field["type"].sub("esriFieldType", "")]
-            end if @layer["fields"]&.any?
+      def info
+        @layer.slice("name", "id").tap do |info|
+          info["geometry"] = case @geometry_type
+          when "esriGeometryPoint" then "Point"
+          when "esriGeometryMultipoint" then "Multipoint"
+          when "esriGeometryPolyline" then "LineString"
+          when "esriGeometryPolygon" then "Polygon"
+          else @geometry_type.sub("esriGeometry", "")
           end
-        end.string
+          info["fields"] = @layer["fields"].map do |field|
+            [field["name"], field["type"].sub("esriFieldType", "")]
+          end.sort_by(&:first).to_h if @layer["fields"]&.any?
+        end
       end
     end
   end

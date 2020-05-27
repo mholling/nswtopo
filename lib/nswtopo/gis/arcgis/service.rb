@@ -48,9 +48,9 @@ module NSWTopo
           layer["parentLayerId"]
         end
         tree = lambda do |layer|
-          [layer.values_at("id", "name").join(": "), children.fetch(layer["id"], []).map(&tree).to_h]
+          [layer.values_at("id", "name").join(": "), children.fetch(layer["id"], []).map(&tree)]
         end
-        children[-1].map(&tree).to_h
+        children[-1].map(&tree)
       end
     end
   end

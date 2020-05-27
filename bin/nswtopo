@@ -47,6 +47,7 @@ begin
   digits = '\d+(?:_\d+)*'
   float  = "[-+]?(?:#{digits}(?=(.)?)(?:\\.(?:#{digits})?)?|\\.#{digits})(?:[eE][-+]?#{digits})?"
   coords = "#{float},#{float}"
+  field  = '\w+'
 
   PositiveInt   = /\A#{digits}\z/
   PositiveFloat = /\A#{float}\z/
@@ -60,6 +61,7 @@ begin
   DashArray     = /\A#{float}(?:(?:,#{float})*|(?: #{float})*)\z/
   Zoom          = /\A(?:#{digits},)?#{digits}\z/
   ZlibLevel     = /\A\d\z/
+  FieldList     = /\A#{field}(?:,#{field})*\z/
 
   OptionParser.accept PositiveInt, PositiveInt do |string|
     raise OptionParser::InvalidArgument, string unless string.to_i.positive?
@@ -133,6 +135,10 @@ begin
 
   OptionParser.accept ZlibLevel, ZlibLevel do |string|
     Integer(string)
+  end
+
+  OptionParser.accept FieldList, FieldList do |string|
+    string.split ?,
   end
 
   ansi = lambda do |string|
@@ -386,7 +392,7 @@ begin
       parser.on "-w", "--where     <where>",       String,      "filtering clause"
       parser.on "-c", "--coords    <x0,y0,x1,y1>", CoordList,   "WGS84 coordinates of bounding box corners"
       parser.on "-n", "--name      <name>",        /^\w+$/,     "name of saved layer"
-      parser.on "-f", "--fields    <field,...>",   Array,       "comma-separated list of fields"
+      parser.on "-f", "--fields    <field,...>",   FieldList,   "comma-separated list of fields"
       parser.on "-d", "--decode",                               "convert coded values where possible"
       parser.on "-e", "--epsg      <number>",      PositiveInt, "EPSG number for reprojection"
       parser.on "-p", "--paginate  <number>",      PositiveInt, "number of records per request"
@@ -400,7 +406,7 @@ begin
       EOF
       parser.on "-l", "--layer     <layer>",       String,          "name of layer"
       parser.on "-w", "--where     <where>",       String,          "filtering clause"
-      parser.on "-f", "--fields    <field,...>",   Array,           "comma-separated list of fields"
+      parser.on "-f", "--fields    <field,...>",   FieldList,       "comma-separated list of fields"
       parser.on "-d", "--decode",                                   "convert coded values where possible"
       parser.on "-s", "--sort      <count|value>", %w[count value], "sort fields by count or value"
 
@@ -440,7 +446,6 @@ begin
     raise OptionParser::MissingArgument, "no url specified" unless url
     raise OptionParser::MissingArgument, "no path specified" unless path
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
-    raise OptionParser::InvalidOption, "--fields requires at least one field" if options[:fields]&.empty?
     path = Pathname(path).expand_path
     raise OptionParser::InvalidArgument, "invalid path: #{path}" unless path.parent.directory?
     NSWTopo.scrape url, path, **options
@@ -448,7 +453,6 @@ begin
   when "inspect"
     url_or_path = ARGV.shift
     raise OptionParser::MissingArgument, "no url or path specified" unless url_or_path
-    raise OptionParser::InvalidOption, "--fields requires at least one field" if options[:fields]&.empty?
     raise OptionParser::InvalidOption, "--sort requires --fields" if options[:sort] && !options[:fields]
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     NSWTopo.inspect url_or_path, **options

@@ -445,7 +445,7 @@ begin
     exit
   when "scrape"
     url, path = ARGV.shift, ARGV.shift
-    raise OptionParser::MissingArgument, "no url specified" unless url
+    raise OptionParser::MissingArgument, "no URL specified" unless url
     raise OptionParser::MissingArgument, "no path specified" unless path
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     path = Pathname(path).expand_path
@@ -455,7 +455,7 @@ begin
     exit
   when "inspect"
     url_or_path = ARGV.shift
-    raise OptionParser::MissingArgument, "no url or path specified" unless url_or_path
+    raise OptionParser::MissingArgument, "no URL or path specified" unless url_or_path
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     raise OptionParser::InvalidOption, "can't specify both --id and --layer" if options[:id] && options[:layer]
     raise OptionParser::InvalidOption, "--sort requires --fields" if options[:sort] && !options[:fields]

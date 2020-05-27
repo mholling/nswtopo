@@ -20,9 +20,13 @@ module NSWTopo
     end
 
     source = case url_or_path
-    when ArcGIS::Service then ArcGIS::Service.new(url_or_path)
-    when Shapefile::Source then Shapefile::Source.new(url_or_path)
-    else raise OptionParser::InvalidArgument, url_or_path
+    when ArcGIS::Service
+      ArcGIS::Service.new(url_or_path)
+    when Shapefile::Source
+      raise OptionParser::InvalidOption, "--id only applies to ArcGIS layers" if options[:id]
+      Shapefile::Source.new(url_or_path)
+    else
+      raise OptionParser::InvalidArgument, url_or_path
     end
     layer = source.layer(**options)
 

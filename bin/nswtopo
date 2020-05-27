@@ -389,6 +389,7 @@ begin
           usage: _nswtopo_ _scrape_ [~options~] <url> <path>
       EOF
       parser.on "-l", "--layer     <layer>",       String,      "name of ArcGIS service layer"
+      parser.on "-i", "--id        <id>",          Integer,     "id number of layer"
       parser.on "-w", "--where     <where>",       String,      "filtering clause"
       parser.on "-c", "--coords    <x0,y0,x1,y1>", CoordList,   "WGS84 coordinates of bounding box corners"
       parser.on "-n", "--name      <name>",        /^\w+$/,     "name of saved layer"
@@ -405,6 +406,7 @@ begin
           usage: _nswtopo_ inspect [~options~] <url-or-path>
       EOF
       parser.on "-l", "--layer     <layer>",       String,          "name of layer"
+      parser.on "-i", "--id        <id>",          Integer,         "id number of layer"
       parser.on "-w", "--where     <where>",       String,          "filtering clause"
       parser.on "-f", "--fields    <field,...>",   FieldList,       "comma-separated list of fields"
       parser.on "-d", "--decode",                                   "convert coded values where possible"
@@ -448,13 +450,15 @@ begin
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     path = Pathname(path).expand_path
     raise OptionParser::InvalidArgument, "invalid path: #{path}" unless path.parent.directory?
+    raise OptionParser::InvalidOption, "can't specify both --id and --layer" if options[:id] && options[:layer]
     NSWTopo.scrape url, path, **options
     exit
   when "inspect"
     url_or_path = ARGV.shift
     raise OptionParser::MissingArgument, "no url or path specified" unless url_or_path
-    raise OptionParser::InvalidOption, "--sort requires --fields" if options[:sort] && !options[:fields]
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
+    raise OptionParser::InvalidOption, "can't specify both --id and --layer" if options[:id] && options[:layer]
+    raise OptionParser::InvalidOption, "--sort requires --fields" if options[:sort] && !options[:fields]
     NSWTopo.inspect url_or_path, **options
     exit
   end

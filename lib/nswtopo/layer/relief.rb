@@ -31,8 +31,8 @@ module NSWTopo
 
         collection = @contours.map do |url_or_path, attribute_or_hash|
           raise "no elevation attribute specified for #{url_or_path}" unless attribute_or_hash
-          options   = Hash == attribute_or_hash ? attribute_or_hash.transform_keys(&:to_sym).slice(:where, :layer) : {}
-          attribute = Hash == attribute_or_hash ? attribute_or_hash["attribute"] : attribute_or_hash
+          options   = Hash === attribute_or_hash ? attribute_or_hash.transform_keys(&:to_sym).slice(:where, :layer) : {}
+          attribute = Hash === attribute_or_hash ? attribute_or_hash["attribute"] : attribute_or_hash
           case url_or_path
           when ArcGIS::Service
             layer = ArcGIS::Service.new(url_or_path).layer(**options, geometry: @map.bounding_box(margin))

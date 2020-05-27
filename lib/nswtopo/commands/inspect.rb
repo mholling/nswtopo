@@ -57,11 +57,11 @@ module NSWTopo
     end
 
   rescue ArcGIS::Layer::NoLayerError, Shapefile::Layer::NoLayerError
-    options.each do |flag, value|
-      raise OptionParser::InvalidOption, "--#{flag} requires a layer name"
-    end
+    raise OptionParser::InvalidArgument, "specify an ArcGIS layer in URL or with --layer" if options.any?
     indent[source.info, &:itself].each do |indents, info|
       puts indents.join << info
     end
+  rescue ArcGIS::Layer::TooManyFieldsError
+    raise OptionParser::InvalidOption, "use less fields with --fields"
   end
 end

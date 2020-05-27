@@ -64,6 +64,9 @@ module NSWTopo
     log_update "nswtop: saving #{total_features}"
     raise "error while saving features" unless thread.value&.success?
     log_success "saved #{total_features}"
+
+  rescue ArcGIS::Layer::NoLayerError
+    raise OptionParser::InvalidArgument, "specify an ArcGIS layer in URL or with --layer"
   rescue ArcGIS::Map::NoUniqueFieldError
     raise OptionParser::InvalidOption, "--unique required for this layer"
   rescue ArcGIS::Map::NoGeometryError

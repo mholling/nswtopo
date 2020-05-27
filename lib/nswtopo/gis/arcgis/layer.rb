@@ -6,6 +6,7 @@ module NSWTopo
     class Layer
       FIELD_TYPES = %W[esriFieldTypeOID esriFieldTypeInteger esriFieldTypeSmallInteger esriFieldTypeDouble esriFieldTypeSingle esriFieldTypeString esriFieldTypeGUID].to_set
       NoLayerError = Class.new RuntimeError
+      TooManyFieldsError = Class.new RuntimeError
 
       def initialize(service, id: nil, layer: nil, where: nil, fields: nil, launder: nil, truncate: nil, decode: nil, mixed: true, geometry: nil, unique: nil)
         raise NoLayerError, "no ArcGIS layer name or url provided" unless layer || id
@@ -150,7 +151,7 @@ module NSWTopo
       end
 
       def classify(*fields, where: nil)
-        raise "too many fields" unless fields.size <= 3 # TODO
+        raise TooManyFieldsError unless fields.size <= 3
         types = fields.map do |name|
           @layer["fields"].find do |field|
             field["name"] == name
@@ -158,7 +159,7 @@ module NSWTopo
         end
 
         counts, values = 2.times do |repeat|
-          counts, values = %w[| ~ ^].find do |delimiter|
+          counts, values = %w[| ~ ^ #].find do |delimiter|
             classification_def = { type: "uniqueValueDef", uniqueValueFields: fields.take(repeat) + fields, fieldDelimiter: delimiter }
             unique_values = get_json("#{@id}/generateRenderer", where: join_clauses(*where), classificationDef: classification_def.to_json).fetch("uniqueValueInfos")
 
@@ -174,7 +175,7 @@ module NSWTopo
             end
             break counts, values
           end
-          raise "couldn't delimit values" unless values # TODO
+          raise "couldn't delimit values" unless values
           next if 0 == repeat && fields.one? && (counts.all?(1) || counts.all?(0))
           break counts, values
         end

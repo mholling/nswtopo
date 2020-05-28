@@ -94,7 +94,7 @@ module NSWTopo
             @type_values[value]
           when lookup = @subtype_values&.dig(properties[@type_field], name)
             lookup[value]
-          when lookup = coded_values.dig(name)
+          when lookup = @coded_values.dig(name)
             lookup[value]
           else value
           end

@@ -74,7 +74,7 @@ module NSWTopo
     else
       indent.(layer.info) do |hash|
         hash.map do |key, value|
-          Hash === value ? ["#{key}:", value] : ["#{key}: #{value}", []]
+          Hash === value ? ["#{key}:", value] : "#{key}: #{value}"
         end
       end.each do |indents, info|
         puts indents.join << info

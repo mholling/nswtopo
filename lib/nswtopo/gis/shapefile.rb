@@ -18,8 +18,8 @@ module NSWTopo
       end
 
       def info
-        OS.ogrinfo("-ro", "-so", @path).each_line.grep(/^\w*\d+: (.*)$/) do |info|
-          [info, []]
+        OS.ogrinfo("-ro", "-so", @path).scan(/^\w*\d+: (.*?)(?: \(([\w\s]+)\))?$/).sort_by(&:first).map do |name, geom_type|
+          geom_type ? "#{name} (#{geom_type.delete(?\s)})" : name
         end
       end
     end

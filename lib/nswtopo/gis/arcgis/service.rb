@@ -43,7 +43,7 @@ module NSWTopo
         Layer.new self, id: id, **options
       end
 
-      def info
+      def layer_info
         children = @service["layers"].group_by do |layer|
           layer["parentLayerId"]
         end

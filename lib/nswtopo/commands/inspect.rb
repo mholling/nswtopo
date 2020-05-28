@@ -83,7 +83,7 @@ module NSWTopo
 
   rescue ArcGIS::Layer::NoLayerError, Shapefile::Layer::NoLayerError
     raise OptionParser::InvalidArgument, "specify an ArcGIS layer in URL or with --layer" if codes || sort || options.any?
-    indent.(source.info).each do |indents, info|
+    indent.("layers:" => source.layer_info).each do |indents, info|
       puts indents.join << info
     end
   rescue ArcGIS::Layer::TooManyFieldsError

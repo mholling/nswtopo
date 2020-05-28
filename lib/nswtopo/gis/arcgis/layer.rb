@@ -58,7 +58,7 @@ module NSWTopo
           @subtype_fields = @subtype_values.values.flat_map(&:keys).uniq
         end
 
-        coded_values = @layer["fields"].map do |field|
+        @coded_values = @layer["fields"].map do |field|
           [field["name"], field.dig("domain", "codedValues")]
         end.select(&:last).map do |name, pairs|
           values = pairs.map do |pair|
@@ -200,6 +200,17 @@ module NSWTopo
             fields.zip values
           end.to_h
         end.zip counts
+      end
+
+      def codes
+        pairs = lambda do |hash|
+          hash.keys.zip(hash.values.map(&:sort).map(&:zip)).to_h
+        end
+        @coded_values.yield_self(&pairs).tap do |result|
+          next unless @type_field
+          codes, lookups = @subtype_values.sort.transpose
+          result[@type_field] = @type_values.slice(*codes).zip lookups.map(&pairs)
+        end
       end
 
       def counts

@@ -410,6 +410,7 @@ begin
       parser.on "-w", "--where     <where>",       String,          "filtering clause"
       parser.on "-f", "--fields    <field,...>",   FieldList,       "comma-separated list of fields"
       parser.on "-d", "--decode",                                   "convert coded values where possible"
+      parser.on "-c", "--codes",                                    "show coded values for an ArcGIS Layer"
       parser.on "-s", "--sort      <count|value>", %w[count value], "sort fields by count or value"
 
     when nil

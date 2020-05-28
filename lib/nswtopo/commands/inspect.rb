@@ -1,8 +1,9 @@
 module NSWTopo
-  def inspect(url_or_path, sort: nil, **options)
+  def inspect(url_or_path, sort: nil, codes: nil, **options)
     indent = lambda do |items, parts = nil, &block|
       Enumerator.new do |yielder|
-        grouped = block[items]
+        next unless items
+        grouped = block ? block.(items) : items
         grouped.each.with_index do |(item, group), index|
           *new_parts, last_part = parts
           case last_part
@@ -14,7 +15,7 @@ module NSWTopo
           else                       "├─ "
           end if parts
           yielder << [new_parts, item]
-          indent[group, new_parts, &block].inject(yielder, &:<<)
+          indent.(group, new_parts, &block).inject(yielder, &:<<)
         end
       end
     end
@@ -24,15 +25,35 @@ module NSWTopo
       ArcGIS::Service.new(url_or_path)
     when Shapefile::Source
       raise OptionParser::InvalidOption, "--id only applies to ArcGIS layers" if options[:id]
+      raise OptionParser::InvalidOption, "--codes only applies to ArcGIS layers" if codes
       Shapefile::Source.new(url_or_path)
     else
       raise OptionParser::InvalidArgument, url_or_path
     end
     layer = source.layer(**options)
 
-    if fields = options[:fields]
+    case
+    when codes
+      %i[where fields decode].each do |flag|
+        raise OptionParser::InvalidOption, "can't have --#{flag} with --codes" if options[flag]
+      end
+      indent.(layer.codes) do |level|
+        level.map do |key, values|
+          case key
+          when Array
+            code, value = key
+            display_value = value.nil? || /[^\w\s-]|[\t\n\r]/ === value ? value.inspect : value
+            ["#{code} → #{display_value}", values]
+          else
+            ["#{key}:", values]
+          end
+        end
+      end.each do |indents, info|
+        puts indents.join << info
+      end
+    when fields = options[:fields]
       template = "%#{fields.map(&:size).max}s: %s%s (%i)"
-      indent[layer.counts] do |counts|
+      indent.(layer.counts) do |counts|
         counts.group_by do |attributes, count|
           attributes.shift
         end.entries.select(&:first).map.with_index do |((name, value), counts), index|
@@ -51,7 +72,7 @@ module NSWTopo
         puts template % [name, indents.join, display_value, count]
       end
     else
-      indent[layer.info] do |hash|
+      indent.(layer.info) do |hash|
         hash.map do |key, value|
           Hash === value ? ["#{key}:", value] : ["#{key}: #{value}", []]
         end
@@ -61,8 +82,8 @@ module NSWTopo
     end
 
   rescue ArcGIS::Layer::NoLayerError, Shapefile::Layer::NoLayerError
-    raise OptionParser::InvalidArgument, "specify an ArcGIS layer in URL or with --layer" if options.any?
-    indent[source.info, &:itself].each do |indents, info|
+    raise OptionParser::InvalidArgument, "specify an ArcGIS layer in URL or with --layer" if codes || sort || options.any?
+    indent.(source.info).each do |indents, info|
       puts indents.join << info
     end
   rescue ArcGIS::Layer::TooManyFieldsError

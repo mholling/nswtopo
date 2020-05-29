@@ -56,18 +56,13 @@ module NSWTopo
       indent.(layer.counts) do |counts|
         counts.group_by do |attributes, count|
           attributes.shift
-        end.entries.select(&:first).map.with_index do |((name, value), counts), index|
-          [name, value, counts.sum(&:last), counts, index]
-        end.sort do |(name1, value1, count1, counts1, index1), (name2, value2, count2, counts2, index2)|
-          case sort
-          when "value" then value1 && value2 ? value1 <=> value2 : value1 ? 1 : value2 ? -1 : 0
-          when "count" then count2 <=> count1
-          else index1 <=> index2
-          end
-        end.map do |name, value, count, counts, index|
-          [[name, value, count], counts]
+        end.entries.select(&:first).map do |(name, value), counts|
+          [[name, counts.sum(&:last), value], counts]
+        end.sort do |((name1, count1, value1), counts1), ((name2, count2, value2), counts2)|
+          next count2 <=> count1 if "count" == sort
+          value1 && value2 ? value1 <=> value2 : value1 ? 1 : value2 ? -1 : 0
         end
-      end.map do |indents, (name, value, count)|
+      end.map do |indents, (name, count, value)|
         next name, count.to_s, indents.join << (value.nil? || /[^\w\s-]|[\t\n\r]/ === value ? value.inspect : value.to_s)
       end.transpose.tap do |names, counts, lines|
         template %= [names.map(&:size).max, counts.map(&:size).max]

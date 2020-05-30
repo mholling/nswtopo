@@ -38,8 +38,8 @@ module NSWTopo
         while table.length < @count
           min, max = max, max + 10000
           paged_where = ["#{objectid_field}>=#{min}", "#{objectid_field}<#{max}", *@where]
-          fields.each_slice(2) do |fields|
-            classify(objectid_field, *@fields, *extra_field, where: paged_where).each do |attributes, count|
+          [*@fields, *extra_field].each_slice(2) do |fields|
+            classify(objectid_field, *fields, where: paged_where).each do |attributes, count|
               objectid = attributes.delete objectid_field
               table[objectid].merge! attributes
             end

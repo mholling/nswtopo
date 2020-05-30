@@ -137,7 +137,7 @@ $ nswtopo <command> --help
 
 ## Commands
 
-General usage for the *nswtopo* program is [described here](docs). Detailed documentation for each of the available commands is also available:
+General usage for the *nswtopo* program is [described here](docs). Detailed documentation for each of the available commands is available:
 
 * [*init*](docs/init.md): initialise map bounds and scale
 * [*info*](docs/info.md): display map layers and metadata
@@ -153,6 +153,11 @@ General usage for the *nswtopo* program is [described here](docs). Detailed docu
 * [*render*](docs/render.md): render map in various formats
 * [*layers*](docs/layers.md): list available map layers
 * [*config*](docs/config.md): configure nswtopo
+
+There are also some advanced tools for map developers:
+
+* [*inspect*](docs/inspect.md): inspect online and local data sources
+* [*scrape*](docs/scrape.md): download data from an ArcGIS REST layer
 
 # Workflow for Rogaine Setters
 

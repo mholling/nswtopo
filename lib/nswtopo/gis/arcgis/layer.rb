@@ -4,7 +4,7 @@ require_relative 'layer/map'
 module NSWTopo
   module ArcGIS
     class Layer
-      FIELD_TYPES = %W[esriFieldTypeOID esriFieldTypeInteger esriFieldTypeSmallInteger esriFieldTypeDouble esriFieldTypeSingle esriFieldTypeString esriFieldTypeGUID].to_set
+      FIELD_TYPES = %W[esriFieldTypeOID esriFieldTypeInteger esriFieldTypeSmallInteger esriFieldTypeDouble esriFieldTypeSingle esriFieldTypeString esriFieldTypeGUID esriFieldTypeDate].to_set
       NoLayerError = Class.new RuntimeError
       TooManyFieldsError = Class.new RuntimeError
 
@@ -21,6 +21,12 @@ module NSWTopo
         raise "ArcGIS layer is not a feature layer: #{@name}" unless @layer["type"] == "Feature Layer"
 
         @geometry_type = @layer["geometryType"]
+
+        date_fields = @layer["fields"].select do |field|
+          "esriFieldTypeDate" == field["type"]
+        end.map do |field|
+          field["name"]
+        end.to_set
 
         @fields = fields&.map do |name|
           @layer["fields"].find(-> { raise "invalid field name: #{name}" }) do |field|
@@ -88,6 +94,10 @@ module NSWTopo
           case
           when %w[null Null NULL <null> <Null> <NULL>].include?(value)
             nil
+          when value.nil?
+            nil
+          when date_fields === name
+            Time.at(value / 1000).utc.iso8601
           when !decode
             value
           when @type_field == name
@@ -192,7 +202,11 @@ module NSWTopo
             when type == "esriFieldTypeSingle" then Float(value)
             when type == "esriFieldTypeString" then String(value)
             when type == "esriFieldTypeGUID" then String(value)
-            when type == "esriFieldTypeDate" then String(value)
+            when type == "esriFieldTypeDate"
+              begin
+                Time.strptime(value, "%m/%d/%Y %l:%M:%S %p").to_i * 1000
+              rescue ArgumentError
+              end
             end
           rescue ArgumentError
             raise "could not interpret #{value.inspect} as #{type}"

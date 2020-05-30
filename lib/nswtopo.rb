@@ -1,4 +1,5 @@
 require 'date'
+require 'time'
 require 'open3'
 require 'uri'
 require 'net/http'

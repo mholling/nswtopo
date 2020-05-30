@@ -50,10 +50,13 @@ module NSWTopo
       def counts
         raise NoLayerError, "no layer name provided" unless @layer
         count = ?_ * @fields.map(&:size).max + "count"
-        sql = <<~SQL % [@fields.join('", "'), count, @layer, @fields.join('", "')]
-          SELECT "%s", count(*) AS "%s"
+        where = %Q[WHERE (%s)] % [*@where].join(") AND (") if @where
+        field_list = %Q["%s"] % @fields.join('", "')
+        sql = <<~SQL % [field_list, count, @layer, where, field_list]
+          SELECT %s, count(*) AS "%s"
           FROM "%s"
-          GROUP BY "%s"
+          %s
+          GROUP BY %s
         SQL
         json = OS.ogr2ogr *%w[-f GeoJSON -dialect sqlite -sql], sql, "/vsistdout/", @source.path
         JSON.parse(json)["features"].map do |feature|

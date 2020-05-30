@@ -51,6 +51,7 @@ module NSWTopo
       end.each do |indents, info|
         puts indents.join << info
       end
+
     when fields = options[:fields]
       template = "%%%is │ %%%is │ %%s"
       indent.(layer.counts) do |counts|
@@ -65,10 +66,11 @@ module NSWTopo
       end.map do |indents, (name, count, value)|
         next name, count.to_s, indents.join << (value.nil? || /[^\w\s-]|[\t\n\r]/ === value ? value.inspect : value.to_s)
       end.transpose.tap do |names, counts, lines|
-        template %= [names.map(&:size).max, counts.map(&:size).max]
+        template %= [names.map(&:size).max, counts.map(&:size).max] if names
       end.transpose.each do |row|
         puts template % row
       end
+
     else
       indent.(layer.info) do |hash|
         hash.map do |key, value|

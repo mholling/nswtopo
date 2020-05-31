@@ -461,6 +461,7 @@ begin
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     raise OptionParser::InvalidOption, "can't specify both --id and --layer" if options[:id] && options[:layer]
     raise OptionParser::InvalidOption, "--countwise requires --fields" if options[:countwise] && !options[:fields]
+    raise OptionParser::InvalidOption, "--decode requires --fields" if options[:decode] && !options[:fields]
     NSWTopo.inspect url_or_path, **options
     exit
   end

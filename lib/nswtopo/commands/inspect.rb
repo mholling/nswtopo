@@ -37,9 +37,6 @@ module NSWTopo
 
     case
     when codes
-      %i[where fields decode].each do |flag|
-        raise OptionParser::InvalidOption, "can't have --#{flag} with --codes" if options[flag]
-      end
       indent.(layer.codes) do |level|
         level.map do |key, values|
           case key

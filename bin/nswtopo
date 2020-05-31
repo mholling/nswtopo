@@ -459,7 +459,9 @@ begin
     url_or_path = ARGV.shift
     raise OptionParser::MissingArgument, "no URL or path specified" unless url_or_path
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
-    raise OptionParser::InvalidOption, "can't specify both --id and --layer" if options[:id] && options[:layer]
+    [%i[where codes], %i[fields codes], %i[decode codes], %i[id layer]].each do |flags|
+      raise OptionParser::InvalidOption, "can't have --%s with --%s" % flags if options.values_at(*flags).all?
+    end
     raise OptionParser::InvalidOption, "--countwise requires --fields" if options[:countwise] && !options[:fields]
     raise OptionParser::InvalidOption, "--decode requires --fields" if options[:decode] && !options[:fields]
     NSWTopo.inspect url_or_path, **options

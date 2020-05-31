@@ -3,7 +3,7 @@ module NSWTopo
     module Query
       UniqueFieldError = Class.new RuntimeError
 
-      def query(**options)
+      def base_query(**options)
         case
         when @unique
           raise UniqueFieldError
@@ -24,11 +24,11 @@ module NSWTopo
       end
 
       def count
-        @count ||= get_json("#{@id}/query", **query, returnCountOnly: true).dig("count")
+        @count ||= get_json("#{@id}/query", **base_query, returnCountOnly: true).dig("count")
       end
 
       def pages(per_page)
-        objectids = get_json("#{@id}/query", **query, returnIdsOnly: true)["objectIds"] || []
+        objectids = get_json("#{@id}/query", **base_query, returnIdsOnly: true)["objectIds"] || []
         @count = objectids.count
         return [GeoJSON::Collection.new(projection: projection, name: @name)].each if @count.zero?
 

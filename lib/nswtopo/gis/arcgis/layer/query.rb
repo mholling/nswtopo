@@ -3,25 +3,32 @@ module NSWTopo
     module Query
       UniqueFieldError = Class.new RuntimeError
 
-      def pages(per_page)
-        query = { returnIdsOnly: true, where: join_clauses(*@where) }
-
+      def query(**options)
         case
         when @unique
           raise UniqueFieldError
         when @geometry
           raise "polgyon geometry required" unless @geometry.polygon?
-          query[:geometry] = { rings: @geometry.reproject_to(projection).coordinates.map(&:reverse) }.to_json
-          query[:geometryType] = "esriGeometryPolygon"
+          options[:geometry] = { rings: @geometry.reproject_to(projection).coordinates.map(&:reverse) }.to_json
+          options[:geometryType] = "esriGeometryPolygon"
+          options[:where] = join_clauses(*@where) if @where
         when @where
+          options[:where] = join_clauses(*@where)
         else
           oid_field = @layer["fields"].find do |field|
             field["type"] == "esriFieldTypeOID"
           end&.fetch("name")
-          query[:where] = oid_field ? "#{oid_field} IS NOT NULL" : "1=1"
+          options[:where] = oid_field ? "#{oid_field} IS NOT NULL" : "1=1"
         end
+        options
+      end
 
-        objectids = get_json("#{@id}/query", **query)["objectIds"] || []
+      def count
+        @count ||= get_json("#{@id}/query", **query, returnCountOnly: true).dig("count")
+      end
+
+      def pages(per_page)
+        objectids = get_json("#{@id}/query", **query, returnIdsOnly: true)["objectIds"] || []
         @count = objectids.count
         return [GeoJSON::Collection.new(projection: projection, name: @name)].each if @count.zero?
 

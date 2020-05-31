@@ -71,10 +71,11 @@ module NSWTopo
 
       def info
         raise NoLayerError, "no layer name provided" unless @layer
-        info = OS.ogrinfo *%w[-ro -so -nocount -noextent], @source.path, @layer
+        info = OS.ogrinfo *%w[-ro -so -noextent], @source.path, @layer
         geom_type = info.match(/^Geometry: (.*)$/)&.[](1)&.delete(?\s)
+        count = info.match(/^Feature Count: (\d+)$/)&.[](1)
         fields = info.scan(/^(.*): (.*?) \(\d+\.\d+\)$/).to_h
-        { name: @layer, geometry: geom_type, fields: (fields unless fields.empty?) }.compact
+        { name: @layer, geometry: geom_type, features: count, fields: (fields unless fields.empty?) }.compact
       rescue OS::Error => error
         raise unless /Couldn't fetch requested layer (.*)!/ === error.message
         raise "no such layer: #{$1}"

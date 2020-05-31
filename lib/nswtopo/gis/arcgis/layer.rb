@@ -244,10 +244,11 @@ module NSWTopo
           when "esriGeometryPolygon" then "Polygon"
           else @geometry_type.delete_prefix("esriGeometry")
           end
+          info["features"] = count
           info["fields"] = @layer["fields"].map do |field|
             [field["name"], field["type"].delete_prefix("esriFieldType")]
           end.sort_by(&:first).to_h if @layer["fields"]&.any?
-        end
+        end.compact
       end
     end
   end

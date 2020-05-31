@@ -408,9 +408,10 @@ begin
       parser.on "-l", "--layer      <layer>",       String,          "name of layer"
       parser.on "-i", "--id         <id>",          Integer,         "id number of layer"
       parser.on "-w", "--where      <where>",       String,          "filtering clause"
+      parser.on "-c", "--coords     <x0,y0,x1,y1>", CoordList,       "WGS84 coordinates of bounding box corners"
       parser.on "-f", "--fields     <field,...>",   FieldList,       "comma-separated list of fields"
       parser.on "-d", "--decode",                                    "convert coded values where possible"
-      parser.on "-c", "--codes",                                     "show coded values for an ArcGIS Layer"
+      parser.on       "--codes",                                     "show coded values for an ArcGIS Layer"
       parser.on       "--countwise",                                 "sort fields by count instead of value"
 
     when nil

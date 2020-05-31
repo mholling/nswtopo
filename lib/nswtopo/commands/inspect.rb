@@ -1,5 +1,5 @@
 module NSWTopo
-  def inspect(url_or_path, codes: nil, countwise: nil, **options)
+  def inspect(url_or_path, coords: nil, codes: nil, countwise: nil, **options)
     indent = lambda do |items, parts = nil, &block|
       Enumerator.new do |yielder|
         next unless items
@@ -19,6 +19,8 @@ module NSWTopo
         end
       end
     end
+
+    options[:geometry] = GeoJSON.multipoint(coords).bbox if coords
 
     source = case url_or_path
     when ArcGIS::Service

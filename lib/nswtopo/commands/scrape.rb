@@ -69,7 +69,7 @@ module NSWTopo
     raise OptionParser::InvalidArgument, "specify an ArcGIS layer in URL or with --layer"
   rescue ArcGIS::Map::NoUniqueFieldError
     raise OptionParser::InvalidOption, "--unique required for this layer"
-  rescue ArcGIS::Map::NoGeometryError
+  rescue ArcGIS::Renderer::NoGeometryError
     raise OptionParser::InvalidOption, "--coords not available for this layer"
   rescue ArcGIS::Query::UniqueFieldError
     raise OptionParser::InvalidOption, "--unique not available for this layer"

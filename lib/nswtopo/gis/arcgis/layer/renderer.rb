@@ -2,9 +2,12 @@ module NSWTopo
   module ArcGIS
     module Renderer
       TooManyFieldsError = Class.new RuntimeError
+      NoGeometryError = Class.new RuntimeError
 
       def classify(*fields, where: @where)
         raise TooManyFieldsError unless fields.size <= 3
+        raise NoGeometryError, "ArcGIS layer does not support spatial filtering: #{@name}" if @geometry
+
         types = fields.map do |name|
           @layer["fields"].find do |field|
             field["name"] == name

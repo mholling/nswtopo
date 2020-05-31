@@ -3,7 +3,6 @@ module NSWTopo
     module Map
       TILE = 1000
       NoUniqueFieldError = Class.new RuntimeError
-      NoGeometryError = Class.new RuntimeError
 
       def pages(per_page)
         objectid_field = @layer["fields"].find do |field|
@@ -12,8 +11,7 @@ module NSWTopo
 
         raise "ArcGIS layer does not support dynamic layers: #{@name}" unless @service["supportsDynamicLayers"]
         raise "ArcGIS layer does not support SVG output: #{@name}" unless @service["supportedImageFormatTypes"].split(?,).include? "SVG"
-        raise "ArcGIS layer must have an objectid field: #{@name}" unless objectid_field
-        raise NoGeometryError, "ArcGIS layer does not support spatial filtering: #{@name}" if @geometry
+        raise "ArcGIS layer does not have an objectid field: #{@name}" unless objectid_field
 
         @unique ||= @type_field
         @unique ||= @layer["fields"].find do |field|

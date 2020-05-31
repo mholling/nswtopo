@@ -62,6 +62,6 @@ The `--decode` flag is particularly useful with type and subtype fields, where t
 
 # Scraping from Map Layers
 
-Some ArcGIS REST map layers do not allow feature queries. It is still possible to download features from such a layer, provided it supports SVG output and dynamic layers.
+Some ArcGIS REST map layers do not expose the *Query* capability, preventing feature queries. It is still possible to download features from such a layer, provided it supports SVG output and dynamic layers.
 
-When this situation occurs, you will be prompted to provide a *unique value* field name with the `--unique` option. Choose a layer field which is likely to have a small number of possible values. An integer field such as a type or subtype field is a good candidate.
+When this situation occurs, you may be prompted to provide a *unique value* field name with the `--unique` option. Choose a layer field which is likely to have a small number of possible values. Using `--fields` to restrict the fields is also recommended. Specify only the fields you need to reduce download time.

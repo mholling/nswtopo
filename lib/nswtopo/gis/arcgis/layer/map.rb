@@ -17,6 +17,9 @@ module NSWTopo
         @unique ||= @layer["fields"].find do |field|
           field.values_at("name", "alias").map(&:downcase).include? @layer.dig("drawingInfo", "renderer", "field1")&.downcase
         end&.fetch("name")
+        @unique ||= @coded_values.min_by do |name, lookup|
+          lookup.length
+        end&.first
         raise NoUniqueFieldError unless @unique
 
         @count = classify(@unique).sum(&:last)

@@ -1,5 +1,5 @@
 module NSWTopo
-  def inspect(url_or_path, sort: nil, codes: nil, **options)
+  def inspect(url_or_path, codes: nil, countwise: nil, **options)
     indent = lambda do |items, parts = nil, &block|
       Enumerator.new do |yielder|
         next unless items
@@ -60,7 +60,7 @@ module NSWTopo
         end.entries.select(&:first).map do |(name, value), counts|
           [[name, counts.sum(&:last), value], counts]
         end.sort do |((name1, count1, value1), counts1), ((name2, count2, value2), counts2)|
-          next count2 <=> count1 if "count" == sort
+          next count2 <=> count1 if countwise
           value1 && value2 ? value1 <=> value2 : value1 ? 1 : value2 ? -1 : 0
         end
       end.map do |indents, (name, count, value)|

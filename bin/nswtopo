@@ -405,13 +405,13 @@ begin
         *nswtopo* *inspect* - inspect data from an ArcGIS REST endpoint or local data source
           usage: _nswtopo_ inspect [~options~] <url-or-path>
       EOF
-      parser.on "-l", "--layer     <layer>",       String,          "name of layer"
-      parser.on "-i", "--id        <id>",          Integer,         "id number of layer"
-      parser.on "-w", "--where     <where>",       String,          "filtering clause"
-      parser.on "-f", "--fields    <field,...>",   FieldList,       "comma-separated list of fields"
-      parser.on "-d", "--decode",                                   "convert coded values where possible"
-      parser.on "-c", "--codes",                                    "show coded values for an ArcGIS Layer"
-      parser.on "-s", "--sort      <count|value>", %w[count value], "sort fields by count or value"
+      parser.on "-l", "--layer      <layer>",       String,          "name of layer"
+      parser.on "-i", "--id         <id>",          Integer,         "id number of layer"
+      parser.on "-w", "--where      <where>",       String,          "filtering clause"
+      parser.on "-f", "--fields     <field,...>",   FieldList,       "comma-separated list of fields"
+      parser.on "-d", "--decode",                                    "convert coded values where possible"
+      parser.on "-c", "--codes",                                     "show coded values for an ArcGIS Layer"
+      parser.on       "--countwise",                                 "sort fields by count instead of value"
 
     when nil
       raise OptionParser::MissingArgument, "no command specified"
@@ -459,7 +459,7 @@ begin
     raise OptionParser::MissingArgument, "no URL or path specified" unless url_or_path
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
     raise OptionParser::InvalidOption, "can't specify both --id and --layer" if options[:id] && options[:layer]
-    raise OptionParser::InvalidOption, "--sort requires --fields" if options[:sort] && !options[:fields]
+    raise OptionParser::InvalidOption, "--countwise requires --fields" if options[:countwise] && !options[:fields]
     NSWTopo.inspect url_or_path, **options
     exit
   end

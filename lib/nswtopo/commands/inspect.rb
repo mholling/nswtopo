@@ -27,6 +27,7 @@ module NSWTopo
       ArcGIS::Service.new(url_or_path)
     when Shapefile::Source
       raise OptionParser::InvalidOption, "--id only applies to ArcGIS layers" if options[:id]
+      raise OptionParser::InvalidOption, "--decode only applies to ArcGIS layers" if options[:decode]
       raise OptionParser::InvalidOption, "--codes only applies to ArcGIS layers" if codes
       Shapefile::Source.new(url_or_path)
     else
@@ -84,7 +85,7 @@ module NSWTopo
     end
 
   rescue ArcGIS::Layer::NoLayerError, Shapefile::Layer::NoLayerError
-    raise OptionParser::InvalidArgument, "specify an ArcGIS layer in URL or with --layer" if codes || sort || options.any?
+    raise OptionParser::InvalidArgument, "specify an ArcGIS layer in URL or with --layer" if codes || countwise || options.any?
     indent.("layers:" => source.layer_info).each do |indents, info|
       puts indents.join << info
     end

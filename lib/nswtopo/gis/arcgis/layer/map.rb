@@ -21,7 +21,7 @@ module NSWTopo
         end&.fetch("name")
         raise NoUniqueFieldError unless @unique
 
-        @count = classify(@unique, where: @where).sum(&:last)
+        @count = classify(@unique).sum(&:last)
         return [GeoJSON::Collection.new(projection: projection, name: @name)].each if @count.zero?
 
         table = Hash.new do |hash, objectid|

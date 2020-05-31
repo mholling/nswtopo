@@ -78,7 +78,7 @@ classsubtype:
       └─ 2 → Canal-Drain
 ```
 
-Use the `--where` option to restrict output using a SQL expression on the fields. (For some servers, this may not affect results.)
+Use the `--where` option to restrict output using a SQL expression on the fields.
 
 # Local GIS Data
 

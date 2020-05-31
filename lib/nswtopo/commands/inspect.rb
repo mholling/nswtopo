@@ -86,7 +86,7 @@ module NSWTopo
     indent.("layers:" => source.layer_info).each do |indents, info|
       puts indents.join << info
     end
-  rescue ArcGIS::Layer::TooManyFieldsError
+  rescue ArcGIS::Renderer::TooManyFieldsError
     raise OptionParser::InvalidOption, "use less fields with --fields"
   end
 end

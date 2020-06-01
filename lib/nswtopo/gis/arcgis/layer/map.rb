@@ -31,14 +31,16 @@ module NSWTopo
           field["name"]
         end
 
+        include_objectid = @fields.include? objectid_field
         min, chunk, table = 0, 10000, {}
         loop do
           break unless table.length < @count
           page, where = {}, ["#{objectid_field}>=#{min}", "#{objectid_field}<#{min + chunk}", *@where]
-          [*@fields, *extra_field].each_slice(2) do |fields|
+          Set[*@fields, *extra_field].delete(objectid_field).each_slice(2) do |fields|
             classify(objectid_field, *fields, where: where).each do |attributes, count|
               objectid = attributes.delete objectid_field
-              (page[objectid] ||= {}).merge! attributes
+              page[objectid] ||= include_objectid ? { objectid_field => objectid } : {}
+              page[objectid].merge! attributes
             end
           end
         rescue Connection::Error

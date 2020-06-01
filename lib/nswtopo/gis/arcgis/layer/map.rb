@@ -25,26 +25,27 @@ module NSWTopo
         @count = classify(@unique).sum(&:last)
         return [GeoJSON::Collection.new(projection: projection, name: @name)].each if @count.zero?
 
-        table = Hash.new do |hash, objectid|
-          hash[objectid] = { }
-        end
-
         @fields ||= @layer["fields"].select do |field|
           Layer::FIELD_TYPES === field["type"]
         end.map do |field|
           field["name"]
         end
 
-        max = 0
-        while table.length < @count
-          min, max = max, max + 10000
-          paged_where = ["#{objectid_field}>=#{min}", "#{objectid_field}<#{max}", *@where]
+        min, chunk, table = 0, 10000, {}
+        loop do
+          break unless table.length < @count
+          page, where = {}, ["#{objectid_field}>=#{min}", "#{objectid_field}<#{min + chunk}", *@where]
           [*@fields, *extra_field].each_slice(2) do |fields|
-            classify(objectid_field, *fields, where: paged_where).each do |attributes, count|
+            classify(objectid_field, *fields, where: where).each do |attributes, count|
               objectid = attributes.delete objectid_field
-              table[objectid].merge! attributes
+              (page[objectid] ||= {}).merge! attributes
             end
           end
+        rescue Connection::Error
+          (chunk /= 2) > 0 ? retry : raise
+        else
+          table.merge! page
+          min += chunk
         end
 
         parent = @layer

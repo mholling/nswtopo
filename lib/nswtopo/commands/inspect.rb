@@ -1,25 +1,5 @@
 module NSWTopo
   def inspect(url_or_path, coords: nil, codes: nil, countwise: nil, **options)
-    indent = lambda do |items, parts = nil, &block|
-      Enumerator.new do |yielder|
-        next unless items
-        grouped = block ? block.(items) : items
-        grouped.each.with_index do |(item, group), index|
-          *new_parts, last_part = parts
-          case last_part
-          when "├─ " then new_parts << "│  "
-          when "└─ " then new_parts << "   "
-          end
-          new_parts << case index
-          when grouped.size - 1 then "└─ "
-          else                       "├─ "
-          end if parts
-          yielder << [new_parts, item]
-          indent.(group, new_parts, &block).inject(yielder, &:<<)
-        end
-      end
-    end
-
     options[:geometry] = GeoJSON.multipoint(coords).bbox if coords
 
     source = case url_or_path
@@ -37,7 +17,7 @@ module NSWTopo
 
     case
     when codes
-      indent.(layer.codes) do |level|
+      TreeIndenter.new(layer.codes) do |level|
         level.map do |key, values|
           case key
           when Array
@@ -54,7 +34,7 @@ module NSWTopo
 
     when fields = options[:fields]
       template = "%%%is │ %%%is │ %%s"
-      indent.(layer.counts) do |counts|
+      TreeIndenter.new(layer.counts) do |counts|
         counts.group_by do |attributes, count|
           attributes.shift
         end.entries.select(&:first).map do |(name, value), counts|
@@ -72,7 +52,7 @@ module NSWTopo
       end
 
     else
-      indent.(layer.info) do |hash|
+      TreeIndenter.new(layer.info) do |hash|
         hash.map do |key, value|
           Hash === value ? ["#{key}:", value] : "#{key}: #{value}"
         end
@@ -83,7 +63,8 @@ module NSWTopo
 
   rescue ArcGIS::Layer::NoLayerError, Shapefile::Layer::NoLayerError
     raise OptionParser::InvalidArgument, "specify an ArcGIS layer in URL or with --layer" if codes || countwise || options.any?
-    indent.("layers:" => source.layer_info).each do |indents, info|
+    puts "layers:"
+    TreeIndenter.new(source.layer_info, []).each do |indents, info|
       puts indents.join << info
     end
   rescue ArcGIS::Renderer::TooManyFieldsError

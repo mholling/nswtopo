@@ -1,19 +1,22 @@
 module NSWTopo
-  def layers(state: nil, indent: "")
-    layer_dirs.grep_v(Pathname.pwd).flat_map do |directory|
+  def layers(state: nil)
+    paths = layer_dirs.grep_v(Pathname.pwd).flat_map do |directory|
       Array(state).inject(directory, &:/).glob("*")
-    end.sort.each do |path|
-      case
-      when path.directory?
-        next if path.glob("**/*.yml").none?
-        puts [indent, path.basename.sub_ext("")].join
-        layers state: [*state, path.basename], indent: "  " + indent
-      when path.sub_ext("").directory?
-      when path.extname == ".yml"
-        puts [indent, path.basename.sub_ext("")].join
-      end
-    end.tap do |paths|
-      log_warn "no layers installed" if paths.none?
+    end.sort
+    log_warn "no layers installed" if paths.none?
+
+    TreeIndenter.new(paths) do |paths|
+      paths.map do |path|
+        case
+        when path.glob("**/*.yml").any?
+          [path.basename.sub_ext(""), path.children.sort]
+        when path.sub_ext("").directory?
+        when path.extname == ".yml"
+          path.basename.sub_ext("")
+        end
+      end.compact
+    end.each do |indents, name|
+      puts [*indents, name].join
     end
   end
 end

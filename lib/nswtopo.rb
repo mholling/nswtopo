@@ -42,6 +42,7 @@ require_relative 'nswtopo/layer'
 require_relative 'nswtopo/version'
 require_relative 'nswtopo/config'
 require_relative 'nswtopo/commands'
+require_relative 'nswtopo/tree_indenter'
 
 module NSWTopo
   PartialFailureError = Class.new RuntimeError

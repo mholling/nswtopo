@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+_nswtopo() {
+	local cur words cword
+	if type _get_comp_words_by_ref &>/dev/null ; then
+		_get_comp_words_by_ref -n : cur words cword
+	else
+		words=("${COMP_WORDS[@]}") cword="$COMP_CWORD" cur="${COMP_WORDS[COMP_CWORD]}"
+	fi
+
+	local flag_opts=(-v --version -q --quiet -h --help) file_opts=(-c --config) arg_opts=()
+	local index=1 cmd arg args=()
+
+	while [[ $index -lt $cword ]]
+	do
+		local word=${words[index]}
+		if [[ -n $arg ]]; then
+			unset arg
+		elif [[ " ${file_opts[*]} " =~ " $word " ]]; then
+			# word is an option taking a path
+			arg=path
+		elif [[ " ${arg_opts[*]} " =~ " $word " ]]; then
+			# word is an option taking some other value
+			arg=string
+		elif [[ " ${flag_opts[*]} " =~ " $word " ]]; then
+			# word is a boolean option
+			:
+		elif [[ -z $cmd ]]; then
+			# word is the subcommand
+			flag_opts=(-h --help) file_opts=() arg_opts=()
+			cmd="$word"
+			case $cmd in
+				init)
+					args+=(path)
+					flag_opts+=(-o --overwrite -h --help)
+					arg_opts+=(-s --scale -b --bounds -c --coords -d --dimensions -m --margins -r --rotation )
+					;;
+				info)
+					args+=(path)
+					flag_opts+=(-e --empty -j --json -p --proj)
+					;;
+				add)
+					args+=(path layer)
+					flag_opts+=(-o --overwrite)
+					file_opts+=(-p --path)
+					arg_opts+=(-r --resolution -a --after -b --before -c --replace)
+					;;
+				contours)
+					args+=(path path)
+					flag_opts+=(-t --thin --no-depression)
+					arg_opts+=(-i --interval -x --index -s --smooth -d --density -k --knolls -a --after -b --before -c --replace --stroke --stroke-width --fill -r --resolution)
+					;;
+				spot-heights)
+					args+=(path path)
+					arg_opts+=(-s --smooth --spacing -p --prefer -e --extent -a --after -b --before -c --replace -r --resolution)
+					;;
+				relief)
+					args+=(path path)
+					arg_opts+=(-r --resolution -o --opacity -a --altitude -z --azimuth -s --sources -y --yellow -f --factor)
+					;;
+				grid)
+					args+=(path)
+					flag_opts+=(-u --unlabeled)
+					arg_opts+=(-i --interval --stroke-width)
+					;;
+				declination)
+					args+=(path)
+					arg_opts+=(-a --angle -s --spacing -o --offset -r --arrows --stroke)
+					;;
+				controls)
+					args+=(path path)
+					flag_opts+=(-s --spot)
+					arg_opts+=(-d --diameter -c --colour -f --font-size)
+					;;
+				overlay)
+					args+=(path path)
+					flag_opts+=(-s --simplify)
+					arg_opts+=(--opacity --stroke --stroke-width --stroke-opacity --stroke- --stroke-linecap --fill --fill-opacity -t --tolerance -a --after -b --before -c --replace)
+					;;
+				delete)
+					args+=(path layer)
+					;;
+				render)
+					args+=(path format)
+					flag_opts+=(-d --dither -w --worldfile -o --overwrite -f --force)
+					file_opts+=(-e --external)
+					arg_opts+=(-p --ppi -z --zoom)
+					;;
+				layers)
+					args+=()
+					;;
+				config)
+					args+=()
+					flag_opts+=(--labelling --no-labelling)
+					file_opts+=(-c --chrome -f --firefox -p --path --layer-dir)
+					arg_opts+=(-d --delete -r --resolution -z --zlib-level)
+					;;
+				scrape)
+					args+=(url path)
+					flag_opts+=(-d --decode --concat)
+					arg_opts+=(-l --layer -i --id -w --where -c --coords -n --name -f --fields -e --epsg -p --paginate -u --unique)
+					;;
+				inspect)
+					args+=(path)
+					flag_opts+=(-d --decode --codes --countwise)
+					arg_opts+=(-l --layer -i --id -w --where -c --coords -f --fields)
+					;;
+				*)
+					return
+					;;
+			esac
+		else
+			# word is a positional argument
+			args=(${args[@]:1})
+		fi
+		(( index++ ))
+	done
+
+	if [[ -n $arg ]]; then
+		# current word is an option argument
+		[[ $arg == path ]] && compopt -o default
+		COMPREPLY=()
+	elif [[ "$cur" =~ ^- ]]; then
+		# current word is an option
+		COMPREPLY=($(compgen -W "${flag_opts[*]} ${file_opts[*]} ${arg_opts[*]}" -- "$cur"))
+	elif [[ -z $cmd ]]; then
+		# current word is the subcommand
+		COMPREPLY=($(compgen -W "init info add contours spot-heights relief grid declination controls overlay delete render layers config scrape inspect" -- "$cur"))
+	elif [[ -n $args ]]; then
+		# current word is a positional argument
+		[[ $args == path ]] && compopt -o default
+		COMPREPLY=()
+	fi
+}
+
+complete -F _nswtopo nswtopo

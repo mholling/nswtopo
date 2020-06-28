@@ -45,7 +45,7 @@ module NSWTopo
 
       def layer_info
         children = @service["layers"].group_by do |layer|
-          layer["parentLayerId"]
+          layer["parentLayerId"] || -1
         end
         tree = lambda do |layer|
           [layer.values_at("id", "name").join(": "), children.fetch(layer["id"], []).map(&tree)]

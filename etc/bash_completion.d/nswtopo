@@ -47,7 +47,7 @@ _nswtopo() {
 					;;
 				contours)
 					args+=(path path)
-					flag_opts+=(-t --thin --no-depression)
+					flag_opts+=(-a --auxiliary -t --thin --no-depression)
 					arg_opts+=(-i --interval -x --index -s --smooth -d --density -k --knolls -a --after -b --before -c --replace --stroke --stroke-width --fill -r --resolution)
 					;;
 				spot-heights)

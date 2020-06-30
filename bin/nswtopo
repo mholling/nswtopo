@@ -244,6 +244,7 @@ begin
       EOF
       parser.on "-i", "--interval      <interval>",   PositiveInt,   "contour interval in metres (default %s)" % NSWTopo::Contour::DEFAULTS["interval"]
       parser.on "-x", "--index         <index>",      PositiveInt,   "index interval in metres"
+      parser.on "-a", "--auxiliary",                                 "show auxiliary contours"
       parser.on "-s", "--smooth        <radius>",     NonNegFloat,   "DEM smoothing radius in mm (default %s)" % NSWTopo::Contour::DEFAULTS["smooth"]
       parser.on "-t", "--thin",                                      "thin intermediate contours in steep areas"
       parser.on "-d", "--density       <density>",    PositiveFloat, "thinning threshold (default %s lines/mm)" % NSWTopo::Contour::DEFAULTS["density"]

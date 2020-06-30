@@ -1,7 +1,7 @@
 module NSWTopo
   module Contour
     include Vector, DEM, Log
-    CREATE = %w[interval index smooth simplify thin density min-length no-depression knolls fill]
+    CREATE = %w[interval index auxiliary smooth simplify thin density min-length no-depression knolls fill]
     DEFAULTS = YAML.load <<~YAML
       interval: 5
       smooth: 0.2
@@ -11,6 +11,9 @@ module NSWTopo
       section: 100
       stroke: "#805100"
       stroke-width: 0.08
+      Auxiliary:
+        stroke-dasharray: 0.5 0.5
+        stroke-dashoffset: 0.5
       Depression:
         symbolise:
           interval: 2.0
@@ -207,7 +210,11 @@ module NSWTopo
         json = OS.ogr2ogr "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", db_path, "contour"
         GeoJSON::Collection.load(json, @map.projection).each do |feature|
           elevation, modulo, depression = feature.values_at "elevation", "modulo", "depression"
-          category = modulo.zero? ? %w[Index] : %w[Standard]
+          category = case
+          when @auxiliary && elevation % (2 * @interval) != 0 then %w[Auxiliary]
+          when modulo.zero? then %w[Index]
+          else %w[Standard]
+          end
           category << "Depression" if depression == 1
           feature.clear
           feature["elevation"] = elevation

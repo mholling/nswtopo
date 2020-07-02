@@ -235,20 +235,27 @@ module NSWTopo
     end
 
     def info(empty: nil, json: false, proj: false)
-      return JSON.pretty_generate bounding_box.reproject_to_wgs84.first.to_h if json
-      return @projection.proj4 if proj
       # TODO: raise error if both --proj and --json are specified
-      StringIO.new.tap do |io|
-        io.puts "%-11s 1:%i" %            ["scale:",      @scale]
-        io.puts "%-11s %imm × %imm" %     ["dimensions:", *@extents.times(1000.0 / @scale)]
-        io.puts "%-11s %.1fkm × %.1fkm" % ["extent:",     *@extents.times(0.001)]
-        io.puts "%-11s %.1fkm²" %         ["area:",       @extents.inject(&:*) * 0.000001]
-        io.puts "%-11s %.1f°" %           ["rotation:",   @rotation]
-        layers.reject(&empty ? :nil? : :empty?).inject("layers:") do |heading, layer|
-          io.puts "%-11s %s" % [heading, layer]
-          nil
-        end
-      end.string
+      case
+      when json
+        bbox = bounding_box.reproject_to_wgs84.first
+        bbox.properties.merge! scale: @scale, extents: @extents, rotation: @rotation, projection: @projection.proj4
+        JSON.pretty_generate bbox.to_h
+      when proj
+        @projection.proj4
+      else
+        StringIO.new.tap do |io|
+          io.puts "%-11s 1:%i" %            ["scale:",      @scale]
+          io.puts "%-11s %imm × %imm" %     ["dimensions:", *@extents.times(1000.0 / @scale)]
+          io.puts "%-11s %.1fkm × %.1fkm" % ["extent:",     *@extents.times(0.001)]
+          io.puts "%-11s %.1fkm²" %         ["area:",       @extents.inject(&:*) * 0.000001]
+          io.puts "%-11s %.1f°" %           ["rotation:",   @rotation]
+          layers.reject(&empty ? :nil? : :empty?).inject("layers:") do |heading, layer|
+            io.puts "%-11s %s" % [heading, layer]
+            nil
+          end
+        end.string
+      end
     end
     alias to_s info
 

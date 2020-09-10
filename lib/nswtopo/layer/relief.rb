@@ -1,8 +1,9 @@
 module NSWTopo
   module Relief
     include Raster, DEM, Log
-    CREATE = %w[altitude azimuth factor sources yellow smooth median bilateral contours]
+    CREATE = %w[shade altitude azimuth sources yellow factor smooth median bilateral contours]
     DEFAULTS = YAML.load <<~YAML
+      shade: black
       altitude: 45
       azimuth: 315
       factor: 2.0
@@ -121,13 +122,13 @@ module NSWTopo
       vrt_raster_band.elements["ColorInterp[text()='Gray']"].text = "Palette"
       color_table = vrt_raster_band.add_element "ColorTable"
 
-      shade, sun = 90 * flat_relief / 100, (10 + 90 * flat_relief) / 100
+      lo, hi = 90 * flat_relief / 100, (10 + 90 * flat_relief) / 100
       256.times do |index|
         case
-        when index < shade
-          color_table.add_element "Entry", "c1" => 0, "c2" => 0, "c3" => 0, "c4" => (shade - index) * 255 / shade
-        when index > sun
-          color_table.add_element "Entry", "c1" => 255, "c2" => 255, "c3" => 0, "c4" => ((index - sun) * 255 * @yellow / (255 - sun)).to_i
+        when index < lo
+          color_table.add_element "Entry", "c1" => @shade[0], "c2" => @shade[1], "c3" => @shade[2], "c4" => (lo - index) * 255 / lo
+        when index > hi
+          color_table.add_element "Entry", "c1" => 255, "c2" => 255, "c3" => 0, "c4" => ((index - hi) * 255 * @yellow / (255 - hi)).to_i
         else
           color_table.add_element "Entry", "c1" => 0, "c2" => 0, "c3" => 0, "c4" => 0
         end

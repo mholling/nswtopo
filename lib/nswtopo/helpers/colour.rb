@@ -173,4 +173,7 @@ class Colour
   def to_s
     @name || "#%.2X%.2X%.2X" % triplet
   end
+
+  extend Forwardable
+  delegate :[] => :@triplet
 end

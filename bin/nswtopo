@@ -110,7 +110,7 @@ begin
   end
 
   OptionParser.accept Colour do |string|
-    string == "none" ? string : Colour.new(string.downcase).to_s
+    string == "none" ? string : Colour.new(string.downcase)
   rescue Colour::Error
     raise OptionParser::InvalidArgument, string
   end
@@ -280,6 +280,7 @@ begin
       EOF
       parser.on "-r", "--resolution  <resolution>", PositiveFloat, "resolution in metres"
       parser.on "-o", "--opacity     <opacity>",    Opacity,       "opacity (default %s)" % NSWTopo::Relief::DEFAULTS["opacity"]
+      parser.on       "--shade       <colour>",     Colour,        "shade colour (RGB triplet, default %s)" % NSWTopo::Relief::DEFAULTS["shade"]
       parser.on "-a", "--altitude    <altitude>",   AltitudeAngle, "altitude angle in degrees (default %i)" % NSWTopo::Relief::DEFAULTS["altitude"]
       parser.on "-z", "--azimuth     <azimuth>",    Float,         "azimuth in degrees (default %i)" % NSWTopo::Relief::DEFAULTS["azimuth"]
       parser.on "-s", "--sources     <sources>",    PositiveInt,   "number of light sources (default %i)" % NSWTopo::Relief::DEFAULTS["sources"]

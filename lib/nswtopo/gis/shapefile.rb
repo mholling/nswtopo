@@ -17,6 +17,11 @@ module NSWTopo
         Layer.new self, **options
       end
 
+      def only_layer
+        names = OS.ogrinfo("-ro", "-so", @path).scan(/^\w*\d+: (.*?)(?: \([\w\s]+\))?$/).flatten
+        names.one? ? names.first : nil
+      end
+
       def layer_info
         OS.ogrinfo("-ro", "-so", @path).scan(/^\w*\d+: (.*?)(?: \(([\w\s]+)\))?$/).sort_by(&:first).map do |name, geom_type|
           geom_type ? "#{name} (#{geom_type.delete(?\s)})" : name

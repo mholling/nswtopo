@@ -2,14 +2,15 @@ module NSWTopo
   def inspect(url_or_path, coords: nil, codes: nil, countwise: nil, **options)
     options[:geometry] = GeoJSON.multipoint(coords).bbox if coords
 
-    source = case url_or_path
+    case url_or_path
     when ArcGIS::Service
-      ArcGIS::Service.new(url_or_path)
+      source = ArcGIS::Service.new(url_or_path)
     when Shapefile::Source
       raise OptionParser::InvalidOption, "--id only applies to ArcGIS layers" if options[:id]
       raise OptionParser::InvalidOption, "--decode only applies to ArcGIS layers" if options[:decode]
       raise OptionParser::InvalidOption, "--codes only applies to ArcGIS layers" if codes
-      Shapefile::Source.new(url_or_path)
+      source = Shapefile::Source.new(url_or_path)
+      options[:layer] ||= source.only_layer if countwise || options.any?
     else
       raise OptionParser::InvalidArgument, url_or_path
     end
@@ -61,8 +62,8 @@ module NSWTopo
       end
     end
 
-  rescue ArcGIS::Layer::NoLayerError, Shapefile::Layer::NoLayerError
-    raise OptionParser::InvalidArgument, "specify an ArcGIS layer in URL or with --layer" if codes || countwise || options.any?
+  rescue ArcGIS::Layer::NoLayerError, Shapefile::Layer::NoLayerError => error
+    raise OptionParser::MissingArgument, error.message if codes || countwise || options.any?
     puts "layers:"
     TreeIndenter.new(source.layer_info, []).each do |indents, info|
       puts indents.join << info

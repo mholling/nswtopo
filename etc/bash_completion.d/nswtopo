@@ -33,7 +33,8 @@ _nswtopo() {
 				init)
 					args+=(path)
 					flag_opts+=(-o --overwrite -h --help)
-					arg_opts+=(-s --scale -b --bounds -c --coords -d --dimensions -m --margins -r --rotation )
+					file_opts+=(-b --bounds)
+					arg_opts+=(-s --scale -c --coords -d --dimensions -m --margins -r --rotation )
 					;;
 				info)
 					args+=(path)

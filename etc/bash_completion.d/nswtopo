@@ -119,7 +119,8 @@ _nswtopo() {
 
 	if [[ $arg == path ]]; then
 		# current word is an option path argument
-		COMPREPLY=($(compgen -A file -- "$cur"))
+		type compopt &>/dev/null && compopt -o default
+		COMPREPLY=()
 	elif [[ -n $arg ]]; then
 		# current word is an option argument
 		COMPREPLY=()
@@ -131,11 +132,12 @@ _nswtopo() {
 		COMPREPLY=($(compgen -W "init info add contours spot-heights relief grid declination controls overlay delete render layers config scrape inspect" -- "$cur"))
 	elif [[ $args == path ]]; then
 		# current word is a positional path argument
-		COMPREPLY=($(compgen -A file -- "$cur"))
+		type compopt &>/dev/null && compopt -o default
+		COMPREPLY=()
 	elif [[ -n $args ]]; then
 		# current word is a positional argument
 		COMPREPLY=()
 	fi
 }
 
-complete -F _nswtopo nswtopo
+type compopt &>/dev/null && complete -F _nswtopo nswtopo ||  complete -o dirnames -F _nswtopo nswtopo

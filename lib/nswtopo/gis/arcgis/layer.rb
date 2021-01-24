@@ -189,6 +189,7 @@ module NSWTopo
           when "esriGeometryPolygon" then "Polygon"
           else @geometry_type.delete_prefix("esriGeometry")
           end
+          info["EPSG"] = @service["spatialReference"].values_at("latestWkid", "wkid").compact.first
           info["features"] = count
           info["fields"] = @layer["fields"].map do |field|
             [field["name"], field["type"].delete_prefix("esriFieldType")]

@@ -33,7 +33,7 @@ module NSWTopo
       NoLayerError = Class.new RuntimeError
 
       def initialize(source, layer: nil, where: nil, fields: nil, sql: nil, geometry: nil, projection: nil)
-        @source, @layer, @where, @fields, @sql, @layer, @geometry, @projection = source, layer, where, fields, sql, layer, geometry, projection
+        @source, @layer, @where, @fields, @sql, @geometry, @projection = source, layer, where, fields, sql, geometry, projection
       end
 
       def features

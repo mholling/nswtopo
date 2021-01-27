@@ -1,5 +1,5 @@
 module NSWTopo
-  def inspect(url_or_path, coords: nil, codes: nil, countwise: nil, **options)
+  def inspect(url_or_path, layer: nil, coords: nil, codes: nil, countwise: nil, **options)
     options[:geometry] = GeoJSON.multipoint(coords).bbox if coords
 
     case url_or_path
@@ -10,11 +10,11 @@ module NSWTopo
       raise OptionParser::InvalidOption, "--decode only applies to ArcGIS layers" if options[:decode]
       raise OptionParser::InvalidOption, "--codes only applies to ArcGIS layers" if codes
       source = Shapefile::Source.new(url_or_path)
-      options[:layer] ||= source.only_layer if countwise || options.any?
+      layer ||= source.only_layer
     else
       raise OptionParser::InvalidArgument, url_or_path
     end
-    layer = source.layer(**options)
+    layer = source.layer(layer: layer, **options)
 
     case
     when codes

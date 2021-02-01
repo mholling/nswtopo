@@ -80,7 +80,7 @@ module NSWTopo
         geom_type = info.match(/^Geometry: (.*)$/)&.[](1)&.delete(?\s)
         count = info.match(/^Feature Count: (\d+)$/)&.[](1)
         fields = info.scan(/^(.*): (.*?) \(\d+\.\d+\)$/).to_h
-        wkt = info.each_line.slice_before(/^\S/).map(&:join).grep(/^GEOGCRS/).first
+        wkt = info.each_line.slice_after(/^Layer SRS WKT:/).drop(1).first&.slice_before(/^\S/)&.first&.join
         epsg = OS.gdalsrsinfo("-o", "epsg", wkt)[/\d+/] if wkt
         { name: @layer, geometry: geom_type, EPSG: epsg, features: count, fields: (fields unless fields.empty?) }.compact
       rescue OS::Error => error

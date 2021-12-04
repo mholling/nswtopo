@@ -162,6 +162,23 @@ class Colour
       [$1, $2, $3].map { |hex| Integer("0x#{hex}") }
     when /^rgb\((\d{1,3}),(\d{1,3}),(\d{1,3})\)$/
       [$1, $2, $3].map(&:to_i)
+    when /^hsl\((\d{1,3}),(\d{1,3})%,(\d{1,3})%\)$/
+      h, s, l = [$1, $2, $3].map(&:to_i)
+      h %= 360;
+      c = (100 - (2 * l - 100).abs) * s / 10000.0
+      x = (60 - (h % 120 - 60).abs) * c / 60.0
+      m = (l - 50 * c) / 100.0
+      r, g, b = case
+      when s == 0  then [0, 0, 0]
+      when h <  60 then [c, x, 0]
+      when h < 120 then [x, c, 0]
+      when h < 180 then [0, c, x]
+      when h < 240 then [0, x, c]
+      when h < 300 then [x, 0, c]
+      when h < 360 then [c, 0, x]
+      end.map do |v|
+        255 * (v + m)
+      end.map(&:to_i)
     end
     raise Error, "invalid colour: #{string_or_array}" unless @triplet&.all?(0..255)
   end

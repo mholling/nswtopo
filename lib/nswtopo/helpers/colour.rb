@@ -153,6 +153,7 @@ class Colour
 
   def initialize(string_or_array)
     @triplet = case string_or_array
+    when Colour then string_or_array.triplet.dup
     when Array then string_or_array.take(3).map(&:round)
     when *COLOURS.keys
       @name = string_or_array

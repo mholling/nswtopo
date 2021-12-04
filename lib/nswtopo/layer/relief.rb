@@ -123,14 +123,15 @@ module NSWTopo
       color_table = vrt_raster_band.add_element "ColorTable"
 
       lo, hi = 90 * flat_relief / 100, (10 + 90 * flat_relief) / 100
+      c1, c2, c3 = Colour.new(@shade).triplet
       256.times do |index|
         case
         when index < lo
-          color_table.add_element "Entry", "c1" => @shade[0], "c2" => @shade[1], "c3" => @shade[2], "c4" => (lo - index) * 255 / lo
+          color_table.add_element "Entry", "c1" => c1, "c2" => c2, "c3" => c3, "c4" => (lo - index) * 255 / lo
         when index > hi
           color_table.add_element "Entry", "c1" => 255, "c2" => 255, "c3" => 0, "c4" => ((index - hi) * 255 * @yellow / (255 - hi)).to_i
         else
-          color_table.add_element "Entry", "c1" => 0, "c2" => 0, "c3" => 0, "c4" => 0
+          color_table.add_element "Entry", "c1" => c1, "c2" => c2, "c3" => c3, "c4" => 0
         end
       end
 

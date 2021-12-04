@@ -59,7 +59,7 @@ module NSWTopo
             when "firefox"
               ["--window-size=#{PAGE},#{PAGE}", "-headless", "-screenshot", png_path.to_s]
             when "chrome"
-              ["--window-size=#{PAGE},#{PAGE}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu"]
+              ["--window-size=#{PAGE},#{PAGE}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu", "--force-color-profile=srgb"]
             end
             FileUtils.rm png_path if png_path.exist?
             stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{src_path}"

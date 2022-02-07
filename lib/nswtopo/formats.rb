@@ -47,6 +47,8 @@ module NSWTopo
         raster_dimensions, ppi, resolution = raster_dimensions_at **options
         svg_path = temp_dir / "map.svg"
         src_path = temp_dir / "browser.svg"
+        vrt_path = temp_dir / "map.vrt"
+
         render_svg svg_path, external: external
 
         NSWTopo.with_browser do |browser_name, browser_path|
@@ -92,13 +94,25 @@ module NSWTopo
             (dimension * ppi / 25.4 / page).ceil.times.map do |index|
               [index * page, index * page * 25.4 / ppi]
             end
-          end.inject(&:product).map(&:transpose).flat_map do |raster_offset, viewport_offset|
+          end.inject(&:product).map(&:transpose).map do |raster_offset, viewport_offset|
             page_path = temp_dir.join("page.%i.%i.png" % raster_offset)
             src_path.write svg.sub(viewbox_matcher, "viewBox='%s %s %s %s'" % [*viewport_offset, *viewport_dimensions])
             render.call page_path
-            ["-page", "+%i+%i" % raster_offset, page_path]
-          end.tap do |args|
-            OS.convert *args, "-layers", "merge", "+repage", "-crop", "#{raster_dimensions.join ?x}+0+0", "+repage", "-background", "white", "-alpha", "Remove", "-units", "PixelsPerInch", "-density", ppi, "-define", "PNG:exclude-chunk=bkgd,itxt,ztxt,text,chrm", png_path
+            REXML::Document.new(OS.gdal_translate "-of", "VRT", page_path, "/vsistdout/").tap do |vrt|
+              vrt.elements.each("VRTDataset/VRTRasterBand[@band='4']", &:remove)
+              vrt.elements.each("VRTDataset/VRTRasterBand/SimpleSource/DstRect") do |dst_rect|
+                dst_rect.add_attributes "xOff" => raster_offset[0], "yOff" => raster_offset[1]
+              end
+            end
+          end.inject do |vrt, page_vrt|
+            vrt.elements["VRTDataset/VRTRasterBand[@band='1']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='1']/SimpleSource"]
+            vrt.elements["VRTDataset/VRTRasterBand[@band='2']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='2']/SimpleSource"]
+            vrt.elements["VRTDataset/VRTRasterBand[@band='3']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='3']/SimpleSource"]
+            vrt
+          end.tap do |vrt|
+            vrt.elements["VRTDataset"].add_attributes "rasterXSize" => raster_dimensions[0], "rasterYSize" => raster_dimensions[1]
+            File.write vrt_path, vrt
+            OS.gdal_translate vrt_path, png_path
           end
         end
       end

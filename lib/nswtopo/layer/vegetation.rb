@@ -56,9 +56,8 @@ module NSWTopo
         xml.elements.collect("/VRTDataset/VRTRasterBand/ColorTable/Entry", &:itself).zip(colour_table) do |entry, colour|
           entry.attributes["c1"], entry.attributes["c2"], entry.attributes["c3"], entry.attributes["c4"] = *colour.triplet, 255
         end
-        xml.elements.each("/VRTDataset/VRTRasterBand/NoDataValue", &:remove)
         indexed_vrt_path.write xml
-        OS.gdal_translate "-expand", "rgb", indexed_vrt_path, coloured_tif_path
+        OS.gdal_translate "-expand", "rgba", indexed_vrt_path, coloured_tif_path
 
         OS.gdalwarp "-s_srs", projection, "-t_srs", @map.projection, "-r", "bilinear", coloured_tif_path, tif_path
         next tif_path, Numeric === @resolution ? @resolution : @map.get_raster_resolution(tif_path)

@@ -378,7 +378,6 @@ begin
       EOF
       parser.on "-d", "--delete        <name>",                      "delete configuration setting"
       parser.on "-c", "--chrome        <path>",       Pathname,      "set path for Google Chrome"
-      parser.on "-f", "--firefox       <path>",       Pathname,      "set path for Firefox"
       parser.on "-p", "--path          <path>",       Pathname,      "set path for given layer"
       parser.on "-r", "--resolution    <resolution>", PositiveFloat, "set resolution for given layer"
       parser.on       "--layer-dir     <path>",       Pathname,      "set an extra layer directory"

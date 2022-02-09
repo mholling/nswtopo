@@ -14,15 +14,10 @@ module NSWTopo
           svg_path.write xml
 
           FileUtils.rm pdf_path if pdf_path.exist?
-          NSWTopo.with_browser do |browser_name, browser_path|
-            args = case browser_name
-            when "chrome"
-              ["--headless", "--disable-gpu", "--print-to-pdf=#{pdf_path}"]
-            when "firefox"
-              raise "can't create vector PDF with firefox; use chrome or specify ppi for a raster PDF"
-            end
+          NSWTopo.with_chrome do |chrome_path|
+            args = ["--headless", "--disable-gpu", "--print-to-pdf=#{pdf_path}"]
             stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{svg_path}"
-            raise "couldn't create PDF using %s" % browser_name unless status.success? && pdf_path.file?
+            raise "couldn't create PDF using chrome" unless status.success? && pdf_path.file?
           end
         end
       end

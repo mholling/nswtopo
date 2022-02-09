@@ -62,24 +62,16 @@ module NSWTopo
           raise "must specify ppi when using an external svg"
         end
 
-        NSWTopo.with_browser do |browser_name, browser_path|
+        NSWTopo.with_chrome do |chrome_path|
           megapixels = raster_dimensions.inject(&:*) / 1024.0 / 1024.0
-          log_update "%s: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [browser_name, *raster_dimensions, megapixels, options[:ppi]       ] if options[:ppi]
-          log_update "%s: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [browser_name, *raster_dimensions, megapixels, options[:resolution]] if options[:resolution]
+          log_update "chrome: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [*raster_dimensions, megapixels, options[:ppi]       ] if options[:ppi]
+          log_update "chrome: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [*raster_dimensions, megapixels, options[:resolution]] if options[:resolution]
 
           render = lambda do |png_path|
-            args = case browser_name
-            when "firefox"
-              ["--window-size=#{PAGE},#{PAGE}", "-headless", "-screenshot", png_path.to_s]
-            when "chrome"
-              ["--window-size=#{PAGE},#{PAGE}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu", "--force-color-profile=srgb"]
-            end
+            args = ["--window-size=#{PAGE},#{PAGE}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu", "--force-color-profile=srgb"]
             FileUtils.rm png_path if png_path.exist?
-            stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{src_path}"
-            case browser_name
-            when "firefox" then raise "couldn't rasterise map using firefox (ensure browser is closed)"
-            when "chrome" then raise "couldn't rasterise map using chrome"
-            end unless status.success? && png_path.file?
+            stdout, stderr, status = Open3.capture3 chrome_path.to_s, *args, "file://#{src_path}"
+            raise "couldn't rasterise map using chrome" unless status.success? && png_path.file?
           end
 
           xml.elements["svg/@width" ].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }

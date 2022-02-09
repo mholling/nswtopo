@@ -29,7 +29,7 @@ For the *mbtiles* format, resolution values are fixed to zoom levels. The defaul
 
 # Setting Up Chrome
 
-To create any output format except SVG, you'll need to have *Google Chrome* installed. Chrome is used by *nswtopo* in headless mode to render the vector SVG format as a raster graphic. *Firefox* can also be used, although it does not render some effects correctly. (On MacOS and Linux, Chrome is also used to measure font metrics during labelling.)
+To create any output format except SVG, you'll need to have *Google Chrome* installed. Chrome is used by *nswtopo* in headless mode to render the vector SVG format as a raster graphic. (On MacOS and Linux, Chrome is also used to measure font metrics during labelling.)
 
 Add the path for your Chrome executable to your *nswtopo* configuration as follows:
 

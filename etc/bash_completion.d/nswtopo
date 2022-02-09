@@ -93,7 +93,7 @@ _nswtopo() {
 				config)
 					args+=()
 					flag_opts+=(--labelling --no-labelling)
-					file_opts+=(-c --chrome -f --firefox -p --path --layer-dir)
+					file_opts+=(-c --chrome -p --path --layer-dir)
 					arg_opts+=(-d --delete -r --resolution -z --zlib-level)
 					;;
 				scrape)

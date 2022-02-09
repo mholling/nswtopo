@@ -5,9 +5,8 @@ module NSWTopo
       when external
         raise "not a file: %s" % external unless external.file?
         begin
-          svg = REXML::Document.new(external.read).elements["svg"]
-          raise "not an SVG file: %s" % external unless svg
-          desc = svg.elements["metadata/rdf:RDF/rdf:Description[@dc:creator='nswtopo']"]
+          xml = REXML::Document.new(external.read)
+          desc = xml.elements["svg/metadata/rdf:RDF/rdf:Description[@dc:creator='nswtopo']"]
           raise "not an nswtopo SVG file: %s" % external unless desc
         rescue REXML::ParseException
           raise "not an SVG file: %s" % external

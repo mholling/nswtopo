@@ -42,14 +42,25 @@ module NSWTopo
       OS.gdal_translate "-of", "JPEG", "-co", "QUALITY=90", "-mo", "EXIF_XResolution=#{ppi}", "-mo", "EXIF_YResolution=#{ppi}", "-mo", "EXIF_ResolutionUnit=2", yield(ppi: ppi), jpg_path
     end
 
-    def rasterise(png_path, external:, **options)
+    def rasterise(png_path, external:, ppi: nil, **options)
       Dir.mktmppath do |temp_dir|
-        raster_dimensions, ppi, resolution = raster_dimensions_at **options
         svg_path = temp_dir / "map.svg"
         src_path = temp_dir / "browser.svg"
         vrt_path = temp_dir / "map.vrt"
 
         render_svg svg_path, external: external
+        xml = REXML::Document.new svg_path.read
+
+        case
+        when !external
+          raster_dimensions, ppi, resolution = raster_dimensions_at ppi: ppi, **options
+        when ppi
+          raster_dimensions = xml.elements["svg"].attributes.values_at("width", "height").map do |attribute|
+            attribute.value.to_f * ppi / 25.4
+          end.map(&:ceil)
+        else
+          raise "must specify ppi when using an external svg"
+        end
 
         NSWTopo.with_browser do |browser_name, browser_path|
           megapixels = raster_dimensions.inject(&:*) / 1024.0 / 1024.0
@@ -71,9 +82,8 @@ module NSWTopo
             end unless status.success? && png_path.file?
           end
 
-          svg = svg_path.read
-          svg.sub!( /width='(.*?)mm'/) {  %Q[width='%smm'] % ($1.to_f * ppi / 96.0) }
-          svg.sub!(/height='(.*?)mm'/) { %Q[height='%smm'] % ($1.to_f * ppi / 96.0) }
+          xml.elements["svg/@width" ].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
+          xml.elements["svg/@height"].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
 
           src_path.write %Q[<?xml version='1.0' encoding='UTF-8'?><svg version='1.1' baseProfile='full' xmlns='http://www.w3.org/2000/svg'></svg>]
           empty_path = temp_dir / "empty.png"
@@ -81,10 +91,7 @@ module NSWTopo
           json = OS.gdalinfo "-json", empty_path
           page = JSON.parse(json)["size"][0]
 
-          viewbox_matcher = /viewBox='(.*?)'/
-          origin, svg_dimensions = *svg.match(viewbox_matcher) do |match|
-            match[1].split.map(&:to_f)
-          end.each_slice(2)
+          origin, svg_dimensions = *xml.elements["svg/@viewBox"].value.split.map(&:to_f).each_slice(2)
 
           viewport_dimensions = svg_dimensions.map do |dimension|
             dimension * page / PAGE
@@ -96,7 +103,8 @@ module NSWTopo
             end
           end.inject(&:product).map(&:transpose).map do |raster_offset, viewport_offset|
             page_path = temp_dir.join("page.%i.%i.png" % raster_offset)
-            src_path.write svg.sub(viewbox_matcher, "viewBox='%s %s %s %s'" % [*viewport_offset, *viewport_dimensions])
+            xml.elements["svg"].add_attribute "viewBox", [*viewport_offset, *viewport_dimensions].join(?\s)
+            src_path.write xml
             render.call page_path
             REXML::Document.new(OS.gdal_translate "-of", "VRT", page_path, "/vsistdout/").tap do |vrt|
               vrt.elements.each("VRTDataset/VRTRasterBand[@band='4']", &:remove)

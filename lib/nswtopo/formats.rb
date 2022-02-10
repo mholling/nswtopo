@@ -86,7 +86,8 @@ module NSWTopo
           xml.elements["svg"].add_attribute "viewBox", [*viewport_offset, *viewport_dimensions].join(?\s)
           src_path.write xml
 
-          stdout, stderr, status = Open3.capture3 chrome_path, *CHROME_ARGS, "--screenshot=#{page_path}", "file://#{src_path}"
+          chrome_args = %W[--screenshot=#{page_path} file://#{src_path}]
+          stdout, stderr, status = Open3.capture3 chrome_path, *CHROME_ARGS, *chrome_args
           raise "couldn't rasterise map using chrome" unless status.success? && page_path.file?
 
           REXML::Document.new(OS.gdal_translate "-of", "VRT", page_path, "/vsistdout/").tap do |vrt|

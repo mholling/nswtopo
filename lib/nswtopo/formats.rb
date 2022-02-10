@@ -11,6 +11,7 @@ module NSWTopo
     include Log
     PPI = 300
     PAGE = 2000
+    CHROME_ARGS = %W[--window-size=#{PAGE},#{PAGE} --headless --force-device-scale-factor=1 --disable-lcd-text --disable-extensions --hide-scrollbars --disable-gpu --force-color-profile=srgb]
 
     def self.extensions
       instance_methods.grep(/^render_([a-z]+)/) { $1 }
@@ -64,40 +65,29 @@ module NSWTopo
 
         NSWTopo.with_chrome do |chrome_path|
           megapixels = raster_dimensions.inject(&:*) / 1024.0 / 1024.0
-          log_update "chrome: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [*raster_dimensions, megapixels, options[:ppi]       ] if options[:ppi]
-          log_update "chrome: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [*raster_dimensions, megapixels, options[:resolution]] if options[:resolution]
-
-          render = lambda do |png_path|
-            args = ["--window-size=#{PAGE},#{PAGE}", "--headless", "--screenshot=#{png_path}", "--disable-lcd-text", "--disable-extensions", "--hide-scrollbars", "--disable-gpu", "--force-color-profile=srgb"]
-            FileUtils.rm png_path if png_path.exist?
-            stdout, stderr, status = Open3.capture3 chrome_path.to_s, *args, "file://#{src_path}"
-            raise "couldn't rasterise map using chrome" unless status.success? && png_path.file?
+          if options[:resolution]
+            log_update "chrome: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [*raster_dimensions, megapixels, resolution]
+          else
+            log_update "chrome: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [*raster_dimensions, megapixels, ppi]
           end
 
           xml.elements["svg/@width" ].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
           xml.elements["svg/@height"].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
 
-          src_path.write %Q[<?xml version='1.0' encoding='UTF-8'?><svg version='1.1' baseProfile='full' xmlns='http://www.w3.org/2000/svg'></svg>]
-          empty_path = temp_dir / "empty.png"
-          render.call empty_path
-          json = OS.gdalinfo "-json", empty_path
-          page = JSON.parse(json)["size"][0]
+          viewport_dimensions = xml.elements["svg/@viewBox"].value.split.map(&:to_f).last(2)
 
-          origin, svg_dimensions = *xml.elements["svg/@viewBox"].value.split.map(&:to_f).each_slice(2)
-
-          viewport_dimensions = svg_dimensions.map do |dimension|
-            dimension * page / PAGE
-          end
-
-          svg_dimensions.map do |dimension|
-            (dimension * ppi / 25.4 / page).ceil.times.map do |index|
-              [index * page, index * page * 25.4 / ppi]
+          viewport_dimensions.map do |dimension|
+            (0...(dimension * ppi / 25.4).ceil).step(PAGE).map do |px|
+              [px, px * 25.4 / ppi]
             end
           end.inject(&:product).map(&:transpose).map do |raster_offset, viewport_offset|
             page_path = temp_dir.join("page.%i.%i.png" % raster_offset)
             xml.elements["svg"].add_attribute "viewBox", [*viewport_offset, *viewport_dimensions].join(?\s)
             src_path.write xml
-            render.call page_path
+
+            stdout, stderr, status = Open3.capture3 chrome_path.to_s, *CHROME_ARGS, "--screenshot=#{page_path}", "file://#{src_path}"
+            raise "couldn't rasterise map using chrome" unless status.success? && page_path.file?
+
             REXML::Document.new(OS.gdal_translate "-of", "VRT", page_path, "/vsistdout/").tap do |vrt|
               vrt.elements.each("VRTDataset/VRTRasterBand[@band='4']", &:remove)
               vrt.elements.each("VRTDataset/VRTRasterBand/SimpleSource/DstRect") do |dst_rect|

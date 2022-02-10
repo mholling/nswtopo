@@ -14,10 +14,13 @@ module NSWTopo
           svg_path.write xml
 
           FileUtils.rm pdf_path if pdf_path.exist?
-          NSWTopo.with_chrome do |chrome_path|
-            args = ["--headless", "--disable-gpu", "--print-to-pdf=#{pdf_path}"]
-            stdout, stderr, status = Open3.capture3 browser_path.to_s, *args, "file://#{svg_path}"
+          Config["chrome"].tap do |chrome_path|
+            raise "please configure a path for google chrome" unless chrome_path
+            args = %W[--headless --disable-gpu --print-to-pdf=#{pdf_path}]
+            stdout, stderr, status = Open3.capture3 chrome_path, *args, "file://#{svg_path}"
             raise "couldn't create PDF using chrome" unless status.success? && pdf_path.file?
+          rescue Errno::ENOENT
+            raise "invalid chrome path: %s" % chrome_path
           end
         end
       end

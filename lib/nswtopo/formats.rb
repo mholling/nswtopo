@@ -49,6 +49,9 @@ module NSWTopo
         src_path = temp_dir / "browser.svg"
         vrt_path = temp_dir / "map.vrt"
 
+        chrome_path = Config["chrome"]
+        raise "please configure a path for google chrome" unless chrome_path
+
         render_svg svg_path, external: external
         xml = REXML::Document.new svg_path.read
 
@@ -63,47 +66,46 @@ module NSWTopo
           raise "must specify ppi when using an external svg"
         end
 
-        NSWTopo.with_chrome do |chrome_path|
-          megapixels = raster_dimensions.inject(&:*) / 1024.0 / 1024.0
-          if options[:resolution]
-            log_update "chrome: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [*raster_dimensions, megapixels, resolution]
-          else
-            log_update "chrome: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [*raster_dimensions, megapixels, ppi]
+        megapixels = raster_dimensions.inject(&:*) / 1024.0 / 1024.0
+        if options[:resolution]
+          log_update "chrome: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [*raster_dimensions, megapixels, resolution]
+        else
+          log_update "chrome: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [*raster_dimensions, megapixels, ppi]
+        end
+
+        xml.elements["svg/@width" ].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
+        xml.elements["svg/@height"].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
+
+        viewport_dimensions = xml.elements["svg/@viewBox"].value.split.map(&:to_f).last(2)
+        viewport_dimensions.map do |dimension|
+          (0...(dimension * ppi / 25.4).ceil).step(PAGE).map do |px|
+            [px, px * 25.4 / ppi]
           end
+        end.inject(&:product).map(&:transpose).map do |raster_offset, viewport_offset|
+          page_path = temp_dir.join("page.%i.%i.png" % raster_offset)
+          xml.elements["svg"].add_attribute "viewBox", [*viewport_offset, *viewport_dimensions].join(?\s)
+          src_path.write xml
 
-          xml.elements["svg/@width" ].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
-          xml.elements["svg/@height"].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
+          stdout, stderr, status = Open3.capture3 chrome_path, *CHROME_ARGS, "--screenshot=#{page_path}", "file://#{src_path}"
+          raise "couldn't rasterise map using chrome" unless status.success? && page_path.file?
 
-          viewport_dimensions = xml.elements["svg/@viewBox"].value.split.map(&:to_f).last(2)
-
-          viewport_dimensions.map do |dimension|
-            (0...(dimension * ppi / 25.4).ceil).step(PAGE).map do |px|
-              [px, px * 25.4 / ppi]
+          REXML::Document.new(OS.gdal_translate "-of", "VRT", page_path, "/vsistdout/").tap do |vrt|
+            vrt.elements.each("VRTDataset/VRTRasterBand[@band='4']", &:remove)
+            vrt.elements.each("VRTDataset/VRTRasterBand/SimpleSource/DstRect") do |dst_rect|
+              dst_rect.add_attributes "xOff" => raster_offset[0], "yOff" => raster_offset[1]
             end
-          end.inject(&:product).map(&:transpose).map do |raster_offset, viewport_offset|
-            page_path = temp_dir.join("page.%i.%i.png" % raster_offset)
-            xml.elements["svg"].add_attribute "viewBox", [*viewport_offset, *viewport_dimensions].join(?\s)
-            src_path.write xml
-
-            stdout, stderr, status = Open3.capture3 chrome_path.to_s, *CHROME_ARGS, "--screenshot=#{page_path}", "file://#{src_path}"
-            raise "couldn't rasterise map using chrome" unless status.success? && page_path.file?
-
-            REXML::Document.new(OS.gdal_translate "-of", "VRT", page_path, "/vsistdout/").tap do |vrt|
-              vrt.elements.each("VRTDataset/VRTRasterBand[@band='4']", &:remove)
-              vrt.elements.each("VRTDataset/VRTRasterBand/SimpleSource/DstRect") do |dst_rect|
-                dst_rect.add_attributes "xOff" => raster_offset[0], "yOff" => raster_offset[1]
-              end
-            end
-          end.inject do |vrt, page_vrt|
-            vrt.elements["VRTDataset/VRTRasterBand[@band='1']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='1']/SimpleSource"]
-            vrt.elements["VRTDataset/VRTRasterBand[@band='2']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='2']/SimpleSource"]
-            vrt.elements["VRTDataset/VRTRasterBand[@band='3']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='3']/SimpleSource"]
-            vrt
-          end.tap do |vrt|
-            vrt.elements["VRTDataset"].add_attributes "rasterXSize" => raster_dimensions[0], "rasterYSize" => raster_dimensions[1]
-            File.write vrt_path, vrt
-            OS.gdal_translate vrt_path, png_path
           end
+        rescue Errno::ENOENT
+          raise "invalid chrome path: %s" % chrome_path
+        end.inject do |vrt, page_vrt|
+          vrt.elements["VRTDataset/VRTRasterBand[@band='1']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='1']/SimpleSource"]
+          vrt.elements["VRTDataset/VRTRasterBand[@band='2']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='2']/SimpleSource"]
+          vrt.elements["VRTDataset/VRTRasterBand[@band='3']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='3']/SimpleSource"]
+          vrt
+        end.tap do |vrt|
+          vrt.elements["VRTDataset"].add_attributes "rasterXSize" => raster_dimensions[0], "rasterYSize" => raster_dimensions[1]
+          File.write vrt_path, vrt
+          OS.gdal_translate vrt_path, png_path
         end
       end
     end

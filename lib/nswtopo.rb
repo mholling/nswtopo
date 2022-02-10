@@ -51,14 +51,6 @@ module NSWTopo
   def layer_dirs
     @layer_dirs ||= Array(Config["layer-dir"]).map(&Pathname.method(:new)) << Pathname.pwd
   end
-
-  def with_chrome
-    chrome_path = Config["chrome"]
-    raise "please configure a path for google chrome" unless chrome_path
-    yield Pathname.new(chrome_path)
-  rescue Errno::ENOENT
-    raise "invalid chrome path: %s" % chrome_path
-  end
 end
 
 begin

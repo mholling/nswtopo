@@ -6,41 +6,21 @@ module NSWTopo
     GDAL = %w[
       gdal_contour
       gdal_grid
-      gdal_rasterize
       gdal_translate
-      gdaladdo
       gdalbuildvrt
       gdaldem
-      gdalenhance
       gdalinfo
       gdallocationinfo
       gdalmanage
-      gdalserver
       gdalsrsinfo
-      gdaltindex
       gdaltransform
       gdalwarp
-      gnmanalyse
-      gnmmanage
-      nearblack
       ogr2ogr
       ogrinfo
-      ogrlineref
-      ogrtindex
-      testepsg
     ]
     ImageMagick = %w[
-      animate
-      compare
-      composite
-      conjure
       convert
-      display
-      identify
-      import
       mogrify
-      montage
-      stream
     ]
     SQLite3 = %w[sqlite3]
     PNGQuant = %w[pngquant]

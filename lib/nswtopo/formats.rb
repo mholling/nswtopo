@@ -104,6 +104,8 @@ module NSWTopo
           vrt.elements["VRTDataset/VRTRasterBand[@band='3']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='3']/SimpleSource"]
           vrt
         end.tap do |vrt|
+          vrt.elements.each("VRTDataset/VRTRasterBand/@blockYSize", &:remove)
+          vrt.elements.each("VRTDataset/Metadata", &:remove)
           vrt.elements["VRTDataset"].add_attributes "rasterXSize" => raster_dimensions[0], "rasterYSize" => raster_dimensions[1]
           File.write vrt_path, vrt
           OS.gdal_translate vrt_path, png_path

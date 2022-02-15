@@ -139,6 +139,11 @@ module NSWTopo
       WorldFile.write top_left, resolution, -@rotation, path
     end
 
+    def write_empty_raster(path, resolution:)
+      dimensions, ppi, resolution = raster_dimensions_at resolution: resolution
+      EmptyRaster.write path, dimensions: dimensions, resolution: resolution, projection: @projection, top_left: bounding_box.coordinates[0][3], angle: -@rotation
+    end
+
     def coords_to_mm(point)
       @affine.map do |row|
         row.dot [*point, 1.0]

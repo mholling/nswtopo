@@ -3,18 +3,16 @@ module NSWTopo
     def create
       tif = Dir.mktmppath do |temp_dir|
         tif_path = temp_dir / "final.tif"
-        tfw_path = temp_dir / "final.tfw"
         out_path = temp_dir / "output.tif"
 
         resolution, raster_path = get_raster(temp_dir)
-        dimensions, ppi, resolution = @map.raster_dimensions_at resolution: resolution
+        @map.write_empty_raster tif_path, resolution: resolution
+        OS.gdalwarp "-r", "bilinear", raster_path, tif_path
+
         density = 0.01 * @map.scale / resolution
         tiff_tags = %W[-mo TIFFTAG_XRESOLUTION=#{density} -mo TIFFTAG_YRESOLUTION=#{density} -mo TIFFTAG_RESOLUTIONUNIT=3]
 
-        @map.write_world_file tfw_path, resolution: resolution
-        OS.convert "-size", dimensions.join(?x), "canvas:none", "-type", "TrueColorMatte", "-depth", 8, tif_path
-        OS.gdalwarp "-t_srs", @map.projection, "-r", "bilinear", raster_path, tif_path
-        OS.gdal_translate "-a_srs", @map.projection, *tiff_tags, tif_path, out_path
+        OS.gdal_translate *tiff_tags, tif_path, out_path
         @map.write filename, out_path.binread
       end
     end

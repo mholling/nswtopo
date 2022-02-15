@@ -52,7 +52,7 @@ module NSWTopo
       wgs84_bounds = bounds(projection: Projection.wgs84)
       wgs84_dimensions = wgs84_bounds.transpose.diff / degree_resolution
       max_zoom = Math::log2(wgs84_dimensions.max).ceil - Math::log2(Kmz::TILE_SIZE).to_i
-      topleft = [wgs84_bounds[0][0], wgs84_bounds[1][1]]
+      top_left = [wgs84_bounds[0][0], wgs84_bounds[1][1]]
       png_path = yield(ppi: ppi)
 
       Dir.mktmppath do |temp_dir|
@@ -62,13 +62,11 @@ module NSWTopo
           counts = (wgs84_bounds.transpose.diff / degrees_per_tile).map(&:ceil)
           dimensions = counts.times Kmz::TILE_SIZE
 
-          tfw_path = temp_dir / "#{name}.kmz.zoom.#{zoom}.tfw"
           tif_path = temp_dir / "#{name}.kmz.zoom.#{zoom}.tif"
-          WorldFile.write topleft, resolution, 0, tfw_path
-          OS.convert "-size", dimensions.join(?x), "canvas:none", "-type", "TrueColorMatte", "-depth", 8, tif_path
-          OS.gdalwarp "-s_srs", @projection, "-t_srs", Projection.wgs84, "-r", "bilinear", "-dstalpha", png_path, tif_path
+          EmptyRaster.write tif_path, projection: Projection.wgs84, dimensions: dimensions, top_left: top_left, resolution: resolution
+          OS.gdalwarp "-s_srs", @projection, "-r", "bilinear", "-dstalpha", png_path, tif_path
 
-          indices_bounds = [topleft, counts, %i[+ -]].transpose.map do |coord, count, increment|
+          indices_bounds = [top_left, counts, %i[+ -]].transpose.map do |coord, count, increment|
             boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
             [boundaries[0..-2], boundaries[1..-1]].transpose.map(&:sort)
           end.map do |tile_bounds|

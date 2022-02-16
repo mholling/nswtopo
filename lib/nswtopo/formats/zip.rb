@@ -2,7 +2,7 @@ module NSWTopo
   module Formats
     def render_zip(zip_path, name:, ppi: PPI, **options)
       Dir.mktmppath do |temp_dir|
-        zip_dir = temp_dir.join("#{name}.avenza").tap(&:mkpath)
+        zip_dir = temp_dir.join("zip").tap(&:mkpath)
         tiles_dir = zip_dir.join("tiles").tap(&:mkpath)
         png_path = yield(ppi: ppi)
         top_left = bounding_box.coordinates[0][3]
@@ -10,37 +10,39 @@ module NSWTopo
         2.downto(0).map.with_index do |level, index|
           [level, index, *raster_dimensions_at(ppi: ppi.to_f / 2**index)]
         end.map do |level, index, dimensions, ppi, resolution|
-          zip_dir.join("#{name}.ref").open("w") do |file|
-            file.puts @projection.wkt_simple
-            file.puts WorldFile.geotransform(top_left, resolution, -@rotation).flatten.join(?,)
-            file << dimensions.join(?,)
-          end if index == 1
-
-          img_path = index.zero? ? png_path : temp_dir / "#{name}.avenza.#{level}.png"
-          tile_path = temp_dir.join("#{name}.avenza.tile.#{level}.%09d.png").to_s
-          tile_paths = dimensions.reverse.map do |dimension|
-            0.upto((dimension - 1) / 256).to_a
-          end.inject(&:product).map.with_index do |(y, x), n|
-            [tile_path % n, tiles_dir / "#{level}x#{y}x#{x}.png"]
+          case index
+          when 0
+            outsize = dimensions.inject(&:<) ? [0, 64] : [64, 0]
+            OS.gdal_translate *%w[--config GDAL_PAM_ENABLED NO -r bilinear -outsize], *outsize, png_path, zip_dir / "thumb.png"
+          when 1
+            zip_dir.join("#{name}.ref").open("w") do |file|
+              file.puts @projection.wkt_simple
+              file.puts WorldFile.geotransform(top_left, resolution, -@rotation).flatten.join(?,)
+              file << dimensions.join(?,)
+            end
           end
-          [dimensions, img_path, tile_path, tile_paths]
-        end.transpose.tap do |*, tile_paths|
-          log_update "zip: creating %i tiles" % tile_paths.sum(&:length)
-        end.transpose.each.concurrently do |dimensions, img_path, tile_path, tile_paths|
-          OS.convert png_path, "-filter", "Cubic", "-resize", "%ix%i!" % dimensions, img_path unless img_path.exist?
-          OS.convert img_path, "+repage", "-crop", "256x256", tile_path
-          tile_paths.each do |src, dst|
-            FileUtils.cp src, dst
+          img_path = index.zero? ? png_path : temp_dir / "map.#{level}.png"
+          next level, dimensions, img_path
+        end.each.concurrently do |level, dimensions, img_path|
+          OS.gdal_translate *%w[-r bicubic -outsize], *dimensions, png_path, img_path unless img_path.exist?
+        end.flat_map do |level, dimensions, img_path|
+          dimensions.map do |dimension|
+            (0...dimension).step(256).with_index.entries
+          end.inject(&:product).map do |(col, j), (row, i)|
+            tile_path = tiles_dir / "#{level}x#{i}x#{j}.png"
+            size = [-col, -row].zip(dimensions).map(&:sum).zip([256, 256]).map(&:min)
+            %w[--config GDAL_PAM_ENABLED NO -srcwin] + [col, row, *size, img_path, tile_path]
           end
-        end
-
-        Pathname.glob(tiles_dir / "*.png").tap do |tile_paths|
+        end.tap do |tiles|
+          log_update "zip: creating %i tiles" % tiles.length
+        end.each.concurrently do |args|
+          OS.gdal_translate *args
+        end.map(&:last).tap do |tile_paths|
           log_update "zip: optimising %i tiles" % tile_paths.length
         end.each.concurrent_groups do |tile_paths|
           dither *tile_paths
         end
 
-        OS.convert png_path, "-thumbnail", "64x64", "-gravity", "center", "-background", "white", "-extent", "64x64", "-alpha", "Remove", "-type", "TrueColor", zip_dir / "thumb.png"
         zip zip_dir, zip_path
       end
     end

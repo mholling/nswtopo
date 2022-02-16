@@ -14,29 +14,36 @@ module NSWTopo
         end.map.with_index do |indices, axis|
           [indices, indices.size * TILE_SIZE, (axis.zero? ? indices.first : indices.last) * 2 * HALF / 2**zoom - HALF]
         end.transpose
-        tile_path = temp_dir.join("tile.#{zoom}.%09d.png").to_s
         resolution = 2 * HALF / TILE_SIZE / 2**zoom
-        [resolution, dimensions, top_left, tile_path, indices, zoom]
-      end.select do |*, indices, zoom|
+        tif_path = temp_dir / "tile.#{zoom}.tif"
+        { resolution: resolution, dimensions: dimensions, top_left: top_left, tif_path: tif_path, indices: indices, zoom: zoom }
+      end.select do |indices:, zoom:, **|
         next true if zoom == max_zoom
         next zoom >= min_zoom if min_zoom
         !indices.all?(&:one?)
-      end.tap do |(resolution, *), *|
-        png_path = yield(resolution: resolution)
+      end.tap do |max_level, *|
+        png_path = yield(max_level.slice :resolution)
       end.tap do |levels|
-        log_update "#{extension}: tiling for zoom levels %s" % levels.map(&:last).minmax.uniq.join(?-)
-      end.each.concurrently do |resolution, dimensions, top_left, tile_path, indices, zoom|
-        tif_path = temp_dir / "tile.#{zoom}.tif"
-        EmptyRaster.write tif_path, dimensions: dimensions, resolution: resolution, top_left: top_left, projection: Projection.new("EPSG:3857")
-        OS.gdalwarp "-s_srs", @projection, "-t_srs", "EPSG:3857", "-r", "cubic", "-dstalpha", png_path, tif_path
-        OS.convert tif_path, "-quiet", "+repage", "-crop", "#{TILE_SIZE}x#{TILE_SIZE}", tile_path
-      end.map do |resolution, dimensions, topleft, tile_path, indices, zoom|
+        zoom_levels = levels.map { |zoom:, **| zoom }
+        log_update "#{extension}: creating zoom levels %s" % zoom_levels.minmax.uniq.join(?-)
+      end.each.concurrently do |resolution:, dimensions:, top_left:, tif_path:, **|
+        EmptyRaster.write tif_path, resolution: resolution, dimensions: dimensions, top_left: top_left, projection: Projection.new("EPSG:3857")
+        OS.gdalwarp "-s_srs", @projection, "-r", "cubic", "-dstalpha", png_path, tif_path
+      end.flat_map do |tif_path:, indices:, zoom:, **|
         cols, rows = indices.map(&:to_a)
-        rows.reverse.product(cols).map.with_index do |(row, col), index|
+        [cols, rows.reverse].map(&:each).map(&:with_index).map(&:entries).inject(&:product).map do |(col, j), (row, i)|
           row ^= 2**zoom - 1 if extension == "gemf"
-          [zoom, col, row, Pathname(tile_path % index)]
+          tile_path = temp_dir / "tile.#{zoom}.#{col}.#{row}.png"
+          args = ["-srcwin", j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE, TILE_SIZE, tif_path, tile_path]
+          { zoom: zoom, row: row, col: col, tile_path: tile_path, args: args}
         end
-      end.flatten(1).tap do |tiles|
+      end.tap do |tiles|
+        log_update "#{extension}: creating %i tiles" % tiles.length
+      end.each.concurrently do |args:, tile_path:, **|
+        OS.gdal_translate *args
+      end.map do |zoom:, col:, row:, tile_path:, **|
+        next zoom, col, row, tile_path
+      end.tap do |tiles|
         log_update "#{extension}: optimising %i tiles" % tiles.length
         tiles.map(&:last).each.concurrent_groups do |png_paths|
           dither *png_paths

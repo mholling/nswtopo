@@ -89,7 +89,7 @@ module NSWTopo
         ids = [name, *categories]
         case features
         when String
-          container = group.add_element "use", "class" => categories.to_a.join(?\s), "xlink:href" => "#%s" % features
+          container = group.add_element "use", "class" => categories.to_a.join(?\s), "href" => "#%s" % features
         when Array
           container = group.add_element "g", "class" => categories.to_a.join(?\s)
           content = container.add_element "g", "id" => [*ids, "content"].join(?.)
@@ -107,7 +107,7 @@ module NSWTopo
           when GeoJSON::Point
             symbol_id = [*ids, "symbol"].join(?.)
             transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*feature.coordinates.yield_self(&to_mm), feature.fetch("rotation", @map.rotation) - @map.rotation]
-            content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
+            content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
 
           when GeoJSON::LineString
             linestring = feature.coordinates.map(&to_mm)
@@ -184,7 +184,7 @@ module NSWTopo
             lines_or_rings.each do |points|
               points.map(&to_mm).sample_at(interval, angle: true, offset: offset).each do |point, angle|
                 transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*point, 180.0 * angle / Math::PI]
-                content.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_ids.sample
+                content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_ids.sample
               end
             end
 
@@ -204,7 +204,7 @@ module NSWTopo
               when "endpoint" then [line.first(2), line.last(2).rotate]
               end.each do |segment|
                 transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*segment.first, 180.0 * segment.diff.angle / Math::PI]
-                container.add_element "use", "transform" => transform, "xlink:href" => "#%s" % symbol_id
+                container.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
               end
             end
 
@@ -219,7 +219,7 @@ module NSWTopo
               end
             end
             transforms = REXML::XPath.each(content, "ancestor::g[@transform]/@transform").map(&:value)
-            mask_contents.add_element "use", "xlink:href" => "#%s" % content.attributes["id"], "transform" => (transforms.join(?\s) if transforms.any?)
+            mask_contents.add_element "use", "href" => "#%s" % content.attributes["id"], "transform" => (transforms.join(?\s) if transforms.any?)
 
           when "fence"
             next unless content && args
@@ -242,9 +242,9 @@ module NSWTopo
                 shield.attributes << text_transform
                 element.parent.elements << shield
                 shield << element
-              when href = element.elements["./textPath[@xlink:href]/@xlink:href"]&.value
+              when href = element.elements["./textPath[@href]/@href"]&.value
                 shield = REXML::Element.new("g")
-                shield.add_element "use", "xlink:href" => href, "stroke-width" => (1 + SHIELD_Y) * font_size, "stroke" => args, "stroke-linecap" => "round"
+                shield.add_element "use", "href" => href, "stroke-width" => (1 + SHIELD_Y) * font_size, "stroke" => args, "stroke-linecap" => "round"
                 element.parent.elements << shield
                 shield << element
               end

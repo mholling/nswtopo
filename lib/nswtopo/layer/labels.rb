@@ -502,9 +502,9 @@ module NSWTopo
               case collection.text
               when REXML::Element
                 fixed = true
-                text_element.add_element collection.text, "xlink:href" => "#%s" % path_id
+                text_element.add_element collection.text, "href" => "#%s" % path_id
               when String
-                text_path = text_element.add_element "textPath", "xlink:href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
+                text_path = text_element.add_element "textPath", "href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
               end
               Label.new collection.layer_name, label_index, feature_index, priority, [hull], attributes, [text_element, path_element], along, fixed

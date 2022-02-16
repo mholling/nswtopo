@@ -21,13 +21,10 @@ module NSWTopo
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new(1.0, "utf-8")
         svg = xml.add_element "svg",
-          "version" => 1.1,
-          "baseProfile" => "full",
           "width"  => "#{width}mm",
           "height" => "#{height}mm",
           "viewBox" => "0 0 #{width} #{height}",
           "xmlns"          => "http://www.w3.org/2000/svg",
-          "xmlns:xlink"    => "http://www.w3.org/1999/xlink",
           "xmlns:sodipodi" => "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd",
           "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape"
 

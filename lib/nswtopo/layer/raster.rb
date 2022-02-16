@@ -54,7 +54,7 @@ module NSWTopo
         png_path.binread
       end
       href = "data:image/png;base64,#{Base64.encode64 png}"
-      group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "xlink:href" => href
+      group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
       group.add_attribute "mask", "url(#raster-mask)" if defs.elements["mask[@id='raster-mask']"]
     end
   end

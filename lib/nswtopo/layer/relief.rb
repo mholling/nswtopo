@@ -110,7 +110,7 @@ module NSWTopo
       end
       if filters.any?
         log_update "%s: applying filters" % @name
-        OS.mogrify "-virtual-pixel", "edge", *filters, tif_path
+        OS.magick *%w[mogrify -virtual-pixel edge], *filters, tif_path
       end
 
       log_update "%s: rendering shaded relief" % @name

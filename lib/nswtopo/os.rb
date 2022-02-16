@@ -18,10 +18,7 @@ module NSWTopo
       ogr2ogr
       ogrinfo
     ]
-    ImageMagick = %w[
-      convert
-      mogrify
-    ]
+    ImageMagick = %w[magick]
     SQLite3 = %w[sqlite3]
     PNGQuant = %w[pngquant]
     GIMP = %w[gimp]

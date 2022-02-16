@@ -119,7 +119,7 @@ module NSWTopo
         end.each.concurrently do |args|
           OS.gdal_translate "--config", "GDAL_PAM_ENABLED", "NO", *args
         end.map(&:last).each.concurrent_groups do |tile_png_paths|
-          OS.mogrify *%w[+dither -type PaletteBilevelMatte -colors 256], *tile_png_paths
+          OS.magick *%w[mogrify +dither -type PaletteBilevelMatte -colors 256], *tile_png_paths
         rescue OS::Missing
         end
 

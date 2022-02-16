@@ -1,7 +1,7 @@
 module NSWTopo
   module Relief
     include Raster, DEM, Log
-    CREATE = %w[shade altitude azimuth sources yellow factor smooth median bilateral contours]
+    CREATE = %w[shade altitude azimuth sources yellow factor smooth contours]
     DEFAULTS = YAML.load <<~YAML
       shade: black
       altitude: 45
@@ -98,20 +98,6 @@ module NSWTopo
 
       tif_path = temp_dir / "relief.tif"
       OS.gdalwarp "-co", "TFW=YES", "-s_srs", @map.projection, "-dstnodata", "None", bil_path, tif_path
-
-      filters = []
-      if @median
-        pixels = (2 * @median + 1).to_i
-        filters += %W[-channel RGBA -statistic median #{pixels}x#{pixels}]
-      end
-      if @bilateral
-        threshold, sigma = *@bilateral, (60.0 / @resolution).round
-        filters += %W[-channel RGB -selective-blur 0x#{sigma}+#{threshold}%]
-      end
-      if filters.any?
-        log_update "%s: applying filters" % @name
-        OS.magick *%w[mogrify -virtual-pixel edge], *filters, tif_path
-      end
 
       log_update "%s: rendering shaded relief" % @name
       vrt_path = temp_dir / "coloured.vrt"

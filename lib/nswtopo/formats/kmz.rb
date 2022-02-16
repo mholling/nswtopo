@@ -112,13 +112,15 @@ module NSWTopo
             end
             tile_kml_path.write xml
 
-            crop = "%ix%i+%i+%s" % [Kmz::TILE_SIZE, Kmz::TILE_SIZE, indices[0] * Kmz::TILE_SIZE, indices[1] * Kmz::TILE_SIZE]
-            [tif_path, "-quiet", "+repage", "-crop", crop, "+repage", "+dither", "-type", "PaletteBilevelMatte", "PNG8:#{tile_png_path}"]
+            ["-srcwin", indices[0] * Kmz::TILE_SIZE, indices[1] * Kmz::TILE_SIZE, Kmz::TILE_SIZE, Kmz::TILE_SIZE, tif_path, tile_png_path]
           end
         end.flatten(1).tap do |tiles|
           log_update "kmz: creating %i tiles" % tiles.length
         end.each.concurrently do |args|
-          OS.convert *args
+          OS.gdal_translate "--config", "GDAL_PAM_ENABLED", "NO", *args
+        end.map(&:last).each.concurrent_groups do |tile_png_paths|
+          OS.mogrify *%w[+dither -type PaletteBilevelMatte -colors 256], *tile_png_paths
+        rescue OS::Missing
         end
 
         xml = REXML::Document.new

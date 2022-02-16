@@ -49,6 +49,7 @@ module NSWTopo
           tile_path
         end.each.concurrent_groups do |png_paths|
           dither *png_paths
+        rescue Dither::Missing
         end
       end
     end

@@ -41,6 +41,7 @@ module NSWTopo
           log_update "zip: optimising %i tiles" % tile_paths.length
         end.each.concurrent_groups do |tile_paths|
           dither *tile_paths
+        rescue Dither::Missing
         end
 
         zip zip_dir, zip_path

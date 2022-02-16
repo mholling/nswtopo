@@ -1,5 +1,7 @@
 module NSWTopo
   module Dither
+    Missing = Class.new RuntimeError
+
     def dither(*png_paths)
       Enumerator.new do |yielder|
         yielder << -> { OS.pngquant *%w[--quiet --force --ext .png --speed 1 --nofs], *png_paths }
@@ -19,8 +21,8 @@ module NSWTopo
           )
         EOF
         yielder << -> { OS.gimp "-c", "-d", "-f", "-i", "-b", gimp_script, "-b", "(gimp-quit TRUE)" }
-        yielder << -> { OS.magick *%w[mogrify -type PaletteBilevelAlpha -dither Riemersma], *png_paths }
-        raise "pngquant, GIMP or ImageMagick required for dithering"
+        yielder << -> { OS.magick *%w[mogrify -type PaletteBilevelAlpha -dither Riemersma -colors 256], *png_paths }
+        raise Missing, "pngquant, GIMP or ImageMagick required for dithering"
       end.each do |dither|
         dither.call
         break

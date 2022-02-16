@@ -41,11 +41,13 @@ module NSWTopo
         log_update "#{extension}: creating %i tiles" % tiles.length
       end.each.concurrently do |args:, tile_path:, **|
         OS.gdal_translate *args
-      end.map do |zoom:, col:, row:, tile_path:, **|
-        next zoom, col, row, tile_path
+      end.map do |tiles|
+        tiles.slice :zoom, :col, :row, :tile_path
       end.tap do |tiles|
         log_update "#{extension}: optimising %i tiles" % tiles.length
-        tiles.map(&:last).each.concurrent_groups do |png_paths|
+        tiles.map do |tile_path:, **|
+          tile_path
+        end.each.concurrent_groups do |png_paths|
           dither *png_paths
         end
       end

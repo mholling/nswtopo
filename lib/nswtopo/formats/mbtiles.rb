@@ -14,7 +14,7 @@ module NSWTopo
       SQL
 
       Dir.mktmppath do |temp_dir|
-        tiled_web_map(temp_dir, **options, extension: "mbtiles", &block).each do |zoom, col, row, tile_path|
+        tiled_web_map(temp_dir, **options, extension: "mbtiles", &block).each do |zoom:, col:, row:, tile_path:|
           sql << %Q[INSERT INTO tiles VALUES (#{zoom}, #{col}, #{row}, readfile("#{tile_path}"));\n]
         end
 

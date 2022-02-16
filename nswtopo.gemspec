@@ -10,6 +10,5 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 2.5.0"
   spec.executables  << "nswtopo"
   spec.requirements << "GDAL >= v2.3"
-  spec.requirements << "ImageMagick"
   spec.requirements << "Google Chrome"
 end

@@ -16,7 +16,6 @@ The following software is required in order to run *nswtopo*:
 
 * The [*Ruby* programming language](https://www.ruby-lang.org). You'll need at least Ruby 2.5.
 * The [*GDAL*](https://gdal.org) command-line utilities, version 2.3 or later, for geospatial data processing.
-* [*ImageMagick*](https://imagemagick.org), a command-line image manipulation tool.
 * The [*Google Chrome*](https://www.google.com/chrome) web browser, for getting font information and rendering your map.
 
 Some optional software helps with additional functionality:
@@ -24,6 +23,7 @@ Some optional software helps with additional functionality:
 * A zip command utility (either *zip* or *7z*), if you wish to produce *KMZ* maps.
 * [*SQLite*](https://sqlite.org), if you need to produce maps in *mbtiles* format.
 * [*pngquant*](https://pngquant.org), if you wish to produce indexed colour map images.
+* [*ImageMagick*](https://imagemagick.org), as an alternative to *pngquant*.
 * [*Inkscape*](https://inkscape.org), if you wish to make manual edits or additions to your map.
 
 Finally, a geographic viewing or mapping program such as [*Google Earth Pro*](https://www.google.com/earth) is useful for easily defining the area you wish to map, and for viewing your resulting map and other GPS data.
@@ -32,7 +32,6 @@ You can check that the required tools are correctly installed by using the follo
 
 ```sh
 $ ruby --version
-$ identify -version
 $ gdalinfo --version
 ```
 
@@ -40,7 +39,6 @@ Each program should return version information if it's installed correctly.
 
 ## Windows
   * A complete Ruby installation for Windows can be [downloaded here](https://rubyinstaller.org) (be sure to select `Add Ruby executables to your PATH` when installing).
-  * Download a pre-built [ImageMagick binary](https://imagemagick.org/script/download.php#windows) for Windows. Be sure to select `add application directory to your system path` and `install legacy utilities` when installing.
   * Install the GDAL utilities using the [OSGeo4W](https://trac.osgeo.org/osgeo4w) installer. Use the `advanced install` option as only the GDAL package is required. When presented with the package list, select `All -> Uninstall` to deselect everything, then open `Commandline Utilites` and choose `Install` for the GDAL package. (Accept the required dependencies on the following page.)
   Make GDAL available on the command line with the following:
     ```sh
@@ -57,14 +55,15 @@ Each program should return version information if it's installed correctly.
     **Note**: When using the Windows Command Prompt, I strongly recommend disabling *QuickEdit* mode in the *Properties* window to avoid frustration.
 
 ## macOS
-  * ImageMagick and GDAL can obtained for macOS by first setting up [MacPorts](https://www.macports.org), a macOS package manager; follow [these instructions](https://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install the packages with `sudo port install gdal` and `sudo port install imagemagick`
-  * Alternatively, you can download and install pre-built binaries; try [here](http://www.kyngchaos.com/software/frameworks) for GDAL, and the instructions [here](https://imagemagick.org/script/download.php#macosx) for ImageMagick. (This may or may not be quicker/easier than installing XCode and MacPorts!)
+  * GDAL can obtained for macOS by first setting up [MacPorts](https://www.macports.org), a macOS package manager; follow [these instructions](https://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install GDAL with `sudo port install gdal`
+  * Another popular package manager for MacOS is [Homebrew](https://brew.sh/). Install GDAL with Homebrew using `brew install gdal`
+  * Alternatively, you can download and install pre-built binaries for GDAL; try [here](http://www.kyngchaos.com/software/frameworks). (This may or may not be quicker/easier than installing XCode and MacPorts!)
   * Type `ruby -v` in a terminal window to see whether a compatible Ruby version already exists. If not, you can install Ruby a number of ways, as explained [here](https://www.ruby-lang.org/en/downloads). (If you are using MacPorts, `sudo port install ruby25 +nosuffix` should also work.)
   * Download and install [Google Chrome](https://www.google.com/chrome).
 
 ## Linux
 
-Dependencies should be easy to install on a Linux PC. The appropriate Ruby, ImageMagick and GDAL packages should all be available using your distro's package manager (Pacman, RPM, Aptitude, etc).
+Dependencies should be easy to install on a Linux PC. The appropriate Ruby and GDAL packages should all be available using your distro's package manager (Pacman, RPM, Aptitude, etc).
 
 # Installation
 

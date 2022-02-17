@@ -24,9 +24,7 @@ module NSWTopo
           "width"  => "#{width}mm",
           "height" => "#{height}mm",
           "viewBox" => "0 0 #{width} #{height}",
-          "xmlns"          => "http://www.w3.org/2000/svg",
-          "xmlns:sodipodi" => "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd",
-          "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape"
+          "xmlns" => "http://www.w3.org/2000/svg"
 
         meta = svg.add_element "metadata"
         rdf = meta.add_element "rdf:RDF",
@@ -38,7 +36,7 @@ module NSWTopo
           "dc:creator" => "nswtopo"
 
         defs = svg.add_element "defs"
-        svg.add_element "sodipodi:namedview", "borderlayer" => true
+        svg.add_element "sodipodi:namedview", "borderlayer" => true, "xmlns:sodipodi" => "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
         svg.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "white"
 
         labels = Layer.new "labels", self, Config.fetch("labels", {}).merge("type" => "Labels")
@@ -47,7 +45,7 @@ module NSWTopo
           labels.add layer if Vector === layer
         end.push(labels).each do |layer|
           log_update "compositing: #{layer.name}"
-          group = svg.add_element "g", "id" => layer.name, "inkscape:groupmode" => "layer"
+          group = svg.add_element "g", "id" => layer.name, "inkscape:groupmode" => "layer", "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape"
           layer.render group, defs, &labels.method(:add_fence)
         end
 

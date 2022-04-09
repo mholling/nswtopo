@@ -48,7 +48,7 @@ module NSWTopo
           labels.add layer if Vector === layer
         end.push(labels).inject [] do |masks, layer|
           log_update "compositing: #{layer.name}"
-          group = svg.add_element "g", "id" => layer.name, "clip-path" => "url(#map.clip)", "inkscape:groupmode" => "layer", "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape"
+          group = svg.add_element "g", "id" => layer.name, "clip-path" => "url(#map.clip)"
           layer.render(group, masks: masks) do |fence: nil, mask: nil|
             case
             when fence then labels.add_fence(*fence)

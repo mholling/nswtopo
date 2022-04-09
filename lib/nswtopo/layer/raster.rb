@@ -44,7 +44,6 @@ module NSWTopo
 
     def render(group, masks:, **)
       (width, height), resolution = size_resolution
-      group.add_attributes "style" => "opacity:%s" % params.fetch("opacity", 1)
       group.add_element("defs").add_element("mask", "id" => "#{name}.mask").add_element("g", "filter" => "url(#map.filter.alpha2mask)").tap do |mask_content|
         masks.each do |id|
           mask_content.add_element "use", "href" => "#" + id
@@ -60,7 +59,8 @@ module NSWTopo
         png_path.binread
       end
       href = "data:image/png;base64,#{Base64.encode64 png}"
-      group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
+      image = group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
+      image.add_attributes params.slice("opacity")
     end
   end
 end

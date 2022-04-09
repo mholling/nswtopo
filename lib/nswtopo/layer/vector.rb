@@ -143,13 +143,6 @@ module NSWTopo
             container.add_attribute "filter", "url(#%s)" % filter_id
             defs.add_element("filter", "id" => filter_id).add_element "feGaussianBlur", "stdDeviation" => args, "in" => "SourceGraphic"
 
-          when "opacity"
-            if categories.none?
-              group.add_attribute "style", "opacity:#{args}"
-            else
-              container.add_attribute "opacity", args
-            end
-
           when "symbol"
             next unless content
             symbol = defs.add_element "g", "id" => [*ids, "symbol"].join(?.)

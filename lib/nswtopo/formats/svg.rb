@@ -36,8 +36,10 @@ module NSWTopo
           "dc:creator" => "nswtopo"
 
         defs = svg.add_element "defs"
-        svg.add_element "sodipodi:namedview", "borderlayer" => true, "xmlns:sodipodi" => "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-        svg.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "white"
+        defs.add_element "rect", "width" => width, "height" => height, "id" => "map.rect"
+        defs.add_element("clipPath", "id" => "map.clip").add_element("use", "href" => "#map.rect")
+
+        svg.add_element "use", "href" => "#map.rect", "fill" => "white"
 
         labels = Layer.new "labels", self, Config.fetch("labels", {}).merge("type" => "Labels")
         layers.reject(&:empty?).each do |layer|
@@ -45,7 +47,7 @@ module NSWTopo
           labels.add layer if Vector === layer
         end.push(labels).each do |layer|
           log_update "compositing: #{layer.name}"
-          group = svg.add_element "g", "id" => layer.name, "inkscape:groupmode" => "layer", "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape"
+          group = svg.add_element "g", "id" => layer.name, "clip-path" => "url(#map.clip)", "inkscape:groupmode" => "layer", "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape"
           layer.render group, defs, &labels.method(:add_fence)
         end
 

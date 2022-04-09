@@ -42,9 +42,15 @@ module NSWTopo
       "%s: %i×%i (%.1fMpx) @ %.1fm/px (%.0f ppi)" % [@name, *size, megapixels, resolution, ppi]
     end
 
-    def render(group, defs)
+    def render(group, masks:, **)
       (width, height), resolution = size_resolution
       group.add_attributes "style" => "opacity:%s" % params.fetch("opacity", 1)
+      group.add_element("defs").add_element("mask", "id" => "#{name}.mask").add_element("g", "filter" => "url(#map.filter.alpha2mask)").tap do |mask_content|
+        masks.each do |id|
+          mask_content.add_element "use", "href" => "#" + id
+        end
+        group.add_attribute "mask", "url(##{name}.mask)"
+      end if masks.any?
       transform = "scale(#{1000.0 * resolution / @map.scale})"
       png = Dir.mktmppath do |temp_dir|
         tif_path = temp_dir / "raster.tif"
@@ -55,7 +61,6 @@ module NSWTopo
       end
       href = "data:image/png;base64,#{Base64.encode64 png}"
       group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
-      group.add_attribute "mask", "url(#raster-mask)" if defs.elements["mask[@id='raster-mask']"]
     end
   end
 end

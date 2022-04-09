@@ -77,7 +77,8 @@ module NSWTopo
       end.values.inject(params, &:merge)
     end
 
-    def render(group, defs)
+    def render(group, **)
+      defs = group.add_element "defs"
       drawing_features.group_by do |feature, categories|
         categories || Array(feature["category"]).map(&:to_s).map(&method(:categorise)).to_set
       end.map do |categories, features|
@@ -210,23 +211,14 @@ module NSWTopo
 
           when "mask"
             next unless args && content && content.elements.any?
-            filter_id, mask_id = %w[raster-mask.filter raster-mask]
-            mask_contents = defs.elements["mask[@id='%s']/g[@filter]" % mask_id]
-            mask_contents ||= begin
-              defs.add_element("filter", "id" => filter_id).add_element "feColorMatrix", "type" => "matrix", "in" => "SourceGraphic", "values" => "0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 -1 1"
-              defs.add_element("mask", "id" => mask_id).add_element("g", "filter" => "url(#%s)" % filter_id).tap do |mask_contents|
-                mask_contents.add_element "rect", "width" => "100%", "height" => "100%", "fill" => "none", "stroke" => "none"
-              end
-            end
-            transforms = REXML::XPath.each(content, "ancestor::g[@transform]/@transform").map(&:value)
-            mask_contents.add_element "use", "href" => "#%s" % content.attributes["id"], "transform" => (transforms.join(?\s) if transforms.any?)
+            yield mask: content.attributes["id"]
 
           when "fence"
             next unless content && args
             buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
             features.each do |feature|
               next if REXML::Element === feature
-              yield feature, buffer
+              yield fence: [feature, buffer]
             end
 
           when "shield"

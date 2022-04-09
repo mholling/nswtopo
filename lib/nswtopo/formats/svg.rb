@@ -36,8 +36,9 @@ module NSWTopo
           "dc:creator" => "nswtopo"
 
         defs = svg.add_element "defs"
-        defs.add_element "rect", "width" => width, "height" => height, "id" => "map.rect"
+        defs.add_element("rect", "width" => width, "height" => height, "id" => "map.rect")
         defs.add_element("clipPath", "id" => "map.clip").add_element("use", "href" => "#map.rect")
+        defs.add_element("filter", "id" => "map.filter.alpha2mask").add_element("feColorMatrix", "type" => "matrix", "values" => "0 0 0 -1 1   0 0 0 -1 1   0 0 0 -1 1   0 0 0 0 1")
 
         svg.add_element "use", "href" => "#map.rect", "fill" => "white"
 
@@ -45,12 +46,19 @@ module NSWTopo
         layers.reject(&:empty?).each do |layer|
           next if Config["labelling"] == false
           labels.add layer if Vector === layer
-        end.push(labels).each do |layer|
+        end.push(labels).inject [] do |masks, layer|
           log_update "compositing: #{layer.name}"
           group = svg.add_element "g", "id" => layer.name, "clip-path" => "url(#map.clip)", "inkscape:groupmode" => "layer", "xmlns:inkscape" => "http://www.inkscape.org/namespaces/inkscape"
-          layer.render group, defs, &labels.method(:add_fence)
+          layer.render(group, masks: masks) do |fence: nil, mask: nil|
+            case
+            when fence then labels.add_fence(*fence)
+            when mask then masks << mask
+            end
+          end
+          masks
         end
 
+        xml.elements.each("svg//defs[not(*)]", &:remove)
         until xml.elements.each("svg//g[not(*)]", &:remove).empty? do
         end
 

@@ -50,10 +50,8 @@ module NSWTopo
           log_update "compositing: #{layer.name}"
           group = svg.add_element "g", "id" => layer.name, "clip-path" => "url(#map.clip)"
           layer.render(group, masks: masks) do |fence: nil, mask: nil|
-            case
-            when fence then labels.add_fence(*fence)
-            when mask then masks << mask
-            end
+            labels.add_fence(*fence) if fence
+            masks << mask if mask
           end
           masks
         end

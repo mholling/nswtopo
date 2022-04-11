@@ -46,7 +46,7 @@ module NSWTopo
       (width, height), resolution = size_resolution
       group.add_element("defs").add_element("mask", "id" => "#{name}.mask").add_element("g", "filter" => "url(#map.filter.alpha2mask)").tap do |mask_content|
         masks.each do |id|
-          mask_content.add_element "use", "href" => "#" + id
+          mask_content.add_element "use", "href" => "##{id}"
         end
         group.add_attribute "mask", "url(##{name}.mask)"
       end if masks.any?

@@ -5,19 +5,26 @@ module NSWTopo
       when external
         begin
           xml = REXML::Document.new(external.read)
+
+          creator_tool = xml.elements["svg/metadata/rdf:RDF/rdf:Description[@xmp:CreatorTool]/@xmp:CreatorTool"]&.value
+          version = Version[creator_tool]
+          raise "SVG nswtopo version too old: %s" % external unless version >= MIN_VERSION
+          raise "SVG nswtopo version too new: %s" % external unless version <= VERSION
+
           view_box = /^0\s+0\s+(?<width>\S+)\s+(?<height>\S+)$/.match xml.elements["svg[@viewBox]/@viewBox"]&.value
           %i[width height].inject(view_box) do |check, name|
             check && xml.elements["svg[@#{name}='#{view_box[name]}mm']"]
-          end || raise("incompatible SVG file: %s" % external)
+          end || raise(Version::Error)
+        rescue Version::Error
+          raise "not an nswtopo SVG file: %s" % external
         rescue SystemCallError
           raise "couldn't read file: %s" % external
         rescue REXML::ParseException
           raise "not an SVG file: %s" % external
         end
-        FileUtils.cp external, svg_path
 
       when @archive.uptodate?("map.svg", "map.yml")
-        svg_path.write @archive.read("map.svg")
+        xml = REXML::Document.new @archive.read("map.svg")
 
       else
         width, height = extents.times(1000.0 / scale)
@@ -28,6 +35,15 @@ module NSWTopo
           "height" => "#{height}mm",
           "viewBox" => "0 0 #{width} #{height}",
           "xmlns" => "http://www.w3.org/2000/svg"
+
+        svg.add_element("metadata").add_element("rdf:RDF",
+          "xmlns:rdf" => "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+          "xmlns:xmp" => "http://ns.adobe.com/xap/1.0/",
+          "xmlns:dc"  => "http://purl.org/dc/elements/1.1/"
+        ).add_element("rdf:Description",
+          "xmp:CreatorTool" => VERSION.creator_string,
+          "dc:format" => "image/svg+xml"
+        )
 
         svg.add_element("defs").tap do |defs|
           defs.add_element("rect", "width" => width, "height" => height, "id" => "map.rect")
@@ -54,12 +70,13 @@ module NSWTopo
         until xml.elements.each("svg//g[not(*)]", &:remove).empty? do
         end
 
-        string, formatter = String.new, REXML::Formatters::Pretty.new
-        formatter.compact = true
-        formatter.write xml, string
-        write "map.svg", string
-        svg_path.write string
+        write "map.svg", xml.to_s
       end
+
+      string, formatter = String.new, REXML::Formatters::Pretty.new
+      formatter.compact = true
+      formatter.write xml, string
+      svg_path.write string
     end
   end
 end

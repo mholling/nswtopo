@@ -8,10 +8,10 @@ module NSWTopo
       vrt_path = temp_dir / "source.vrt"
 
       min, max = minmax = @mapping&.values_at("min", "max")
-      low, high, factor = { "low" => 0, "high" => 100, "factor" => 0.0 }.merge(@contrast || {}).values_at "low", "high", "factor"
-      woody, nonwoody = { "woody" => "#A6F1A6", "non-woody" => "#FFFFFF" }.merge(@colour || {}).values_at("woody", "non-woody").map { |string| Colour.new string }
+      low, high, factor = [0, 100, 0].zip(Array @contrast&.values_at("low", "high", "factor")).map(&:compact).map(&:last)
+      colour = Colour.new(Hash === @colour && @colour["woody"] || "hsl(75,55%,72%)")
 
-      colour_table = (0..255).map do |index|
+      alpha_table = (0..255).map do |index|
         case
         when minmax&.all?(Integer) && minmax.all?(0..255)
           (100.0 * (index - min) / (max - min)).clamp(0.0, 100.0)
@@ -29,7 +29,7 @@ module NSWTopo
           end.inject(&:-)
         end.inject(&:/) # sigmoid between 0..1
       end.map do |x|
-        nonwoody.mix(woody, x)
+        Integer(255 * x)
       end
 
       Dir.chdir(@source ? @source.parent : Pathname.pwd) do
@@ -53,8 +53,8 @@ module NSWTopo
         xml = REXML::Document.new indexed_vrt_path.read
         raise "can't process vegetation data for #{@name}" unless xml.elements.each("/VRTDataset/VRTRasterBand/ColorTable", &:itself).one?
         raise "can't process vegetation data for #{@name}" unless xml.elements.each("/VRTDataset/VRTRasterBand/ColorTable/Entry", &:itself).count == 256
-        xml.elements.collect("/VRTDataset/VRTRasterBand/ColorTable/Entry", &:itself).zip(colour_table) do |entry, colour|
-          entry.attributes["c1"], entry.attributes["c2"], entry.attributes["c3"], entry.attributes["c4"] = *colour.triplet, 255
+        xml.elements.collect("/VRTDataset/VRTRasterBand/ColorTable/Entry", &:itself).zip(alpha_table) do |entry, alpha|
+          entry.attributes["c1"], entry.attributes["c2"], entry.attributes["c3"], entry.attributes["c4"] = *colour.triplet, alpha
         end
         indexed_vrt_path.write xml
         OS.gdal_translate "-expand", "rgba", indexed_vrt_path, coloured_tif_path

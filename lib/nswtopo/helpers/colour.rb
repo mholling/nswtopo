@@ -184,10 +184,6 @@ class Colour
   end
   attr_reader :triplet
 
-  def mix(other, fraction)
-    Colour.new [triplet, other.triplet].along(fraction.to_f).map(&:to_i)
-  end
-
   def to_s
     @name || "#%.2X%.2X%.2X" % triplet
   end

@@ -3,11 +3,14 @@ module NSWTopo
     def render_svg(svg_path, external: nil, **options)
       case
       when external
-        raise "not a file: %s" % external unless external.file?
         begin
           xml = REXML::Document.new(external.read)
-          desc = xml.elements["svg/metadata/rdf:RDF/rdf:Description[@dc:creator='nswtopo']"]
-          raise "not an nswtopo SVG file: %s" % external unless desc
+          view_box = /^0\s+0\s+(?<width>\S+)\s+(?<height>\S+)$/.match xml.elements["svg[@viewBox]/@viewBox"]&.value
+          %i[width height].inject(view_box) do |check, name|
+            check && xml.elements["svg[@#{name}='#{view_box[name]}mm']"]
+          end || raise("incompatible SVG file: %s" % external)
+        rescue SystemCallError
+          raise "couldn't read file: %s" % external
         rescue REXML::ParseException
           raise "not an SVG file: %s" % external
         end
@@ -26,21 +29,12 @@ module NSWTopo
           "viewBox" => "0 0 #{width} #{height}",
           "xmlns" => "http://www.w3.org/2000/svg"
 
-        meta = svg.add_element "metadata"
-        rdf = meta.add_element "rdf:RDF",
-          "xmlns:rdf" => "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-          "xmlns:dc"  => "http://purl.org/dc/elements/1.1/"
-        rdf.add_element "rdf:Description",
-          "dc:date" => Date.today.iso8601,
-          "dc:format" => "image/svg+xml",
-          "dc:creator" => "nswtopo"
-
-        defs = svg.add_element "defs"
-        defs.add_element("rect", "width" => width, "height" => height, "id" => "map.rect")
-        defs.add_element("clipPath", "id" => "map.clip").add_element("use", "href" => "#map.rect")
-        defs.add_element("filter", "id" => "map.filter.alpha2mask").add_element("feColorMatrix", "type" => "matrix", "values" => "0 0 0 -1 1   0 0 0 -1 1   0 0 0 -1 1   0 0 0 0 1")
-
-        svg.add_element "use", "href" => "#map.rect", "fill" => "white"
+        svg.add_element("defs").tap do |defs|
+          defs.add_element("rect", "width" => width, "height" => height, "id" => "map.rect")
+          defs.add_element("clipPath", "id" => "map.clip").add_element("use", "href" => "#map.rect")
+          defs.add_element("filter", "id" => "map.filter.alpha2mask").add_element("feColorMatrix", "type" => "matrix", "values" => "0 0 0 -1 1   0 0 0 -1 1   0 0 0 -1 1   0 0 0 0 1")
+        end
+        svg.add_element("use", "href" => "#map.rect", "fill" => "white")
 
         labels = Layer.new "labels", self, Config.fetch("labels", {}).merge("type" => "Labels")
         layers.reject(&:empty?).each do |layer|

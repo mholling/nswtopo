@@ -39,6 +39,8 @@ $ nswtopo config --chrome "/Applications/Google Chrome.app/Contents/MacOS/Google
 
 # Miscellaneous
 
+Maps normally use a white background. To specify a different background colour, use the `--background` option.
+
 For raster formats, use the `--dither` option to create the raster in indexed colour mode. This can reduce file size. For best results, have the `pngquant` program available on your command line for the dithering process.
 
 After generating your map in SVG format, you can add content outside of *nswtopo* using a vector graphics editor such as Inkscape. Use the `--external` option to render from the edited map, instead of the internal copy maintained by *nswtopo*.

@@ -1,6 +1,6 @@
 module NSWTopo
   module Formats
-    def render_svg(svg_path, external: nil, **options)
+    def render_svg(svg_path, external:, background:, **options)
       case
       when external
         begin
@@ -50,7 +50,7 @@ module NSWTopo
           defs.add_element("clipPath", "id" => "map.clip").add_element("use", "href" => "#map.rect")
           defs.add_element("filter", "id" => "map.filter.alpha2mask").add_element("feColorMatrix", "type" => "matrix", "values" => "0 0 0 -1 1   0 0 0 -1 1   0 0 0 -1 1   0 0 0 0 1")
         end
-        svg.add_element("use", "href" => "#map.rect", "fill" => "white")
+        svg.add_element("use", "id" => "map.background", "href" => "#map.rect", "fill" => "white")
 
         labels = Layer.new "labels", self, Config.fetch("labels", {}).merge("type" => "Labels")
         layers.reject(&:empty?).each do |layer|
@@ -73,6 +73,8 @@ module NSWTopo
         write "map.svg", xml.to_s
       end
 
+      p background if background
+      xml.elements["svg/*[@id='map.background']"].add_attribute "fill", background if background
       string, formatter = String.new, REXML::Formatters::Pretty.new
       formatter.compact = true
       formatter.write xml, string

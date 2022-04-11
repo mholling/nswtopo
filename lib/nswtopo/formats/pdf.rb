@@ -1,12 +1,12 @@
 module NSWTopo
   module Formats
-    def render_pdf(pdf_path, ppi: nil, external: nil, **options)
+    def render_pdf(pdf_path, ppi: nil, external:, background:, **options)
       if ppi
         OS.gdal_translate "-a_srs", @projection, "-of", "PDF", "-co", "DPI=#{ppi}", "-co", "MARGIN=0", "-co", "CREATOR=nswtopo", "-co", "GEO_ENCODING=ISO32000", yield(ppi: ppi), pdf_path
       else
         Dir.mktmppath do |temp_dir|
           svg_path = temp_dir / "pdf-map.svg"
-          render_svg svg_path, external: external
+          render_svg svg_path, external: external, background: background
           xml = REXML::Document.new svg_path.read
           style = "@media print { @page { margin: 0 0 -1mm 0; size: %s %s; } }"
           svg = xml.elements["svg"]

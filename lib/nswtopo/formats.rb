@@ -43,7 +43,7 @@ module NSWTopo
       OS.gdal_translate "-of", "JPEG", "-co", "QUALITY=90", "-mo", "EXIF_XResolution=#{ppi}", "-mo", "EXIF_YResolution=#{ppi}", "-mo", "EXIF_ResolutionUnit=2", yield(ppi: ppi), jpg_path
     end
 
-    def rasterise(png_path, external:, ppi: nil, **options)
+    def rasterise(png_path, external:, background:, ppi: nil, **options)
       Dir.mktmppath do |temp_dir|
         svg_path = temp_dir / "map.svg"
         src_path = temp_dir / "browser.svg"
@@ -52,7 +52,7 @@ module NSWTopo
         chrome_path = Config["chrome"]
         raise "please configure a path for google chrome" unless chrome_path
 
-        render_svg svg_path, external: external
+        render_svg svg_path, external: external, background: background
         xml = REXML::Document.new svg_path.read
 
         case

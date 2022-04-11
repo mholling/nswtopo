@@ -264,13 +264,13 @@ module NSWTopo
     end
     alias to_s info
 
-    def render(*paths, worldfile: false, force: false, external: nil, **options)
+    def render(*paths, worldfile: false, force: false, external: nil, background: nil, **options)
       @archive.delete "map.svg" if force
       Dir.mktmppath do |temp_dir|
         rasters = Hash.new do |rasters, opts|
           png_path = temp_dir / "raster.#{rasters.size}.png"
           pgw_path = temp_dir / "raster.#{rasters.size}.pgw"
-          rasterise png_path, external: external, **opts
+          rasterise png_path, external: external, background: background, **opts
           write_world_file pgw_path, opts
           rasters[opts] = png_path
         end
@@ -287,7 +287,7 @@ module NSWTopo
           ext = path.extname.delete_prefix ?.
           name = path.basename(path.extname)
           out_path = temp_dir / "output.#{index}.#{ext}"
-          send "render_#{ext}", out_path, name: name, external: external, **options do |dither: false, **opts|
+          send "render_#{ext}", out_path, name: name, external: external, background: background, **options do |dither: false, **opts|
             (dither ? dithers : rasters)[opts]
           end
           next out_path, path

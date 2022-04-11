@@ -56,12 +56,13 @@ module NSWTopo
       buffer, reader = StringIO.new, in_path ? Zlib::GzipReader : StringIO
 
       reader.open(*in_path) do |input|
-        if in_path
-          version = input.comment.to_s[/^nswtopo (.+)$/, 1]
-          raise "unrecognised map file: %s" % in_path unless version
-          comparison = version.split(?.).map(&:to_i) <=> MIN_VERSION.split(?.).map(&:to_i)
-          raise "map file too old: version %s, minimum %s required" % [version, MIN_VERSION] unless comparison >= 0
-        end
+        begin
+          version = Version[input.comment]
+          raise "map file too old: created with nswtopo %s, minimum %s required" % [version, MIN_VERSION] unless version >= MIN_VERSION
+          raise "nswtopo too old: map file created with nswtopo %s, this version %s" % [version, VERSION] unless version <= VERSION
+        rescue Version::Error
+          raise "unrecognised map file: %s" % in_path
+        end if in_path
         Gem::Package::TarReader.new(input) do |tar_in|
           archive = new(out_path, tar_in).tap(&block)
           Gem::Package::TarWriter.new(buffer) do |tar_out|
@@ -74,7 +75,7 @@ module NSWTopo
         log_update "nswtopo: saving map..."
         temp_path = temp_dir / "temp.tgz"
         Zlib::GzipWriter.open temp_path, Config["zlib-level"] || Zlib::BEST_SPEED do |gzip|
-          gzip.comment = "nswtopo %s" % VERSION
+          gzip.comment = VERSION.creator_string
           gzip.write buffer.string
         rescue Interrupt
           log_update "nswtopo: interrupted, please wait..."

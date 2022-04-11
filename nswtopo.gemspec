@@ -1,7 +1,7 @@
 require_relative "lib/nswtopo/version"
 Gem::Specification.new do |spec|
   spec.name                  = "nswtopo"
-  spec.version               = NSWTopo::VERSION
+  spec.version               = String(NSWTopo::VERSION)
   spec.summary               = "A vector topographic mapping tool"
   spec.authors               = ["Matthew Hollingworth"]
   spec.homepage              = "https://github.com/mholling/nswtopo"

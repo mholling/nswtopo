@@ -23,8 +23,8 @@ module NSWTopo
           raise "not an SVG file: %s" % external
         end
 
-      when @archive.uptodate?("map.svg", "map.yml")
-        xml = REXML::Document.new @archive.read("map.svg")
+      when uptodate?("map.svg", "map.yml")
+        xml = REXML::Document.new read("map.svg")
 
       else
         width, height = extents.times(1000.0 / scale)

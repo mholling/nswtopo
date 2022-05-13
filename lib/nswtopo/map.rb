@@ -13,7 +13,7 @@ module NSWTopo
     attr_reader :projection, :scale, :centre, :extents, :rotation
 
     extend Forwardable
-    delegate %i[write mtime read] => :@archive
+    delegate %i[write mtime read uptodate?] => :@archive
 
     def self.init(archive, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, margins: nil)
       wgs84_points = case

@@ -73,7 +73,6 @@ module NSWTopo
         write "map.svg", xml.to_s
       end
 
-      p background if background
       xml.elements["svg/*[@id='map.background']"].add_attribute "fill", background if background
       string, formatter = String.new, REXML::Formatters::Pretty.new
       formatter.compact = true

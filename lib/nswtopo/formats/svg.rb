@@ -43,6 +43,7 @@ module NSWTopo
           "xmlns:dc"  => "http://purl.org/dc/elements/1.1/"
         ).add_element("rdf:Description",
           "xmp:CreatorTool" => VERSION.creator_string,
+          "xmp:CreateDate" => Time.now.iso8601,
           "dc:format" => "image/svg+xml"
         )
 
@@ -75,6 +76,7 @@ module NSWTopo
       end
 
       xml.elements["svg/*[@id='map.background']"].add_attribute "fill", background if background
+      xml.elements["svg/metadata/rdf:RDF/rdf:Description"].add_attributes("xmp:ModifyDate" => Time.now.iso8601) unless external
       string, formatter = String.new, REXML::Formatters::Pretty.new
       formatter.compact = true
       formatter.write xml, string

@@ -473,33 +473,31 @@ begin
   raise OptionParser::MissingArgument, "no map path specified" if ARGV.empty?
   tgz_path = Pathname(ARGV.shift)
 
-  begin
-    in_path = case command
-    when "init"
-      raise "#{tgz_path} already exists" if !options.delete(:overwrite) && tgz_path.exist?
-    else
-      raise "no such file #{tgz_path}" unless tgz_path.exist?
-      raise "#{tgz_path} is not a file" unless tgz_path.file?
-      tgz_path
-    end
-
-    command = command.tr ?-, ?_
-    arity, error = NSWTopo.method(command).arity, nil
-
-    NSWTopo::Archive.open(tgz_path, *in_path) do |archive|
-      args = [archive, *ARGV, options]
-      case
-      when arity >= 0 && args.length > arity
-        raise OptionParser::NeedlessArgument, ARGV.last(args.length - arity).join(?\s)
-      when arity >= 0 ? args.length < arity : args.length + arity + 1 < 0
-        raise OptionParser::MissingArgument
-      end
-
-      NSWTopo.send command, *args
-    rescue NSWTopo::PartialFailureError => error
-    end
-    raise error.message if error
+  in_path = case command
+  when "init"
+    raise "#{tgz_path} already exists" if !options.delete(:overwrite) && tgz_path.exist?
+  else
+    raise "no such file #{tgz_path}" unless tgz_path.exist?
+    raise "#{tgz_path} is not a file" unless tgz_path.file?
+    tgz_path
   end
+
+  command = command.tr ?-, ?_
+  arity, args = NSWTopo.method(command).arity, ARGV.length + 2
+
+  case
+  when arity >= 0 && args > arity
+    raise OptionParser::NeedlessArgument, ARGV.last(args - arity).join(?\s)
+  when arity >= 0 ? args < arity : args + arity + 1 < 0
+    raise OptionParser::MissingArgument
+  end
+
+  error = nil
+  NSWTopo::Archive.open(tgz_path, *in_path) do |archive|
+    NSWTopo.send command, archive, *ARGV, options
+  rescue NSWTopo::PartialFailureError => error
+  end
+  raise error.message if error
 rescue OptionParser::ParseError => error
   warn ansi[command_parser] if $stderr.tty?
   log_abort error.message

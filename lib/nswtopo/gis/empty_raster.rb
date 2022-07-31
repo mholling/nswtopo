@@ -5,7 +5,7 @@ module NSWTopo
     def write(path, projection:, dimensions:, top_left:, resolution:, angle: 0)
       vrt = REXML::Document.new
       vrt.add_element("VRTDataset", "rasterXSize" => dimensions[0], "rasterYSize" => dimensions[1]).tap do |dataset|
-        geotransform = WorldFile.geotransform(top_left, resolution, angle).join(", ")
+        geotransform = WorldFile.geotransform(top_left: top_left, resolution: resolution, angle: angle).join(", ")
         dataset.add_element("SRS").add_text(projection.wkt_simple)
         dataset.add_element("GeoTransform").add_text(geotransform)
         dataset.add_element("VRTRasterBand", "dataType" => "Byte", "band" => 1).add_element("ColorInterp").add_text("Red")

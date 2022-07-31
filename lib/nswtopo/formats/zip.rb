@@ -17,7 +17,7 @@ module NSWTopo
           when 1
             zip_dir.join("#{name}.ref").open("w") do |file|
               file.puts @projection.wkt_simple
-              file.puts WorldFile.geotransform(top_left, resolution, -@rotation).flatten.join(?,)
+              file.puts WorldFile.geotransform(top_left: top_left, resolution: resolution, angle: -@rotation).flatten.join(?,)
               file << dimensions.join(?,)
             end
           end

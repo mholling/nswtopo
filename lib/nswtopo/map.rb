@@ -136,7 +136,7 @@ module NSWTopo
     def write_world_file(path, resolution: nil, ppi: nil)
       resolution ||= 0.0254 * @scale / ppi
       top_left = bounding_box.coordinates[0][3]
-      WorldFile.write top_left, resolution, -@rotation, path
+      WorldFile.write path, top_left: top_left, resolution: resolution, angle: -@rotation
     end
 
     def write_empty_raster(path, resolution:)

@@ -1,6 +1,6 @@
 module NSWTopo
   module Vector
-    SVG_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
+    SVG_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity paint-order stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
     FONT_SCALED_ATTRIBUTES = %w[word-spacing letter-spacing stroke-width line-height]
     SHIELD_X, SHIELD_Y = 1.0, 0.5
     MARGIN = { mm: 1.0 }

@@ -22,6 +22,12 @@ module NSWTopo
     end
 
     def render_png(png_path, ppi: PPI, dither: false, **options)
+      ppm = (ppi / 0.0254).round
+      OS.exiftool yield(ppi: ppi, dither: dither),
+        "-PNG:PixelsPerUnitX=#{ppm}",
+        "-PNG:PixelsPerUnitY=#{ppm}",
+        "-o", png_path
+    rescue OS::Missing
       FileUtils.cp yield(ppi: ppi, dither: dither), png_path
     end
 

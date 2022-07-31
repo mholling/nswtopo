@@ -24,10 +24,11 @@ module NSWTopo
     GIMP = %w[gimp]
     Zip = %w[zip]
     SevenZ = %w[7z]
+    ExifTool = %w[exiftool]
 
     extend self
 
-    %w[GDAL ImageMagick SQLite3 PNGQuant GIMP Zip SevenZ].each do |package|
+    %w[GDAL ImageMagick SQLite3 PNGQuant GIMP Zip SevenZ ExifTool].each do |package|
       OS.const_get(package).each do |command|
         define_method command do |*args, &block|
           Open3.popen3 command, *args.map(&:to_s) do |stdin, stdout, stderr, thread|

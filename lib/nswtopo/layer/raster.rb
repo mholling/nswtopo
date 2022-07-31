@@ -48,7 +48,6 @@ module NSWTopo
         masks.each do |id|
           mask_content.add_element "use", "href" => "##{id}"
         end
-        group.add_attribute "mask", "url(##{name}.mask)"
       end if masks.any?
       transform = "scale(#{1000.0 * resolution / @map.scale})"
       png = Dir.mktmppath do |temp_dir|
@@ -60,6 +59,7 @@ module NSWTopo
       end
       href = "data:image/png;base64,#{Base64.encode64 png}"
       image = group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
+      image.add_attributes "mask" => "url(##{name}.mask)" if masks.any?
       image.add_attributes params.slice("opacity")
     end
   end

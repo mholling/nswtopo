@@ -2,9 +2,9 @@ module NSWTopo
   class Map
     include Formats, Dither, Zip, Log, Safely, TiledWebMap
 
-    def initialize(archive, proj4:, scale:, centre:, extents:, rotation:, layers: {})
+    def initialize(archive, projection:, scale:, centre:, extents:, rotation:, layers: {})
       @archive, @scale, @centre, @extents, @rotation, @layers = archive, scale, centre, extents, rotation, layers
-      @projection = Projection.new proj4
+      @projection = Projection.new projection
       ox, oy = bounding_box.coordinates[0][3]
       @affine = [[1, 0], [0, -1], [-ox, oy]].map do |vector|
         vector.rotate_by_degrees(-@rotation).times(1000.0 / @scale)
@@ -86,7 +86,7 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new(archive, proj4: projection.proj4, scale: scale, centre: [0, 0], extents: extents, rotation: rotation).save
+      new(archive, projection: projection, scale: scale, centre: [0, 0], extents: extents, rotation: rotation).save
     end
 
     def self.load(archive)
@@ -94,7 +94,7 @@ module NSWTopo
     end
 
     def save
-      tap { @archive.write "map.yml", YAML.dump(proj4: @projection.proj4, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
+      tap { @archive.write "map.yml", YAML.dump(projection: @projection.to_s, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
     end
 
     def layers
@@ -240,14 +240,13 @@ module NSWTopo
     end
 
     def info(empty: nil, json: false, proj: false)
-      # TODO: raise error if both --proj and --json are specified
       case
       when json
         bbox = bounding_box.reproject_to_wgs84.first
-        bbox.properties.merge! scale: @scale, extents: @extents, rotation: @rotation, projection: @projection.proj4, layers: layers.map(&:name)
+        bbox.properties.merge! scale: @scale, extents: @extents, rotation: @rotation, projection: @projection.to_s, layers: layers.map(&:name)
         JSON.pretty_generate bbox.to_h
       when proj
-        @projection.proj4
+        @projection.to_s
       else
         StringIO.new.tap do |io|
           io.puts "%-11s 1:%i" %            ["scale:",      @scale]

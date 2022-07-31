@@ -10,8 +10,8 @@ module NSWTopo
 
       def self.load(json, projection = nil)
         collection = JSON.parse(json)
-        proj4 = collection.dig "crs", "properties", "name"
-        projection ||= proj4 ? Projection.new(proj4) : DEFAULT_PROJECTION
+        crs_name = collection.dig "crs", "properties", "name"
+        projection ||= crs_name ? Projection.new(crs_name) : DEFAULT_PROJECTION
         collection["features"].map do |feature|
           geometry, properties = feature.values_at "geometry", "properties"
           type, coordinates = geometry.values_at "type", "coordinates"

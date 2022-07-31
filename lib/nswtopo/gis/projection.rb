@@ -1,42 +1,40 @@
 module NSWTopo
   class Projection
-    def initialize(string_or_path)
-      @proj4 = OS.gdalsrsinfo("-o", "proj4", string_or_path).chomp.strip
-      raise "no georeferencing found: %s" % string_or_path if @proj4.empty?
+    def initialize(value)
+      @wkt_simple = Projection === value ? value.wkt_simple : OS.gdalsrsinfo("-o", "wkt_simple", "--single-line", value).chomp.strip
+      raise "no georeferencing found: %s" % value if @wkt_simple.empty?
     end
 
-    %w[wkt wkt_simple wkt_noct wkt_esri mapinfo xml].each do |format|
-      define_method format do
-        OS.gdalsrsinfo("-o", format, @proj4).split(/['\r\n]+/).map(&:strip).join("")
-      end
-    end
+    attr_reader :wkt_simple
+    alias to_s wkt_simple
+    alias to_str wkt_simple
 
-    attr_reader :proj4
-    alias to_s proj4
-    alias to_str proj4
+    def proj4
+      @proj4 ||= OS.gdalsrsinfo("-o", "proj4", "--single-line", @wkt_simple).chomp.strip
+    end
 
     def ==(other)
-      proj4 == other.proj4
+      wkt_simple == other.wkt_simple
     end
 
     extend Forwardable
-    delegate :hash => :@proj4
+    delegate :hash => :@wkt_simple
     alias eql? ==
 
-    def self.utm(zone, south = true)
-      new("+proj=utm +zone=#{zone}#{' +south' if south} +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+    def self.utm(zone, south: true)
+      new("EPSG:32%1d%02d" % [south ? 7 : 6, zone])
     end
 
     def self.wgs84
-      new("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+      new("EPSG:4326")
     end
 
     def self.transverse_mercator(lon, lat)
-      new("+proj=tmerc +lon_0=#{lon} +lat_0=#{lat} +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+      new("+proj=tmerc +lon_0=#{lon} +lat_0=#{lat} +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs")
     end
 
     def self.azimuthal_equidistant(lon, lat)
-      new("+proj=aeqd +lon_0=#{lon} +lat_0=#{lat} +k_0=1 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+      new("+proj=aeqd +lon_0=#{lon} +lat_0=#{lat} +k_0=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs")
     end
 
     def self.utm_zones(collection)

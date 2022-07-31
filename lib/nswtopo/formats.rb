@@ -32,7 +32,7 @@ module NSWTopo
     end
 
     def render_tif(tif_path, ppi: PPI, dither: false, **options)
-      OS.gdal_translate(
+      OS.gdal_translate yield(ppi: ppi, dither: dither),
         "-of", "GTiff",
         "-co", "COMPRESS=DEFLATE",
         "-co", "ZLEVEL=9",
@@ -40,13 +40,17 @@ module NSWTopo
         "-mo", "TIFFTAG_YRESOLUTION=#{ppi}",
         "-mo", "TIFFTAG_RESOLUTIONUNIT=2",
         "-a_srs", @projection,
-        yield(ppi: ppi, dither: dither),
         tif_path
-      )
     end
 
     def render_jpg(jpg_path, ppi: PPI, **options)
-      OS.gdal_translate "-of", "JPEG", "-co", "QUALITY=90", "-mo", "EXIF_XResolution=#{ppi}", "-mo", "EXIF_YResolution=#{ppi}", "-mo", "EXIF_ResolutionUnit=2", yield(ppi: ppi), jpg_path
+      OS.gdal_translate yield(ppi: ppi),
+        "-of", "JPEG",
+        "-co", "QUALITY=90",
+        "-mo", "EXIF_XResolution=#{ppi}",
+        "-mo", "EXIF_YResolution=#{ppi}",
+        "-mo", "EXIF_ResolutionUnit=2",
+        jpg_path
     end
 
     def rasterise(png_path, external:, background:, ppi: nil, **options)

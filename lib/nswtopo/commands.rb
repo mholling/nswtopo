@@ -5,16 +5,16 @@ require_relative 'commands/scrape'
 require_relative 'commands/inspect'
 
 module NSWTopo
-  def init(archive, options)
-    puts Map.init(archive, options)
+  def init(archive, **options)
+    puts Map.init(archive, **options)
   end
 
-  def info(archive, options)
+  def info(archive, **options)
     raise OptionParser::InvalidArgument, "one output option only" if options.slice(:json, :proj).length > 1
-    puts Map.load(archive).info(options)
+    puts Map.load(archive).info(**options)
   end
 
-  def delete(archive, *names, options)
+  def delete(archive, *names, **options)
     map = Map.load archive
     names.map do |name|
       Layer.sanitise name
@@ -25,10 +25,7 @@ module NSWTopo
     end
   end
 
-  def render(archive, basename, *formats, options)
-    overwrite = options.delete :overwrite
-    svg_path = options.delete :svg_path
-
+  def render(archive, basename, *formats, overwrite: false, svg_path: nil, **options)
     case
     when formats.any?
     when svg_path
@@ -47,7 +44,7 @@ module NSWTopo
       raise "non-existent directory: #{path.parent}" unless path.parent.directory?
     end.tap do |paths|
       map = svg_path ? Map.from_svg(archive, svg_path) : Map.load(archive)
-      map.render *paths, options
+      map.render *paths, **options
     end
   end
 end

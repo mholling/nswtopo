@@ -484,20 +484,24 @@ begin
   command = command.tr ?-, ?_
   ARGV.prepend in_path.basename(".tgz").basename(".tar.gz").basename(".svg") if "render" == command
 
-  arity, args = NSWTopo.method(command).arity, ARGV.length + 2
-  case
-  when arity >= 0 && args > arity
-    raise OptionParser::NeedlessArgument, ARGV.last(args - arity).join(?\s)
-  when arity >= 0 ? args < arity : args + arity + 1 < 0
-    raise OptionParser::MissingArgument
-  end
-
-  nil.tap do |error|
+  begin
     NSWTopo::Archive.open(in_path: in_path, out_path: tgz_path) do |archive|
-      NSWTopo.send command, archive, *ARGV, options
-    rescue NSWTopo::PartialFailureError => error
+      NSWTopo.method(command).parameters.group_by(&:first).inject [archive] do |args, (type, params)|
+        case type
+        when :req
+          raise OptionParser::MissingArgument if ARGV.length < params.length - args.length
+          args.concat ARGV.shift(params.length - args.length)
+        when :rest
+          args.concat ARGV.shift(ARGV.length)
+        else args
+        end
+      end.tap do |args|
+        raise OptionParser::NeedlessArgument, ARGV.join(?\s) if ARGV.any?
+        NSWTopo.send command, *args, **options
+      rescue NSWTopo::PartialFailureError => partial_failure
+      end
     end
-    raise error.message if error
+    raise partial_failure if defined? partial_failure
   rescue NSWTopo::Archive::Invalid
     raise unless "render" == command
     raise OptionParser::InvalidOption, "can't specify --force without a map file" if options[:force]

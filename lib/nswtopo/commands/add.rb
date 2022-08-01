@@ -1,10 +1,10 @@
 module NSWTopo
-  def add(archive, *layers, options)
+  def add(archive, *layers, after: nil, before: nil, replace: nil, overwrite: false, **options)
     create_options = {
-      after: Layer.sanitise(options.delete :after),
-      before: Layer.sanitise(options.delete :before),
-      replace: Layer.sanitise(options.delete :replace),
-      overwrite: options.delete(:overwrite)
+      after: Layer.sanitise(after),
+      before: Layer.sanitise(before),
+      replace: Layer.sanitise(replace),
+      overwrite: overwrite
     }
     map = Map.load archive
 
@@ -73,32 +73,32 @@ module NSWTopo
     end
   end
 
-  def contours(archive, dem_path, options)
-    add archive, "contours", options.merge(path: Pathname(dem_path))
+  def contours(archive, dem_path, **options)
+    add archive, "contours", **options, path: Pathname(dem_path)
   end
 
-  def spot_heights(archive, dem_path, options)
-    add archive, "spot-heights", options.merge(path: Pathname(dem_path))
+  def spot_heights(archive, dem_path, **options)
+    add archive, "spot-heights", **options, path: Pathname(dem_path)
   end
 
-  def relief(archive, dem_path, options)
-    add archive, "relief", options.merge(path: Pathname(dem_path))
+  def relief(archive, dem_path, **options)
+    add archive, "relief", **options, path: Pathname(dem_path)
   end
 
-  def grid(archive, options)
-    add archive, "grid", options
+  def grid(archive, **options)
+    add archive, "grid", **options
   end
 
-  def declination(archive, options)
-    add archive, "declination", options
+  def declination(archive, **options)
+    add archive, "declination", **options
   end
 
-  def controls(archive, gps_path, options)
-    add archive, "controls", options.merge(path: Pathname(gps_path))
+  def controls(archive, gps_path, **options)
+    add archive, "controls", **options, path: Pathname(gps_path)
   end
 
-  def overlay(archive, gps_path, options)
+  def overlay(archive, gps_path, **options)
     raise OptionParser::InvalidArgument, gps_path unless gps_path =~ /\.(gpx|kml)$/i
-    add archive, gps_path, options.merge(path: Pathname(gps_path))
+    add archive, gps_path, **options, path: Pathname(gps_path)
   end
 end

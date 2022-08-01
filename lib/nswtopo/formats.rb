@@ -53,7 +53,7 @@ module NSWTopo
         jpg_path
     end
 
-    def rasterise(png_path, external:, background:, ppi: nil, **options)
+    def rasterise(png_path, background:, **options)
       Dir.mktmppath do |temp_dir|
         svg_path = temp_dir / "map.svg"
         src_path = temp_dir / "browser.svg"
@@ -62,19 +62,10 @@ module NSWTopo
         chrome_path = Config["chrome"]
         raise "please configure a path for google chrome" unless chrome_path
 
-        render_svg svg_path, external: external, background: background
+        render_svg svg_path, background: background
         xml = REXML::Document.new svg_path.read
 
-        case
-        when !external
-          raster_dimensions, ppi, resolution = raster_dimensions_at ppi: ppi, **options
-        when ppi
-          raster_dimensions = xml.elements["svg"].attributes.values_at("width", "height").map do |attribute|
-            attribute.value.to_f * ppi / 25.4
-          end.map(&:ceil)
-        else
-          raise "must specify ppi when using an external svg"
-        end
+        raster_dimensions, ppi, resolution = raster_dimensions_at **options
 
         megapixels = raster_dimensions.inject(&:*) / 1024.0 / 1024.0
         if options[:resolution]

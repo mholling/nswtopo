@@ -93,6 +93,31 @@ module NSWTopo
       new archive, **YAML.load(archive.read "map.yml")
     end
 
+    def self.from_svg(archive, svg_path)
+      xml = REXML::Document.new(svg_path.read)
+
+      creator_tool = xml.elements["svg/metadata/rdf:RDF/rdf:Description[@xmp:CreatorTool]/@xmp:CreatorTool"]&.value
+      version = Version[creator_tool]
+      raise "SVG nswtopo version too old: %s" % svg_path unless version >= MIN_VERSION
+      raise "SVG nswtopo version too new: %s" % svg_path unless version <= VERSION
+
+      view_box = /^0\s+0\s+(?<width>\S+)\s+(?<height>\S+)$/.match xml.elements["svg[@viewBox]/@viewBox"]&.value
+      %i[width height].inject(view_box) do |check, name|
+        check && xml.elements["svg[@#{name}='#{view_box[name]}mm']"]
+      end || raise(Version::Error)
+
+      dimensions = view_box.values_at(:width, :height).map(&:to_f)
+      init(archive, coords: [[0, 0]], dimensions: dimensions).tap do |map|
+        map.write "map.svg", svg_path.read
+      end
+    rescue Version::Error
+      raise "not an nswtopo SVG file: %s" % svg_path
+    rescue SystemCallError
+      raise "couldn't read file: %s" % svg_path
+    rescue REXML::ParseException
+      raise "unrecognised map file: %s" % svg_path
+    end
+
     def save
       tap { @archive.write "map.yml", YAML.dump(projection: @projection.to_s, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
     end
@@ -263,13 +288,13 @@ module NSWTopo
     end
     alias to_s info
 
-    def render(*paths, worldfile: false, force: false, external: nil, background: nil, **options)
+    def render(*paths, worldfile: false, force: false, background: nil, **options)
       @archive.delete "map.svg" if force
       Dir.mktmppath do |temp_dir|
         rasters = Hash.new do |rasters, opts|
           png_path = temp_dir / "raster.#{rasters.size}.png"
           pgw_path = temp_dir / "raster.#{rasters.size}.pgw"
-          rasterise png_path, external: external, background: background, **opts
+          rasterise png_path, background: background, **opts
           write_world_file pgw_path, opts
           rasters[opts] = png_path
         end
@@ -286,7 +311,7 @@ module NSWTopo
           ext = path.extname.delete_prefix ?.
           name = path.basename(path.extname)
           out_path = temp_dir / "output.#{index}.#{ext}"
-          send "render_#{ext}", out_path, name: name, external: external, background: background, **options do |dither: false, **opts|
+          send "render_#{ext}", out_path, name: name, background: background, **options do |dither: false, **opts|
             (dither ? dithers : rasters)[opts]
           end
           next out_path, path

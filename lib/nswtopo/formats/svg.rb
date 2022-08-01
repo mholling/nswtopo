@@ -1,29 +1,7 @@
 module NSWTopo
   module Formats
-    def render_svg(svg_path, external:, background:, **options)
-      case
-      when external
-        begin
-          xml = REXML::Document.new(external.read)
-
-          creator_tool = xml.elements["svg/metadata/rdf:RDF/rdf:Description[@xmp:CreatorTool]/@xmp:CreatorTool"]&.value
-          version = Version[creator_tool]
-          raise "SVG nswtopo version too old: %s" % external unless version >= MIN_VERSION
-          raise "SVG nswtopo version too new: %s" % external unless version <= VERSION
-
-          view_box = /^0\s+0\s+(?<width>\S+)\s+(?<height>\S+)$/.match xml.elements["svg[@viewBox]/@viewBox"]&.value
-          %i[width height].inject(view_box) do |check, name|
-            check && xml.elements["svg[@#{name}='#{view_box[name]}mm']"]
-          end || raise(Version::Error)
-        rescue Version::Error
-          raise "not an nswtopo SVG file: %s" % external
-        rescue SystemCallError
-          raise "couldn't read file: %s" % external
-        rescue REXML::ParseException
-          raise "not an SVG file: %s" % external
-        end
-
-      when uptodate?("map.svg", "map.yml")
+    def render_svg(svg_path, background:, **options)
+      if uptodate?("map.svg", "map.yml")
         xml = REXML::Document.new read("map.svg")
 
       else
@@ -76,7 +54,7 @@ module NSWTopo
       end
 
       xml.elements["svg/*[@id='map.background']"].add_attribute "fill", background if background
-      xml.elements["svg/metadata/rdf:RDF/rdf:Description"].add_attributes("xmp:ModifyDate" => Time.now.iso8601) unless external
+      xml.elements["svg/metadata/rdf:RDF/rdf:Description"].add_attributes("xmp:ModifyDate" => Time.now.iso8601)
       string, formatter = String.new, REXML::Formatters::Pretty.new
       formatter.compact = true
       formatter.write xml, string

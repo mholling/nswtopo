@@ -25,11 +25,20 @@ module NSWTopo
     end
   end
 
-  def render(archive, *formats, options)
+  def render(archive, basename, *formats, options)
     overwrite = options.delete :overwrite
-    formats << "svg" if formats.empty?
+    svg_path = options.delete :svg_path
+
+    case
+    when formats.any?
+    when svg_path
+      raise OptionParser::MissingArgument, "no output format specified"
+    else
+      formats << "svg"
+    end
+
     formats.map do |format|
-      Pathname(Formats === format ? "#{archive.basename}.#{format}" : format)
+      Pathname(Formats === format ? "#{basename}.#{format}" : format)
     end.uniq.each do |path|
       format = path.extname.delete_prefix(?.)
       raise "unrecognised format: #{path}" if format.empty?
@@ -37,7 +46,8 @@ module NSWTopo
       raise "file already exists: #{path}" if path.exist? && !overwrite
       raise "non-existent directory: #{path.parent}" unless path.parent.directory?
     end.tap do |paths|
-      Map.load(archive).render *paths, options
+      map = svg_path ? Map.from_svg(archive, svg_path) : Map.load(archive)
+      map.render *paths, options
     end
   end
 end

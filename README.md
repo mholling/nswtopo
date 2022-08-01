@@ -249,7 +249,7 @@ The following workflow is suggested to create a rogaine map.
         After you've added your information layers, save the SVG and use *nswtopo* to render it to the final raster for printing:
 
         ```sh
-        $ nswtopo render --external rogaine.svg --ppi 600 rogaine.tgz rogaine.tif
+        $ nswtopo render --ppi 600 rogaine.svg rogaine.tif
         ```
 
     I recommend the first method. Inkscape can be difficult to use. More importantly, it is not SVG standards-compliant, so some errors may be introduced. By using a raster graphics editor, you can be confident in the final appearance of the printed map. If your PC struggles with the image size at 600 ppi, a resolution as low as 300 ppi will still yield satisfactory results.

@@ -84,7 +84,6 @@ _nswtopo() {
 				render)
 					args+=(path format)
 					flag_opts+=(-d --dither -w --worldfile -o --overwrite -f --force)
-					file_opts+=(-e --external)
 					arg_opts+=(-p --ppi -z --zoom -b --background)
 					;;
 				layers)

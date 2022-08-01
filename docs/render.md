@@ -1,6 +1,10 @@
 # Description
 
-Once you've added your layers, use the *render* command to create the map itself. Different output formats are available for various purposes.
+Once you've added your layers, use the *render* command to create the map itself. Different output formats are available for various purposes. In its simplest form, to render a GeoTIFF from a map file:
+
+```
+$ nswtopo render map.tgz map.tif
+```
 
 Specify your output format either as a filename with appropriate extension, or just the format extension itself (in which case the map's file name will be used). You can create multiple outputs at once.
 
@@ -39,8 +43,12 @@ $ nswtopo config --chrome "/Applications/Google Chrome.app/Contents/MacOS/Google
 
 # Miscellaneous
 
+After generating your map in SVG format, you can add content outside of *nswtopo* using a vector graphics editor such as Inkscape. You can then generate raster formats from the edited SVG instead of the map file:
+
+```
+$ nswtopo render map.svg map.tif
+```
+
 Maps normally use a white background. To specify a different background colour, use the `--background` option.
 
 For raster formats, use the `--dither` option to create the raster in indexed colour mode. This can reduce file size. For best results, have the `pngquant` program available on your command line for the dithering process.
-
-After generating your map in SVG format, you can add content outside of *nswtopo* using a vector graphics editor such as Inkscape. Use the `--external` option to render from the edited map, instead of the internal copy maintained by *nswtopo*.

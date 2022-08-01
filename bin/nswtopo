@@ -351,7 +351,7 @@ begin
     when "render"
       parser.banner = <<~EOF
         *nswtopo* *render* - render map in various formats
-          usage: _nswtopo_ _render_ [~options~] <map.tgz> [<format-or-path> ...]
+          usage: _nswtopo_ _render_ [~options~] <map.tgz|map.svg> [<format-or-path> ...]
           formats: #{NSWTopo::Formats.extensions.sort.join ?\s}
           default: svg
       EOF
@@ -363,7 +363,6 @@ begin
       parser.on "-w", "--worldfile",                          "save additional projection (.prj) and",
                                                               "world file (.wld) for raster formats"
       parser.on "-o", "--overwrite",                          "overwrite existing output files"
-      parser.on "-e", "--external    <map.svg>", Pathname,    "render from externally edited SVG"
       parser.on "-f", "--force",                              "force regeneration of cached SVG"
 
     when "layers"
@@ -483,8 +482,9 @@ begin
   end
 
   command = command.tr ?-, ?_
-  arity, args = NSWTopo.method(command).arity, ARGV.length + 2
+  ARGV.prepend in_path.basename(".tgz").basename(".tar.gz").basename(".svg") if "render" == command
 
+  arity, args = NSWTopo.method(command).arity, ARGV.length + 2
   case
   when arity >= 0 && args > arity
     raise OptionParser::NeedlessArgument, ARGV.last(args - arity).join(?\s)
@@ -492,12 +492,18 @@ begin
     raise OptionParser::MissingArgument
   end
 
-  error = nil
-  NSWTopo::Archive.open(tgz_path, *in_path) do |archive|
-    NSWTopo.send command, archive, *ARGV, options
-  rescue NSWTopo::PartialFailureError => error
+  nil.tap do |error|
+    NSWTopo::Archive.open(in_path: in_path, out_path: tgz_path) do |archive|
+      NSWTopo.send command, archive, *ARGV, options
+    rescue NSWTopo::PartialFailureError => error
+    end
+    raise error.message if error
+  rescue NSWTopo::Archive::Invalid
+    raise unless "render" == command
+    raise OptionParser::InvalidOption, "can't specify --force without a map file" if options[:force]
+    in_path, tgz_path, options = nil, nil, options.merge(svg_path: in_path)
+    retry
   end
-  raise error.message if error
 rescue OptionParser::ParseError => error
   warn ansi[command_parser] if $stderr.tty?
   log_abort error.message

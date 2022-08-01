@@ -1,11 +1,11 @@
 module NSWTopo
   class Archive
     extend Safely
+    Invalid = Class.new RuntimeError
 
-    def initialize(path, tar_in)
-      @tar_in, @basename, @entries = tar_in, path.basename(".tgz").basename(".tar.gz").to_s, Hash[]
+    def initialize(tar_in)
+      @tar_in, @entries = tar_in, Hash[]
     end
-    attr_reader :basename
 
     def delete(filename)
       @entries[filename] = nil
@@ -52,7 +52,7 @@ module NSWTopo
       end
     end
 
-    def self.open(out_path, in_path = nil, &block)
+    def self.open(out_path: nil, in_path: nil, &block)
       buffer, reader = StringIO.new, in_path ? Zlib::GzipReader : StringIO
 
       reader.open(*in_path) do |input|
@@ -64,7 +64,7 @@ module NSWTopo
           raise "unrecognised map file: %s" % in_path
         end if in_path
         Gem::Package::TarReader.new(input) do |tar_in|
-          archive = new(out_path, tar_in).tap(&block)
+          archive = new(tar_in).tap(&block)
           Gem::Package::TarWriter.new(buffer) do |tar_out|
             archive.each &tar_out.method(:add_entry)
           end if archive.changed?
@@ -85,10 +85,10 @@ module NSWTopo
           FileUtils.cp temp_path, out_path
         end
         log_success "map saved"
-      end unless buffer.size.zero?
+      end if out_path && buffer.size.nonzero?
 
     rescue Zlib::GzipFile::Error
-      raise "unrecognised map file: %s" % in_path
+      raise Invalid, "unrecognised map file: %s" % in_path
     end
   end
 end

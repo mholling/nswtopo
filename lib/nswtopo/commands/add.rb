@@ -94,6 +94,7 @@ module NSWTopo
   end
 
   def controls(archive, gps_path, **options)
+    raise OptionParser::InvalidArgument, gps_path unless gps_path =~ /\.(gpx|kml)$/i
     add archive, "controls", **options, path: Pathname(gps_path)
   end
 

@@ -11,6 +11,8 @@ module NSWTopo
       else
         raise "invalid GPX or KML file: #{path}"
       end
+    rescue SystemCallError
+      raise "couldn't read file: #{path}"
     end
 
     def self.load(path)

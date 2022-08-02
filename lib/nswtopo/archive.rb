@@ -1,14 +1,11 @@
 module NSWTopo
   class Archive
     extend Safely
+    include Enumerable
     Invalid = Class.new RuntimeError
 
-    def initialize(tar_in)
-      @tar_in, @entries = tar_in, Hash[]
-    end
-
-    def delete(filename)
-      @entries[filename] = nil
+    def initialize(tar)
+      @tar, @entries = tar, Hash[]
     end
 
     def write(filename, content)
@@ -17,15 +14,36 @@ module NSWTopo
       @entries[filename] = Gem::Package::TarReader::Entry.new header, io
     end
 
-    def mtime(filename)
-      header = @entries.key?(filename) ? @entries[filename]&.header : @tar_in.seek(filename, &:header)
-      Time.at header.mtime if header
+    def each(&block)
+      @tar.rewind
+      @tar.each do |entry|
+        yield entry unless @entries.key? entry.full_name
+      end
+      @entries.each do |filename, entry|
+        yield entry if entry
+      end
+    end
+
+    def delete(filename)
+      find do |entry|
+        entry.full_name == filename
+      end&.tap do
+        @entries[filename] = nil
+      end
     end
 
     def read(filename)
-      @entries.key?(filename) ? @entries[filename]&.read : @tar_in.seek(filename, &:read)
-    ensure
-      @entries[filename]&.rewind
+      find do |entry|
+        entry.full_name == filename
+      end&.read
+    end
+
+    def mtime(filename)
+      find do |entry|
+        entry.full_name == filename
+      end&.yield_self do |entry|
+        Time.at entry.header.mtime
+      end
     end
 
     def uptodate?(depender, *dependees)
@@ -36,20 +54,8 @@ module NSWTopo
       end
     end
 
-    def each(&block)
-      @tar_in.each do |entry|
-        yield entry unless @entries.key? entry.full_name
-      end
-      @entries.each do |filename, entry|
-        yield entry if entry
-      end
-    end
-
     def changed?
-      return true if @entries.values.any?
-      @entries.keys.any? do |filename|
-        @tar_in.seek(filename, &:itself)
-      end
+      @entries.any?
     end
 
     def self.open(out_path: nil, in_path: nil, &block)
@@ -63,10 +69,10 @@ module NSWTopo
         rescue Version::Error
           raise "unrecognised map file: %s" % in_path
         end if in_path
-        Gem::Package::TarReader.new(input) do |tar_in|
-          archive = new(tar_in).tap(&block)
-          Gem::Package::TarWriter.new(buffer) do |tar_out|
-            archive.each &tar_out.method(:add_entry)
+        Gem::Package::TarReader.new(input) do |tar|
+          archive = new(tar).tap(&block)
+          Gem::Package::TarWriter.new(buffer) do |tar|
+            archive.each &tar.method(:add_entry)
           end if archive.changed?
         end
       end
@@ -83,12 +89,14 @@ module NSWTopo
         end
         safely "saving map file, please wait..." do
           FileUtils.cp temp_path, out_path
+        rescue SystemCallError
+          raise "couldn't save #{out_path}"
         end
         log_success "map saved"
       end if out_path && buffer.size.nonzero?
 
     rescue Zlib::GzipFile::Error
-      raise Invalid, "unrecognised map file: %s" % in_path
+      raise Invalid
     end
   end
 end

@@ -40,8 +40,9 @@ module NSWTopo
       format = path.extname.delete_prefix(?.)
       raise "unrecognised format: #{path}" if format.empty?
       raise "unrecognised format: #{format}" unless Formats === format
+      raise "already a directory: #{path}" if path.directory?
       raise "file already exists: #{path}" if path.exist? && !overwrite
-      raise "non-existent directory: #{path.parent}" unless path.parent.directory?
+      raise "no such directory: #{path.parent}" unless path.parent.directory?
     end.tap do |paths|
       map = svg_path ? Map.from_svg(archive, svg_path) : Map.load(archive)
       map.render *paths, **options

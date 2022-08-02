@@ -119,7 +119,7 @@ module NSWTopo
     end
 
     def save
-      tap { @archive.write "map.yml", YAML.dump(projection: @projection.to_s, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
+      tap { write "map.yml", YAML.dump(projection: @projection.to_s, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
     end
 
     def layers
@@ -321,6 +321,8 @@ module NSWTopo
           outputs.each do |out_path, path|
             FileUtils.cp out_path, path
             log_success "created %s" % path
+          rescue SystemCallError
+            raise "couldn't save #{path}"
           end
 
           paths.select do |path|

@@ -474,10 +474,12 @@ begin
 
   in_path = case command
   when "init"
-    raise "#{tgz_path} already exists" if !options.delete(:overwrite) && tgz_path.exist?
+    raise "already a directory: #{tgz_path}" if tgz_path.directory?
+    raise "file already exists: #{tgz_path}" if !options.delete(:overwrite) && tgz_path.exist?
+    raise "no such directory: #{tgz_path.parent}" unless tgz_path.parent.directory?
   else
-    raise "no such file #{tgz_path}" unless tgz_path.exist?
-    raise "#{tgz_path} is not a file" unless tgz_path.file?
+    raise "no such file: #{tgz_path}" unless tgz_path.exist?
+    raise "not a file: #{tgz_path}" unless tgz_path.file?
     tgz_path
   end
 
@@ -503,7 +505,7 @@ begin
     end
     raise partial_failure if defined? partial_failure
   rescue NSWTopo::Archive::Invalid
-    raise unless "render" == command
+    raise "unrecognised map file: #{in_path}" unless "render" == command
     raise OptionParser::InvalidOption, "can't specify --force without a map file" if options[:force]
     in_path, tgz_path, options = nil, nil, options.merge(svg_path: in_path)
     retry

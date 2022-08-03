@@ -52,19 +52,21 @@ module NSWTopo
       wgs84_bounds = bounds(projection: Projection.wgs84)
       wgs84_dimensions = wgs84_bounds.transpose.diff / degree_resolution
       max_zoom = Math::log2(wgs84_dimensions.max).ceil - Math::log2(Kmz::TILE_SIZE).to_i
-      top_left = [wgs84_bounds[0][0], wgs84_bounds[1][1]]
       png_path = yield(ppi: ppi)
 
       Dir.mktmppath do |temp_dir|
         pyramid = (0..max_zoom).map do |zoom|
           resolution = degree_resolution * 2**(max_zoom - zoom)
           degrees_per_tile = resolution * Kmz::TILE_SIZE
-          counts = (wgs84_bounds.transpose.diff / degrees_per_tile).map(&:ceil)
-          dimensions = counts.times Kmz::TILE_SIZE
 
           tif_path = temp_dir / "#{name}.kmz.zoom.#{zoom}.tif"
-          EmptyRaster.write tif_path, projection: Projection.wgs84, dimensions: dimensions, top_left: top_left, resolution: resolution
-          OS.gdalwarp "-s_srs", @projection, "-r", "bilinear", "-dstalpha", png_path, tif_path
+          OS.gdalwarp "-s_srs", @projection, "-t_srs", "EPSG:4326", "-tr", resolution, resolution, "-r", "bilinear", "-dstalpha", png_path, tif_path
+
+          corners = JSON.parse(OS.gdalinfo "-json", tif_path)["cornerCoordinates"]
+          top_left = corners["upperLeft"]
+          counts = corners.values.transpose.map(&:minmax).map do |min, max|
+            (max - min) / degrees_per_tile
+          end.map(&:ceil)
 
           indices_bounds = [top_left, counts, %i[+ -]].transpose.map do |coord, count, increment|
             boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }

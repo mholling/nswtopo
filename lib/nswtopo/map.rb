@@ -5,7 +5,7 @@ module NSWTopo
     def initialize(archive, projection:, scale:, centre:, extents:, rotation:, layers: {})
       @archive, @scale, @centre, @extents, @rotation, @layers = archive, scale, centre, extents, rotation, layers
       @projection = Projection.new projection
-      ox, oy = bounding_box.coordinates[0][3]
+      ox, oy = top_left
       @affine = [[1, 0], [0, -1], [-ox, oy]].map do |vector|
         vector.rotate_by_degrees(-@rotation).times(1000.0 / @scale)
       end.transpose
@@ -138,6 +138,10 @@ module NSWTopo
       GeoJSON.point(@centre, projection: @projection).reproject_to_wgs84.coordinates
     end
 
+    def top_left
+      [-0.5 * @extents[0], 0.5 * @extents[1]].rotate_by_degrees(-@rotation).plus @centre
+    end
+
     def bounding_box(mm: nil, metres: nil)
       margin = mm ? mm * 0.001 * @scale : metres ? metres : 0
       ring = @extents.map do |extent|
@@ -160,13 +164,23 @@ module NSWTopo
 
     def write_world_file(path, resolution: nil, ppi: nil)
       resolution ||= 0.0254 * @scale / ppi
-      top_left = bounding_box.coordinates[0][3]
       WorldFile.write path, top_left: top_left, resolution: resolution, angle: -@rotation
     end
 
     def write_empty_raster(path, resolution:)
       dimensions, ppi, resolution = raster_dimensions_at resolution: resolution
-      EmptyRaster.write path, dimensions: dimensions, resolution: resolution, projection: @projection, top_left: bounding_box.coordinates[0][3], angle: -@rotation
+      geotransform = WorldFile.geotransform(top_left: top_left, resolution: resolution, angle: -@rotation).join(", ")
+      vrt = REXML::Document.new
+      vrt.add_element("VRTDataset", %w[rasterXSize rasterYSize].zip(dimensions).to_h).tap do |dataset|
+        dataset.add_element("SRS").add_text(@projection.wkt_simple)
+        dataset.add_element("GeoTransform").add_text(geotransform)
+        %w[Red Green Blue Alpha].each.with_index do |color_interp, index|
+          dataset.add_element("VRTRasterBand", "dataType" => "Byte", "band" => index + 1).add_element("ColorInterp").add_text(color_interp)
+        end
+      end
+      OS.gdal_translate "/vsistdin/", path do |stdin|
+        stdin.write vrt
+      end
     end
 
     def coords_to_mm(point)

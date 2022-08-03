@@ -9,14 +9,17 @@ module NSWTopo
       png_path = nil
       max_zoom, min_zoom = *zoom.sort.reverse
       max_zoom.downto(0).map do |zoom|
-        indices, dimensions, top_left = web_mercator_bounds.map do |lower, upper|
+        indices, ts = web_mercator_bounds.map do |lower, upper|
           (2**zoom * (lower + HALF) / HALF / 2).floor ... (2**zoom * (upper + HALF) / HALF / 2).ceil
-        end.map.with_index do |indices, axis|
-          [indices, indices.size * TILE_SIZE, (axis.zero? ? indices.first : indices.last) * 2 * HALF / 2**zoom - HALF]
+        end.map do |indices|
+          [indices, indices.size * TILE_SIZE]
         end.transpose
+        te = [*indices.map(&:begin), *indices.map(&:end)].map do |index|
+          index * 2 * HALF / 2**zoom - HALF
+        end
         resolution = 2 * HALF / TILE_SIZE / 2**zoom
         tif_path = temp_dir / "tile.#{zoom}.tif"
-        { resolution: resolution, dimensions: dimensions, top_left: top_left, tif_path: tif_path, indices: indices, zoom: zoom }
+        { resolution: resolution, ts: ts, te: te, tif_path: tif_path, indices: indices, zoom: zoom }
       end.select do |indices:, zoom:, **|
         next true if zoom == max_zoom
         next zoom >= min_zoom if min_zoom
@@ -26,9 +29,8 @@ module NSWTopo
       end.tap do |levels|
         zoom_levels = levels.map { |zoom:, **| zoom }
         log_update "#{extension}: creating zoom levels %s" % zoom_levels.minmax.uniq.join(?-)
-      end.each.concurrently do |resolution:, dimensions:, top_left:, tif_path:, **|
-        EmptyRaster.write tif_path, resolution: resolution, dimensions: dimensions, top_left: top_left, projection: Projection.new("EPSG:3857")
-        OS.gdalwarp "-s_srs", @projection, "-r", "cubic", "-dstalpha", png_path, tif_path
+      end.each.concurrently do |ts:, te:, tif_path:, **|
+        OS.gdalwarp "-s_srs", @projection, "-t_srs", "EPSG:3857", "-ts", *ts, "-te", *te, "-r", "cubic", "-dstalpha", png_path, tif_path
       end.flat_map do |tif_path:, indices:, zoom:, **|
         cols, rows = indices.map(&:to_a)
         [cols, rows.reverse].map(&:each).map(&:with_index).map(&:entries).inject(&:product).map do |(col, j), (row, i)|

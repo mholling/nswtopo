@@ -23,7 +23,7 @@ $ nswtopo contours --replace nsw.topographic.contours map.tgz DATA_25994.zip
 ```
 # Style
 
-Contours are rendered in brown at a thickness of 0.08mm. Change line colour with `--stroke`, thickness with `--stroke-width` and label colour with `--fill`. Colour can be an *RGB triplet* (e.g. *800080*) or *web colour* name (e.g. *purple*).
+Contours are rendered in brown at a thickness of 0.08mm. Change line colour with `--stroke`, thickness with `--stroke-width` and label colour with `--fill`. Colour can be an *RGB triplet* (e.g. *#800080*) or *web colour* name (e.g. *purple*).
 
 # Contour Thinning
 A small contour interval can produce very dense contours in steep terrain. An advanced `--thin` option is available to selectively remove contours in steep areas such as cliffsides. It emulates a manual contour thinning technique. An index multiple of eight (e.g. 5m contours with 40m index contours) produces the most aesthetic results.

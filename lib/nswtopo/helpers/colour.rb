@@ -151,18 +151,21 @@ class Colour
     yellowgreen: [154, 205, 50]
   YAML
 
-  def initialize(string_or_array)
-    @triplet = case string_or_array
-    when Colour then string_or_array.triplet.dup
-    when Array then string_or_array.take(3).map(&:round)
+  def initialize(value)
+    @string = value
+    @triplet = case value
+    when Colour
+      @string = value.string.dup
+      value.triplet.dup
+    when Array
+      value.take(3).map(&:round)
     when *COLOURS.keys
-      @name = string_or_array
-      COLOURS[string_or_array]
+      COLOURS[value]
     when /^#?([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})$/i
       [$1, $2, $3].map { |hex| Integer("0x#{hex}") }
-    when /^rgb\((\d{1,3}),(\d{1,3}),(\d{1,3})\)$/
+    when /^rgb\((\d{1,3}), *(\d{1,3}), *(\d{1,3})\)$/
       [$1, $2, $3].map(&:to_i)
-    when /^hsl\((\d{1,3}),(\d{1,3})%,(\d{1,3})%\)$/
+    when /^hsl\((\d{1,3}), *(\d{1,3})%, *(\d{1,3})%\)$/
       h, s, l = [$1, $2, $3].map(&:to_i)
       h %= 360;
       c = (100 - (2 * l - 100).abs) * s / 10000.0
@@ -180,13 +183,13 @@ class Colour
         255 * (v + m)
       end.map(&:to_i)
     end
-    raise Error, "invalid colour: #{string_or_array}" unless @triplet&.all?(0..255)
+    raise Error, "invalid colour: #{value}" unless @triplet&.all?(0..255)
+    @string = "rgb(%i,%i,%i)" % @triplet unless String === @string
+    @string.tr! ?\s, ""
   end
-  attr_reader :triplet
 
-  def to_s
-    @name || "#%.2X%.2X%.2X" % triplet
-  end
+  attr_reader :triplet, :string
+  alias to_s string
 
   extend Forwardable
   delegate :[] => :@triplet

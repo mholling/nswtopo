@@ -29,19 +29,19 @@ begin
   Thread::report_on_exception = false
 
   GDAL_VERSION = begin
-    stdout, * = Open3.capture3 "gdalinfo", "--version"
+    stdout, * = Open3.capture3 "gdal-config", "--version"
     stdout[/\d+(?:\.\d+){1,2}/]
   rescue Errno::ENOENT
     log_abort "GDAL not installed"
   end
 
   case
-  when (RUBY_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,5]) < 0
-    log_abort "ruby 2.5 or greater required"
+  when (RUBY_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,7]) < 0
+    log_abort "ruby 2.7 or greater required"
   when !Zlib.const_defined?(:GzipFile)
     log_abort "ruby with GZIP_SUPPORT required"
-  when (GDAL_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [2,3]) < 0
-    log_abort "GDAL 2.3 or greater required"
+  when (GDAL_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [3,4]) < 0
+    log_abort "GDAL 3.4 or greater required"
   end
 
   digits = '\d+(?:_\d+)*'

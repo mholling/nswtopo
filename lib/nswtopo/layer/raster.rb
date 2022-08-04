@@ -6,8 +6,8 @@ module NSWTopo
         out_path = temp_dir / "output.tif"
 
         resolution, raster_path = get_raster(temp_dir)
-        @map.write_empty_raster tif_path, resolution: resolution
-        OS.gdalwarp "-r", "bilinear", raster_path, tif_path
+        tr, te = [resolution, resolution], @map.bounds.transpose.flatten
+        OS.gdalwarp "-t_srs", @map.projection, "-tr", *tr, "-te", *te, "-r", "bilinear", raster_path, tif_path
 
         density = 0.01 * @map.scale / resolution
         tiff_tags = %W[-mo TIFFTAG_XRESOLUTION=#{density} -mo TIFFTAG_YRESOLUTION=#{density} -mo TIFFTAG_RESOLUTIONUNIT=3]

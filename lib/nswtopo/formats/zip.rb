@@ -5,7 +5,6 @@ module NSWTopo
         zip_dir = temp_dir.join("zip").tap(&:mkpath)
         tiles_dir = zip_dir.join("tiles").tap(&:mkpath)
         png_path = yield(ppi: ppi)
-        top_left = bounding_box.coordinates[0][3]
 
         2.downto(0).map.with_index do |level, index|
           [level, index, *raster_dimensions_at(ppi: ppi.to_f / 2**index)]
@@ -16,8 +15,8 @@ module NSWTopo
             OS.gdal_translate *%w[--config GDAL_PAM_ENABLED NO -r bilinear -outsize], *outsize, png_path, zip_dir / "thumb.png"
           when 1
             zip_dir.join("#{name}.ref").open("w") do |file|
-              file.puts @projection.wkt_simple
-              file.puts WorldFile.geotransform(top_left: top_left, resolution: resolution, angle: -@rotation).flatten.join(?,)
+              file.puts @projection.wkt
+              file.puts [-0.5 * @extents[0], resolution, 0.0, 0.5 * @extents[1], 0.0, -resolution].join(?,)
               file << dimensions.join(?,)
             end
           end

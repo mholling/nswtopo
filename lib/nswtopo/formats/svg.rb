@@ -5,7 +5,7 @@ module NSWTopo
         xml = REXML::Document.new read("map.svg")
 
       else
-        width, height = extents.times(1000.0 / scale)
+        width, height = @extents.times(@mm_per_metre)
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new(1.0, "utf-8")
         svg = xml.add_element "svg",

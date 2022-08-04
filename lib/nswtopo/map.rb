@@ -2,15 +2,13 @@ module NSWTopo
   class Map
     include Formats, Dither, Zip, Log, Safely, TiledWebMap
 
-    def initialize(archive, projection:, scale:, centre:, extents:, rotation:, layers: {})
-      @archive, @scale, @centre, @extents, @rotation, @layers = archive, scale, centre, extents, rotation, layers
+    def initialize(archive, projection:, scale:, extents:, rotation:, layers: {})
+      @archive, @scale, @extents, @rotation, @layers = archive, scale, extents, rotation, layers
       @projection = Projection.new projection
-      ox, oy = top_left
-      @affine = [[1, 0], [0, -1], [-ox, oy]].map do |vector|
-        vector.rotate_by_degrees(-@rotation).times(1000.0 / @scale)
-      end.transpose
+      @top_right = @extents.times(0.5)
+      @mm_per_metre = 1000.0 / @scale
     end
-    attr_reader :projection, :scale, :centre, :extents, :rotation
+    attr_reader :projection, :scale, :extents, :rotation
 
     extend Forwardable
     delegate %i[write mtime read uptodate?] => :@archive
@@ -72,7 +70,11 @@ module NSWTopo
       end
 
       wgs84_centre = GeoJSON.point(centre, projection: projection).reproject_to_wgs84.coordinates
-      projection = Projection.transverse_mercator *wgs84_centre
+      projection = if rotation.zero?
+        Projection.transverse_mercator *wgs84_centre
+      else
+        Projection.oblique_mercator *wgs84_centre, rotation
+      end
 
       extents = extents.zip(margins).map do |extent, margin|
         extent + 2 * margin * 0.001 * scale
@@ -86,11 +88,13 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      new(archive, projection: projection, scale: scale, centre: [0, 0], extents: extents, rotation: rotation).save
+      new(archive, projection: projection, scale: scale, extents: extents, rotation: rotation).save
     end
 
     def self.load(archive)
       new archive, **YAML.load(archive.read "map.yml")
+    rescue ArgumentError, YAML::Exception
+      raise NSWTopo::Archive::Invalid
     end
 
     def self.from_svg(archive, svg_path)
@@ -119,7 +123,7 @@ module NSWTopo
     end
 
     def save
-      tap { write "map.yml", YAML.dump(projection: @projection.to_s, scale: @scale, centre: @centre, extents: @extents, rotation: @rotation, layers: @layers) }
+      tap { write "map.yml", YAML.dump(projection: @projection.to_s, scale: @scale, extents: @extents, rotation: @rotation, layers: @layers) }
     end
 
     def layers
@@ -135,20 +139,14 @@ module NSWTopo
     end
 
     def wgs84_centre
-      GeoJSON.point(@centre, projection: @projection).reproject_to_wgs84.coordinates
-    end
-
-    def top_left
-      [-0.5 * @extents[0], 0.5 * @extents[1]].rotate_by_degrees(-@rotation).plus @centre
+      GeoJSON.point([0, 0], projection: @projection).reproject_to_wgs84.coordinates
     end
 
     def bounding_box(mm: nil, metres: nil)
       margin = mm ? mm * 0.001 * @scale : metres ? metres : 0
       ring = @extents.map do |extent|
         [-0.5 * extent - margin, 0.5 * extent + margin]
-      end.inject(&:product).map do |offset|
-        @centre.plus offset.rotate_by_degrees(-@rotation)
-      end.values_at(0,2,3,1,0)
+      end.inject(&:product).values_at(0,2,3,1,0)
       GeoJSON.polygon [ring], projection: projection
     end
 
@@ -164,29 +162,16 @@ module NSWTopo
 
     def write_world_file(path, resolution: nil, ppi: nil)
       resolution ||= 0.0254 * @scale / ppi
-      WorldFile.write path, top_left: top_left, resolution: resolution, angle: -@rotation
-    end
-
-    def write_empty_raster(path, resolution:)
-      dimensions, ppi, resolution = raster_dimensions_at resolution: resolution
-      geotransform = WorldFile.geotransform(top_left: top_left, resolution: resolution, angle: -@rotation).join(", ")
-      vrt = REXML::Document.new
-      vrt.add_element("VRTDataset", %w[rasterXSize rasterYSize].zip(dimensions).to_h).tap do |dataset|
-        dataset.add_element("SRS").add_text(@projection.wkt_simple)
-        dataset.add_element("GeoTransform").add_text(geotransform)
-        %w[Red Green Blue Alpha].each.with_index do |color_interp, index|
-          dataset.add_element("VRTRasterBand", "dataType" => "Byte", "band" => index + 1).add_element("ColorInterp").add_text(color_interp)
-        end
-      end
-      OS.gdal_translate "/vsistdin/", path do |stdin|
-        stdin.write vrt
+      path.open("w") do |file|
+        file.puts resolution, 0, 0, -resolution
+        file.puts -0.5 * (@extents[0] - resolution)
+        file.puts  0.5 * (@extents[1] - resolution)
       end
     end
 
     def coords_to_mm(point)
-      @affine.map do |row|
-        row.dot [*point, 1.0]
-      end
+      [ @top_right[0] + point[0],
+        @top_right[1] - point[1] ].times(@mm_per_metre)
     end
 
     def get_raster_resolution(raster_path)
@@ -282,17 +267,17 @@ module NSWTopo
       case
       when json
         bbox = bounding_box.reproject_to_wgs84.first
-        bbox.properties.merge! scale: @scale, extents: @extents, rotation: @rotation, projection: @projection.to_s, layers: layers.map(&:name)
+        bbox.properties.merge! scale: @scale, extents: @extents, rotation: rotation, projection: @projection, layers: layers.map(&:name)
         JSON.pretty_generate bbox.to_h
       when proj
-        @projection.to_s
+        @projection
       else
         StringIO.new.tap do |io|
           io.puts "%-11s 1:%i" %            ["scale:",      @scale]
-          io.puts "%-11s %imm × %imm" %     ["dimensions:", *@extents.times(1000.0 / @scale)]
+          io.puts "%-11s %imm × %imm" %     ["dimensions:", *@extents.times(@mm_per_metre)]
           io.puts "%-11s %.1fkm × %.1fkm" % ["extent:",     *@extents.times(0.001)]
           io.puts "%-11s %.1fkm²" %         ["area:",       @extents.inject(&:*) * 0.000001]
-          io.puts "%-11s %.1f°" %           ["rotation:",   @rotation]
+          io.puts "%-11s %.1f°" %           ["rotation:",   rotation]
           layers.reject(&empty ? :nil? : :empty?).inject("layers:") do |heading, layer|
             io.puts "%-11s %s" % [heading, layer]
             nil

@@ -1,24 +1,24 @@
 module NSWTopo
   class Projection
     def initialize(value)
-      @wkt_simple = Projection === value ? value.wkt_simple : OS.gdalsrsinfo("-o", "wkt_simple", "--single-line", value).chomp.strip
-      raise "no georeferencing found: %s" % value if @wkt_simple.empty?
+      @wkt = Projection === value ? value.wkt : OS.gdalsrsinfo("-o", "wkt1", "--single-line", value).chomp.strip
+      raise "no georeferencing found: %s" % value if @wkt.empty?
     end
 
-    attr_reader :wkt_simple
-    alias to_s wkt_simple
-    alias to_str wkt_simple
+    attr_reader :wkt
+    alias to_s wkt
+    alias to_str wkt
 
     def proj4
-      @proj4 ||= OS.gdalsrsinfo("-o", "proj4", "--single-line", @wkt_simple).chomp.strip
+      @proj4 ||= OS.gdalsrsinfo("-o", "proj4", "--single-line", @wkt).chomp.strip
     end
 
     def ==(other)
-      wkt_simple == other.wkt_simple
+      wkt == other.wkt
     end
 
     extend Forwardable
-    delegate :hash => :@wkt_simple
+    delegate :hash => :@wkt
     alias eql? ==
 
     def self.utm(zone, south: true)
@@ -30,11 +30,15 @@ module NSWTopo
     end
 
     def self.transverse_mercator(lon, lat)
-      new("+proj=tmerc +lon_0=#{lon} +lat_0=#{lat} +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs")
+      new("+proj=tmerc +lon_0=#{lon} +lat_0=#{lat} +datum=WGS84")
+    end
+
+    def self.oblique_mercator(lon, lat, alpha)
+      new("+proj=omerc +lonc=#{lon} +lat_0=#{lat} +alpha=#{alpha} +gamma=0 +datum=WGS84")
     end
 
     def self.azimuthal_equidistant(lon, lat)
-      new("+proj=aeqd +lon_0=#{lon} +lat_0=#{lat} +k_0=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs")
+      new("+proj=aeqd +lon_0=#{lon} +lat_0=#{lat} +datum=WGS84")
     end
 
     def self.utm_zones(collection)

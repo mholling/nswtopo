@@ -9,10 +9,6 @@ module NSWTopo
     alias to_s wkt
     alias to_str wkt
 
-    def proj4
-      @proj4 ||= OS.gdalsrsinfo("-o", "proj4", "--single-line", @wkt).chomp.strip
-    end
-
     def ==(other)
       wkt == other.wkt
     end
@@ -20,6 +16,10 @@ module NSWTopo
     extend Forwardable
     delegate :hash => :@wkt
     alias eql? ==
+
+    def metres?
+      OS.gdalsrsinfo("-o", "proj4", "--single-line", @wkt).chomp.split.any?("+units=m")
+    end
 
     def self.utm(zone, south: true)
       new("EPSG:32%1d%02d" % [south ? 7 : 6, zone])

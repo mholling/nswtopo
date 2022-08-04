@@ -18,7 +18,7 @@ module NSWTopo
       end.group_by do |path, info|
         Projection.new info.dig("coordinateSystem", "wkt")
       end.map.with_index do |(projection, rasters), index|
-        raise "DEM data not in planar projection with metre units" unless projection.proj4.split(?\s).any?("+units=m")
+        raise "DEM data not in planar projection with metre units" unless projection.metres?
 
         paths, resolutions = rasters.map do |path, info|
           [path, info["geoTransform"].values_at(1, 2).norm]

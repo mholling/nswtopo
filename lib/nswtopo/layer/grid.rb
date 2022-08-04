@@ -81,7 +81,7 @@ module NSWTopo
       return [] if @params["unlabeled"]
       label_params = @params["labels"]
       font_size = label_params["font-size"]
-      offset = 0.85 * font_size * @map.scale / 1000.0
+      offset = 0.85 * font_size * @map.metres_per_mm
       inset = INSET + font_size * 0.5 * Math::sin(@map.rotation.abs * Math::PI / 180)
       inset_hull = @map.bounding_box(mm: -inset).coordinates.first
 
@@ -107,7 +107,7 @@ module NSWTopo
         %i[itself reverse].values_at(*ends).map do |order|
           text_length, text_path = label_element(label, label_params)
           segment = gridline.coordinates.send(order).take(2)
-          fraction = text_length * @map.scale / 1000.0 / segment.distance
+          fraction = text_length * @map.metres_per_mm / segment.distance
           coordinates = [segment[0], segment.along(fraction)].send(order)
           GeoJSON::LineString.new coordinates, "label" => text_path
         end

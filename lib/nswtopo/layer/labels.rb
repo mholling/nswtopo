@@ -128,15 +128,15 @@ module NSWTopo
                 when "centrelines"
                   feature.respond_to?(arg) ? feature.send(arg, **opts) : feature
                 when "centrepoints"
-                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.metres_per_mm
                   feature.respond_to?(arg) ? feature.send(arg, interval: interval, **opts) : feature
                 when "centres"
-                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.metres_per_mm
                   feature.respond_to?(arg) ? feature.send(arg, interval: interval, **opts) : feature
                 when "centroids"
                   feature.respond_to?(arg) ? feature.send(arg) : feature
                 when "samples"
-                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.metres_per_mm
                   feature.respond_to?(arg) ? feature.send(arg, interval) : feature
                 else
                   raise "unrecognised label transform: reduce: %s" % arg
@@ -146,7 +146,7 @@ module NSWTopo
                 case arg
                 when "samples"
                   next feature unless feature.respond_to? arg
-                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.scale / 1000.0
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.metres_per_mm
                   [feature, *feature.send(arg, interval)]
                 else
                   raise "unrecognised label transform: fallback: %s" % arg
@@ -154,17 +154,17 @@ module NSWTopo
 
               when "offset", "buffer"
                 next feature unless feature.respond_to? transform
-                margins = [arg, *args].map { |value| Float(value) * @map.scale / 1000.0 }
+                margins = [arg, *args].map { |value| Float(value) * @map.metres_per_mm }
                 feature.send transform, *margins, **opts
 
               when "smooth"
                 next feature unless feature.respond_to? transform
-                margin = Float(arg) * @map.scale / 1000.0
+                margin = Float(arg) * @map.metres_per_mm
                 max_turn = attributes["max-turn"] * Math::PI / 180
                 feature.send transform, margin, cutoff_angle: max_turn, **opts
 
               when "minimum-area"
-                area = Float(arg) * (@map.scale / 1000.0)**2
+                area = Float(arg) * @map.metres_per_mm**2
                 case feature
                 when GeoJSON::MultiLineString
                   feature.coordinates = feature.coordinates.reject do |linestring|
@@ -179,14 +179,14 @@ module NSWTopo
 
               when "minimum-length"
                 next feature unless GeoJSON::MultiLineString === feature
-                distance = Float(arg) * @map.scale / 1000.0
+                distance = Float(arg) * @map.metres_per_mm
                 feature.coordinates = feature.coordinates.reject do |linestring|
                   linestring.path_length < distance
                 end
                 feature.empty? ? [] : feature
 
               when "minimum-hole", "remove-holes"
-                area = Float(arg).abs * @map.scale / 1000.0 unless true == arg
+                area = Float(arg).abs * @map.metres_per_mm**2 unless true == arg
                 feature.coordinates = feature.coordinates.map do |rings|
                   rings.reject do |ring|
                     area ? (-area...0) === ring.signed_area : ring.signed_area < 0
@@ -216,7 +216,7 @@ module NSWTopo
 
               when "trim"
                 next feature unless GeoJSON::MultiLineString === feature
-                distance = Float(arg) * @map.scale / 1000.0
+                distance = Float(arg) * @map.metres_per_mm
                 feature.coordinates = feature.coordinates.map do |linestring|
                   linestring.trim distance
                 end.reject(&:empty?)

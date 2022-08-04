@@ -17,9 +17,9 @@ module NSWTopo
     def get_features
       @params["fill"] ||= @params["stroke"]
       declination = @angle || @map.declination
-      col_spacing = 0.001 * @map.scale * @spacing
-      row_spacing = 0.001 * @map.scale * @arrows * 0.5
-      col_offset = 0.001 * @map.scale * (@offset % @spacing)
+      col_spacing = @map.metres_per_mm * @spacing
+      row_spacing = @map.metres_per_mm * @arrows * 0.5
+      col_offset = @map.metres_per_mm * (@offset % @spacing)
 
       radius = 0.5 * @map.bounds.transpose.distance
       j_max = (radius / col_spacing).ceil

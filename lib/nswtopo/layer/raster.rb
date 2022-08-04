@@ -49,7 +49,7 @@ module NSWTopo
           mask_content.add_element "use", "href" => "##{id}"
         end
       end if masks.any?
-      transform = "scale(#{1000.0 * resolution / @map.scale})"
+      transform = "scale(#{resolution / @map.metres_per_mm})"
       png = Dir.mktmppath do |temp_dir|
         tif_path = temp_dir / "raster.tif"
         png_path = temp_dir / "raster.png"

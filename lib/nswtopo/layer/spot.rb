@@ -117,7 +117,7 @@ module NSWTopo
           blur_dem raw_path, dem_hr_path
         end
 
-        low_resolution = 0.5 * @extent * @map.scale / 1000.0
+        low_resolution = 0.5 * @extent * @map.metres_per_mm
         OS.gdalwarp "-r", "med", "-tr", low_resolution, low_resolution, dem_hr_path, dem_lr_path
 
         mask = pixels_knolls(dem_lr_path).map(&:first).to_set
@@ -141,7 +141,7 @@ module NSWTopo
     def get_features
       selected, remaining = [], AVLTree.new
       spatial_index = RTree.load(candidates, &:bounds)
-      buffer = @spacing * @map.scale / 1000.0
+      buffer = @spacing * @map.metres_per_mm
 
       candidates.each.with_index do |candidate, index|
         log_update "%s: examining candidates: %.1f%%" % [@name, 100.0 * index  / candidates.length]

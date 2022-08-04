@@ -6,9 +6,9 @@ module NSWTopo
       @archive, @scale, @extents, @rotation, @layers = archive, scale, extents, rotation, layers
       @projection = Projection.new projection
       @top_right = @extents.times(0.5)
-      @mm_per_metre = 1000.0 / @scale
+      @mm_per_metre, @metres_per_mm = 1000.0 / @scale, @scale / 1000.0
     end
-    attr_reader :projection, :scale, :extents, :rotation
+    attr_reader :projection, :scale, :extents, :rotation, :metres_per_mm
 
     extend Forwardable
     delegate %i[write mtime read uptodate?] => :@archive
@@ -143,7 +143,7 @@ module NSWTopo
     end
 
     def bounding_box(mm: nil, metres: nil)
-      margin = mm ? mm * 0.001 * @scale : metres ? metres : 0
+      margin = mm ? mm * @metres_per_mm : metres ? metres : 0
       ring = @extents.map do |extent|
         [-0.5 * extent - margin, 0.5 * extent + margin]
       end.inject(&:product).values_at(0,2,3,1,0)

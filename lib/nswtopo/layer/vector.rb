@@ -107,7 +107,7 @@ module NSWTopo
           case feature
           when GeoJSON::Point
             symbol_id = [*ids, "symbol"].join(?.)
-            transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*feature.coordinates.yield_self(&to_mm), feature.fetch("rotation", @map.rotation) - @map.rotation]
+            transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*feature.coordinates.then(&to_mm), feature.fetch("rotation", @map.rotation) - @map.rotation]
             content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
 
           when GeoJSON::LineString

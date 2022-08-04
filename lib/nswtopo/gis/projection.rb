@@ -44,7 +44,7 @@ module NSWTopo
     def self.utm_zones(collection)
       collection.reproject_to_wgs84.bounds.first.map do |longitude|
         (longitude / 6).floor + 31
-      end.yield_self do |min, max|
+      end.then do |min, max|
         min..max
       end
     end

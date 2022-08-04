@@ -56,7 +56,7 @@ module NSWTopo
             end
           rescue ArgumentError
             raise "could not interpret #{value.inspect} as #{type}"
-          end.yield_self do |values|
+          end.then do |values|
             fields.zip values
           end.to_h
         end.zip counts

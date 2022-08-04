@@ -133,7 +133,7 @@ module NSWTopo
       def decode(attributes)
         attributes.map do |name, value|
           [name, @revalue[name, value, attributes]]
-        end.to_h.slice(*@fields).yield_self do |decoded|
+        end.to_h.slice(*@fields).then do |decoded|
           attributes.replace decoded
         end
       end
@@ -165,7 +165,7 @@ module NSWTopo
         pairs = lambda do |hash|
           hash.keys.zip(hash.values.map(&:sort).map(&:zip)).to_h
         end
-        @coded_values.yield_self(&pairs).tap do |result|
+        @coded_values.then(&pairs).tap do |result|
           next unless @type_field
           codes, lookups = @subtype_values.sort.transpose
           result[@type_field] = @type_values.slice(*codes).zip lookups.map(&pairs)

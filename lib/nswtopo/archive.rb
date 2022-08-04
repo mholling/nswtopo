@@ -41,7 +41,7 @@ module NSWTopo
     def mtime(filename)
       find do |entry|
         entry.full_name == filename
-      end&.yield_self do |entry|
+      end&.then do |entry|
         Time.at entry.header.mtime
       end
     end

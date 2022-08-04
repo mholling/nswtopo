@@ -58,7 +58,7 @@ module NSWTopo
       index = fences.length
       case feature
       when GeoJSON::Point
-        [[feature.coordinates.yield_self(&to_mm)] * 2]
+        [[feature.coordinates.then(&to_mm)] * 2]
       when GeoJSON::LineString
         feature.coordinates.map(&to_mm).segments
       when GeoJSON::Polygon
@@ -231,12 +231,12 @@ module NSWTopo
             when GeoJSON::MultiLineString then line_attributes
             when GeoJSON::MultiPolygon    then line_attributes
             end
-          end.yield_self do |features|
+          end.then do |features|
             GeoJSON::Collection.new(projection: @map.projection, features: features).explode.extend(LabelFeatures)
           end.tap do |collection|
             collection.text, collection.layer_name = text, layer.name
           end
-        end.yield_self do |collections|
+        end.then do |collections|
           next collections unless collate
           collections.group_by(&:text).map do |text, collections|
             collections.inject(&:merge!)
@@ -319,7 +319,7 @@ module NSWTopo
           case feature
           when GeoJSON::Point
             margin, line_height = attributes.values_at "margin", "line-height"
-            point = feature.coordinates.yield_self(&to_mm)
+            point = feature.coordinates.then(&to_mm)
             lines = Font.in_two collection.text, attributes
             lines = [[collection.text, Font.glyph_length(collection.text, attributes)]] if lines.map(&:first).map(&:length).min == 1
             height = lines.map { font_size }.inject { |total| total + line_height }

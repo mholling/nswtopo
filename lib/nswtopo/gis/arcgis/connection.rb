@@ -14,7 +14,7 @@ module NSWTopo
 
       def repeatedly_request(request, &block)
         intervals ||= 4.times.map(&1.4142.method(:**))
-        @http.request(request).tap(&:value).yield_self(&block)
+        @http.request(request).tap(&:value).then(&block)
       rescue *ERRORS, Error => error
         intervals.any? ? sleep(intervals.shift) : raise(Error, error.message)
         retry

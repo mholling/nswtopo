@@ -17,7 +17,7 @@ module NSWTopo
           type, coordinates = geometry.values_at "type", "coordinates"
           raise Error, "unsupported geometry type: #{type}" unless TYPES === type
           GeoJSON.const_get(type).new coordinates, properties
-        end.yield_self do |features|
+        end.then do |features|
           new projection: projection, features: features, name: collection["name"]
         end
       rescue JSON::ParserError

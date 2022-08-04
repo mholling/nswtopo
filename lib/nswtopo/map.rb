@@ -151,7 +151,7 @@ module NSWTopo
     end
 
     def bounds(margin: {}, projection: nil)
-      bounding_box(margin).yield_self do |bbox|
+      bounding_box(margin).then do |bbox|
         projection ? bbox.reproject_to(projection) : bbox
       end.coordinates.first.transpose.map(&:minmax)
     end

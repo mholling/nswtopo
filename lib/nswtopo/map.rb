@@ -274,7 +274,7 @@ module NSWTopo
       else
         StringIO.new.tap do |io|
           io.puts "%-11s 1:%i" %            ["scale:",      @scale]
-          io.puts "%-11s %imm × %imm" %     ["dimensions:", *@extents.times(@mm_per_metre)]
+          io.puts "%-11s %imm × %imm" %     ["dimensions:", *@extents.times(@mm_per_metre).map(&:round)]
           io.puts "%-11s %.1fkm × %.1fkm" % ["extent:",     *@extents.times(0.001)]
           io.puts "%-11s %.1fkm²" %         ["area:",       @extents.inject(&:*) * 0.000001]
           io.puts "%-11s %.1f°" %           ["rotation:",   rotation]

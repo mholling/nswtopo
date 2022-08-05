@@ -4,7 +4,7 @@ module NSWTopo
       include StraightSkeleton
 
       def clip(hull)
-        lines = [hull, hull.perps].transpose.inject(@coordinates) do |result, (vertex, perp)|
+        [hull, hull.perps].transpose.inject(@coordinates) do |result, (vertex, perp)|
           result.inject([]) do |clipped, points|
             clipped + [*points, points.last].segments.inject([[]]) do |lines, segment|
               inside = segment.map { |point| point.minus(vertex).dot(perp) >= 0 }
@@ -21,8 +21,9 @@ module NSWTopo
               lines
             end
           end
-        end.select(&:many?)
-        lines.none? ? nil : lines.one? ? LineString.new(*lines, @properties) : MultiLineString.new(lines, @properties)
+        end.select(&:many?).then do |lines|
+          lines.none? ? nil : lines.one? ? LineString.new(*lines, @properties) : MultiLineString.new(lines, @properties)
+        end
       end
 
       def length

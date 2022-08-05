@@ -4,7 +4,7 @@ module NSWTopo
       include StraightSkeleton
 
       def clip(hull)
-        polys = @coordinates.inject([]) do |result, rings|
+        @coordinates.inject([]) do |result, rings|
           lefthanded = rings.first.clockwise?
           interior, exterior = hull.zip(hull.perps).inject(rings) do |rings, (vertex, perp)|
             insides, neighbours, clipped = Hash[].compare_by_identity, Hash[].compare_by_identity, []
@@ -50,8 +50,9 @@ module NSWTopo
             end
             result << [exterior_ring, *within]
           end
+        end.then do |polys|
+          polys.none? ? nil : polys.one? ? Polygon.new(*polys, @properties) : MultiPolygon.new(polys, @properties)
         end
-        polys.none? ? nil : polys.one? ? Polygon.new(*polys, @properties) : MultiPolygon.new(polys, @properties)
       end
 
       def area

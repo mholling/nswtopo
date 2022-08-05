@@ -10,7 +10,7 @@ module NSWTopo
     when /\.db$/           then %w[-f SQLite -dsco SPATIALITE=YES]
     when /\.gpkg$/         then %w[-f GPKG]
     when /\.tab$/          then ["-f", "MapInfo File"]
-    else                        ["-f", "ESRI Shapefile"]
+    else                        ["-f", "ESRI Shapefile", "-lco", "ENCODING=UTF-8"]
     end
 
     options.merge! case path.to_s

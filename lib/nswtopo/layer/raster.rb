@@ -26,13 +26,13 @@ module NSWTopo
     end
 
     def size_resolution
-      json = OS.gdalinfo "-json", "/vsistdin/" do |stdin|
-        stdin.binmode
-        stdin.write @map.read(filename)
+      OS.gdalinfo "-json", "/vsistdin/" do |stdin|
+        stdin.binmode.write @map.read(filename)
+      end.then do |json|
+        JSON.parse(json).values_at "size", "geoTransform"
+      end.then do |size, geotransform|
+        next size, geotransform[1]
       end
-      size, geotransform = JSON.parse(json).values_at "size", "geoTransform"
-      resolution = geotransform.values_at(1, 2).norm
-      return size, resolution
     end
 
     def to_s
@@ -43,24 +43,19 @@ module NSWTopo
     end
 
     def render(group, masks:, **)
-      (width, height), resolution = size_resolution
-      group.add_element("defs").add_element("mask", "id" => "#{name}.mask").add_element("g", "filter" => "url(#map.filter.alpha2mask)").tap do |mask_content|
-        masks.each do |id|
-          mask_content.add_element "use", "href" => "##{id}"
-        end
+      masks.each.with_object group.add_element("defs").add_element("mask", "id" => "#{name}.mask").add_element("g", "filter" => "url(#map.filter.cutout)") do |id, mask_content|
+        mask_content.add_element "use", "href" => "##{id}"
       end if masks.any?
-      transform = "scale(#{resolution / @map.metres_per_mm})"
-      png = Dir.mktmppath do |temp_dir|
-        tif_path = temp_dir / "raster.tif"
-        png_path = temp_dir / "raster.png"
-        tif_path.binwrite @map.read(filename)
-        OS.gdal_translate "-of", "PNG", "-co", "ZLEVEL=9", tif_path, png_path
-        png_path.binread
+      OS.gdal_translate("-of", "PNG", "-co", "ZLEVEL=9", "/vsistdin/", "/vsistdout/") do |stdin|
+        stdin.binmode.write @map.read(filename)
+      end.tap do |png|
+        (width, height), resolution = size_resolution
+        transform = "scale(#{resolution / @map.metres_per_mm})"
+        href = "data:image/png;base64,#{Base64.encode64 png}"
+        image = group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
+        image.add_attributes "mask" => "url(##{name}.mask)" if masks.any?
+        image.add_attributes params.slice("opacity")
       end
-      href = "data:image/png;base64,#{Base64.encode64 png}"
-      image = group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
-      image.add_attributes "mask" => "url(##{name}.mask)" if masks.any?
-      image.add_attributes params.slice("opacity")
     end
   end
 end

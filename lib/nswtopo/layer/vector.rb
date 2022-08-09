@@ -1,6 +1,5 @@
 require_relative 'vector/cutout'
 require_relative 'vector/knockout'
-require_relative 'vector/label_barrier'
 
 module NSWTopo
   module Vector
@@ -230,7 +229,7 @@ module NSWTopo
           when "barrier", "fence"
             next unless content && args
             buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
-            LabelBarrier.new(features.grep_v(REXML::Element), buffer).tap(&block)
+            Labels::Barrier.new(features.grep_v(REXML::Element), buffer).tap(&block)
 
           when "shield"
             next unless content

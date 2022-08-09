@@ -48,12 +48,6 @@ module NSWTopo
       @barriers ||= []
     end
 
-    def <<(label_barrier)
-      label_barrier.each.with_object(barriers.length) do |segment, index|
-        barriers << Barrier.new(segment.map(&to_mm), buffer: label_barrier.buffer, index: index)
-      end
-    end
-
     def label_features
       @label_features ||= []
     end
@@ -61,6 +55,9 @@ module NSWTopo
     module LabelFeatures
       attr_accessor :text, :layer_name
     end
+
+    extend Forwardable
+    delegate :<< => :barriers
 
     def add(layer)
       category_params, base_params = layer.params.fetch("labels", {}).partition do |key, value|
@@ -276,7 +273,12 @@ module NSWTopo
     end
 
     def drawing_features
-      barrier_index = RTree.load(barriers, &:bounds)
+      segment_index = barriers.flat_map do |barrier|
+        barrier.segments(&to_mm)
+      end.then do |segments|
+        RTree.load(segments, &:bounds)
+      end
+
       labelling_hull = @map.bounding_box(mm: -INSET).coordinates.first.map(&to_mm)
       debug, debug_features = Config["debug"], []
       @params = DEBUG_PARAMS.deep_merge @params if debug
@@ -343,12 +345,11 @@ module NSWTopo
                 labelling_hull.surrounds? hull
               end
 
-              barrier_count = barrier_index.search(hulls.flatten(1).transpose.map(&:minmax)).inject(Set[]) do |indices, barrier|
-                next indices if indices === barrier.index
+              barrier_count = segment_index.search(hulls.flatten(1).transpose.map(&:minmax)).with_object(Set[]) do |segment, barriers|
+                next if barriers === segment.barrier
                 hulls.any? do |hull|
-                  indices << barrier.index if barrier.conflicts_with? hull
+                  barriers << segment.barrier if segment.conflicts_with? hull
                 end
-                indices
               end.size
               priority = [barrier_count, position_index, feature_index]
               Label.new collection.layer_name, label_index, feature_index, priority, hulls, attributes, text_elements
@@ -425,8 +426,8 @@ module NSWTopo
               bounds = segment.transpose.map(&:minmax).map do |min, max|
                 [min - 0.5 * font_size, max + 0.5 * font_size]
               end
-              hash[segment] = barrier_index.search(bounds).any? do |barrier|
-                barrier.conflicts_with? segment, 0.5 * font_size
+              hash[segment] = segment_index.search(bounds).any? do |barrier_segment|
+                barrier_segment.conflicts_with? segment, 0.5 * font_size
               end
             end
 

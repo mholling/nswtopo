@@ -11,7 +11,8 @@ module NSWTopo
     TRANSFORMS = %w[reduce fallback offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
 
     DEFAULTS = YAML.load <<~YAML
-      dupe: outline
+      knockout: true
+      preserve: true
       stroke: none
       fill: black
       font-style: italic
@@ -23,13 +24,6 @@ module NSWTopo
       min-radius: 0
       max-angle: #{StraightSkeleton::DEFAULT_ROUNDING_ANGLE}
       sample: #{DEFAULT_SAMPLE}
-      outline:
-        stroke: white
-        fill: none
-        stroke-width: 0.25
-        stroke-opacity: 0.75
-        stroke-linejoin: round
-        blur: 0.06
     YAML
 
     DEBUG_PARAMS = YAML.load <<~YAML
@@ -54,17 +48,18 @@ module NSWTopo
       @fences ||= []
     end
 
-    def add_fence(feature, buffer)
-      index = fences.length
-      case feature
-      when GeoJSON::Point
-        [[feature.coordinates.then(&to_mm)] * 2]
-      when GeoJSON::LineString
-        feature.coordinates.map(&to_mm).segments
-      when GeoJSON::Polygon
-        feature.coordinates.flat_map { |ring| ring.map(&to_mm).segments }
-      end.each do |segment|
-        fences << Fence.new(segment, buffer: buffer, index: index)
+    def add_fence(fence)
+      fence.features.each.with_object(fences.length) do |feature, index|
+        case feature
+        when GeoJSON::Point
+          [[feature.coordinates.then(&to_mm)] * 2]
+        when GeoJSON::LineString
+          feature.coordinates.map(&to_mm).segments
+        when GeoJSON::Polygon
+          feature.coordinates.flat_map { |ring| ring.map(&to_mm).segments }
+        end.each do |segment|
+          fences << Fence.new(segment, buffer: fence.buffer, index: index)
+        end
       end
     end
 

@@ -15,12 +15,12 @@ module NSWTopo
             end
 
             # replace fill pattern paint with manual pattern mosaic to work around Chrome PDF bug
-            xml.elements.each("svg//g[@fill]") do |group|
-              # find the pattern id, pattern element and content element
-              next unless /^url\(#(?<pattern_id>.*)\)$/ =~ group.attributes["fill"]
-              next unless pattern = group.elements["preceding-sibling::defs/pattern[@id='#{pattern_id}'][@width][@height]"]
-              next unless content = group.elements["g[contains(@id,'.content')]"]
-              content_id = content.attributes["id"]
+            xml.elements.each("//svg//use[@fill][@href]") do |use|
+              # find the pattern id, content id, pattern element and content element
+              next unless /^url\(#(?<pattern_id>.*)\)$/ =~ use.attributes["fill"]
+              next unless /^#(?<content_id>.*)$/ =~ use.attributes["href"]
+              next unless pattern = use.elements["preceding::defs/pattern[@id='#{pattern_id}'][@width][@height]"]
+              next unless content = use.elements["preceding::defs/g[@id='#{content_id}']"]
 
               # change pattern element to a group
               pattern.attributes.delete "patternUnits"
@@ -40,17 +40,11 @@ module NSWTopo
               pattern.next_sibling = content
               content.next_sibling = content_clip
 
-              # create a container for the fill pattern mosaic
+              # replace fill paint with a container for the fill pattern mosaic
               fill = REXML::Element.new "g"
-              fill.add_attribute "id", "#{content_id}.fill"
               fill.add_attribute "clip-path", "url(##{content_id}.clip)"
-              group.previous_sibling = fill
-
-              # change group to reference the content, keeping stroke only
-              group.name = "use"
-              group.add_attribute "href", "##{content_id}"
-              group.add_attribute "fill", "none"
-              group.add_attribute "id", "#{content_id}.stroke"
+              use.previous_sibling = fill
+              use.add_attribute "fill", "none"
 
               # get pattern size
               pattern_size = %w[width height].map do |name|

@@ -25,40 +25,76 @@ module NSWTopo
           "dc:format" => "image/svg+xml"
         )
 
-        svg.add_element("defs").tap do |defs|
-          defs.add_element("rect", "width" => width, "height" => height, "id" => "map.rect")
-          defs.add_element("clipPath", "id" => "map.clip").add_element("use", "href" => "#map.rect")
-          defs.add_element("filter", "id" => "map.filter.alpha2mask").add_element("feColorMatrix", "type" => "matrix", "values" => "0 0 0 -1 1   0 0 0 -1 1   0 0 0 -1 1   0 0 0 0 1")
-        end
-        svg.add_element("use", "id" => "map.background", "href" => "#map.rect", "fill" => "white")
+        # add defs for map filters and masks
+        defs = svg.add_element("defs", "id" => "map.defs")
+        defs.add_element("rect", "id" => "map.rect", "width" => width, "height" => height)
 
-        labels = Layer.new "labels", self, Config.fetch("labels", {}).merge("type" => "Labels")
-        layers.reject(&:empty?).each do |layer|
-          next if Config["labelling"] == false
-          labels.add layer if Vector === layer
-        end.push(labels).inject [] do |masks, layer|
-          log_update "compositing: #{layer.name}"
-          group = svg.add_element "g", "id" => layer.name, "clip-path" => "url(#map.clip)"
-          layer.render(group, masks: masks) do |fence: nil, mask: nil|
-            labels.add_fence(*fence) if fence
-            masks << mask if mask
+        # add a filter converting alpha channel to cutout mask
+        defs.add_element("filter", "id" => "map.filter.cutout").tap do |filter|
+          filter.add_element("feColorMatrix", "type" => "matrix", "values" => "0 0 0 0 0   0 0 0 0 0   0 0 0 0 0   0 0 0 -1 1")
+        end
+
+        Enumerator.new do |yielder|
+          labels = Layer.new "labels", self, Config.fetch("labels", {}).merge("type" => "Labels")
+          layers.reject(&:empty?).each do |layer|
+            next if Config["labelling"] == false
+            labels.add layer if Vector === layer
+          end.push(labels).each.with_object [[], []] do |layer, (cutouts, knockouts)|
+            log_update "compositing: #{layer.name}"
+            layer.render(cutouts: cutouts) do |object|
+              case object
+              when Vector::Fence
+                labels.add_fence object
+              when Vector::Cutout
+                cutouts << object
+              when Vector::Knockout
+                knockouts << object
+              when REXML::Element
+                yielder << object
+              end
+            end
+          end.last.group_by(&:buffer).map do |buffer, knockouts|
+            defs.add_element("filter", "id" => "map.filter.knockout.#{buffer}").tap do |filter|
+              filter.add_element("feMorphology", "operator" => "dilate", "radius" => 0.4 + buffer, "in" => "SourceAlpha")
+              filter.add_element("feMorphology", "operator" => "erode", "radius" => 0.4)
+              filter.add_element("feGaussianBlur", "stdDeviation" => 0.2)
+              filter.add_element("feComponentTransfer").add_element("feFuncA", "type" => "discrete", "tableValues" => "0 1")
+            end
+            knockouts.map.with_object REXML::Element.new("g") do |knockout, group|
+              group.add_element knockout.use
+            end.tap do |group|
+              group.add_attributes "filter" => "url(#map.filter.knockout.#{buffer})"
+            end
+          end.tap do |groups|
+            mask = defs.add_element("mask", "id" => "map.mask.knockout")
+            mask.add_element("use", "href" => "#map.rect", "fill" => "white")
+            groups.each(&mask.method(:add))
           end
-          masks
+        end.reject do |element|
+          svg.add_element(element) if "defs" == element.name
+        end.tap do
+          svg.add_element("use", "id" => "map.background", "href" => "#map.rect", "fill" => "white")
+        end.chunk do |element|
+          element.attributes["mask"] || "none"
+        end.each do |mask, elements|
+          elements.each.with_object(svg.add_element("g", "mask" => mask)) do |element, group|
+            group.add_element element
+            element.delete_attribute "mask"
+          end
         end
 
         xml.elements.each("svg//defs[not(*)]", &:remove)
-        until xml.elements.each("svg//g[not(*)]", &:remove).empty? do
-        end
-
         write "map.svg", xml.to_s
       end
 
-      xml.elements["svg/*[@id='map.background']"].add_attribute "fill", background if background
+      xml.elements["svg/use[@id='map.background']"].add_attributes("fill" => background) if background
       xml.elements["svg/metadata/rdf:RDF/rdf:Description"].add_attributes("xmp:ModifyDate" => Time.now.iso8601)
-      string, formatter = String.new, REXML::Formatters::Pretty.new
-      formatter.compact = true
-      formatter.write xml, string
-      svg_path.write string
+
+      svg_path.open("w") do |file|
+        formatter = REXML::Formatters::Pretty.new
+        formatter.compact = true
+        formatter.write xml, file
+      end
     end
   end
 end

@@ -6,15 +6,10 @@ module NSWTopo
       diameter: 7.0
       colour: darkmagenta
       stroke-width: 0.25
+      knockout: 0.1
       waterdrop:
         stroke: blue
       labels:
-        dupe: outline
-        outline:
-          stroke: white
-          fill: none
-          stroke-width: 0.25
-          stroke-opacity: 0.75
         position: [ aboveright, belowright, aboveleft, belowleft, right, left, above, below ]
         font-family: sans-serif
         font-style: normal

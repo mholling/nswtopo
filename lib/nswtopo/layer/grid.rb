@@ -10,12 +10,6 @@ module NSWTopo
       boundary:
         stroke: gray
       labels:
-        dupe: outline
-        outline:
-          stroke: white
-          fill: none
-          stroke-width: 10%
-          opacity: 0.65
         font-family: Arial Narrow, sans-serif
         font-size: 2.3
         stroke: none

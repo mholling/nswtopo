@@ -42,20 +42,31 @@ module NSWTopo
       "%s: %i×%i (%.1fMpx) @ %.1fm/px (%.0f ppi)" % [@name, *size, megapixels, resolution, ppi]
     end
 
-    def render(group, masks:, **)
-      masks.each.with_object group.add_element("defs").add_element("mask", "id" => "#{name}.mask").add_element("g", "filter" => "url(#map.filter.cutout)") do |id, mask_content|
-        mask_content.add_element "use", "href" => "##{id}"
-      end if masks.any?
+    def render(cutouts:, **, &block)
+      defs = REXML::Element.new("defs").tap(&block)
+      defs.add_attributes "id" => "#{@name}.defs"
+
+      defs.add_element("mask", "id" => "#{@name}.mask").tap do |mask|
+        mask.add_element("use", "href" => "#map.rect", "fill" => "white", "stroke" => "none")
+        cutouts.each.with_object mask.add_element("g", "filter" => "url(#map.filter.cutout)") do |cutout, group|
+          group.add_element cutout.use
+        end
+      end if cutouts.any?
+
       OS.gdal_translate("-of", "PNG", "-co", "ZLEVEL=9", "/vsistdin/", "/vsistdout/") do |stdin|
         stdin.binmode.write @map.read(filename)
       end.tap do |png|
         (width, height), resolution = size_resolution
         transform = "scale(#{resolution / @map.metres_per_mm})"
         href = "data:image/png;base64,#{Base64.encode64 png}"
-        image = group.add_element "image", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
-        image.add_attributes "mask" => "url(##{name}.mask)" if masks.any?
-        image.add_attributes params.slice("opacity")
+        defs.add_element "image", "id" => "#{@name}.content", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
       end
+
+      REXML::Element.new("use").tap do |use|
+        use.add_attributes "id" => @name, "href" => "##{@name}.content"
+        use.add_attributes "mask" => "url(##{@name}.mask)" if cutouts.any?
+        use.add_attributes params.slice("opacity")
+      end.tap(&block)
     end
   end
 end

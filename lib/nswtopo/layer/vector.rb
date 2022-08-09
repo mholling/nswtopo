@@ -1,3 +1,7 @@
+require_relative 'vector/fence'
+require_relative 'vector/cutout'
+require_relative 'vector/knockout'
+
 module NSWTopo
   module Vector
     SVG_ATTRIBUTES = %w[fill-opacity fill font-family font-size font-style font-variant font-weight letter-spacing opacity paint-order stroke-dasharray stroke-dashoffset stroke-linecap stroke-linejoin stroke-miterlimit stroke-opacity stroke-width stroke text-decoration visibility word-spacing]
@@ -77,25 +81,36 @@ module NSWTopo
       end.values.inject(params, &:merge)
     end
 
-    def render(group, **)
-      defs = group.add_element "defs"
+    def render(**, &block)
+      defs = REXML::Element.new("defs").tap(&block)
+      defs.add_attributes "id" => "#{@name}.defs"
+
       drawing_features.group_by do |feature, categories|
         categories || Array(feature["category"]).map(&:to_s).map(&method(:categorise)).to_set
-      end.map do |categories, features|
+      end.flat_map do |categories, features|
         dupes = params_for(categories)["dupe"]
         Array(dupes).map(&:to_s).map do |dupe|
           [categories | Set[dupe], [name, *categories, "content"].join(?.)]
         end.push [categories, features]
-      end.flatten(1).map do |categories, features|
+      end.tap do |ordered|
+        params.fetch("order", []).reverse.map(&:split).map(&:to_set).each do |filter|
+          ordered.sort_by!.with_index do |(categories, features), index|
+            [filter <= categories ? 0 : 1, index]
+          end
+        end
+      end.each do |categories, features|
         ids = [name, *categories]
+        use = REXML::Element.new("use")
+        use.add_attributes "id" => ids.join(?.), "class" => categories.to_a.join(?\s), "mask" => "url(#map.mask.knockout)"
+
         case features
         when String
-          container = group.add_element "use", "class" => categories.to_a.join(?\s), "href" => "#%s" % features
+          use.add_attributes "href" => "##{features}"
         when Array
-          container = group.add_element "g", "class" => categories.to_a.join(?\s)
-          content = container.add_element "g", "id" => [*ids, "content"].join(?.)
+          content = defs.add_element "g", "id" => [*ids, "content"].join(?.)
+          use.add_attributes "href" => "#" + [*ids, "content"].join(?.)
         end
-        container.add_attribute "id", ids.join(?.) if categories.any?
+        use.tap(&block)
 
         commands = params_for categories
         font_size, bezier, section = commands.values_at "font-size", "bezier", "section"
@@ -140,7 +155,7 @@ module NSWTopo
           case command
           when "blur"
             filter_id = [*ids, "blur"].join(?.)
-            container.add_attribute "filter", "url(#%s)" % filter_id
+            use.add_attribute "filter", "url(#%s)" % filter_id
             defs.add_element("filter", "id" => filter_id).add_element "feGaussianBlur", "stdDeviation" => args, "in" => "SourceGraphic"
 
           when "symbol"
@@ -160,7 +175,7 @@ module NSWTopo
             args.each do |element, attributes|
               pattern.add_element element, attributes
             end
-            container.add_attribute "fill", "url(#%s)" % pattern_id
+            use.add_attribute "fill", "url(#%s)" % pattern_id
 
           when "symbolise"
             next unless content
@@ -198,21 +213,24 @@ module NSWTopo
               when "endpoint" then [line.first(2), line.last(2).rotate]
               end.each do |segment|
                 transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*segment.first, 180.0 * segment.diff.angle / Math::PI]
-                container.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
+                use.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
               end
             end
 
-          when "mask"
-            next unless args && content && content.elements.any?
-            yield mask: content.attributes["id"]
+          when "knockout"
+            use.delete_attribute "mask"
+            Knockout.new(use, *args).tap(&block)
+
+          when "preserve"
+            use.delete_attribute "mask"
+
+          when "cutout", "mask"
+            Cutout.new(use).tap(&block)
 
           when "fence"
             next unless content && args
             buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
-            features.each do |feature|
-              next if REXML::Element === feature
-              yield fence: [feature, buffer]
-            end
+            Fence.new(features.grep_v(REXML::Element), buffer).tap(&block)
 
           when "shield"
             next unless content
@@ -236,17 +254,7 @@ module NSWTopo
             end
 
           when *SVG_ATTRIBUTES
-            container.add_attribute command, args
-          end
-        end
-
-        next categories, features, container
-      end.tap do |categorised|
-        params.fetch("order", []).reverse.map(&:split).map(&:to_set).each do |filter|
-          categorised.select do |categories, features, container|
-            filter <= categories
-          end.reverse.each do |categories, features, container|
-            group.unshift container.remove
+            use.add_attribute command, args
           end
         end
       end

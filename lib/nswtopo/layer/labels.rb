@@ -48,18 +48,9 @@ module NSWTopo
       @fences ||= []
     end
 
-    def add_fence(fence)
-      fence.features.each.with_object(fences.length) do |feature, index|
-        case feature
-        when GeoJSON::Point
-          [[feature.coordinates.then(&to_mm)] * 2]
-        when GeoJSON::LineString
-          feature.coordinates.map(&to_mm).segments
-        when GeoJSON::Polygon
-          feature.coordinates.flat_map { |ring| ring.map(&to_mm).segments }
-        end.each do |segment|
-          fences << Fence.new(segment, buffer: fence.buffer, index: index)
-        end
+    def <<(fence)
+      fence.each.with_object(fences.length) do |segment, index|
+        fences << Fence.new(segment.map(&to_mm), buffer: fence.buffer, index: index)
       end
     end
 

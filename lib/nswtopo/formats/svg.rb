@@ -43,14 +43,10 @@ module NSWTopo
             log_update "compositing: #{layer.name}"
             layer.render(cutouts: cutouts) do |object|
               case object
-              when Vector::Fence
-                labels.add_fence object
-              when Vector::Cutout
-                cutouts << object
-              when Vector::Knockout
-                knockouts << object
-              when REXML::Element
-                yielder << object
+              when Vector::Fence then labels << object
+              when Vector::Cutout then cutouts << object
+              when Vector::Knockout then knockouts << object
+              when REXML::Element then yielder << object
               end
             end
           end.last.group_by(&:buffer).map do |buffer, knockouts|

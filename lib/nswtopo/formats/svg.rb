@@ -43,7 +43,7 @@ module NSWTopo
             log_update "compositing: #{layer.name}"
             layer.render(cutouts: cutouts) do |object|
               case object
-              when Vector::Fence then labels << object
+              when Vector::LabelBarrier then labels << object
               when Vector::Cutout then cutouts << object
               when Vector::Knockout then knockouts << object
               when REXML::Element then yielder << object

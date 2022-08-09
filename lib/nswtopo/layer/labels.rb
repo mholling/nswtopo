@@ -1,4 +1,4 @@
-require_relative 'labels/fence'
+require_relative 'labels/barrier'
 
 module NSWTopo
   module Labels
@@ -44,13 +44,13 @@ module NSWTopo
         stroke-width: 0.2
     YAML
 
-    def fences
-      @fences ||= []
+    def barriers
+      @barriers ||= []
     end
 
-    def <<(fence)
-      fence.each.with_object(fences.length) do |segment, index|
-        fences << Fence.new(segment.map(&to_mm), buffer: fence.buffer, index: index)
+    def <<(label_barrier)
+      label_barrier.each.with_object(barriers.length) do |segment, index|
+        barriers << Barrier.new(segment.map(&to_mm), buffer: label_barrier.buffer, index: index)
       end
     end
 
@@ -276,7 +276,7 @@ module NSWTopo
     end
 
     def drawing_features
-      fence_index = RTree.load(fences, &:bounds)
+      barrier_index = RTree.load(barriers, &:bounds)
       labelling_hull = @map.bounding_box(mm: -INSET).coordinates.first.map(&to_mm)
       debug, debug_features = Config["debug"], []
       @params = DEBUG_PARAMS.deep_merge @params if debug
@@ -343,14 +343,14 @@ module NSWTopo
                 labelling_hull.surrounds? hull
               end
 
-              fence_count = fence_index.search(hulls.flatten(1).transpose.map(&:minmax)).inject(Set[]) do |indices, fence|
-                next indices if indices === fence.index
+              barrier_count = barrier_index.search(hulls.flatten(1).transpose.map(&:minmax)).inject(Set[]) do |indices, barrier|
+                next indices if indices === barrier.index
                 hulls.any? do |hull|
-                  indices << fence.index if fence.conflicts_with? hull
+                  indices << barrier.index if barrier.conflicts_with? hull
                 end
                 indices
               end.size
-              priority = [fence_count, position_index, feature_index]
+              priority = [barrier_count, position_index, feature_index]
               Label.new collection.layer_name, label_index, feature_index, priority, hulls, attributes, text_elements
             end.compact.tap do |candidates|
               candidates.combination(2).each do |candidate1, candidate2|
@@ -425,8 +425,8 @@ module NSWTopo
               bounds = segment.transpose.map(&:minmax).map do |min, max|
                 [min - 0.5 * font_size, max + 0.5 * font_size]
               end
-              hash[segment] = fence_index.search(bounds).any? do |fence|
-                fence.conflicts_with? segment, 0.5 * font_size
+              hash[segment] = barrier_index.search(bounds).any? do |barrier|
+                barrier.conflicts_with? segment, 0.5 * font_size
               end
             end
 
@@ -465,10 +465,10 @@ module NSWTopo
               total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
               baseline = points.values_at(*indices).crop(text_length)
 
-              fence = baseline.segments.any? do |segment|
+              barrier = baseline.segments.any? do |segment|
                 overlaps[segment]
               end
-              priority = [fence ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f]
+              priority = [barrier ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f]
 
               case
               when "uphill" == orientation

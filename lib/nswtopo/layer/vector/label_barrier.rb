@@ -1,6 +1,6 @@
 module NSWTopo
   module Vector
-    class Fence
+    class LabelBarrier
       def initialize(features, buffer)
         @features, @buffer = features, buffer
       end

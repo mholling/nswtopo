@@ -1,6 +1,6 @@
 module NSWTopo
   module Labels
-    class Fence
+    class Barrier
       def initialize(segment, buffer: 0, index:)
         @segment, @buffer, @index = segment, buffer, index
       end

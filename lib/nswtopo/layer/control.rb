@@ -16,7 +16,7 @@ module NSWTopo
         stroke: none
     YAML
     SCALING_PARAMS = <<~YAML
-      fence: 2.0
+      barrier: 2.0
       control:
         symbol:
         - circle:

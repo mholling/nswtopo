@@ -383,6 +383,7 @@ begin
       parser.on       "--layer-dir     <path>",       Pathname,      "set an extra layer directory"
       parser.on       "--[no-]labelling",                            "enable or disable map labelling"
       parser.on "-z", "--zlib-level    <0-9>",        ZlibLevel,     "set zlib compression level"
+      parser.on "-k", "--knockout      <width>",      PositiveFloat, "set label knockout width in mm"
 
     when "scrape"
       parser.banner = <<~EOF

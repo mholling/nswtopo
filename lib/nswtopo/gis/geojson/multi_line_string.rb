@@ -50,12 +50,12 @@ module NSWTopo
       end
 
       def samples(interval)
-        points = @coordinates.map do |linestring|
+        points = @coordinates.flat_map do |linestring|
           distance = linestring.path_length
           linestring.sample_at(interval, along: true).map do |point, along|
             [point, (2 * along - distance).abs - distance]
           end
-        end.flatten(1).sort_by(&:last).map(&:first)
+        end.sort_by(&:last).map(&:first)
         MultiPoint.new points, @properties
       end
     end

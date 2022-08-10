@@ -626,11 +626,11 @@ module NSWTopo
         end
       end
 
-      labels.map do |label|
+      labels.flat_map do |label|
         label.elements.map do |element|
           [element, label.categories]
         end
-      end.flatten(1).tap do |result|
+      end.tap do |result|
         result.concat debug_features if debug
       end
     end

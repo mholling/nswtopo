@@ -59,9 +59,9 @@ module NSWTopo
         offsets = midpoints.zip(distances).segments.map(&:transpose).map do |segment, distance|
           segment.along(distance.first / distance.inject(&:+))
         end.zip(points).map(&:diff)
-        controls = midpoints.segments.zip(offsets).map do |segment, offset|
+        controls = midpoints.segments.zip(offsets).flat_map do |segment, offset|
           segment.map { |point| [point, point.plus(offset)].along(fraction) }
-        end.flatten(1).drop(1).each_slice(2).entries.prepend(nil)
+        end.drop(1).each_slice(2).entries.prepend(nil)
         points.zip(controls).map do |point, controls|
           controls ? "C %s %s %s" % [POINT, POINT, POINT] % [*controls.flatten, *point] : "M %s" % POINT % point
         end.join(" ")
@@ -188,7 +188,7 @@ module NSWTopo
               end
             end
             lines_or_rings = features.grep(GeoJSON::LineString).map(&:coordinates)
-            lines_or_rings += features.grep(GeoJSON::Polygon).map(&:coordinates).flatten(1)
+            lines_or_rings += features.grep(GeoJSON::Polygon).flat_map(&:coordinates)
             lines_or_rings.each do |points|
               points.map(&to_mm).sample_at(interval, angle: true, offset: offset).each do |point, angle|
                 transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*point, 180.0 * angle / Math::PI]

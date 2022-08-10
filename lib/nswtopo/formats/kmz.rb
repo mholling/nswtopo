@@ -80,7 +80,7 @@ module NSWTopo
         end.inject({}, &:merge)
 
         kmz_dir = temp_dir.join("#{name}.kmz").tap(&:mkpath)
-        pyramid.map do |zoom, (indices_bounds, tif_path)|
+        pyramid.flat_map do |zoom, (indices_bounds, tif_path)|
           zoom_dir = kmz_dir.join(zoom.to_s).tap(&:mkpath)
           indices_bounds.map do |indices, tile_bounds|
             index_dir = zoom_dir.join(indices.first.to_s).tap(&:mkpath)
@@ -114,7 +114,7 @@ module NSWTopo
 
             ["-srcwin", indices[0] * Kmz::TILE_SIZE, indices[1] * Kmz::TILE_SIZE, Kmz::TILE_SIZE, Kmz::TILE_SIZE, tif_path, tile_png_path]
           end
-        end.flatten(1).tap do |tiles|
+        end.tap do |tiles|
           log_update "kmz: creating %i tiles" % tiles.length
         end.each.concurrently do |args|
           OS.gdal_translate "--config", "GDAL_PAM_ENABLED", "NO", *args

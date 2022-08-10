@@ -120,13 +120,13 @@ module NSWTopo
           lengths[index], lines[index] = length + tail_length, nodes + tail_nodes.reverse if length + tail_length > lengths[index]
         end
 
-        linestrings = lines.values.map do |nodes|
+        linestrings = lines.values.flat_map do |nodes|
           nodes.chunk do |node|
             node.travel >= min_travel
           end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
             nodes.map(&:point).to_f
           end
-        end.flatten(1)
+        end
         features.prepend MultiLineString.new(linestrings, @properties)
       end
 

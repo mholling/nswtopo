@@ -43,9 +43,9 @@ module NSWTopo
         end
 
         collection.each do |feature|
-          categories = [*options[:category]].map do |category|
+          categories = [*options[:category]].flat_map do |category|
             Hash === category ? [*category] : [category]
-          end.flatten(1).map do |attribute, substitutions|
+          end.map do |attribute, substitutions|
             value = feature.fetch(attribute, attribute)
             substitutions ? substitutions.fetch(value, value) : value
           end

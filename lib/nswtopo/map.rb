@@ -24,7 +24,7 @@ module NSWTopo
         margins ||= [15, 15] unless dimensions || gps.polygons.any?
         case
         when gps.polygons.any?
-          gps.polygons.map(&:coordinates).flatten(1).inject(&:+)
+          gps.polygons.flat_map(&:coordinates).inject(&:+)
         when gps.linestrings.any?
           gps.linestrings.map(&:coordinates).inject(&:+)
         when gps.points.any?

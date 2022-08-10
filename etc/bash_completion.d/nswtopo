@@ -71,7 +71,7 @@ _nswtopo() {
 				controls)
 					args+=(path path)
 					flag_opts+=(-s --spot)
-					arg_opts+=(-d --diameter -c --colour -f --font-size)
+					arg_opts+=(-d --diameter -c --colour -k --knockout -f --font-size)
 					;;
 				overlay)
 					args+=(path path)
@@ -93,7 +93,7 @@ _nswtopo() {
 					args+=()
 					flag_opts+=(--labelling --no-labelling)
 					file_opts+=(-c --chrome -p --path --layer-dir)
-					arg_opts+=(-d --delete -r --resolution -z --zlib-level)
+					arg_opts+=(-d --delete -r --resolution -z --zlib-level -k --knockout)
 					;;
 				scrape)
 					args+=(url path)

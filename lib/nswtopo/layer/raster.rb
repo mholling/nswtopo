@@ -53,8 +53,9 @@ module NSWTopo
         end
       end if cutouts.any?
 
-      OS.gdal_translate("-of", "PNG", "-co", "ZLEVEL=9", "/vsistdin/", "/vsistdout/") do |stdin|
-        stdin.binmode.write @map.read(filename)
+      Dir.mktmppath do |tmp|
+        tmp.join("temp.tif").binwrite @map.read(filename)
+        OS.gdal_translate "-of", "PNG", "-co", "ZLEVEL=9", "temp.tif", "/vsistdout/", chdir: tmp
       end.tap do |png|
         (width, height), resolution = size_resolution
         transform = "scale(#{resolution / @map.metres_per_mm})"

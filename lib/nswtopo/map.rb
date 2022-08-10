@@ -141,12 +141,12 @@ module NSWTopo
       GeoJSON.point([0, 0], projection: @projection).reproject_to_wgs84.coordinates
     end
 
-    def bounding_box(mm: nil, metres: nil)
+    def bounding_box(mm: nil, metres: nil, properties: {})
       margin = mm ? mm * @metres_per_mm : metres ? metres : 0
       ring = @extents.map do |extent|
         [-0.5 * extent - margin, 0.5 * extent + margin]
       end.inject(&:product).values_at(0,2,3,1,0)
-      GeoJSON.polygon [ring], projection: projection
+      GeoJSON.polygon [ring], projection: @projection, properties: properties
     end
 
     def bounds(margin: {}, projection: nil)

@@ -296,6 +296,7 @@ begin
       parser.on "-i", "--interval      <interval>", PositiveFloat, "interval between grid lines in",
                                                                    "metres (default %i)" % NSWTopo::Grid::DEFAULTS["interval"]
       parser.on "-u", "--unlabeled",                               "don't add grid labels"
+      parser.on "-b", "--border",                                  "add map border"
       parser.on       "--stroke-width  <width>",    PositiveFloat, "stroke width in mm (default %s)" % NSWTopo::Grid::DEFAULTS["stroke-width"]
 
     when "declination"

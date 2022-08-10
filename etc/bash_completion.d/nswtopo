@@ -61,7 +61,7 @@ _nswtopo() {
 					;;
 				grid)
 					args+=(path)
-					flag_opts+=(-u --unlabeled)
+					flag_opts+=(-u --unlabeled -b --border)
 					arg_opts+=(-i --interval --stroke-width)
 					;;
 				declination)

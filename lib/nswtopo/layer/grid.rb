@@ -1,7 +1,7 @@
 module NSWTopo
   module Grid
     include Vector
-    CREATE = %w[interval]
+    CREATE = %w[interval border]
     INSET = 1.5
     DEFAULTS = YAML.load <<~YAML
       interval: 1000.0
@@ -9,6 +9,9 @@ module NSWTopo
       stroke-width: 0.1
       boundary:
         stroke: gray
+      edge:
+        fill: none
+        preserve: true
       labels:
         font-family: Arial Narrow, sans-serif
         font-size: 2.3
@@ -18,7 +21,7 @@ module NSWTopo
     YAML
 
     def get_features
-      Projection.utm_zones(@map.bounding_box).map do |zone|
+      Projection.utm_zones(@map.bounding_box).flat_map do |zone|
         utm, utm_hull = Projection.utm(zone), Projection.utm_hull(zone)
         map_hull = @map.bounding_box(MARGIN).reproject_to_wgs84.coordinates.first
 
@@ -48,7 +51,11 @@ module NSWTopo
         boundary = GeoJSON.linestring boundary_points, properties: { "category" => "boundary" }
 
         [eastings, northings, boundary]
-      end.flatten.inject(&:merge)
+      end.tap do |collections|
+        next unless @border
+        mm, properties = -0.5 * @params["stroke-width"], { "category" => "edge" }
+        collections << @map.bounding_box(mm: mm, properties: properties).reproject_to_wgs84
+      end.inject(&:merge)
     end
 
     def label_element(labels, label_params)

@@ -72,10 +72,8 @@ module NSWTopo
             boundaries = (0..count).map { |index| coord.send increment, index * degrees_per_tile }
             [boundaries[0..-2], boundaries[1..-1]].transpose.map(&:sort)
           end.map do |tile_bounds|
-            tile_bounds.each.with_index.to_a
-          end.inject(:product).map(&:transpose).map do |tile_bounds, indices|
-            { indices => tile_bounds }
-          end.inject({}, &:merge)
+            tile_bounds.each.with_index.entries
+          end.inject(:product).map(&:transpose).map(&:reverse).to_h
 
           log_update "kmz: resizing image pyramid: %i%%" % (100 * (2**(zoom + 1) - 1) / (2**(max_zoom + 1) - 1))
           { zoom => [indices_bounds, tif_path] }

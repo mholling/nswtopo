@@ -105,12 +105,11 @@ module NSWTopo
       raise "SVG nswtopo version too old: %s" % svg_path unless version >= MIN_VERSION
       raise "SVG nswtopo version too new: %s" % svg_path unless version <= VERSION
 
-      view_box = /^0\s+0\s+(?<width>\S+)\s+(?<height>\S+)$/.match xml.elements["svg[@viewBox]/@viewBox"]&.value
-      %i[width height].inject(view_box) do |check, name|
-        check && xml.elements["svg[@#{name}='#{view_box[name]}mm']"]
-      end || raise(Version::Error)
+      /^0\s+0\s+(?<width>\S+)\s+(?<height>\S+)$/ =~ xml.elements["svg[@viewBox]/@viewBox"]&.value
+       width && xml.elements["svg[ @width='#{ width}mm']"] || raise(Version::Error)
+      height && xml.elements["svg[@height='#{height}mm']"] || raise(Version::Error)
 
-      dimensions = view_box.values_at(:width, :height).map(&:to_f)
+      dimensions = [width, height].map(&:to_f)
       init(archive, coords: [[0, 0]], dimensions: dimensions).tap do |map|
         map.write "map.svg", svg_path.read
       end

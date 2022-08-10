@@ -5,8 +5,8 @@ module NSWTopo
 
       def clip(hull)
         [hull, hull.perps].transpose.inject(@coordinates) do |result, (vertex, perp)|
-          result.inject([]) do |clipped, points|
-            clipped + [*points, points.last].segments.inject([[]]) do |lines, segment|
+          result.flat_map do |points|
+            [*points, points.last].segments.each.with_object [[]] do |segment, lines|
               inside = segment.map { |point| point.minus(vertex).dot(perp) >= 0 }
               case
               when inside.all?
@@ -18,7 +18,6 @@ module NSWTopo
                 lines << []
                 lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.diff.dot(perp))
               end
-              lines
             end
           end
         end.select(&:many?).then do |lines|

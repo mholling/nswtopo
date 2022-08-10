@@ -11,8 +11,8 @@ module StraightSkeleton
       @active, @indices = Set[], Hash.new.compare_by_identity
       data.to_d.map do |points|
         next points unless points.length > 2
-        points.inject [] do |points, point|
-          points.last == point ? points : points << point
+        points.each.with_object [] do |point, points|
+          points << point unless points.last == point
         end
       end.map.with_index do |(*points, point), index|
         points.first == point ? [points, :ring, (index unless points.hole?)] : [points << point, :segments, nil]
@@ -184,10 +184,9 @@ module StraightSkeleton
         end
       end.each do |point, nodes|
         @active.subtract nodes
-        nodes.inject [] do |events, node|
+        nodes.each.with_object [] do |node, events|
           events << [:incoming, node.prev] if node.prev
           events << [:outgoing, node.next] if node.next
-          events
         end.sort_by do |event, node|
           case event
           when :incoming then [-@direction * node.normals[1].angle,        1]

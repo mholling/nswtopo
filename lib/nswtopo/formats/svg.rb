@@ -31,7 +31,7 @@ module NSWTopo
 
         # add a filter converting alpha channel to cutout mask
         defs.add_element("filter", "id" => "map.filter.cutout").tap do |filter|
-          filter.add_element("feColorMatrix", "type" => "matrix", "values" => "0 0 0 0 0   0 0 0 0 0   0 0 0 0 0   0 0 0 -1 1")
+          filter.add_element("feComponentTransfer", "in" => "SourceAlpha")
         end
 
         Enumerator.new do |yielder|

@@ -3,6 +3,7 @@ module NSWTopo
     def render_svg(svg_path, background:, **options)
       if uptodate?("map.svg", "map.yml")
         xml = REXML::Document.new read("map.svg")
+        xml.elements["svg/metadata/rdf:RDF/rdf:Description"].add_attributes("xmp:ModifyDate" => Time.now.iso8601)
 
       else
         width, height = @extents.times(@mm_per_metre)
@@ -21,7 +22,6 @@ module NSWTopo
           "xmlns:dc"  => "http://purl.org/dc/elements/1.1/"
         ).add_element("rdf:Description",
           "xmp:CreatorTool" => VERSION.creator_string,
-          "xmp:CreateDate" => Time.now.iso8601,
           "dc:format" => "image/svg+xml"
         )
 
@@ -82,11 +82,11 @@ module NSWTopo
         end
 
         xml.elements.each("svg//defs[not(*)]", &:remove)
+        xml.elements["svg/metadata/rdf:RDF/rdf:Description"].add_attributes %w[xmp:ModifyDate xmp:CreateDate].each.with_object(Time.now.iso8601).to_h
         write "map.svg", xml.to_s
       end
 
       xml.elements["svg/use[@id='map.background']"].add_attributes("fill" => background) if background
-      xml.elements["svg/metadata/rdf:RDF/rdf:Description"].add_attributes("xmp:ModifyDate" => Time.now.iso8601)
 
       svg_path.open("w") do |file|
         formatter = REXML::Formatters::Pretty.new

@@ -30,8 +30,8 @@ module NSWTopo
 
     %w[GDAL ImageMagick SQLite3 PNGQuant GIMP Zip SevenZ ExifTool].each do |package|
       OS.const_get(package).each do |command|
-        define_method command do |*args, &block|
-          Open3.popen3 command, *args.map(&:to_s) do |stdin, stdout, stderr, thread|
+        define_method command do |*args, **opts, &block|
+          Open3.popen3 command, *args.map(&:to_s), **opts do |stdin, stdout, stderr, thread|
             thr_in = Thread.new do
               block.call(stdin) if block
             rescue Errno::EPIPE

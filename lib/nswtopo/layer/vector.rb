@@ -100,7 +100,7 @@ module NSWTopo
       end.each do |categories, features|
         ids = [name, *categories]
         use = REXML::Element.new("use")
-        use.add_attributes "id" => ids.join(?.), "class" => categories.to_a.join(?\s), "mask" => "url(#map.mask.knockout)"
+        use.add_attributes "id" => ids.join(?.), "mask" => "url(#map.mask.knockout)"
 
         case features
         when String

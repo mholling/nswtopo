@@ -49,7 +49,9 @@ module NSWTopo
               when REXML::Element then yielder << object
               end
             end
-          end.last.group_by(&:buffer).map do |buffer, knockouts|
+          end.last.group_by(&:buffer).select do |buffer, knockouts|
+            buffer.positive?
+          end.map do |buffer, knockouts|
             defs.add_element("filter", "id" => "map.filter.knockout.#{buffer}").tap do |filter|
               filter.add_element("feMorphology", "operator" => "dilate", "radius" => 0.4 + buffer, "in" => "SourceAlpha")
               filter.add_element("feMorphology", "operator" => "erode", "radius" => 0.4)

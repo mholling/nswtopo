@@ -133,7 +133,7 @@ module NSWTopo
           when GeoJSON::Polygon
             path_data = feature.coordinates.map do |ring|
               svg_path_data ring.map(&to_mm), bezier: bezier
-            end.join(" Z ").concat(" Z")
+            end.each.with_object("Z").entries.join(?\s)
             content.add_element "path", "fill-rule" => "nonzero", "d" => path_data
 
           when REXML::Element

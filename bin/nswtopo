@@ -167,6 +167,7 @@ begin
           controls      add rogaine control markers
           overlay       add KML or GPX overlay
           delete        delete map layer
+          move          move map layer
           render        render map in various formats
           layers        list available map layers
           config        configure nswtopo
@@ -341,6 +342,14 @@ begin
         *nswtopo* *delete* - delete map layers
           usage: _nswtopo_ _delete_ [~options~] <map.tgz> <layer> [<layer> ...]
       EOF
+
+    when "move"
+      parser.banner = <<~EOF
+        *nswtopo* *move* - move map layer
+          usage: _nswtopo_ _move_ [~options~] <map.tgz> <layer>
+      EOF
+      parser.on "-a", "--after   <layer>", "insert after specified layer"
+      parser.on "-b", "--before  <layer>", "insert before specified layer"
 
     when "render"
       parser.banner = <<~EOF

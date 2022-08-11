@@ -262,6 +262,24 @@ module NSWTopo
       save
     end
 
+    def move(name, before: nil, after: nil)
+      name, target = [name, before || after].map do |name|
+        Layer.sanitise name
+      end.each do |name|
+        raise OptionParser::InvalidArgument, "no such layer: #{name}" unless @layers.key? name
+      end
+      raise OptionParser::InvalidArgument, "layers must be different" if name == target
+      insert = [name, @layers.delete(name)]
+      @layers.each.with_object [] do |(name, layer), layers|
+        layers << insert if before && name == target
+        layers << [name, layer]
+        layers << insert if after && name == target
+      end.tap do |layers|
+        @layers.replace layers.to_h
+      end
+      save
+    end
+
     def info(empty: nil, json: false, proj: false)
       case
       when json

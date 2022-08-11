@@ -149,6 +149,7 @@ General usage for the *nswtopo* program is [described here](docs). Detailed docu
 * [*controls*](docs/controls.md): add rogaine control markers
 * [*overlay*](docs/overlay.md): add KML or GPX overlay
 * [*delete*](docs/delete.md): delete map layer
+* [*move*](docs/move.md): move map layer
 * [*render*](docs/render.md): render map in various formats
 * [*layers*](docs/layers.md): list available map layers
 * [*config*](docs/config.md): configure nswtopo

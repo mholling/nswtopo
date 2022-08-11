@@ -81,6 +81,10 @@ _nswtopo() {
 				delete)
 					args+=(path layer)
 					;;
+				move)
+					args+=(path layer)
+					arg_opts+=(-a --after -b --before)
+					;;
 				render)
 					args+=(path format)
 					flag_opts+=(-d --dither -w --worldfile -o --overwrite -f --force)

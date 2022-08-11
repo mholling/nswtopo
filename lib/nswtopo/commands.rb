@@ -25,6 +25,12 @@ module NSWTopo
     end
   end
 
+  def move(archive, name, **options)
+    raise OptionParser::InvalidArgument, "only one of --before and --after allowed" if options[:after] && options[:before]
+    raise OptionParser::MissingArgument, "--before or --after required" unless options[:after] || options[:before]
+    Map.load(archive).move(name, **options)
+  end
+
   def render(archive, basename, *formats, overwrite: false, svg_path: nil, **options)
     case
     when formats.any?

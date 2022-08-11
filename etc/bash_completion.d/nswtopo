@@ -57,7 +57,7 @@ _nswtopo() {
 					;;
 				relief)
 					args+=(path path)
-					arg_opts+=(-r --resolution -o --opacity --shade -a --altitude -z --azimuth -s --sources -y --yellow -f --factor)
+					arg_opts+=(-r --resolution -o --opacity --shade -m --method -z --azimuth -f --factor)
 					;;
 				grid)
 					args+=(path)

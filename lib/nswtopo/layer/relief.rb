@@ -1,16 +1,14 @@
 module NSWTopo
   module Relief
     include Raster, DEM, Log
-    CREATE = %w[shade altitude azimuth sources yellow factor smooth contours]
+    CREATE = %w[shade method azimuth factor smooth contours]
     DEFAULTS = YAML.load <<~YAML
-      shade: black
-      altitude: 45
+      shade: rgb(0,0,48)
+      method: combined
       azimuth: 315
       factor: 2.0
-      sources: 3
-      yellow: 0.2
       smooth: 4
-      opacity: 0.3
+      opacity: 0.25
     YAML
 
     def margin
@@ -19,7 +17,6 @@ module NSWTopo
 
     def get_raster(temp_dir)
       dem_path = temp_dir / "dem.tif"
-      flat_relief = (Math::sin(@altitude * Math::PI / 180) * 255).to_i
 
       case
       when @path
@@ -58,73 +55,32 @@ module NSWTopo
         raise "no elevation data specified for relief layer #{@name}"
       end
 
-      log_update "%s: generating shaded relief" % @name
-      reliefs = -90.step(90, 90.0 / @sources).select.with_index do |offset, index|
-        index.odd?
-      end.map do |offset|
-        (@azimuth + offset) % 360
-      end.map do |azimuth|
-        relief_path = temp_dir / "relief.#{azimuth}.bil"
-        OS.gdaldem "hillshade", "-of", "EHdr", "-compute_edges", "-s", 1, "-alt", @altitude, "-z", @factor, "-az", azimuth, dem_path, relief_path
-        [azimuth, ESRIHdr.new(relief_path, 0)]
+      mono_path = temp_dir / "relief.mono.tif"
+      vrt_path  = temp_dir / "relief.vrt"
+      tif_path  = temp_dir / "relief.tif"
+
+      begin
+        log_update "%s: generating shaded relief" % @name
+        OS.gdaldem *%W[hillshade -q -compute_edges -s 1 -z #{@factor} -az #{@azimuth} -#{@method}], dem_path, mono_path
+        OS.gdalwarp "-t_srs", @map.projection, mono_path, vrt_path
       rescue OS::Error
         raise "invalid elevation data"
-      end.to_h
-
-      bil_path = temp_dir / "relief.bil"
-      if reliefs.one?
-        reliefs.values.first.write bil_path
-      else
-        blur_path = temp_dir / "dem.blurred.tif"
-        blur_dem dem_path, blur_path
-
-        aspect_path = temp_dir / "aspect.bil"
-        OS.gdaldem "aspect", "-zero_for_flat", "-of", "EHdr", blur_path, aspect_path
-        aspect = ESRIHdr.new aspect_path, 0.0
-
-        log_update "%s: combining shaded relief" % @name
-        reliefs.map do |azimuth, relief|
-          [relief.values, aspect.values].transpose.map do |relief, aspect|
-            relief ? aspect ? 2 * relief * Math::sin((aspect - azimuth) * Math::PI / 180)**2 : relief : flat_relief
-          end
-        end.transpose.map do |values|
-          values.inject(&:+) / @sources
-        end.map do |value|
-          [255, value.ceil].min
-        end.tap do |values|
-          ESRIHdr.new(reliefs.values.first, values).write bil_path
-        end
       end
 
-      tif_path = temp_dir / "relief.tif"
-      OS.gdalwarp "-co", "TFW=YES", "-s_srs", @map.projection, "-dstnodata", "None", bil_path, tif_path
+      REXML::Document.new(vrt_path.read).tap do |xml|
+        vrt_raster_band = xml.elements["VRTDataset/VRTRasterBand[ColorInterp[text()='Gray']]"]
+        vrt_raster_band.elements["ColorInterp[text()='Gray']"].text = "Palette"
+
+        c1, c2, c3 = Colour.new(@shade).triplet
+        256.times.with_object vrt_raster_band.add_element("ColorTable") do |index, color_table|
+          color_table.add_element "Entry", "c1" => c1, "c2" => c2, "c3" => c3, "c4" => 0 == index ? 0 : 255 - index
+        end
+        vrt_path.write xml
+      end
 
       log_update "%s: rendering shaded relief" % @name
-      vrt_path = temp_dir / "coloured.vrt"
-      OS.gdalbuildvrt vrt_path, tif_path
+      OS.gdal_translate "-expand", "rgba", vrt_path, tif_path
 
-      xml = REXML::Document.new vrt_path.read
-      vrt_raster_band = xml.elements["VRTDataset/VRTRasterBand[ColorInterp[text()='Gray']]"]
-      vrt_raster_band.elements["ColorInterp[text()='Gray']"].text = "Palette"
-      color_table = vrt_raster_band.add_element "ColorTable"
-
-      lo, hi = 90 * flat_relief / 100, (10 + 90 * flat_relief) / 100
-      c1, c2, c3 = Colour.new(@shade).triplet
-      256.times do |index|
-        case
-        when index < lo
-          color_table.add_element "Entry", "c1" => c1, "c2" => c2, "c3" => c3, "c4" => (lo - index) * 255 / lo
-        when index > hi
-          color_table.add_element "Entry", "c1" => 255, "c2" => 255, "c3" => 0, "c4" => ((index - hi) * 255 * @yellow / (255 - hi)).to_i
-        else
-          color_table.add_element "Entry", "c1" => c1, "c2" => c2, "c3" => c3, "c4" => 0
-        end
-      end
-
-      vrt_path.write xml
-      coloured_path = temp_dir / "coloured.tif"
-      OS.gdal_translate "-expand", "rgba", vrt_path, coloured_path
-      FileUtils.mv coloured_path, tif_path
       return @resolution, tif_path
     end
   end

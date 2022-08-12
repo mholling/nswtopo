@@ -18,12 +18,20 @@ module NSWTopo
     TYPES = Set[Vegetation, Import, ArcGISRaster, Feature, Contour, Spot, Overlay, Relief, Grid, Declination, Control, Labels]
 
     def initialize(name, map, params)
+      params.delete("min-version").then do |creator_string|
+        creator_string ? Version[creator_string] : VERSION
+      rescue Version::Error
+        raise "layer '%s' has unrecognised version: %s" % [name, creator_string]
+      end.then do |min_version|
+        raise "layer '%s' requires nswtopo %s, this version: %s" % [name, min_version, VERSION] unless min_version <= VERSION
+      end
+
       @type = begin
         NSWTopo.const_get params["type"]
       rescue NameError, TypeError
       end
 
-      raise "unrecognised layer type: %s" % params["type"].inspect unless TYPES === @type
+      raise "layer '%s' has unrecognised type: %s" % [name, params["type"].inspect] unless TYPES === @type
       extend @type
 
       @params = @type.const_defined?(:DEFAULTS) ? @type.const_get(:DEFAULTS).transform_keys(&:to_s).merge(params) : params

@@ -4,8 +4,8 @@ module NSWTopo
     Error = Class.new StandardError
 
     def self.[](creator_string)
-      raise Error unless digit_string = creator_string.to_s[/^nswtopo (\d+(\.\d+(\.\d+)?)?)$/, 1]
-      new digit_string
+      /^nswtopo (?<digit_string>\d+(\.\d+(\.\d+)?)?)$/ =~ creator_string.to_s
+      digit_string ? new(digit_string) : raise(Error)
     end
 
     def creator_string

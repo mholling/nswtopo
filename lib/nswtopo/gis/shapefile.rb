@@ -45,7 +45,7 @@ module NSWTopo
         srs   = ["-t_srs", @projection] if @projection
         spat  = ["-spat", *@geometry.bounds.transpose.flatten, "-spat_srs", @geometry.projection] if @geometry
         misc  = %w[-mapFieldType Date=Integer,DateTime=Integer -dim XY]
-        json = OS.ogr2ogr *(sql || where), *srs, *spat, *misc, *%w[-f GeoJSON -lco RFC7946=NO /vsistdout/], @source.path, @layer
+        json = OS.ogr2ogr *(sql || where), *srs, *spat, *misc, *%w[-f GeoJSON -lco RFC7946=NO /vsistdout/], @source.path, *@layer
         GeoJSON::Collection.load json, *@projection
       rescue OS::Error => error
         raise unless /Couldn't fetch requested layer (.*)!/ === error.message

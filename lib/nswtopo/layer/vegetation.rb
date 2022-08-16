@@ -9,7 +9,7 @@ module NSWTopo
 
       min, max = minmax = @mapping&.values_at("min", "max")
       low, high, factor = [0, 100, 0].zip(Array @contrast&.values_at("low", "high", "factor")).map(&:compact).map(&:last)
-      colour = Colour.new(Hash === @colour && @colour["woody"] || "hsl(75,55%,72%)")
+      colour = Colour.new((Hash === @colour ? @colour["woody"] : @colour) || "hsl(75,55%,72%)")
 
       alpha_table = (0..255).map do |index|
         case

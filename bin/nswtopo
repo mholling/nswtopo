@@ -227,6 +227,7 @@ begin
           usage: _nswtopo_ _add_ [~options~] <map.tgz> <layer> [<layer> ...]
       EOF
       parser.on "-r", "--resolution  <resolution>", PositiveFloat, "raster layer resolution in metres"
+      parser.on "-o", "--opacity     <opacity>",    Opacity,       "layer opacity (between 0 and 1)"
       parser.on "-p", "--path        <path>",       Pathname,      "source data path for layer"
       parser.on "-a", "--after       <layer>",                     "insert after specified layer"
       parser.on "-b", "--before      <layer>",                     "insert before specified layer"

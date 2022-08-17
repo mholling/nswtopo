@@ -1,3 +1,4 @@
+require_relative 'layer/raster_import'
 require_relative 'layer/raster'
 require_relative 'layer/raster_render'
 require_relative 'layer/mask_render'
@@ -5,6 +6,7 @@ require_relative 'layer/vector'
 require_relative 'layer/vegetation'
 require_relative 'layer/import'
 require_relative 'layer/arcgis_raster'
+require_relative 'layer/colour_mask'
 require_relative 'layer/feature'
 require_relative 'layer/contour'
 require_relative 'layer/spot'
@@ -17,7 +19,7 @@ require_relative 'layer/labels'
 
 module NSWTopo
   class Layer
-    TYPES = Set[Vegetation, Import, ArcGISRaster, Feature, Contour, Spot, Overlay, Relief, Grid, Declination, Control, Labels]
+    TYPES = Set[Vegetation, Import, ColourMask, ArcGISRaster, Feature, Contour, Spot, Overlay, Relief, Grid, Declination, Control, Labels]
 
     def initialize(name, map, params)
       params.delete("min-version").then do |creator_string|
@@ -49,23 +51,24 @@ module NSWTopo
 
     def level
       case
-      when Vegetation   == @type then 0
-      when Import       == @type then 1
-      when ArcGISRaster == @type then 1
-      when Feature      == @type then 2
-      when Contour      == @type then 2
-      when Spot         == @type then 2
-      when Overlay      == @type then 3
-      when Relief       == @type then 4
-      when Grid         == @type then 5
-      when Declination  == @type then 6
-      when Control      == @type then 7
+      when Import       == @type then 0
+      when ArcGISRaster == @type then 0
+      when Vegetation   == @type then 1
+      when ColourMask   == @type then 2
+      when Feature      == @type then 3
+      when Contour      == @type then 3
+      when Spot         == @type then 3
+      when Overlay      == @type then 4
+      when Relief       == @type then 5
+      when Grid         == @type then 6
+      when Declination  == @type then 7
+      when Control      == @type then 8
       when Labels       == @type then 99
       end
     end
 
     def <=>(other)
-      [self, other].map(&:level).inject(&:<=>)
+      self.level <=> other.level
     end
 
     def ==(other)

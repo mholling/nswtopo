@@ -1,6 +1,6 @@
 module NSWTopo
   module ArcGISRaster
-    include Raster, Log
+    include Raster, RasterRender, Log
     CREATE = %w[url]
 
     def get_raster(temp_dir)

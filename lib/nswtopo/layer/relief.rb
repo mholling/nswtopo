@@ -1,7 +1,7 @@
 module NSWTopo
   module Relief
-    include Raster, DEM, Log
-    CREATE = %w[shade method azimuth factor smooth contours]
+    include Raster, MaskRender, DEM, Log
+    CREATE = %w[method azimuth factor smooth contours]
     DEFAULTS = YAML.load <<~YAML
       shade: rgb(0,0,48)
       method: combined
@@ -55,31 +55,16 @@ module NSWTopo
         raise "no elevation data specified for relief layer #{@name}"
       end
 
-      mono_path = temp_dir / "relief.mono.tif"
-      vrt_path  = temp_dir / "relief.vrt"
-      tif_path  = temp_dir / "relief.tif"
+      raw_path = temp_dir / "relief.raw.tif"
+      tif_path = temp_dir / "relief.tif"
 
       begin
         log_update "%s: generating shaded relief" % @name
-        OS.gdaldem *%W[hillshade -q -compute_edges -s 1 -z #{@factor} -az #{@azimuth} -#{@method}], dem_path, mono_path
-        OS.gdalwarp "-t_srs", @map.projection, mono_path, vrt_path
+        OS.gdaldem *%W[hillshade -q -compute_edges -s 1 -z #{@factor} -az #{@azimuth} -#{@method}], dem_path, raw_path
+        OS.gdalwarp "-t_srs", @map.projection, raw_path, tif_path
       rescue OS::Error
         raise "invalid elevation data"
       end
-
-      REXML::Document.new(vrt_path.read).tap do |xml|
-        vrt_raster_band = xml.elements["VRTDataset/VRTRasterBand[ColorInterp[text()='Gray']]"]
-        vrt_raster_band.elements["ColorInterp[text()='Gray']"].text = "Palette"
-
-        c1, c2, c3 = Colour.new(@shade).triplet
-        256.times.with_object vrt_raster_band.add_element("ColorTable") do |index, color_table|
-          color_table.add_element "Entry", "c1" => c1, "c2" => c2, "c3" => c3, "c4" => 0 == index ? 0 : 255 - index
-        end
-        vrt_path.write xml
-      end
-
-      log_update "%s: rendering shaded relief" % @name
-      OS.gdal_translate "-expand", "rgba", vrt_path, tif_path
 
       return @resolution, tif_path
     end

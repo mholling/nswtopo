@@ -1,4 +1,6 @@
 require_relative 'layer/raster'
+require_relative 'layer/raster_render'
+require_relative 'layer/mask_render'
 require_relative 'layer/vector'
 require_relative 'layer/vegetation'
 require_relative 'layer/import'

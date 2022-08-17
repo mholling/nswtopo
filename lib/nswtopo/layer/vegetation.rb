@@ -1,15 +1,18 @@
 module NSWTopo
   module Vegetation
-    include Raster, GDALGlob
-    CREATE = %w[mapping contrast colour]
+    include Raster, MaskRender, GDALGlob
+    CREATE = %w[mapping contrast]
+    DEFAULTS = YAML.load <<~YAML
+      colour: hsl(75,55%,72%)
+    YAML
 
     def get_raster(temp_dir)
       txt_path = temp_dir / "source.txt"
       vrt_path = temp_dir / "source.vrt"
 
+      @params["colour"] = @params["colour"]["woody"] if Hash === @params["colour"]
       min, max = minmax = @mapping&.values_at("min", "max")
       low, high, factor = [0, 100, 0].zip(Array @contrast&.values_at("low", "high", "factor")).map(&:compact).map(&:last)
-      colour = Colour.new((Hash === @colour ? @colour["woody"] : @colour) || "hsl(75,55%,72%)")
 
       alpha_table = (0..255).map do |index|
         case
@@ -41,7 +44,7 @@ module NSWTopo
       end.map.with_index do |(projection, rasters), index|
         indexed_tif_path = temp_dir / "indexed.#{index}.tif"
         indexed_vrt_path = temp_dir / "indexed.#{index}.vrt"
-        coloured_tif_path = temp_dir / "coloured.#{index}.tif"
+        mask_tif_path = temp_dir / "mask.#{index}.tif"
         tif_path = temp_dir / "output.#{index}.tif"
 
         txt_path.write rasters.map(&:first).join(?\n)
@@ -54,12 +57,12 @@ module NSWTopo
         raise "can't process vegetation data for #{@name}" unless xml.elements.each("/VRTDataset/VRTRasterBand/ColorTable", &:itself).one?
         raise "can't process vegetation data for #{@name}" unless xml.elements.each("/VRTDataset/VRTRasterBand/ColorTable/Entry", &:itself).count == 256
         xml.elements.collect("/VRTDataset/VRTRasterBand/ColorTable/Entry", &:itself).zip(alpha_table) do |entry, alpha|
-          entry.attributes["c1"], entry.attributes["c2"], entry.attributes["c3"], entry.attributes["c4"] = *colour.triplet, alpha
+          entry.attributes["c1"], entry.attributes["c2"], entry.attributes["c3"] = alpha, alpha, alpha
         end
         indexed_vrt_path.write xml
-        OS.gdal_translate "-expand", "rgba", indexed_vrt_path, coloured_tif_path
 
-        OS.gdalwarp "-s_srs", projection, "-t_srs", @map.projection, "-r", "bilinear", coloured_tif_path, tif_path
+        OS.gdal_translate "-expand", "rgba", indexed_vrt_path, mask_tif_path
+        OS.gdalwarp "-s_srs", projection, "-t_srs", @map.projection, "-r", "bilinear", mask_tif_path, tif_path
         next tif_path, Numeric === @resolution ? @resolution : @map.get_raster_resolution(tif_path)
       end.transpose.tap do |tif_paths, resolutions|
         @resolution = resolutions.min

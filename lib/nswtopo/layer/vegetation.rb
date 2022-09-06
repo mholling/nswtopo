@@ -57,11 +57,11 @@ module NSWTopo
         raise "can't process vegetation data for #{@name}" unless xml.elements.each("/VRTDataset/VRTRasterBand/ColorTable", &:itself).one?
         raise "can't process vegetation data for #{@name}" unless xml.elements.each("/VRTDataset/VRTRasterBand/ColorTable/Entry", &:itself).count == 256
         xml.elements.collect("/VRTDataset/VRTRasterBand/ColorTable/Entry", &:itself).zip(alpha_table) do |entry, alpha|
-          entry.attributes["c1"], entry.attributes["c2"], entry.attributes["c3"] = alpha, alpha, alpha
+          entry.attributes["c1"], entry.attributes["c2"], entry.attributes["c3"], entry.attributes["c4"] = alpha, alpha, alpha, 255
         end
         indexed_vrt_path.write xml
 
-        OS.gdal_translate "-expand", "rgba", indexed_vrt_path, mask_tif_path
+        OS.gdal_translate "-expand", "gray", indexed_vrt_path, mask_tif_path
         OS.gdalwarp "-s_srs", projection, "-t_srs", @map.projection, "-r", "bilinear", mask_tif_path, tif_path
         next tif_path, Numeric === @resolution ? @resolution : @map.get_raster_resolution(tif_path)
       end.transpose.tap do |tif_paths, resolutions|

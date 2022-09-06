@@ -7,8 +7,6 @@ module NSWTopo
       interval: 1000.0
       stroke: black
       stroke-width: 0.1
-      boundary:
-        stroke: gray
       edge:
         fill: none
         preserve: true

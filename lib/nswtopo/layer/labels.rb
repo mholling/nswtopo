@@ -31,6 +31,7 @@ module NSWTopo
         dupe: ~
         fill: none
         opacity: 0.5
+        knockout: false
       debug feature:
         stroke: "#6600ff"
         stroke-width: 0.2

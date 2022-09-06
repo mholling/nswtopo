@@ -534,6 +534,7 @@ module NSWTopo
         end
       end.flatten
 
+      log_update "compositing %s: chosing label positions" % @name
       candidates.flat_map(&:hulls).each do |hull|
         debug_features << [hull, Set["debug", "candidate"]]
       end if debug

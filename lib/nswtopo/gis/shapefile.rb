@@ -81,7 +81,7 @@ module NSWTopo
         count = info.match(/^Feature Count: (\d+)$/)&.[](1)
         fields = info.scan(/^(.*): (.*?) \(\d+\.\d+\)$/).to_h
         wkt = info.each_line.slice_after(/^Layer SRS WKT:/).drop(1).first&.slice_before(/^\S/)&.first&.join
-        epsg = OS.gdalsrsinfo("-o", "epsg", wkt)[/\d+/] if wkt
+        epsg = OS.gdalsrsinfo("-o", "epsg", wkt)[/\d+/] if wkt and !wkt["unknown"]
         { name: @layer, geometry: geom_type, EPSG: epsg, features: count, fields: (fields unless fields.empty?) }.compact
       rescue OS::Error => error
         raise unless /Couldn't fetch requested layer (.*)!/ === error.message

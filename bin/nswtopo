@@ -386,6 +386,7 @@ begin
       parser.on "-r", "--resolution    <resolution>", PositiveFloat, "set resolution for given layer"
       parser.on       "--layer-dir     <path>",       Pathname,      "set an extra layer directory"
       parser.on       "--[no-]labelling",                            "enable or disable map labelling"
+      parser.on       "--[no-]debug",                                "enable or disable label debuging"
       parser.on "-z", "--zlib-level    <0-9>",        ZlibLevel,     "set zlib compression level"
       parser.on "-k", "--knockout      <width>",      NonNegFloat,   "set label knockout width in mm"
 

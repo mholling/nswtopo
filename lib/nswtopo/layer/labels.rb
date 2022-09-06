@@ -320,7 +320,7 @@ module NSWTopo
             [*attributes["position"] || "over"].map do |position|
               dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
               dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
-              next dx, dy, dx * dy == 0 ? 1 : 0.707
+              next dx, dy, dx * dy == 0 ? 1 : 0.6
             end.uniq.map.with_index do |(dx, dy, f), position_index|
               text_elements, hulls = lines.map.with_index do |(line, text_length), index|
                 anchor = point.dup

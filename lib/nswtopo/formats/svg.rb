@@ -53,7 +53,8 @@ module NSWTopo
             buffer.positive?
           end.map do |buffer, knockouts|
             defs.add_element("filter", "id" => "map.filter.knockout.#{buffer}").tap do |filter|
-              filter.add_element("feMorphology", "operator" => "dilate", "radius" => 0.4 + buffer, "in" => "SourceAlpha")
+              filter.add_element("feColorMatrix", "values" => "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 5 0")
+              filter.add_element("feMorphology", "operator" => "dilate", "radius" => 0.4 + buffer)
               filter.add_element("feMorphology", "operator" => "erode", "radius" => 0.4)
               filter.add_element("feGaussianBlur", "stdDeviation" => 0.2)
               filter.add_element("feComponentTransfer").add_element("feFuncA", "type" => "discrete", "tableValues" => "0 1")

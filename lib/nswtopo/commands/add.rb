@@ -66,7 +66,6 @@ module NSWTopo
     end.tap do |layers|
       raise OptionParser::MissingArgument, "no layers specified" unless layers.any?
       unless layers.one?
-        raise OptionParser::InvalidArgument, "can't specify resolution when adding multiple layers" if options[:resolution]
         raise OptionParser::InvalidArgument, "can't specify opacity when adding multiple layers" if options[:opacity]
         raise OptionParser::InvalidArgument, "can't specify data path when adding multiple layers" if options[:path]
       end

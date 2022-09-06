@@ -284,7 +284,8 @@ module NSWTopo
       case
       when json
         bbox = bounding_box.reproject_to_wgs84.first
-        bbox.properties.merge! scale: @scale, extents: @extents, rotation: rotation, projection: @projection, layers: layers.map(&:name)
+        dimensions = @extents.times(@mm_per_metre)
+        bbox.properties.merge! scale: @scale, dimensions: dimensions, extents: @extents, rotation: rotation, projection: @projection, layers: layers.map(&:name)
         JSON.pretty_generate bbox.to_h
       when proj
         @projection

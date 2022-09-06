@@ -23,7 +23,7 @@ module NSWTopo
           case key
           when Array
             code, value = key
-            display_value = value.nil? || /[^\w\s-]|[\t\n\r]/ === value ? value.inspect : value
+            display_value = value.nil? || /[\t\n\r]/ === value ? value.inspect : value
             ["#{code} → #{display_value}", values]
           else
             ["#{key}:", values]
@@ -45,7 +45,7 @@ module NSWTopo
           value1 && value2 ? value1 <=> value2 : value1 ? 1 : value2 ? -1 : 0
         end
       end.map do |indents, (name, count, value)|
-        next name, count.to_s, indents.join << (value.nil? || /[^\w\s-]|[\t\n\r]/ === value ? value.inspect : value.to_s)
+        next name, count.to_s, indents.join << (value.nil? || /[\t\n\r]/ === value ? value.inspect : value.to_s)
       end.transpose.tap do |names, counts, lines|
         template %= [names.map(&:size).max, counts.map(&:size).max] if names
       end.transpose.each do |row|

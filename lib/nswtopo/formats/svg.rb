@@ -59,22 +59,16 @@ module NSWTopo
           end.last.each.with_index do |knockouts, index|
             mask = defs.add_element("mask", "id" => "map.mask.knockout.#{index}")
             mask.add_element("use", "href" => "#map.rect", "fill" => "white")
-            knockouts.group_by(&:params).map do |(buffer, blur), knockouts|
-              group = mask.add_element("g", "filter" => "url(#map.filter.knockout.#{buffer}.#{blur})")
+            knockouts.group_by(&:buffer).map do |buffer, knockouts|
+              group = mask.add_element("g", "filter" => "url(#map.filter.knockout.#{buffer})")
               knockouts.each do |knockout|
                 group.add_element knockout.use
               end
             end
-          end.flatten.group_by(&:params).keys.each do |buffer, blur|
-            filter = defs.add_element("filter", "id" => "map.filter.knockout.#{buffer}.#{blur}")
+          end.flatten.group_by(&:buffer).keys.each do |buffer|
+            filter = defs.add_element("filter", "id" => "map.filter.knockout.#{buffer}")
             filter.add_element("feColorMatrix", "values" => "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 5 0")
-            if blur > 0
-              filter.add_element("feMorphology", "operator" => "dilate", "radius" => blur + buffer)
-              filter.add_element("feMorphology", "operator" => "erode", "radius" => blur)
-              filter.add_element("feGaussianBlur", "stdDeviation" => blur)
-            else
-              filter.add_element("feMorphology", "operator" => "dilate", "radius" => buffer)
-            end
+            filter.add_element("feMorphology", "operator" => "dilate", "radius" => buffer)
             filter.add_element("feComponentTransfer").add_element("feFuncA", "type" => "discrete", "tableValues" => "0 1")
           end
         end.reject do |element|

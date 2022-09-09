@@ -11,7 +11,7 @@ module NSWTopo
     TRANSFORMS = %w[reduce fallback offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
 
     DEFAULTS = YAML.load <<~YAML
-      knockout: [true, 0.2]
+      knockout: true
       preserve: true
       stroke: none
       fill: black

@@ -15,7 +15,7 @@ module NSWTopo
       end
 
       REXML::Element.new("use").tap do |use|
-        use.add_attributes "id" => @name, "href" => "##{@name}.content"
+        use.add_attributes "id" => @name, "mask" => "none", "href" => "##{@name}.content"
         use.add_attributes params.slice("opacity")
       end.tap(&block)
     end

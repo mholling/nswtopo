@@ -80,7 +80,7 @@ module NSWTopo
       end.values.inject(params, &:merge)
     end
 
-    def render(**, &block)
+    def render(knockout:, **, &block)
       defs = REXML::Element.new("defs").tap(&block)
       defs.add_attributes "id" => "#{@name}.defs"
 
@@ -100,7 +100,7 @@ module NSWTopo
       end.each do |categories, features|
         ids = [name, *categories]
         use = REXML::Element.new("use")
-        use.add_attributes "id" => ids.join(?.), "mask" => "url(#map.mask.knockout)"
+        use.add_attributes "id" => ids.join(?.)
 
         case features
         when String
@@ -217,16 +217,16 @@ module NSWTopo
             end
 
           when "knockout"
-            use.delete_attribute "mask"
+            use.add_attributes "mask" => "url(##{knockout})"
             Knockout.new(use, *args).tap(&block)
 
           when "preserve"
-            use.delete_attribute "mask"
+            use.add_attributes "mask" => "none"
 
-          when "cutout", "mask"
+          when "cutout", "mask"   # mask deprecated
             Cutout.new(use).tap(&block)
 
-          when "barrier", "fence"
+          when "barrier", "fence" # fence deprecated
             next unless content && args
             buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
             Labels::Barrier.new(features.grep_v(REXML::Element), buffer).tap(&block)

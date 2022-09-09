@@ -39,42 +39,50 @@ module NSWTopo
           layers.reject(&:empty?).each do |layer|
             next if Config["labelling"] == false
             labels.add layer if Vector === layer
-          end.push(labels).each.with_object [[], []] do |layer, (cutouts, knockouts)|
+          end.push(labels).each.with_object [[], [[]]] do |layer, (cutouts, knockouts)|
             log_update "compositing: #{layer.name}"
-            layer.render(cutouts: cutouts) do |object|
+            new_knockouts, knockout = [], "map.mask.knockout.#{knockouts.length}"
+            layer.render(cutouts: cutouts, knockout: knockout) do |object|
               case object
               when Labels::Barrier then labels << object
               when Vector::Cutout then cutouts << object
-              when Vector::Knockout then knockouts << object
-              when REXML::Element then yielder << object
+              when Vector::Knockout then new_knockouts << object
+              when REXML::Element
+                object.attributes["mask"] ||= "url(#map.mask.knockout.#{knockouts.length-1})" unless "defs" == object.name
+                yielder << object
               end
             end
-          end.last.group_by(&:buffer).select do |buffer, knockouts|
-            buffer.positive?
-          end.map do |buffer, knockouts|
-            defs.add_element("filter", "id" => "map.filter.knockout.#{buffer}").tap do |filter|
-              filter.add_element("feColorMatrix", "values" => "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 5 0")
-              filter.add_element("feMorphology", "operator" => "dilate", "radius" => 0.4 + buffer)
-              filter.add_element("feMorphology", "operator" => "erode", "radius" => 0.4)
-              filter.add_element("feGaussianBlur", "stdDeviation" => 0.2)
-              filter.add_element("feComponentTransfer").add_element("feFuncA", "type" => "discrete", "tableValues" => "0 1")
+            knockouts.each do |knockouts|
+              knockouts.concat new_knockouts
             end
-            knockouts.map.with_object REXML::Element.new("g") do |knockout, group|
-              group.add_element knockout.use
-            end.tap do |group|
-              group.add_attributes "filter" => "url(#map.filter.knockout.#{buffer})"
-            end
-          end.tap do |groups|
-            mask = defs.add_element("mask", "id" => "map.mask.knockout")
+            knockouts << [] if new_knockouts.any?
+          end.last.each.with_index do |knockouts, index|
+            mask = defs.add_element("mask", "id" => "map.mask.knockout.#{index}")
             mask.add_element("use", "href" => "#map.rect", "fill" => "white")
-            groups.each(&mask.method(:add))
+            knockouts.group_by(&:params).map do |(buffer, blur), knockouts|
+              group = mask.add_element("g", "filter" => "url(#map.filter.knockout.#{buffer}.#{blur})")
+              knockouts.each do |knockout|
+                group.add_element knockout.use
+              end
+            end
+          end.flatten.group_by(&:params).keys.each do |buffer, blur|
+            filter = defs.add_element("filter", "id" => "map.filter.knockout.#{buffer}.#{blur}")
+            filter.add_element("feColorMatrix", "values" => "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 5 0")
+            if blur > 0
+              filter.add_element("feMorphology", "operator" => "dilate", "radius" => blur + buffer)
+              filter.add_element("feMorphology", "operator" => "erode", "radius" => blur)
+              filter.add_element("feGaussianBlur", "stdDeviation" => blur)
+            else
+              filter.add_element("feMorphology", "operator" => "dilate", "radius" => buffer)
+            end
+            filter.add_element("feComponentTransfer").add_element("feFuncA", "type" => "discrete", "tableValues" => "0 1")
           end
         end.reject do |element|
           svg.add_element(element) if "defs" == element.name
         end.tap do
           svg.add_element("use", "id" => "map.background", "href" => "#map.rect", "fill" => "white")
         end.chunk do |element|
-          element.attributes["mask"] || "none"
+          element.attributes["mask"]
         end.each do |mask, elements|
           elements.each.with_object(svg.add_element("g", "mask" => mask)) do |element, group|
             group.add_element element

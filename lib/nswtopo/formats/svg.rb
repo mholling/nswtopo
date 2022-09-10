@@ -39,28 +39,27 @@ module NSWTopo
           layers.reject(&:empty?).each do |layer|
             next if Config["labelling"] == false
             labels.add layer if Vector === layer
-          end.push(labels).each.with_object [[], [[]]] do |layer, (cutouts, knockouts)|
+          end.push(labels).each.with_object [[], []] do |layer, (cutouts, knockouts)|
             log_update "compositing: #{layer.name}"
-            new_knockouts, knockout = [], "map.mask.knockout.#{knockouts.length}"
+            new_knockouts, knockout = [], "map.mask.knockout.#{knockouts.length+1}"
             layer.render(cutouts: cutouts, knockout: knockout) do |object|
               case object
               when Labels::Barrier then labels << object
               when Vector::Cutout then cutouts << object
               when Vector::Knockout then new_knockouts << object
               when REXML::Element
-                object.attributes["mask"] ||= "url(#map.mask.knockout.#{knockouts.length-1})" unless "defs" == object.name
+                object.attributes["mask"] ||= "url(#map.mask.knockout.#{knockouts.length})" unless "defs" == object.name
                 yielder << object
               end
             end
-            knockouts.each do |knockouts|
-              knockouts.concat new_knockouts
-            end
-            knockouts << [] if new_knockouts.any?
-          end.last.each.with_index do |knockouts, index|
+            knockouts << new_knockouts if new_knockouts.any?
+          end.last.push([]).each.with_index do |knockouts, index|
             mask = defs.add_element("mask", "id" => "map.mask.knockout.#{index}")
-            mask.add_element("use", "href" => "#map.rect", "fill" => "white")
+            content = mask.add_element("g", "id" => "map.mask.knockout.#{index}.content")
+            content.add_element("use", "href" => "#map.mask.knockout.#{index+1}.content") if knockouts.any?
+            content.add_element("use", "href" => "#map.rect", "fill" => "white", "stroke" => "none") if knockouts.none?
             knockouts.group_by(&:buffer).map do |buffer, knockouts|
-              group = mask.add_element("g", "filter" => "url(#map.filter.knockout.#{buffer})")
+              group = content.add_element("g", "filter" => "url(#map.filter.knockout.#{buffer})")
               knockouts.each do |knockout|
                 group.add_element knockout.use
               end

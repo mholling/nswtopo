@@ -14,7 +14,8 @@ module NSWTopo
           "height" => "#{height}mm",
           "viewBox" => "0 0 #{width} #{height}",
           "text-rendering" => "geometricPrecision",
-          "xmlns" => "http://www.w3.org/2000/svg"
+          "xmlns" => "http://www.w3.org/2000/svg",
+          "xmlns:nswtopo" => "http://nswtopo.com"
 
         svg.add_element("metadata").add_element("rdf:RDF",
           "xmlns:rdf" => "http://www.w3.org/1999/02/22-rdf-syntax-ns#",

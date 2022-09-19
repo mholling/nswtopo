@@ -37,7 +37,10 @@ module NSWTopo
 
         Enumerator.new do |yielder|
           labels = Layer.new "labels", self, Config.fetch("labels", {}).merge("type" => "Labels")
-          layers.reject(&:empty?).each do |layer|
+          layers.reject do |layer|
+            log_update "reading: #{layer.name}"
+            layer.empty?
+          end.each do |layer|
             next if Config["labelling"] == false
             labels.add layer if Vector === layer
           end.push(labels).each.with_object [[], []] do |layer, (cutouts, knockouts)|

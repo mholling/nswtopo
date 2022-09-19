@@ -7,7 +7,7 @@ module NSWTopo
     DEFAULT_SAMPLE = 5
     INSET = 1
 
-    PROPERTIES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-all max-turn min-radius max-angle format categories optional sample line-height upcase shield curved coexist]
+    PROPERTIES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-same separation-all max-turn min-radius max-angle format categories optional sample line-height upcase shield curved coexist]
     TRANSFORMS = %w[reduce fallback offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
 
     DEFAULTS = YAML.load <<~YAML
@@ -231,7 +231,7 @@ module NSWTopo
       end
     end
 
-    Label = Struct.new(:layer_name, :label_index, :feature_index, :priority, :hulls, :attributes, :elements, :along, :fixed) do
+    Label = Struct.new(:text, :layer_name, :label_index, :feature_index, :priority, :hulls, :attributes, :elements, :along, :fixed) do
       def point?
         along.nil?
       end
@@ -353,7 +353,7 @@ module NSWTopo
                 end
               end.size
               priority = [barrier_count, position_index, feature_index]
-              Label.new collection.layer_name, label_index, feature_index, priority, hulls, attributes, text_elements
+              Label.new collection.text, collection.layer_name, label_index, feature_index, priority, hulls, attributes, text_elements
             end.compact.tap do |candidates|
               candidates.combination(2).each do |candidate1, candidate2|
                 candidate1.conflicts << candidate2
@@ -495,7 +495,7 @@ module NSWTopo
                 text_path = text_element.add_element "textPath", "href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
                 text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
               end
-              Label.new collection.layer_name, label_index, feature_index, priority, [hull], attributes, [text_element, path_element], along, fixed
+              Label.new collection.text, collection.layer_name, label_index, feature_index, priority, [hull], attributes, [text_element, path_element], along, fixed
             end.compact.map do |candidate|
               [candidate, []]
             end.to_h.tap do |matrix|
@@ -550,6 +550,15 @@ module NSWTopo
       candidates.group_by do |candidate|
         [candidate.label_index, candidate.attributes["separation"]]
       end.each do |(label_index, buffer), candidates|
+        Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
+          candidate1.conflicts << candidate2
+          candidate2.conflicts << candidate1
+        end if buffer
+      end
+
+      candidates.group_by do |candidate|
+        [candidate.text, candidate.layer_name, candidate.attributes["separation-same"]]
+      end.each do |(text, layer_name, buffer), candidates|
         Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
           candidate1.conflicts << candidate2
           candidate2.conflicts << candidate1

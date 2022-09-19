@@ -44,7 +44,7 @@ _nswtopo() {
 					args+=(path layer)
 					flag_opts+=(-o --overwrite)
 					file_opts+=(-p --path)
-					arg_opts+=(-r --resolution -a --after -b --before -c --replace)
+					arg_opts+=(-r --resolution -p --ppi -a --after -b --before -c --replace)
 					;;
 				contours)
 					args+=(path path)
@@ -57,7 +57,7 @@ _nswtopo() {
 					;;
 				relief)
 					args+=(path path)
-					arg_opts+=(-r --resolution -o --opacity --shade -m --method -z --azimuth -f --factor)
+					arg_opts+=(-r --resolution --ppi -o --opacity --shade -m --method -z --azimuth -f --factor)
 					;;
 				grid)
 					args+=(path)

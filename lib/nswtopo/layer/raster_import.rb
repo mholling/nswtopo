@@ -14,7 +14,8 @@ module NSWTopo
       args += ["-expand", "rgba", *args] if palette
       OS.gdal_translate *args
 
-      return Numeric === @resolution ? @resolution : @map.get_raster_resolution(crop_path), crop_path
+      @resolution ||= @map.get_raster_resolution(crop_path)
+      return @resolution, crop_path
     rescue OS::Error
       raise "invalid raster file: #{@path}"
     end

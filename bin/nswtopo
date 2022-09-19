@@ -226,7 +226,8 @@ begin
         *nswtopo* *add* - add named map layer
           usage: _nswtopo_ _add_ [~options~] <map.tgz> <layer> [<layer> ...]
       EOF
-      parser.on "-r", "--resolution  <resolution>", PositiveFloat, "raster layer resolution in metres"
+      parser.on "-r", "--resolution  <resolution>", PositiveFloat, "raster resolution in metres per pixel"
+      parser.on       "--ppi         <ppi>",        PositiveFloat, "raster resolution in pixels per inch"
       parser.on "-o", "--opacity     <opacity>",    Opacity,       "layer opacity (between 0 and 1)"
       parser.on "-p", "--path        <path>",       Pathname,      "source data path for layer"
       parser.on "-a", "--after       <layer>",                     "insert after specified layer"
@@ -275,7 +276,8 @@ begin
         *nswtopo* *relief* - add shaded relief
           usage: _nswtopo_ _relief_ [~options~] <map.tgz> <dem.zip>
       EOF
-      parser.on "-r", "--resolution <resolution>",    PositiveFloat, "resolution in metres"
+      parser.on "-r", "--resolution <resolution>",    PositiveFloat, "resolution in metres per pixel"
+      parser.on "-p", "--ppi        <ppi>",           PositiveFloat, "resolution in pixels per inch"
       parser.on "-o", "--opacity    <opacity>",       Opacity,       "opacity (default %s)" % NSWTopo::Relief::DEFAULTS["opacity"]
       parser.on       "--shade      <colour>",        Colour,        "shade colour (default %s)" % NSWTopo::Relief::DEFAULTS["shade"]
       parser.on "-m", "--method     <igor|combined>", ReliefMethod,  "relief shading method (default %s)" % NSWTopo::Relief::DEFAULTS["method"]
@@ -473,6 +475,8 @@ begin
     raise OptionParser::InvalidOption, "--decode requires --fields" if options[:decode] && !options[:fields]
     NSWTopo.inspect url_or_path, **options
     exit
+  when "add", "relief"
+    raise OptionParser::InvalidOption, "can't specify both --resolution and --ppi" if options[:resolution] && options[:ppi]
   end
 
   raise OptionParser::MissingArgument, "no map path specified" if ARGV.empty?

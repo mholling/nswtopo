@@ -130,6 +130,9 @@ main > h1 > img {
   flex: 1 1 auto;
   object-fit: contain;
 }
+form.buy > input.shipping ~ button {
+  color: #11191f;
+}
 form.buy > input.shipping ~ button.overseas {
   display: none;
 }

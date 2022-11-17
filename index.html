@@ -1,75 +1,151 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>nswtopo</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-    <link rel="stylesheet" type="text/css" href="nswtopo.css">
-    <link rel="stylesheet" type="text/css" href="https://api.mapbox.com/mapbox.js/v3.3.0/mapbox.css">
-    <script async src="nswtopo.js"></script>
-    <script async src="qrcode.js"></script>
-    <script async src="https://api.mapbox.com/mapbox.js/v3.3.0/mapbox.js"></script>
-    <link rel="alternate" type="application/vnd.geo+json" href="maps.json">
-  </head>
-  <body>
-    <div id="map"></div>
-    <div id="qrcode"></div>
-    <div id="toggles"><div id="show-about">About</div></div>
-    <div id="about" class="hidden">
-      <div class="box">
-        <div>
-          <header>
-            <h1>
-              nswtopo
-            </h1>
-            <p>
-              vector topo maps for NSW, Victoria and Tasmania
-            </p>
-          </header>
-          <p>
-            <em>nswtopo</em> is open-source software for creating detailed topographic maps of New South Wales, Victoria and Tasmania.
-            Maps can be made in both vector and raster formats.
-          </p>
-          <section>
-            <h2>
-              <img src="logo-github.png" class="logo" alt="GitHub logo">Get the Code
-            </h2>
-            <p>
-              Code for <em>nswtopo</em> is available on <a href="https://github.com/mholling/nswtopo">GitHub</a>.
-            </p>
-            <p>
-              Make maps of any areas you want using the lastest government topographic data.
-              Add extra layers such as shaded relief, grid lines and your own GPS data.
-            </p>
-          </section>
-          <section>
-            <h2>
-              <img src="logo-avenzamaps.png" class="logo" alt="Avenza Maps logo">Maps for Mobile
-            </h2>
-            <p>
-              Messing with software isn't for everyone.
-              If you just need some quick topos for your phone or tablet, <em>nswtopo</em> has you covered.
-            </p>
-            <p>
-              First, grab the free <em>Avenza Maps</em> app for your
-              <a href="https://itunes.apple.com/ca/app/avenza-maps/id388424049?mt=8">iOS</a>
-              or
-              <a href="https://play.google.com/store/apps/details?id=com.Avenza">Android</a>
-              device.
-            </p>
-            <p>
-              Then use this site to find the maps you need.
-              Click or tap the maps to purchase them from the App Store or Google Play.
-              Download the maps to your device and you're good to go.
-            </p>
-            <p>
-              Maps are available for NSW, VIC, TAS, WA and SA at scales of 1:25&nbsp;000 or 1:50&nbsp;000 according to area.
-              Each map set is created from official government topographic data for that state.
-            </p>
-          </section>
-        </div>
-      </div>
-      <div id="close">&#x2715;</div>
-    </div>
-  </body>
+	<head>
+		<title>nswtopo</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="pico.css">
+		<link rel="stylesheet" href="nswtopo.css">
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Quattrocento+Sans">
+		<link rel="stylesheet" href="https://api.mapbox.com/mapbox.js/v3.3.1/mapbox.css">
+		<script async defer src="https://api.mapbox.com/mapbox.js/v3.3.1/mapbox.js"></script>
+		<script async defer src="qrcode.js"></script>
+		<script src="nswtopo.js"></script>
+		<link rel="alternate" type="application/vnd.geo+json" href="maps.json">
+	</head>
+	<body>
+		<main>
+			<h1><img src="img/banner.png" alt="NSWTOPO – maps for screen and print"></h1>
+			<details id="larapinta">
+				<summary>Larapita Trail Map</summary>
+				<p><cite>West MacDonnell Ranges and the Larapinta Trail</cite> is a four-part topographic trail map for Central Australia's iconic Larapinta Trail.</p>
+				<div class="carousel">
+					<input type="radio" name="slides" id="slide-1" checked="checked">
+					<input type="radio" name="slides" id="slide-2">
+					<input type="radio" name="slides" id="slide-3">
+					<input type="radio" name="slides" id="slide-4">
+					<input type="radio" name="slides" id="slide-5">
+					<ul class="thumbnails">
+						<li class="thumbnail">
+							<label for="slide-1">
+								<picture>
+									<source srcset="img/larapinta-1.webp" type="image/webp">
+									<img src="img/larapinta-1.jpg" width="1400" height="1400" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="slide-2">
+								<picture>
+									<source srcset="img/larapinta-2.webp" type="image/webp">
+									<img src="img/larapinta-2.jpg" width="1400" height="1400" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="slide-3">
+								<picture>
+									<source srcset="img/larapinta-3.webp" type="image/webp">
+									<img src="img/larapinta-3.jpg" width="1400" height="1400" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="slide-4">
+								<picture>
+									<source srcset="img/larapinta-4.webp" type="image/webp">
+									<img src="img/larapinta-4.jpg" width="1400" height="1400" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="slide-5">
+								<picture>
+									<source srcset="img/larapinta-5.webp" type="image/webp">
+									<img src="img/larapinta-5.jpg" width="1400" height="1400" alt="">
+								</picture>
+							</label>
+						</li>
+					</ul>
+					<ul class="slides">
+						<li class="slide">
+							<picture>
+								<source srcset="img/larapinta-1.webp" type="image/webp">
+								<img src="img/larapinta-1.jpg" width="1400" height="1400" alt="cover panels of maps 1 and 4">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source srcset="img/larapinta-2.webp" type="image/webp">
+								<img src="img/larapinta-2.jpg" width="1400" height="1400" alt="cover panels of maps 2 and 3">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source srcset="img/larapinta-3.webp" type="image/webp">
+								<img src="img/larapinta-3.jpg" width="1400" height="1400" alt="closeup view of map detail">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source srcset="img/larapinta-4.webp" type="image/webp">
+								<img src="img/larapinta-4.jpg" width="1400" height="1400" alt="rear panel showing map legend">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source srcset="img/larapinta-5.webp" type="image/webp">
+								<img src="img/larapinta-5.jpg" width="1400" height="1400" alt="map overview panel">
+							</picture>
+						</li>
+					</ul>
+				</div>
+				<p>
+					Digital maps are great, but there's nothing like a fold-out paper map for observing the lay of the land.
+					The <cite>West MacDonnell Ranges and the Larapinta Trail</cite> map is just what you need when you're taking on this epic 230&hairsp;km trail.
+					Features include:
+				</p>
+				<ul>
+					<li>Four large maps, printed on two sheets of durable, weatherproof synthetic paper.</li>
+					<li>Coverage of the entire Larapinta Trail and most of the West MacDonnell Ranges.</li>
+					<li>Topgraphic detail at 1:40&hairsp;000 scale.
+					<li>Locations of all designated campsites and amenities.</li>
+					<li>An overview showing major campsites, access points, and your progress along the trail.</li>
+					<li>Folded size: 109&hairsp;mm × 234&hairsp;mm.</li>
+					<li>Unfolded size: 936&hairsp;mm × 655&hairsp;mm.</li>
+					<li>Weight: 67&hairsp;g per map, 134&hairsp;g for the set.</li>
+				</ul>
+				<form method="get" rel="external" class="buy">
+					<input type="checkbox" class="shipping" id="shipping" role="switch">
+					<label for="shipping">international shipping</label>
+					<p></p>
+					<button type="submit" class="domestic" formaction="https://buy.stripe.com/dR63dG6Ny2oNd4keUU">Buy Now – $48.95</button>
+					<button type="submit" class="overseas" formaction="https://buy.stripe.com/7sIbKc4Fq3sR7K0289">Buy Now – $48.95 + shipping</button>
+				</form>
+			</details>
+			<details id="avenza">
+				<summary>Digital Topographic Maps</summary>
+				<p>
+					We provide a large selection of cheap digital topographic maps for most Australian states.
+					These maps are easy to purchase and use on any iPhone or Android device, using the <a href="https://www.avenzamaps.com/">Avenza Maps</a> app.
+					Maps reside on your device and work without an internet connection.
+				</p>
+				<p>
+					Find and install the topographic maps you need using the index map below.
+				</p>
+				<p id="map"></p>
+				<div id="qrcode"></div>
+				<div id="toggles"></div>
+			</details>
+			<details id="software">
+				<summary>Cartographic Software</summary>
+				Our maps are made using in-house, open-source cartographic software.
+				Read more about the software at the <a href="https://github.com/mholling/nswtopo"><cite>nswtopo</cite></a> GitHub page.
+			</details>
+			<details id="contact">
+				<summary>Contact Us</summary>
+				For after-sales support and commercial enquiries, write to <span></span>.
+			</details>
+		</main>
+	</body>
 </html>

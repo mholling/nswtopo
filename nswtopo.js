@@ -1,10 +1,9 @@
 window.addEventListener('load', event => {
 	var avenza = document.getElementById('avenza');
 	var loadMapBox = event => {
-		if (avenza.open)
-			avenza.removeEventListener('toggle', loadMapBox);
-		else
-			return;
+		if (!avenza.open) return;
+		avenza.removeEventListener('toggle', loadMapBox);
+		document.querySelector('link[rel="preload"]').setAttribute('rel', 'stylesheet')
 		var xhr = new XMLHttpRequest();
 		xhr.addEventListener('load', event => {
 			if (xhr.status != 200) return;

@@ -1,8 +1,7 @@
 window.addEventListener('load', event => {
-	var avenza = document.getElementById('avenza');
 	var loadMapBox = event => {
-		if (!avenza.open) return;
-		avenza.removeEventListener('toggle', loadMapBox);
+		if (!event.target.open) return;
+		event.target.removeEventListener('toggle', loadMapBox);
 		document.querySelector('link[rel="preload"]').setAttribute('rel', 'stylesheet')
 		var xhr = new XMLHttpRequest();
 		xhr.addEventListener('load', event => {
@@ -78,7 +77,7 @@ window.addEventListener('load', event => {
 		xhr.open('GET', 'maps.json');
 		xhr.send();
 	};
-	avenza.addEventListener('toggle', loadMapBox);
+	document.querySelectorAll('#avenza').forEach(avenza => avenza.addEventListener('toggle', loadMapBox));
 
 	document.querySelectorAll('details').forEach(details => {
 		var others = document.querySelectorAll('details:not(#' + details.id + ')');
@@ -93,8 +92,10 @@ window.addEventListener('load', event => {
 		});
 	});
 
-	var anchor = document.createElement('a');
-	anchor.appendChild(document.createTextNode(atob('aW5mb0Buc3d0b3BvLmNvbQ==')));
-	anchor.setAttribute('href', atob('bWFpbHRvOmluZm9AbnN3dG9wby5jb20='));
-	document.querySelector('#contact > span').appendChild(anchor);
+	document.querySelectorAll('span.obf').forEach(span => {
+		var anchor = document.createElement('a');
+		anchor.appendChild(document.createTextNode(atob('aW5mb0Buc3d0b3BvLmNvbQ==')));
+		anchor.setAttribute('href', atob('bWFpbHRvOmluZm9AbnN3dG9wby5jb20='));
+		span.appendChild(anchor);
+	});
 });

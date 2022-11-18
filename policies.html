@@ -1,32 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>nswtopo</title>
+		<title>nswtopo policies</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<meta name="description" content="returns policy">
+		<meta name="description" content="nswtopo.com terms of service, returns policy and privacy policy">
 		<link rel="stylesheet" href="pico.css">
 		<link rel="stylesheet" href="nswtopo.css">
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Quattrocento+Sans&display=swap">
+		<script defer src="nswtopo.js"></script>
 	</head>
 	<body>
 		<main>
 			<h1 id="banner"><a href="/"><img src="img/banner.png" width="1400" height="280" alt="NSWTOPO – maps for screen and print"></a></h1>
-			<details id="returns" open>
+			<details id="returns">
 				<summary>Returns Policy</summary>
 				<p>
-					We're confident our paper maps will meet your expectations!
+					We're confident the quality of our paper maps will meet your expectations.
 					However, if you're unhappy with your purchase, you may return it for a refund within 30 days of receipt.
-					Please contact us at <span></span> to arrange for the return.
-					You will be responsible for the cost of return shipping.
+					We ask that you bear the cost of return shipping.
+					Please contact us at <span class="obf"></span> to arrange for the return.
 				</p>
 			</details>
+			<details id="privacy">
+				<summary>Privacy Policy</summary>
+				<p>
+					We use Stripe for payment processing and their <a href="https://stripe.com/privacy">privacy policy</a> applies for the data collected during the transaction.
+					We use Zapier to compose order confirmation emails, and their <a href="https://zapier.com/privacy/zapier-servicesrivacy">privacy policy</a> describes their use of Stripe transaction data.
+				</p>
+				<p>
+					We will not store your personal information outside of the Stripe payment service.
+					In order to fulfill your order, we will use the personal details you provide, such as your name, email and shipping address.
+					We do not collect or have access to your payment details such as card number.
+					We will not use your your information for any marketing purposes, nor disclose it to any third parties, except when required under an Australian law.
+				</p>
+				<p>
+					Please contact us at <span class="obf"></span> if you have any concerns or complaints about our use of your data.</p>
+				</p>
+			</details>
+			<details id="terms">
+				<summary>Terms of Service</summary>
+			</details>
 		</main>
-		<script>
-			var anchor = document.createElement('a');
-			anchor.appendChild(document.createTextNode(atob('aW5mb0Buc3d0b3BvLmNvbQ==')));
-			anchor.setAttribute('href', atob('bWFpbHRvOmluZm9AbnN3dG9wby5jb20='));
-			document.querySelector('#returns span').appendChild(anchor);
-		</script>
 	</body>
 </html>

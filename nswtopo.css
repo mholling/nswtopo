@@ -29,7 +29,7 @@
   --switch-checked-background-color: var(--primary);
   --font-family: "Quattrocento Sans", sans-serif;
 }
-main > h1 > img {
+#banner img {
   border-radius: var(--border-radius);
 }
 .carousel {

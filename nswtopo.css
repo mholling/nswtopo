@@ -558,8 +558,7 @@ input[type=button] {
 }
 button:is([aria-current], :hover, :active, :focus),
 input[type=submit]:is([aria-current], :hover, :active, :focus),
-input[type=button]:is([aria-current], :hover, :active, :focus),
-[role=button]:is([aria-current], :hover, :active, :focus) {
+input[type=button]:is([aria-current], :hover, :active, :focus) {
   --background-color: var(--primary-hover);
   --border-color: var(--primary-hover);
   --box-shadow: var(--button-hover-box-shadow, 0 0 0 rgba(0, 0, 0, 0));
@@ -567,14 +566,12 @@ input[type=button]:is([aria-current], :hover, :active, :focus),
 }
 button:focus,
 input[type=submit]:focus,
-input[type=button]:focus,
-[role=button]:focus {
+input[type=button]:focus {
   --box-shadow: var(--button-hover-box-shadow, 0 0 0 rgba(0, 0, 0, 0)),
     0 0 0 var(--outline-width) var(--primary-focus);
 }
 
-:where(button, [type=submit], [type=button], [role=button])[disabled],
-a[role=button]:not([href]) {
+:where(button, [type=submit], [type=button])[disabled] {
   opacity: 0.5;
   pointer-events: none;
 }
@@ -794,13 +791,7 @@ details summary::after {
 }
 details summary:focus {
   outline: none;
-}
-details summary:focus:not([role=button]) {
   color: var(--accordion-active-summary-color);
-}
-details summary[role=button] {
-  width: 100%;
-  text-align: left;
 }
 details[open] > summary {
   margin-bottom: calc(var(--spacing));

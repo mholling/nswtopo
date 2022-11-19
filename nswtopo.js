@@ -1,4 +1,4 @@
-window.addEventListener('load', event => {
+window.addEventListener('DOMContentLoaded', event => {
 	document.querySelectorAll('details#avenza').forEach(avenza => {
 		avenza.addEventListener('toggle', event => {
 			document.querySelector('link[rel="preload"]').setAttribute('rel', 'stylesheet')

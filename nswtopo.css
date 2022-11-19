@@ -942,6 +942,9 @@ summary,
 
 /* buy buttons */
 
+form.buy > label.shipping {
+  margin-bottom: var(--typography-spacing-vertical);
+}
 form.buy > input.shipping ~ button {
   color: #11191f;
 }

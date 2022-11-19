@@ -1,7 +1,6 @@
 window.addEventListener('DOMContentLoaded', event => {
 	document.querySelectorAll('details#avenza').forEach(avenza => {
 		avenza.addEventListener('toggle', event => {
-			document.querySelector('link[rel="preload"]').setAttribute('rel', 'stylesheet')
 			var mapboxLoaded = new Promise(resolve => {
 				var script = document.createElement('script');
 				document.head.append(script);

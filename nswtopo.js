@@ -2,8 +2,19 @@ window.addEventListener('DOMContentLoaded', event => {
 	document.querySelectorAll('details#avenza').forEach(avenza => {
 		avenza.addEventListener('toggle', event => {
 			document.querySelector('link[rel="preload"]').setAttribute('rel', 'stylesheet')
+			var mapboxLoaded = new Promise(resolve => {
+				var script = document.createElement('script');
+				document.head.append(script);
+				script.addEventListener('load', resolve, false);
+				script.src = 'https://api.mapbox.com/mapbox.js/v3.3.1/mapbox.js';
+			});
 			var xhr = new XMLHttpRequest();
-			xhr.addEventListener('load', event => {
+			var jsonLoaded = new Promise(resolve => {
+				xhr.addEventListener('load', resolve, false);
+				xhr.open('GET', 'maps.json');
+				xhr.send();
+			});
+			Promise.all([mapboxLoaded, jsonLoaded]).then(events => {
 				if (xhr.status != 200) return;
 				var sheets = JSON.parse(xhr.responseText).features.map(feature => {
 					return {
@@ -73,8 +84,6 @@ window.addEventListener('DOMContentLoaded', event => {
 					}).addTo(map);
 				});
 			});
-			xhr.open('GET', 'maps.json');
-			xhr.send();
 		}, {once: true});
 	});
 

@@ -841,16 +841,16 @@ summary,
 
 /* site-specific */
 
-[data-theme="light"],
-:root:not([data-theme="dark"]) {
+[data-theme=light],
+:root:not([data-theme=dark]) {
   --carousel-box-shadow: 0 0 0 1px var(--muted-border-color);
 }
 @media only screen and (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme=light]) {
     --carousel-box-shadow: none;
   }
 }
-[data-theme="dark"] {
+[data-theme=dark] {
   --carousel-box-shadow: none;
 }
 

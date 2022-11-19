@@ -536,7 +536,6 @@ button {
 }
 
 button,
-[role=button],
 input[type=submit],
 input[type=button] {
   --background-color: var(--primary);

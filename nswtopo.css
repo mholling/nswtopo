@@ -820,18 +820,15 @@ summary,
   --box-shadow: var(--button-hover-box-shadow, 0 0 0 rgba(0, 0, 0, 0)),
     0 0 0 var(--outline-width) var(--primary-focus);
 }
-.carousel > ul.thumbnails > li.thumbnail > label:is(:hover, :focus) {
-  box-shadow: var(--box-shadow);
-}
-.carousel > input:nth-of-type(1):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(1) > label { box-shadow: var(--box-shadow); }
-.carousel > input:nth-of-type(2):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(2) > label { box-shadow: var(--box-shadow); }
-.carousel > input:nth-of-type(3):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(3) > label { box-shadow: var(--box-shadow); }
-.carousel > input:nth-of-type(4):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(4) > label { box-shadow: var(--box-shadow); }
-.carousel > input:nth-of-type(5):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(5) > label { box-shadow: var(--box-shadow); }
-.carousel > input:nth-of-type(6):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(6) > label { box-shadow: var(--box-shadow); }
-.carousel > input:nth-of-type(7):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(7) > label { box-shadow: var(--box-shadow); }
-.carousel > input:nth-of-type(8):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(8) > label { box-shadow: var(--box-shadow); }
-.carousel > input:nth-of-type(9):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(9) > label { box-shadow: var(--box-shadow); }
+.carousel > input:nth-of-type(1):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(1) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
+.carousel > input:nth-of-type(2):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(2) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
+.carousel > input:nth-of-type(3):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(3) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
+.carousel > input:nth-of-type(4):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(4) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
+.carousel > input:nth-of-type(5):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(5) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
+.carousel > input:nth-of-type(6):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(6) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
+.carousel > input:nth-of-type(7):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(7) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
+.carousel > input:nth-of-type(8):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(8) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
+.carousel > input:nth-of-type(9):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(9) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
 .carousel > ul.slides {
   position: relative;
   z-index: 1;

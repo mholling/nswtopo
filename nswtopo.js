@@ -87,15 +87,21 @@ window.addEventListener('DOMContentLoaded', event => {
 	});
 
 	document.querySelectorAll('details').forEach(details => {
-		var others = document.querySelectorAll('details:not(#' + details.id + ')');
-		if ('#' + details.id == location.hash)
+		var hash = '#' + details.id;
+		var others = document.querySelectorAll('details:not(' + hash + ')');
+		if (hash == location.hash)
 			details.setAttribute('open', '');
+		window.addEventListener('hashchange', event => {
+			if (hash == location.hash)
+				details.setAttribute('open', '');
+			else
+				details.removeAttribute('open');
+		});
 		details.addEventListener('toggle', event => {
-			if (details.open) {
+			if (details.open)
 				others.forEach(other => other.removeAttribute('open'));
-				history.replaceState(null, '', location.pathname + '#' + details.id);
-			} else if (!document.querySelector('details[open]'))
-				history.replaceState(null, '', location.pathname);
+			if (details.open ? location.hash != hash : location.hash && !document.querySelector('details[open]'))
+				history.pushState(null, '', details.open ? location.pathname + hash : location.pathname);
 		});
 	});
 

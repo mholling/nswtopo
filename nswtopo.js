@@ -89,7 +89,7 @@ window.addEventListener('DOMContentLoaded', event => {
 	var default_title = document.title;
 	document.querySelectorAll('details').forEach(details => {
 		var hash = '#' + details.id;
-		var title = "nswtopo: " + details.querySelector('summary').innerText;
+		var title = "nswtopo — " + details.querySelector('summary').innerText;
 		var others = document.querySelectorAll('details:not(' + hash + ')');
 		if (hash == location.hash)
 			details.setAttribute('open', '');

@@ -115,15 +115,4 @@ window.addEventListener('DOMContentLoaded', event => {
 		anchor.setAttribute('href', atob('bWFpbHRvOmluZm9AbnN3dG9wby5jb20='));
 		span.appendChild(anchor);
 	});
-
-	var inputs = document.querySelectorAll('form > input.shipping');
-	if (inputs.length > 0) {
-		var xhr = new XMLHttpRequest();
-		xhr.timeout = 2000, xhr.responseType = 'json';
-		xhr.addEventListener('load', event => {
-			if (200 == xhr.status && 'AU' != xhr.response.country)
-				inputs.forEach(input => input.checked = true);
-		});
-		xhr.open('GET', 'https://api.country.is/'), xhr.send();
-	};
 });

@@ -886,6 +886,7 @@ form.buy > label.shipping {
 }
 form.buy > input.shipping ~ button {
   color: #11191f;
+  font-weight: bold;
 }
 form.buy > input.shipping ~ button.overseas {
   display: none;

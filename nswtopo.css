@@ -150,7 +150,6 @@ h5 {
   --accordion-open-summary-color: var(--muted-color);
   --icon-checkbox: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgb(255, 255, 255)' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
   --icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgb(65, 84, 98)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  --carousel-box-shadow: 0 0 0 1px var(--muted-border-color);
   color-scheme: light;
 }
 
@@ -202,7 +201,6 @@ h5 {
     --accordion-open-summary-color: var(--muted-color);
     --icon-checkbox: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgb(255, 255, 255)' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
     --icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgb(162, 175, 185)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-    --carousel-box-shadow: none;
     color-scheme: dark;
   }
 }
@@ -815,31 +813,25 @@ summary,
 }
 .carousel > ul.thumbnails > li.thumbnail > label {
   display: block;
-}
-.carousel > ul.thumbnails > li.thumbnail > label:hover,
-.carousel > ul.thumbnails > li.thumbnail > label:focus {
-  cursor: pointer;
-}
-.carousel > ul.thumbnails > li.thumbnail > label > picture > img {
-  display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
   border-radius: var(--border-radius);
+  overflow: hidden;
+  cursor: pointer;
+  --box-shadow: var(--button-hover-box-shadow, 0 0 0 rgba(0, 0, 0, 0)),
+    0 0 0 var(--outline-width) var(--primary-focus);
 }
-.carousel > ul.thumbnails > li.thumbnail > label:hover > picture > img,
-.carousel > ul.thumbnails > li.thumbnail > label:focus > picture > img {
-  box-shadow: var(--carousel-box-shadow);
+.carousel > ul.thumbnails > li.thumbnail > label:is(:hover, :focus) {
+  box-shadow: var(--box-shadow);
 }
-.carousel > input:nth-of-type(1):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(1) > label > picture > img { box-shadow: var(--carousel-box-shadow); }
-.carousel > input:nth-of-type(2):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(2) > label > picture > img { box-shadow: var(--carousel-box-shadow); }
-.carousel > input:nth-of-type(3):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(3) > label > picture > img { box-shadow: var(--carousel-box-shadow); }
-.carousel > input:nth-of-type(4):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(4) > label > picture > img { box-shadow: var(--carousel-box-shadow); }
-.carousel > input:nth-of-type(5):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(5) > label > picture > img { box-shadow: var(--carousel-box-shadow); }
-.carousel > input:nth-of-type(6):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(6) > label > picture > img { box-shadow: var(--carousel-box-shadow); }
-.carousel > input:nth-of-type(7):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(7) > label > picture > img { box-shadow: var(--carousel-box-shadow); }
-.carousel > input:nth-of-type(8):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(8) > label > picture > img { box-shadow: var(--carousel-box-shadow); }
-.carousel > input:nth-of-type(9):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(9) > label > picture > img { box-shadow: var(--carousel-box-shadow); }
+.carousel > input:nth-of-type(1):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(1) > label { box-shadow: var(--box-shadow); }
+.carousel > input:nth-of-type(2):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(2) > label { box-shadow: var(--box-shadow); }
+.carousel > input:nth-of-type(3):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(3) > label { box-shadow: var(--box-shadow); }
+.carousel > input:nth-of-type(4):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(4) > label { box-shadow: var(--box-shadow); }
+.carousel > input:nth-of-type(5):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(5) > label { box-shadow: var(--box-shadow); }
+.carousel > input:nth-of-type(6):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(6) > label { box-shadow: var(--box-shadow); }
+.carousel > input:nth-of-type(7):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(7) > label { box-shadow: var(--box-shadow); }
+.carousel > input:nth-of-type(8):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(8) > label { box-shadow: var(--box-shadow); }
+.carousel > input:nth-of-type(9):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(9) > label { box-shadow: var(--box-shadow); }
 .carousel > ul.slides {
   position: relative;
   z-index: 1;
@@ -848,7 +840,6 @@ summary,
   overflow: hidden;
   display: flex;
   border-radius: var(--border-radius);
-  box-shadow: var(--carousel-box-shadow);
 }
 .carousel > ul.slides > li.slide {
   list-style: none;

@@ -473,18 +473,15 @@ button {
   overflow: visible;
   font-family: inherit;
   text-transform: none;
+  display: block;
+  width: 100%;
+  margin-bottom: var(--spacing);
 }
 
 button,
 [type=button],
 [type=submit] {
   -webkit-appearance: button;
-}
-
-button {
-  display: block;
-  width: 100%;
-  margin-bottom: var(--spacing);
 }
 
 button,

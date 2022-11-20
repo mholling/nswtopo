@@ -1,6 +1,6 @@
 window.addEventListener('DOMContentLoaded', event => {
-	document.querySelectorAll('details#avenza').forEach(avenza => {
-		avenza.addEventListener('toggle', event => {
+	document.querySelectorAll('details#avenza').forEach(details => {
+		details.addEventListener('toggle', event => {
 			var mapboxLoaded = new Promise(resolve => {
 				var script = document.createElement('script');
 				document.head.append(script);
@@ -9,13 +9,13 @@ window.addEventListener('DOMContentLoaded', event => {
 			});
 			var xhr = new XMLHttpRequest();
 			var jsonLoaded = new Promise(resolve => {
+				xhr.responseType = 'json';
 				xhr.addEventListener('load', resolve, false);
-				xhr.open('GET', 'maps.json');
-				xhr.send();
+				xhr.open('GET', 'maps.json'), xhr.send();
 			});
 			Promise.all([mapboxLoaded, jsonLoaded]).then(events => {
 				if (xhr.status != 200) return;
-				var sheets = JSON.parse(xhr.responseText).features.map(feature => {
+				var sheets = xhr.response.features.map(feature => {
 					return {
 						type: feature['properties']['type'],
 						url: feature['properties']['url'],

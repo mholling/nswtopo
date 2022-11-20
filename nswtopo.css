@@ -104,8 +104,7 @@ h5 {
   --border-width: 3px;
 }
 
-[data-theme=light],
-:root:not([data-theme=dark]) {
+:root {
   --background-color: #fff;
   --color: hsl(205deg, 20%, 32%);
   --h1-color: hsl(205deg, 30%, 15%);
@@ -156,7 +155,7 @@ h5 {
 }
 
 @media only screen and (prefers-color-scheme: dark) {
-  :root:not([data-theme=light]) {
+  :root {
     --background-color: #11191f;
     --color: hsl(205deg, 16%, 77%);
     --h1-color: hsl(205deg, 20%, 94%);
@@ -206,56 +205,6 @@ h5 {
     --carousel-box-shadow: none;
     color-scheme: dark;
   }
-}
-[data-theme=dark] {
-  --background-color: #11191f;
-  --color: hsl(205deg, 16%, 77%);
-  --h1-color: hsl(205deg, 20%, 94%);
-  --h2-color: #e1e6eb;
-  --h3-color: hsl(205deg, 18%, 86%);
-  --h4-color: #c8d1d8;
-  --h5-color: hsl(205deg, 16%, 77%);
-  --h6-color: #afbbc4;
-  --muted-color: hsl(205deg, 10%, 50%);
-  --muted-border-color: #1f2d38;
-  --primary: #fb8c00;
-  --primary-hover: #ff9800;
-  --primary-focus: rgba(251, 140, 0, 0.25);
-  --primary-inverse: #FFF;
-  --secondary: hsl(205deg, 15%, 41%);
-  --secondary-hover: hsl(205deg, 10%, 50%);
-  --secondary-focus: rgba(115, 130, 140, 0.25);
-  --secondary-inverse: #fff;
-  --contrast: hsl(205deg, 20%, 94%);
-  --contrast-hover: #fff;
-  --contrast-focus: rgba(115, 130, 140, 0.25);
-  --contrast-inverse: #000;
-  --mark-background-color: #d1c284;
-  --mark-color: #11191f;
-  --blockquote-border-color: var(--muted-border-color);
-  --blockquote-footer-color: var(--muted-color);
-  --button-box-shadow: 0 0 0 rgba(0, 0, 0, 0);
-  --button-hover-box-shadow: 0 0 0 rgba(0, 0, 0, 0);
-  --form-element-background-color: #11191f;
-  --form-element-border-color: #374956;
-  --form-element-color: var(--color);
-  --form-element-active-background-color: var(--form-element-background-color);
-  --form-element-active-border-color: var(--primary);
-  --form-element-focus-color: var(--primary-focus);
-  --form-element-disabled-background-color: hsl(205deg, 25%, 23%);
-  --form-element-disabled-border-color: hsl(205deg, 20%, 32%);
-  --form-element-disabled-opacity: 0.5;
-  --switch-background-color: #374956;
-  --switch-color: var(--primary-inverse);
-  --switch-checked-background-color: var(--primary);
-  --accordion-border-color: var(--muted-border-color);
-  --accordion-active-summary-color: var(--primary);
-  --accordion-close-summary-color: var(--color);
-  --accordion-open-summary-color: var(--muted-color);
-  --icon-checkbox: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgb(255, 255, 255)' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
-  --icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgb(162, 175, 185)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  --carousel-box-shadow: none;
-  color-scheme: dark;
 }
 
 [type=checkbox] {

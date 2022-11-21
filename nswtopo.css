@@ -765,8 +765,9 @@ summary,
 
 /* site-specific */
 
-#banner img {
+#banner {
   border-radius: var(--border-radius);
+  overflow: hidden;
 }
 
 /* image carousels */

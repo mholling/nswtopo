@@ -790,12 +790,18 @@ summary,
 .carousel > ul.thumbnails {
   padding: 0;
   display: flex;
-  margin: 10px -10px;
+  margin: 10px 0;
 }
 .carousel > ul.thumbnails > li.thumbnail {
   list-style: none;
   flex: 1 1 auto;
-  margin: 0 10px;
+  margin: 0 5px;
+}
+.carousel > ul.thumbnails > li.thumbnail:first-of-type {
+  margin-left: 0;
+}
+.carousel > ul.thumbnails > li.thumbnail:last-of-type {
+  margin-right: 0;
 }
 .carousel > ul.thumbnails > li.thumbnail > label {
   display: block;

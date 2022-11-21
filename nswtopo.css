@@ -864,6 +864,7 @@ form.buy > label.shipping {
 }
 form.buy > input.shipping ~ button {
   color: #11191f;
+  border-radius: calc(0.5rem * var(--line-height) + var(--form-element-spacing-vertical));
 }
 form.buy > input.shipping ~ button.overseas {
   display: none;

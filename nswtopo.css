@@ -733,6 +733,9 @@ details summary::after {
   content: "";
   transition: transform var(--transition);
 }
+details summary:focus {
+  outline: none;
+}
 details[open] > summary {
   margin-bottom: calc(var(--spacing));
   color: var(--accordion-open-summary-color);

@@ -146,6 +146,7 @@ h5 {
   --switch-color: var(--primary-inverse);
   --switch-checked-background-color: var(--primary);
   --accordion-border-color: var(--muted-border-color);
+  --accordion-active-summary-color: var(--primary);
   --accordion-close-summary-color: var(--color);
   --accordion-open-summary-color: var(--muted-color);
   --icon-checkbox: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgb(255, 255, 255)' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
@@ -735,9 +736,12 @@ details summary::after {
 }
 details summary:focus {
   outline: none;
+  color: var(--accordion-active-summary-color);
 }
 details[open] > summary {
   margin-bottom: calc(var(--spacing));
+}
+details[open] > summary:not(:focus) {
   color: var(--accordion-open-summary-color);
 }
 details[open] > summary::after {

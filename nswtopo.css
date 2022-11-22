@@ -679,6 +679,9 @@ summary,
   border-radius: var(--border-radius);
   overflow: hidden;
 }
+#banner > a:focus {
+  --background-color: transparent;
+}
 
 /* image carousels */
 

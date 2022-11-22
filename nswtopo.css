@@ -62,40 +62,6 @@ small {
   --font-size: 0.875em;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  --font-weight: 700;
-}
-
-h1 {
-  --font-size: 2rem;
-  --typography-spacing-vertical: 3rem;
-}
-
-h2 {
-  --font-size: 1.75rem;
-  --typography-spacing-vertical: 2.625rem;
-}
-
-h3 {
-  --font-size: 1.5rem;
-  --typography-spacing-vertical: 2.25rem;
-}
-
-h4 {
-  --font-size: 1.25rem;
-  --typography-spacing-vertical: 1.874rem;
-}
-
-h5 {
-  --font-size: 1.125rem;
-  --typography-spacing-vertical: 1.6875rem;
-}
-
 [type=checkbox] {
   --border-width: 2px;
 }
@@ -107,12 +73,6 @@ h5 {
 :root {
   --background-color: #fff;
   --color: hsl(205deg, 20%, 32%);
-  --h1-color: hsl(205deg, 30%, 15%);
-  --h2-color: #24333e;
-  --h3-color: hsl(205deg, 25%, 23%);
-  --h4-color: #374956;
-  --h5-color: hsl(205deg, 20%, 32%);
-  --h6-color: #4d606d;
   --muted-color: hsl(205deg, 10%, 50%);
   --muted-border-color: hsl(205deg, 20%, 94%);
   --primary: #fb8c00;
@@ -158,12 +118,6 @@ h5 {
   :root {
     --background-color: #11191f;
     --color: hsl(205deg, 16%, 77%);
-    --h1-color: hsl(205deg, 20%, 94%);
-    --h2-color: #e1e6eb;
-    --h3-color: hsl(205deg, 18%, 86%);
-    --h4-color: #c8d1d8;
-    --h5-color: hsl(205deg, 16%, 77%);
-    --h6-color: #afbbc4;
     --muted-color: hsl(205deg, 10%, 50%);
     --muted-border-color: #1f2d38;
     --primary: #fb8c00;
@@ -352,34 +306,6 @@ h6 {
   font-weight: var(--font-weight);
   font-size: var(--font-size);
   font-family: var(--font-family);
-}
-
-h1 {
-  --color: var(--h1-color);
-}
-
-h2 {
-  --color: var(--h2-color);
-}
-
-h3 {
-  --color: var(--h3-color);
-}
-
-h4 {
-  --color: var(--h4-color);
-}
-
-h5 {
-  --color: var(--h5-color);
-}
-
-h6 {
-  --color: var(--h6-color);
-}
-
-:where(address, blockquote, dl, figure, form, ol, p, pre, table, ul) ~ :is(h1, h2, h3, h4, h5, h6) {
-  margin-top: var(--typography-spacing-vertical);
 }
 
 p {
@@ -746,6 +672,9 @@ details[open] > summary:not(:focus) {
 }
 details[open] > summary::after {
   transform: rotate(0);
+}
+details > :where(p, ul, form):last-child {
+  margin-bottom: 0;
 }
 
 [disabled] {

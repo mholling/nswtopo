@@ -736,6 +736,9 @@ summary,
   --box-shadow: var(--button-hover-box-shadow, 0 0 0 rgba(0, 0, 0, 0)),
     0 0 0 var(--outline-width) var(--primary-focus);
 }
+.carousel > ul.thumbnails > li.thumbnail > label > picture {
+  object-fit: cover;
+}
 .carousel > input:nth-of-type(1):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(1) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
 .carousel > input:nth-of-type(2):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(2) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
 .carousel > input:nth-of-type(3):checked ~ ul.thumbnails > li.thumbnail:nth-of-type(3) > label { box-shadow: var(--box-shadow); transition: box-shadow var(--transition) }
@@ -765,18 +768,11 @@ summary,
   overflow: hidden;
   transition: all 300ms ease-out;
   vertical-align: top;
-  white-space: normal;
 }
-.carousel > ul.slides > li.slide > figure {
-  display: flex;
-  margin: 0;
-  width: 100%;
-}
-.carousel > ul.slides > li.slide > figure > img {
+.carousel > ul.slides li.slide > picture {
   display: block;
   width: 100%;
   height: 100%;
-  flex: 1 1 auto;
   object-fit: contain;
 }
 

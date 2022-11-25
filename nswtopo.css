@@ -799,9 +799,17 @@ form.buy > input.shipping:checked ~ button.overseas {
 
 #map {
   width: 100%;
-  height: 70vh;
+  height: 50vh;
   border-radius: var(--border-radius);
 }
+@media (min-width: 576px) {
+  #map { height: calc(min(510px, 50vh)); }
+}
+@media (min-width: 768px) {
+  #map { height: calc(min(700px, 50vh)); }
+}
+
+
 #qrcode {
   width: 128px;
   height: 128px;

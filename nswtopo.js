@@ -109,10 +109,8 @@ window.addEventListener('DOMContentLoaded', event => {
 		});
 	});
 
-	document.querySelectorAll('span.obf').forEach(span => {
-		var anchor = document.createElement('a');
+	document.querySelectorAll('a.obf').forEach(anchor => {
 		anchor.appendChild(document.createTextNode(atob('aW5mb0Buc3d0b3BvLmNvbQ==')));
 		anchor.setAttribute('href', atob('bWFpbHRvOmluZm9AbnN3dG9wby5jb20='));
-		span.appendChild(anchor);
 	});
 });

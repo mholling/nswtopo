@@ -797,70 +797,29 @@ form.buy > input.shipping:checked ~ button.overseas {
 
 /* mapbox map */
 
-#map {
-  width: 100%;
+.map {
+  display: flex;
+}
+.map #map {
   height: 50vh;
+  flex-grow: 1;
   border-radius: var(--border-radius);
 }
 @media (min-width: 576px) {
-  #map { height: calc(min(510px, 50vh)); }
+  .map #map { height: calc(min(510px, 50vh)); }
 }
 @media (min-width: 768px) {
-  #map { height: calc(min(700px, 50vh)); }
+  .map #map { height: calc(min(700px, 50vh)); }
 }
-
-
-#qrcode {
+.map > .toggles {
+  display: flex;
+  flex-direction: column;
+}
+.map > .toggles > fieldset {
+  border: none;
+  font-size: smaller;
+}
+.map #qrcode {
   width: 128px;
   height: 128px;
-}
-#toggles div {
-  font-family: var(--font-family);
-  font-size: 10px;
-  font-weight: 400;
-  cursor: pointer;
-  user-select: none;
-  background-color: rgba(255,255,255,0.9);
-  padding: 3px;
-  padding-left: 6px;
-  text-align: right;
-  border-bottom-width: 1px;
-  border-bottom-style: solid;
-  border-bottom-color: rgba(0,0,0,0.1);
-  color: rgba(0,0,0,0.65);
-}
-#toggles div:first-child {
-  border-radius: 5px 5px 0 0;
-}
-#toggles div:last-child {
-  border-bottom: none;
-  border-radius: 0 0 5px 5px;
-}
-#toggles div.selected {
-  font-weight: 500;
-  color: rgba(0,0,0,1);
-}
-#toggles div::after {
-  content: '\2713';
-  padding-left: 5px;
-  color: black;
-  visibility: hidden;
-}
-#toggles div.selected::after {
-  visibility: visible;
-}
-#toggles #show-25k.selected::after {
-  color: red;
-}
-#toggles #show-40k.selected::after {
-  color: purple;
-}
-#toggles #show-50k.selected::after {
-  color: blue;
-}
-#toggles #show-bundle.selected::after {
-  color: black;
-}
-#toggles div:hover {
-  background-color: rgba(255,255,255);
 }

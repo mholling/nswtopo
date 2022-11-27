@@ -29,33 +29,37 @@ window.addEventListener('DOMContentLoaded', event => {
 				L.mapbox.accessToken = 'pk.eyJ1IjoibWhvbGxpbmciLCJhIjoiY2pncms3d3plMDY3ODJ2bnh0YWdydTBwYyJ9.RdmqeL6b_5m8Q-SzQdbXuQ';
 				const layer = L.mapbox.styleLayer('mapbox://styles/mholling/ck9bz5uth02671imzx2s7jujc');
 				const map = L.mapbox.map('map').fitBounds(bounds).setMaxBounds(bounds.pad(0.2)).addLayer(layer);
+				const div = details.querySelector('.map');
 				const types = ['bundle', '50k', '40k', '25k'];
-				const states = sheets.reduce((memo, sheet) => memo.add(sheet.state), new Set())
+				const states = sheets.reduce((memo, sheet) => memo.add(sheet.state), new Set());
 				types.forEach(type => states.forEach(state => map.createPane(type + ',' + state)));
-				const addToggle = type => {
-					const element = document.createElement('div');
-					element.textContent = type;
-					element.id = 'show-' + type;
-					element.classList.add('selected');
-					document.getElementById('toggles').appendChild(element);
-					element.addEventListener('click', event => {
-						element.classList.toggle('selected');
+				const addToggle = (toggle, klass) => {
+					const label = document.createElement('label');
+					const input = document.createElement('input');
+					input.id = 'show-' + toggle;
+					input.type = 'checkbox';
+					input.checked = true;
+					label.appendChild(input);
+					label.append(toggle);
+					div.querySelector('fieldset.' + klass).appendChild(label);
+					label.querySelector('input').addEventListener('change', event => {
 						Object.keys(map.getPanes()).forEach(key => {
 							keys = key.split(',');
-							if (!keys.includes(type)) return;
-							const selected = keys.every(key => document.getElementById('show-' + key).classList.contains('selected'));
-							map.getPane(key).style.display = selected ? 'block' : 'none';
+							if (!keys.includes(toggle))
+								return;
+							if (keys.every(key => div.querySelector('#show-' + key).checked))
+								map.getPane(key).removeAttribute('hidden');
+							else
+								map.getPane(key).setAttribute('hidden', '');
 						});
 					});
 				};
-				types.forEach(addToggle);
-				Array.from(states).filter(state => !state.includes(',')).forEach(addToggle);
-				const toggles = L.control({position: 'topright'});
-				toggles.onAdd = map => document.getElementById('toggles');
-				toggles.addTo(map);
-				const qrcode = L.control({position: 'bottomleft'});
-				qrcode.onAdd = map => document.getElementById('qrcode');
-				qrcode.addTo(map);
+				types.forEach(type => addToggle(type, 'types'));
+				Array.from(states).filter(state => !state.includes(',')).forEach(state => addToggle(state, 'states'));
+				const qrCodeContainer = document.getElementById('qrcode');
+				const qrCodeControl = L.control({position: 'bottomleft'});
+				qrCodeControl.onAdd = map => qrCodeContainer;
+				qrCodeControl.addTo(map);
 				sheets.forEach(sheet => {
 					const weight = sheet.type === 'bundle' ? 2 : 1;
 					L.polygon(sheet.corners, {
@@ -69,11 +73,11 @@ window.addEventListener('DOMContentLoaded', event => {
 					}).on('mouseover', event => {
 						event.target.setStyle({weight: 4});
 						if ('ontouchstart' in document.documentElement) return;
-						new QRCode(document.getElementById('qrcode'), {text: sheet.url, width: 128, height: 128});
+						new QRCode(qrCodeContainer, {text: sheet.url, width: 128, height: 128});
 					}).on('mouseout', event => {
 						event.target.setStyle({weight: weight});
 						if ('ontouchstart' in document.documentElement) return;
-						document.getElementById('qrcode').innerHTML = null;
+						qrCodeContainer.innerHTML = null;
 					}).bindTooltip(sheet.title, {
 						direction: 'top',
 						opacity: 0.9,

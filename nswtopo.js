@@ -116,4 +116,24 @@ window.addEventListener('DOMContentLoaded', event => {
 		anchor.appendChild(document.createTextNode(atob('aW5mb0Buc3d0b3BvLmNvbQ==')));
 		anchor.setAttribute('href', atob('bWFpbHRvOmluZm9AbnN3dG9wby5jb20='));
 	});
+
+	document.querySelectorAll('div.carousel').forEach(div => {
+		var start;
+		div.querySelector('ul.slides').addEventListener('touchstart', event => start = start ? null : event);
+		div.querySelector('ul.slides').addEventListener('touchend', event => {
+			if (!start)
+				return;
+			var dx = event.changedTouches[0].screenX - start.changedTouches[0].screenX;
+			var dy = event.changedTouches[0].screenY - start.changedTouches[0].screenY;
+			start = null;
+			if (Math.abs(dy) > Math.abs(dx))
+				return;
+			if (dx < 0)
+				var target = div.querySelector('input:checked + input');
+			else if (dx > 0)
+				var target = div.querySelector('input:checked').previousElementSibling;
+			if (target)
+				target.checked = true;
+		});
+	});
 });

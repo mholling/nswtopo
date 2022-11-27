@@ -121,7 +121,7 @@ window.addEventListener('DOMContentLoaded', event => {
 
 	document.querySelectorAll('div.carousel').forEach(div => {
 		var start;
-		div.querySelector('ul.slides').addEventListener('touchstart', event => start = start ? null : event);
+		div.querySelector('ul.slides').addEventListener('touchstart', event => start = start ? null : event, {passive: true});
 		div.querySelector('ul.slides').addEventListener('touchend', event => {
 			if (!start)
 				return;
@@ -136,6 +136,6 @@ window.addEventListener('DOMContentLoaded', event => {
 				var target = div.querySelector('input:checked').previousElementSibling;
 			if (target)
 				target.checked = true;
-		});
+		}, {passive: true});
 	});
 });

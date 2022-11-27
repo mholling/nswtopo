@@ -1,21 +1,21 @@
 window.addEventListener('DOMContentLoaded', event => {
 	document.querySelectorAll('details#avenza').forEach(details => {
 		details.addEventListener('toggle', event => {
-			var mapboxLoaded = new Promise(resolve => {
-				var script = document.createElement('script');
+			const mapboxLoaded = new Promise(resolve => {
+				const script = document.createElement('script');
 				document.head.append(script);
 				script.addEventListener('load', resolve, false);
 				script.src = 'https://api.mapbox.com/mapbox.js/v3.3.1/mapbox.js';
 			});
-			var xhr = new XMLHttpRequest();
-			var jsonLoaded = new Promise(resolve => {
+			const xhr = new XMLHttpRequest();
+			const jsonLoaded = new Promise(resolve => {
 				xhr.responseType = 'json';
 				xhr.addEventListener('load', resolve, false);
 				xhr.open('GET', 'maps.json'), xhr.send();
 			});
 			Promise.all([mapboxLoaded, jsonLoaded]).then(events => {
 				if (xhr.status != 200) return;
-				var sheets = xhr.response.features.map(feature => {
+				const sheets = xhr.response.features.map(feature => {
 					return {
 						type: feature['properties']['type'],
 						url: feature['properties']['url'],
@@ -24,20 +24,16 @@ window.addEventListener('DOMContentLoaded', event => {
 						corners: feature['geometry']['coordinates'][0].map(pair => pair.reverse()),
 					};
 				});
-				var states = [], types = ['bundle', '50k', '40k', '25k'];
-				var bounds = L.latLngBounds(sheets[0].corners);
-				sheets.forEach(sheet => {
-					sheet.corners.forEach(point => bounds.extend(point));
-					if (states.indexOf(sheet.state) < 0)
-						states.push(sheet.state);
-				});
+				const bounds = L.latLngBounds(sheets[0].corners);
+				sheets.forEach(sheet => sheet.corners.forEach(point => bounds.extend(point)));
 				L.mapbox.accessToken = 'pk.eyJ1IjoibWhvbGxpbmciLCJhIjoiY2pncms3d3plMDY3ODJ2bnh0YWdydTBwYyJ9.RdmqeL6b_5m8Q-SzQdbXuQ';
-				var layer = L.mapbox.styleLayer('mapbox://styles/mholling/ck9bz5uth02671imzx2s7jujc');
-				var map = L.mapbox.map('map').fitBounds(bounds).setMaxBounds(bounds.pad(0.2)).addLayer(layer);
+				const layer = L.mapbox.styleLayer('mapbox://styles/mholling/ck9bz5uth02671imzx2s7jujc');
+				const map = L.mapbox.map('map').fitBounds(bounds).setMaxBounds(bounds.pad(0.2)).addLayer(layer);
+				const types = ['bundle', '50k', '40k', '25k'];
+				const states = sheets.reduce((memo, sheet) => memo.add(sheet.state), new Set())
 				types.forEach(type => states.forEach(state => map.createPane(type + ',' + state)));
-				states = states.filter(state => !state.includes(','));
-				types.concat(states).forEach(type => {
-					var element = document.createElement('div');
+				const addToggle = type => {
+					const element = document.createElement('div');
 					element.textContent = type;
 					element.id = 'show-' + type;
 					element.classList.add('selected');
@@ -47,19 +43,21 @@ window.addEventListener('DOMContentLoaded', event => {
 						Object.keys(map.getPanes()).forEach(key => {
 							keys = key.split(',');
 							if (!keys.includes(type)) return;
-							var selected = keys.every(key => document.getElementById('show-' + key).classList.contains('selected'));
+							const selected = keys.every(key => document.getElementById('show-' + key).classList.contains('selected'));
 							map.getPane(key).style.display = selected ? 'block' : 'none';
 						});
 					});
-				});
-				var toggles = L.control({position: 'topright'});
+				};
+				types.forEach(addToggle);
+				Array.from(states).filter(state => !state.includes(',')).forEach(addToggle);
+				const toggles = L.control({position: 'topright'});
 				toggles.onAdd = map => document.getElementById('toggles');
 				toggles.addTo(map);
-				var qrcode = L.control({position: 'bottomleft'});
+				const qrcode = L.control({position: 'bottomleft'});
 				qrcode.onAdd = map => document.getElementById('qrcode');
 				qrcode.addTo(map);
 				sheets.forEach(sheet => {
-					var weight = sheet.type === 'bundle' ? 2 : 1;
+					const weight = sheet.type === 'bundle' ? 2 : 1;
 					L.polygon(sheet.corners, {
 						color: sheet.type === '25k' ? '#FF0000' : sheet.type === '40k' ? '#800080' : sheet.type === '50k' ? '#0000FF' : '#000000',
 						weight: weight,
@@ -86,11 +84,11 @@ window.addEventListener('DOMContentLoaded', event => {
 		}, {once: true});
 	});
 
-	var defaultTitle = document.title;
+	const defaultTitle = document.title;
 	document.querySelectorAll('details').forEach(details => {
-		var hash = '#' + details.id;
-		var title = "nswtopo | " + details.querySelector('summary').innerText;
-		var others = document.querySelectorAll('details:not(' + hash + ')');
+		const hash = '#' + details.id;
+		const title = "nswtopo | " + details.querySelector('summary').innerText;
+		const others = document.querySelectorAll('details:not(' + hash + ')');
 		if (hash == location.hash)
 			details.setAttribute('open', '');
 		window.addEventListener('hashchange', event => {
@@ -100,7 +98,7 @@ window.addEventListener('DOMContentLoaded', event => {
 				details.removeAttribute('open');
 		});
 		details.addEventListener('toggle', event => {
-			var allClosed = !details.open && !document.querySelector('details[open]');
+			const allClosed = !details.open && !document.querySelector('details[open]');
 			if (details.open)
 				others.forEach(other => other.removeAttribute('open'));
 			if (details.open ? location.hash != hash : location.hash && allClosed)
@@ -123,8 +121,8 @@ window.addEventListener('DOMContentLoaded', event => {
 		div.querySelector('ul.slides').addEventListener('touchend', event => {
 			if (!start)
 				return;
-			var dx = event.changedTouches[0].screenX - start.changedTouches[0].screenX;
-			var dy = event.changedTouches[0].screenY - start.changedTouches[0].screenY;
+			const dx = event.changedTouches[0].screenX - start.changedTouches[0].screenX;
+			const dy = event.changedTouches[0].screenY - start.changedTouches[0].screenY;
 			start = null;
 			if (Math.abs(dy) > Math.abs(dx))
 				return;

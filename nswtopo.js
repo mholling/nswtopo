@@ -86,7 +86,7 @@ window.addEventListener('DOMContentLoaded', event => {
 		}, {once: true});
 	});
 
-	var default_title = document.title;
+	var defaultTitle = document.title;
 	document.querySelectorAll('details').forEach(details => {
 		var hash = '#' + details.id;
 		var title = "nswtopo | " + details.querySelector('summary').innerText;
@@ -100,12 +100,15 @@ window.addEventListener('DOMContentLoaded', event => {
 				details.removeAttribute('open');
 		});
 		details.addEventListener('toggle', event => {
-			var all_closed = !details.open && !document.querySelector('details[open]');
+			var allClosed = !details.open && !document.querySelector('details[open]');
 			if (details.open)
 				others.forEach(other => other.removeAttribute('open'));
-			if (details.open ? location.hash != hash : location.hash && all_closed)
+			if (details.open ? location.hash != hash : location.hash && allClosed)
 				history.pushState(null, '', details.open ? location.pathname + hash : location.pathname);
-			details.open ? document.title = title : all_closed ? document.title = default_title : null;
+			if (details.open)
+				document.title = title;
+			else if (allClosed)
+				document.title = defaultTitle;
 		});
 	});
 

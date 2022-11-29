@@ -120,22 +120,25 @@ window.addEventListener('DOMContentLoaded', event => {
 	});
 
 	document.querySelectorAll('div.carousel').forEach(div => {
-		var start;
-		div.querySelector('ul.slides').addEventListener('touchstart', event => start = start ? null : event, {passive: true});
-		div.querySelector('ul.slides').addEventListener('touchend', event => {
-			if (!start)
-				return;
-			const dx = event.changedTouches[0].screenX - start.changedTouches[0].screenX;
-			const dy = event.changedTouches[0].screenY - start.changedTouches[0].screenY;
-			start = null;
-			if (Math.abs(dy) > Math.abs(dx))
-				return;
-			if (dx < 0)
+		const changeSlide = (next, prev) => {
+			if (next)
 				var target = div.querySelector('input:checked + input');
-			else if (dx > 0)
+			else if (prev)
 				var target = div.querySelector('input:checked').previousElementSibling;
 			if (target)
 				target.checked = true;
+		};
+		let start = null;
+		const slides = div.querySelector('ul.slides');
+		slides.addEventListener('keydown', event => changeSlide("ArrowRight" == event.key, "ArrowLeft" == event.key));
+		slides.addEventListener('touchstart', event => start = start ? null : event, {passive: true});
+		slides.addEventListener('touchend', event => {
+			for (; start; start = null) {
+				const dx = event.changedTouches[0].screenX - start.changedTouches[0].screenX;
+				const dy = event.changedTouches[0].screenY - start.changedTouches[0].screenY;
+				if (Math.abs(dy) < Math.abs(dx))
+					changeSlide(dx < 0, dx > 0);
+			}
 		}, {passive: true});
 	});
 });

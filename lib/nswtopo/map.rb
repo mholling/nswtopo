@@ -280,7 +280,7 @@ module NSWTopo
       save
     end
 
-    def info(empty: nil, json: false, proj: false)
+    def info(empty: nil, json: false, proj: false, wkt2: false)
       case
       when json
         bbox = bounding_box.reproject_to_wgs84.first
@@ -288,7 +288,9 @@ module NSWTopo
         bbox.properties.merge! scale: @scale, dimensions: dimensions, extents: @extents, rotation: rotation, projection: @projection, layers: layers.map(&:name)
         JSON.pretty_generate bbox.to_h
       when proj
-        @projection
+        OS.gdalsrsinfo("-o", "proj4", "--single-line", @projection)
+      when wkt2
+        OS.gdalsrsinfo("-o", "wkt2", @projection).gsub(/\n\n+|\A\n+/, "")
       else
         StringIO.new.tap do |io|
           io.puts "%-11s 1:%i" %            ["scale:",      @scale]

@@ -38,7 +38,7 @@ _nswtopo() {
 					;;
 				info)
 					args+=(path)
-					flag_opts+=(-e --empty -j --json -p --proj)
+					flag_opts+=(-e --empty -j --json -p --proj -w --wkt2)
 					;;
 				add)
 					args+=(path layer)

@@ -220,6 +220,7 @@ begin
       parser.on "-e", "--empty", "show empty layers"
       parser.on "-j", "--json",  "show map bounds as GeoJSON string"
       parser.on "-p", "--proj",  "show map projection as a proj string"
+      parser.on "-w", "--wkt2",  "show map projection as a WKT2 string"
 
     when "add"
       parser.banner = <<~EOF

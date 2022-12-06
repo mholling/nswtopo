@@ -109,8 +109,16 @@ module NSWTopo
        width && xml.elements["svg[ @width='#{ width}mm']"] || raise(Version::Error)
       height && xml.elements["svg[@height='#{height}mm']"] || raise(Version::Error)
 
-      dimensions = [width, height].map(&:to_f)
-      init(archive, coords: [[0, 0]], dimensions: dimensions).tap do |map|
+      if metadata = xml.elements["svg/metadata/nswtopo:map[@projection][@scale]"]
+        projection = metadata.attributes["projection"]
+        scale = metadata.attributes["scale"].to_i
+        /PARAMETER\["Azimuth of initial line",(?<rotation>\-?\d+(\.\d+)?)/ =~ projection
+      else
+        projection, scale = Projection.transverse_mercator(0, 0), 25000
+      end
+
+      extents = [width, height].map { |mm| Float(mm) * scale / 1000 }
+      new(archive, projection: projection, scale: scale, extents: extents, rotation: rotation.to_f).save.tap do |map|
         map.write "map.svg", svg_path.read
       end
     rescue Version::Error

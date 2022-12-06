@@ -1,24 +1,24 @@
 module NSWTopo
   class Projection
     def initialize(value)
-      @wkt = Projection === value ? value.wkt : OS.gdalsrsinfo("-o", "wkt1", "--single-line", value).chomp.strip
-      raise "no georeferencing found: %s" % value if @wkt.empty?
+      @wkt2 = Projection === value ? value.wkt2 : OS.gdalsrsinfo("-o", "wkt2", "--single-line", value).chomp.strip
+      raise "no georeferencing found: %s" % value if @wkt2.empty?
     end
 
-    attr_reader :wkt
-    alias to_s wkt
-    alias to_str wkt
+    attr_reader :wkt2
+    alias to_s wkt2
+    alias to_str wkt2
 
     def ==(other)
-      wkt == other.wkt
+      wkt2 == other.wkt2
     end
 
     extend Forwardable
-    delegate :hash => :@wkt
+    delegate :hash => :@wkt2
     alias eql? ==
 
     def metres?
-      OS.gdalsrsinfo("-o", "proj4", "--single-line", @wkt).chomp.split.any?("+units=m")
+      OS.gdalsrsinfo("-o", "proj4", "--single-line", @wkt2).chomp.split.any?("+units=m")
     end
 
     def self.utm(zone, south: true)

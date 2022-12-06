@@ -15,7 +15,7 @@ module NSWTopo
             OS.gdal_translate *%w[--config GDAL_PAM_ENABLED NO -r bilinear -outsize], *outsize, png_path, zip_dir / "thumb.png"
           when 1
             zip_dir.join("#{name}.ref").open("w") do |file|
-              file.puts @projection.wkt
+              file.puts @projection.wkt2
               file.puts [-0.5 * @extents[0], resolution, 0.0, 0.5 * @extents[1], 0.0, -resolution].join(?,)
               file << dimensions.join(?,)
             end

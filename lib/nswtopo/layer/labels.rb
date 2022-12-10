@@ -472,11 +472,10 @@ module NSWTopo
               end
               priority = [barrier ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f]
 
-              case
-              when "uphill" == orientation
-              when "downhill" == orientation then baseline.reverse!
-              when baseline.values_at(0, -1).map(&:first).inject(&:<=)
-              else baseline.reverse!
+              baseline.reverse! unless case orientation
+              when "uphill", "anticlockwise" then true
+              when "downhill", "clockwise" then false
+              else baseline.values_at(0, -1).map(&:first).inject(&:<=)
               end
 
               hull = GeoJSON::LineString.new(baseline).multi.buffer(0.5 * font_size, splits: false).coordinates.flatten(1).convex_hull

@@ -182,15 +182,10 @@ module NSWTopo
     end
 
     def get_raster_resolution(raster_path)
-      metre_diagonal = bounding_box.coordinates.first.values_at(0, 2)
-      pixel_diagonal = OS.gdaltransform "-i", "-t_srs", @projection, raster_path do |stdin|
-        metre_diagonal.each do |point|
-          stdin.puts point.join(?\s)
-        end
-      end.each_line.map do |line|
-        line.split(?\s).take(2).map(&:to_f)
-      end
-      metre_diagonal.distance / pixel_diagonal.distance
+      vrt = OS.gdalwarp "-t_srs", @projection, "-of", "VRT", raster_path, "/vsistdout/"
+      rxx, rxy, ryx, ryy = REXML::Document.new(vrt).elements["VRTDataset/GeoTransform"].text.split(?,).map(&:to_f).values_at(1, 2, 4, 5)
+      delta = [rxx + rxy, ryx + ryy]
+      Math::sqrt(0.5 * delta.dot(delta))
     rescue OS::Error
       raise "invalid raster"
     end

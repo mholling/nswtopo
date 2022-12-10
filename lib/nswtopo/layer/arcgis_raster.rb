@@ -66,7 +66,7 @@ module NSWTopo
 
       OS.gdal_translate vrt_path, Pathname.pwd / "foo.tif"
 
-      return @resolution, vrt_path
+      return vrt_path
     end
   end
 end

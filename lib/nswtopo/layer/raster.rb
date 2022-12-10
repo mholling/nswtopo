@@ -1,18 +1,13 @@
 module NSWTopo
   module Raster
     def create
-      tif = Dir.mktmppath do |temp_dir|
-        tif_path = temp_dir / "final.tif"
+      Dir.mktmppath do |temp_dir|
         out_path = temp_dir / "output.tif"
 
-        resolution, raster_path = get_raster(temp_dir)
-        tr, te = [resolution, resolution], @map.bounds.transpose.flatten
-        OS.gdalwarp "-t_srs", @map.projection, "-tr", *tr, "-te", *te, "-r", "bilinear", raster_path, tif_path
+        args = ["-t_srs", @map.projection, "-r", "bilinear", "-te", *@map.bounds.transpose.flatten]
+        args += ["-tr", @resolution, @resolution] if Numeric === @resolution
+        OS.gdalwarp *args, get_raster(temp_dir), out_path
 
-        density = 0.01 * @map.scale / resolution
-        tiff_tags = %W[-mo TIFFTAG_XRESOLUTION=#{density} -mo TIFFTAG_YRESOLUTION=#{density} -mo TIFFTAG_RESOLUTIONUNIT=3]
-
-        OS.gdal_translate *tiff_tags, tif_path, out_path
         @map.write filename, out_path.binread
       end
     end

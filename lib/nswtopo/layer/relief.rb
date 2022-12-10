@@ -25,6 +25,8 @@ module NSWTopo
       when @contours
         bounds = @map.bounds(margin: margin)
         txe, tye, spat = bounds[0], bounds[1].reverse, bounds.transpose.flatten
+
+        raise "no resolution specified for #{@name}" unless Numeric === @resolution
         outsize = (bounds.transpose.diff / @resolution).map(&:ceil)
 
         collection = @contours.map do |url_or_path, attribute_or_hash|
@@ -66,7 +68,7 @@ module NSWTopo
         raise "invalid elevation data"
       end
 
-      return @resolution, tif_path
+      return tif_path
     end
   end
 end

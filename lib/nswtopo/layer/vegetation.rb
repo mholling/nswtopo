@@ -69,7 +69,7 @@ module NSWTopo
         OS.gdalwarp *args, *vrt_paths, tif_path
         OS.gdal_translate "-expand", "gray", "-a_nodata", "none", tif_path, vrt_path
 
-        return @map.get_raster_resolution(vrt_path), vrt_path
+        return vrt_path
       end
     end
   end

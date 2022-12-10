@@ -175,15 +175,6 @@ module NSWTopo
         @top_right[1] - point[1] ].times(@mm_per_metre)
     end
 
-    def get_raster_resolution(raster_path)
-      vrt = OS.gdalwarp "-t_srs", @projection, "-of", "VRT", raster_path, "/vsistdout/"
-      rxx, rxy, ryx, ryy = REXML::Document.new(vrt).elements["VRTDataset/GeoTransform"].text.split(?,).map(&:to_f).values_at(1, 2, 4, 5)
-      delta = [rxx + rxy, ryx + ryy]
-      Math::sqrt(0.5 * delta.dot(delta))
-    rescue OS::Error
-      raise "invalid raster"
-    end
-
     def self.declination(longitude, latitude)
       today = Date.today
       query = { lat1: latitude.abs, lat1Hemisphere: latitude < 0 ? ?S : ?N, lon1: longitude.abs, lon1Hemisphere: longitude < 0 ? ?W : ?E, model: "WMM", startYear: today.year, startMonth: today.month, startDay: today.day, resultFormat: "xml" }

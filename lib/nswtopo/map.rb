@@ -139,12 +139,6 @@ module NSWTopo
       end
     end
 
-    def raster_dimensions_at(ppi: nil, resolution: nil)
-      resolution ||= 0.0254 * @scale / ppi
-      ppi ||= 0.0254 * @scale / resolution
-      return (@extents / resolution).map(&:ceil), ppi, resolution
-    end
-
     def wgs84_centre
       GeoJSON.point([0, 0], projection: @projection).reproject_to_wgs84.coordinates
     end

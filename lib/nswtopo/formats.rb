@@ -53,7 +53,7 @@ module NSWTopo
         jpg_path
     end
 
-    def rasterise(png_path, background:, **options)
+    def rasterise(png_path, background:, ppi: nil, resolution: nil)
       Dir.mktmppath do |temp_dir|
         svg_path = temp_dir / "map.svg"
         src_path = temp_dir / "browser.svg"
@@ -65,14 +65,18 @@ module NSWTopo
         render_svg svg_path, background: background
         xml = REXML::Document.new svg_path.read
 
-        raster_dimensions, ppi, resolution = raster_dimensions_at **options
-
-        megapixels = raster_dimensions.inject(&:*) / 1024.0 / 1024.0
-        if options[:resolution]
-          log_update "chrome: creating %i×%i (%.1fMpx) map raster at %.1f m/px" % [*raster_dimensions, megapixels, resolution]
-        else
-          log_update "chrome: creating %i×%i (%.1fMpx) map raster at %i ppi"    % [*raster_dimensions, megapixels, ppi]
+        case
+        when ppi
+          resolution = 0.0254 * @scale / ppi
+          info = "%i ppi" % ppi
+        when resolution
+          ppi = 0.0254 * @scale / resolution
+          info = "%.1f m/px" % resolution
         end
+
+        raster_size = (@extents / resolution).map(&:ceil)
+        megapixels = raster_size.inject(&:*) / 1024.0 / 1024.0
+        log_update "chrome: creating %i×%i (%.1fMpx) map raster at %s" % [*raster_size, megapixels, info]
 
         xml.elements["svg/@width" ].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
         xml.elements["svg/@height"].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
@@ -107,7 +111,7 @@ module NSWTopo
         end.tap do |vrt|
           vrt.elements.each("VRTDataset/VRTRasterBand/@blockYSize", &:remove)
           vrt.elements.each("VRTDataset/Metadata", &:remove)
-          vrt.elements["VRTDataset"].add_attributes "rasterXSize" => raster_dimensions[0], "rasterYSize" => raster_dimensions[1]
+          vrt.elements["VRTDataset"].add_attributes "rasterXSize" => raster_size[0], "rasterYSize" => raster_size[1]
           File.write vrt_path, vrt
           OS.gdal_translate vrt_path, png_path
         end

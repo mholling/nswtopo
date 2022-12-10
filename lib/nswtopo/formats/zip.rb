@@ -7,8 +7,8 @@ module NSWTopo
         png_path = yield(ppi: ppi)
 
         2.downto(0).map.with_index do |level, index|
-          [level, index, *raster_dimensions_at(ppi: ppi.to_f / 2**index)]
-        end.map do |level, index, dimensions, ppi, resolution|
+          resolution = 0.0254 * @scale * 2**index / ppi
+          dimensions = (@extents / resolution).map(&:ceil)
           case index
           when 0
             outsize = dimensions.inject(&:<) ? [0, 64] : [64, 0]

@@ -7,9 +7,6 @@ module NSWTopo
     YAML
 
     def get_raster(temp_dir)
-      txt_path = temp_dir / "source.txt"
-      vrt_path = temp_dir / "source.vrt"
-
       @params["colour"] = @params["colour"]["woody"] if Hash === @params["colour"]
       min, max = minmax = @mapping&.values_at("min", "max")
       low, high, factor = [0, 100, 0].zip(Array @contrast&.values_at("low", "high", "factor")).map(&:compact).map(&:last)
@@ -37,40 +34,43 @@ module NSWTopo
 
       Dir.chdir(@source ? @source.parent : Pathname.pwd) do
         gdal_rasters @path
-      end.tap do |rasters|
-        raise "no vegetation data file specified" if rasters.none?
+      end.each do |path, info|
+        raise "can't process vegetation data for #{@name}" unless info["bands"].one?
+        raise "can't process vegetation data for #{@name}" unless info.dig("bands", 0, "colorInterpretation") == "Palette"
+        raise "can't process vegetation data for #{@name}" unless info.dig("bands", 0, "colorTable", "count") == 256
+      end.group_by do |path, info|
+        info.dig("bands", 0).values_at("colorTable", "noDataValue")
+      end.values.then do |rasters, *others|
+        raise "no vegetation data file specified" unless rasters
+        raise "can't process vegetation data for #{@name}" if others.any?
+        rasters
       end.group_by do |path, info|
         Projection.new info.dig("coordinateSystem", "wkt")
       end.map.with_index do |(projection, rasters), index|
-        indexed_tif_path = temp_dir / "indexed.#{index}.tif"
-        indexed_vrt_path = temp_dir / "indexed.#{index}.vrt"
-        mask_tif_path = temp_dir / "mask.#{index}.tif"
-        tif_path = temp_dir / "output.#{index}.tif"
+        vrt_path = temp_dir / "indexed.#{index}.vrt"
+        txt_path = temp_dir / "source.txt"
 
         txt_path.write rasters.map(&:first).join(?\n)
-        OS.gdalbuildvrt "-overwrite", "-input_file_list", txt_path, vrt_path
-        projwin = @map.projwin projection, metres: 2 * @map.get_raster_resolution(vrt_path)
-        OS.gdal_translate "-projwin", *projwin, "-r", "near", "-co", "TFW=YES", vrt_path, indexed_tif_path
-        OS.gdal_translate "-of", "VRT", indexed_tif_path, indexed_vrt_path
+        OS.gdalbuildvrt "-overwrite", "-r", "nearest", "-input_file_list", txt_path, vrt_path
 
-        xml = REXML::Document.new indexed_vrt_path.read
-        raise "can't process vegetation data for #{@name}" unless xml.elements.each("/VRTDataset/VRTRasterBand/ColorTable", &:itself).one?
-        raise "can't process vegetation data for #{@name}" unless xml.elements.each("/VRTDataset/VRTRasterBand/ColorTable/Entry", &:itself).count == 256
+        xml = REXML::Document.new vrt_path.read
         xml.elements.collect("/VRTDataset/VRTRasterBand/ColorTable/Entry", &:itself).zip(alpha_table) do |entry, alpha|
           entry.attributes["c1"], entry.attributes["c2"], entry.attributes["c3"], entry.attributes["c4"] = alpha, alpha, alpha, 255
         end
-        indexed_vrt_path.write xml
 
-        OS.gdal_translate "-expand", "gray", indexed_vrt_path, mask_tif_path
-        OS.gdalwarp "-s_srs", projection, "-t_srs", @map.projection, "-r", "bilinear", mask_tif_path, tif_path
-        next tif_path, Numeric === @resolution ? @resolution : @map.get_raster_resolution(tif_path)
-      end.transpose.tap do |tif_paths, resolutions|
-        @resolution = resolutions.min
-        txt_path.write tif_paths.join(?\n)
-        OS.gdalbuildvrt "-overwrite", "-input_file_list", txt_path, vrt_path
+        vrt_path.write xml
+        vrt_path
+      end.then do |vrt_paths|
+        tif_path = temp_dir / "source.tif"
+        vrt_path = temp_dir / "source.vrt"
+
+        args = ["-t_srs", @map.projection, "-r", "nearest", "-te", *@map.bounds.transpose.flatten]
+        args += ["-tr", @resolution, @resolution] if @resolution
+        OS.gdalwarp *args, *vrt_paths, tif_path
+        OS.gdal_translate "-expand", "gray", "-a_nodata", "none", tif_path, vrt_path
+
+        return @map.get_raster_resolution(vrt_path), vrt_path
       end
-
-      return @resolution, vrt_path
     end
   end
 end

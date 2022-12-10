@@ -157,10 +157,6 @@ module NSWTopo
       end.coordinates.first.transpose.map(&:minmax)
     end
 
-    def projwin(projection, **margin)
-      bounds(projection: projection, margin: margin).flatten.values_at(0,3,1,2)
-    end
-
     def write_world_file(path, resolution: nil, ppi: nil)
       resolution ||= 0.0254 * @scale / ppi
       path.open("w") do |file|

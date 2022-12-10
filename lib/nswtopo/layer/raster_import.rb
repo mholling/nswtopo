@@ -9,10 +9,8 @@ module NSWTopo
         "Palette" == band["colorInterpretation"]
       end
 
-      projection = Projection.new(@path)
-      args = ["-projwin", *@map.projwin(projection), @path, crop_path]
-      args += ["-expand", "rgba", *args] if palette
-      OS.gdal_translate *args
+      args = ["-expand", "rgba"] if palette
+      OS.gdal_translate *args, @path, crop_path
 
       return crop_path
     rescue OS::Error

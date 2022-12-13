@@ -29,9 +29,10 @@ begin
   Thread::report_on_exception = false
 
   GDAL_VERSION = begin
-    stdout, * = Open3.capture3 "gdal-config", "--version"
-    stdout[/\d+(?:\.\d+){1,2}/]
-  rescue Errno::ENOENT
+    stdout, * = Open3.capture3 "gdalinfo", "--version"
+    /^GDAL (?<version>\d+(?:\.\d+){1,2})/ =~ stdout
+    version || raise
+  rescue Errno::ENOENT, RuntimeError
     log_abort "GDAL not installed"
   end
 

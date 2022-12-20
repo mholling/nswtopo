@@ -57,7 +57,7 @@ module NSWTopo
               end
 
               # add paths to content clip, get content coverage area, and create fill pattern mosaic
-              content.elements.each_with_index("path[@d]") do |path, index|
+              content.elements.collect("path[@d]", &:itself).each.with_index do |path, index|
                 path.add_attribute "id", "#{content_id}.#{index}"
                 content_clip.add_element "use", "href" => "##{content_id}.#{index}"
               end.flat_map do |path|

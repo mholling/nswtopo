@@ -15,7 +15,9 @@ module NSWTopo
             end
 
             # replace fill pattern paint with manual pattern mosaic to work around Chrome PDF bug
-            xml.elements.each("//svg//use[@fill][@href]") do |use|
+            xml.elements.each("//svg//use[@id][@fill][@href]") do |use|
+              id = use.attributes["id"]
+
               # find the pattern id, content id, pattern element and content element
               next unless /^url\(#(?<pattern_id>.*)\)$/ =~ use.attributes["fill"]
               next unless /^#(?<content_id>.*)$/ =~ use.attributes["href"]
@@ -43,8 +45,15 @@ module NSWTopo
               # replace fill paint with a container for the fill pattern mosaic
               fill = REXML::Element.new "g"
               fill.add_attribute "clip-path", "url(##{content_id}.clip)"
+              fill.add_attribute "id", "#{id}.fill"
               use.previous_sibling = fill
               use.add_attribute "fill", "none"
+
+              xml.elements.each("//use[@href='##{id}']") do |use|
+                use_fill = REXML::Element.new "use"
+                use_fill.add_attribute "href", "##{id}.fill"
+                use.previous_sibling = use_fill
+              end
 
               # get pattern size
               pattern_size = %w[width height].map do |name|

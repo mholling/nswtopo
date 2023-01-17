@@ -173,12 +173,11 @@ module NSWTopo
 
     def self.declination(longitude, latitude)
       today = Date.today
-      query = { lat1: latitude.abs, lat1Hemisphere: latitude < 0 ? ?S : ?N, lon1: longitude.abs, lon1Hemisphere: longitude < 0 ? ?W : ?E, model: "WMM", startYear: today.year, startMonth: today.month, startDay: today.day, resultFormat: "xml" }
-      uri = URI::HTTPS.build host: "www.ngdc.noaa.gov", path: "/geomag-web/calculators/calculateDeclination", query: URI.encode_www_form(query)
-      xml = Net::HTTP.get uri
-      text = REXML::Document.new(xml).elements["//declination"]&.text
-      text ? text.to_f : raise
-    rescue RuntimeError, SystemCallError, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError
+      query = { latd: latitude, lond: longitude, latm: 0, lonm: 0, lats: 0, lons: 0, elev: 0, year: today.year, month: today.month, day: today.day, Ein: "Dtrue" }
+      uri = URI::HTTPS.build host: "api.geomagnetism.ga.gov.au", path: "/agrf", query: URI.encode_www_form(query)
+      json = Net::HTTP.get uri
+      Float(JSON.parse(json).dig("magneticFields", "D").to_s.sub(/ .*/, ""))
+    rescue JSON::ParserError, ArgumentError, TypeError, SystemCallError, EOFError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Net::ProtocolError, SocketError
       raise "couldn't get magnetic declination value"
     end
 

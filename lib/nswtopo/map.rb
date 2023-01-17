@@ -185,7 +185,7 @@ module NSWTopo
       Map.declination *wgs84_centre
     end
 
-    def add(*layers, after: nil, before: nil, replace: nil, overwrite: false)
+    def add(*layers, after: nil, before: nil, replace: nil, overwrite: false, strict: false)
       [%w[before after replace], [before, after, replace]].transpose.select(&:last).each do |option, name|
         next if self.layers.any? { |other| other.name == name }
         raise "no such layer: %s" % name
@@ -193,6 +193,7 @@ module NSWTopo
         raise OptionParser::AmbiguousOption,  "can't specify --%s and --%s simultaneously" % options
       end
 
+      strict ||= layers.one?
       layers.inject [self.layers, false, replace || after, []] do |(layers, changed, follow, errors), layer|
         index = layers.index layer unless replace || after || before
         if overwrite || !layer.uptodate?
@@ -218,14 +219,24 @@ module NSWTopo
         log_warn "couldn't download layer: #{layer.name}"
         next layers, changed, follow, errors << error
       rescue RuntimeError => error
+        errors << error
+        break layers, changed, follow, errors if strict
         log_warn error.message
-        next layers, changed, follow, errors << error
+        next layers, changed, follow, errors
       end.tap do |ordered_layers, changed, follow, errors|
         if changed
           @layers.replace Hash[ordered_layers.map(&:pair)]
           replace ? delete(replace) : save
         end
-        raise PartialFailureError, "failed to create %s" % [layers.one? ? "layer" : errors.one? ? "1 layer" : "#{errors.length} layers"] if errors.any?
+        case
+        when errors.none?
+        when strict
+          raise errors.first
+        when errors.one?
+          raise PartialFailureError, "failed to create layer"
+        else
+          raise PartialFailureError, "failed to create #{errors.length} layers"
+        end
       end
     end
 

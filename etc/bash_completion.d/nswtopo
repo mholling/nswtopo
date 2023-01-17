@@ -42,7 +42,7 @@ _nswtopo() {
 					;;
 				add)
 					args+=(path layer)
-					flag_opts+=(-o --overwrite)
+					flag_opts+=(-o --overwrite -s --strict)
 					file_opts+=(-p --path)
 					arg_opts+=(-r --resolution -p --ppi -a --after -b --before -c --replace)
 					;;

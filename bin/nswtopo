@@ -236,6 +236,7 @@ begin
       parser.on "-b", "--before      <layer>",                     "insert before specified layer"
       parser.on "-c", "--replace     <layer>",                     "replace specified layer"
       parser.on "-o", "--overwrite",                               "overwrite layer if it already exists"
+      parser.on "-s", "--strict",                                  "don't continue if a layer fails"
 
     when "contours"
       parser.banner = <<~EOF
@@ -498,7 +499,7 @@ begin
   command = command.tr ?-, ?_
   ARGV.prepend in_path.basename(".tgz").basename(".tar.gz").basename(".svg") if "render" == command
 
-  begin
+  nil.tap do |partial_failure|
     NSWTopo::Archive.open(in_path: in_path, out_path: tgz_path) do |archive|
       NSWTopo.method(command).parameters.group_by(&:first).inject [archive] do |args, (type, params)|
         case type
@@ -515,7 +516,7 @@ begin
       rescue NSWTopo::PartialFailureError => partial_failure
       end
     end
-    raise partial_failure if defined? partial_failure
+    raise partial_failure if partial_failure
   rescue NSWTopo::Archive::Invalid
     raise "unrecognised map file: #{in_path}" unless "render" == command
     raise OptionParser::InvalidOption, "can't specify --force without a map file" if options[:force]

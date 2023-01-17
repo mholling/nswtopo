@@ -1,10 +1,11 @@
 module NSWTopo
-  def add(archive, *layers, after: nil, before: nil, replace: nil, overwrite: false, **options)
+  def add(archive, *layers, after: nil, before: nil, replace: nil, overwrite: false, strict: false, **options)
     create_options = {
       after: Layer.sanitise(after),
       before: Layer.sanitise(before),
       replace: Layer.sanitise(replace),
-      overwrite: overwrite
+      overwrite: overwrite,
+      strict: strict
     }
     map = Map.load archive
 

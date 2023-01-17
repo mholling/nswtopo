@@ -152,7 +152,7 @@ module NSWTopo
     end
 
     def bounds(margin: {}, projection: nil)
-      bounding_box(margin).then do |bbox|
+      bounding_box(**margin).then do |bbox|
         projection ? bbox.reproject_to(projection) : bbox
       end.coordinates.first.transpose.map(&:minmax)
     end
@@ -298,7 +298,7 @@ module NSWTopo
           png_path = temp_dir / "raster.#{rasters.size}.png"
           pgw_path = temp_dir / "raster.#{rasters.size}.pgw"
           rasterise png_path, background: background, **opts
-          write_world_file pgw_path, opts
+          write_world_file pgw_path, **opts
           rasters[opts] = png_path
         end
         dithers = Hash.new do |dithers, opts|
@@ -306,7 +306,7 @@ module NSWTopo
           pgw_path = temp_dir / "dither.#{dithers.size}.pgw"
           FileUtils.cp rasters[opts], png_path
           dither png_path
-          write_world_file pgw_path, opts
+          write_world_file pgw_path, **opts
           dithers[opts] = png_path
         end
 

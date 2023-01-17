@@ -23,7 +23,6 @@ module NSWTopo
           </svg>
         XML
         @output, @input, @pid = PTY.spawn chrome_path, "--headless", "--disable-gpu", "--repl", "data:image/svg+xml;base64,#{Base64.encode64 svg}"
-        ObjectSpace.define_finalizer self, Proc.new { @input.puts "quit" }
         command %Q[text = document.getElementById("text")]
         @mm = command %Q[document.getElementById("mm").getBoundingClientRect().width]
       end

@@ -69,7 +69,7 @@ module NSWTopo
         raise OptionParser::InvalidArgument, "can't specify opacity when adding multiple layers" if options[:opacity]
         raise OptionParser::InvalidArgument, "can't specify data path when adding multiple layers" if options[:path]
       end
-      map.add *layers, create_options
+      map.add *layers, **create_options
     end
   end
 

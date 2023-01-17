@@ -299,7 +299,7 @@ module NSWTopo
           attributes = feature.properties
           font_size = attributes["font-size"]
           attributes.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
-            attributes[key] = value.to_i * font_size * 0.01 if value =~ /^\d+%$/
+            attributes[key] = value.to_i * font_size * 0.01 if /^\d+%$/ === value
           end
 
           debug_features << [feature, Set["debug", "feature"]] if debug

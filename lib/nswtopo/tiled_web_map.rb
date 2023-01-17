@@ -19,38 +19,33 @@ module NSWTopo
         end
         resolution = 2 * HALF / TILE_SIZE / 2**zoom
         tif_path = temp_dir / "tile.#{zoom}.tif"
-        { resolution: resolution, ts: ts, te: te, tif_path: tif_path, indices: indices, zoom: zoom }
-      end.select do |indices:, zoom:, **|
-        next true if zoom == max_zoom
-        next zoom >= min_zoom if min_zoom
-        !indices.all?(&:one?)
+        OpenStruct.new resolution: resolution, ts: ts, te: te, tif_path: tif_path, indices: indices, zoom: zoom
+      end.select do |level|
+        next true if level.zoom == max_zoom
+        next level.zoom >= min_zoom if min_zoom
+        !level.indices.all?(&:one?)
       end.tap do |max_level, *|
-        png_path = yield(max_level.slice :resolution)
+        png_path = yield(resolution: max_level.resolution)
       end.tap do |levels|
-        zoom_levels = levels.map { |zoom:, **| zoom }
-        log_update "#{extension}: creating zoom levels %s" % zoom_levels.minmax.uniq.join(?-)
-      end.each.concurrently do |ts:, te:, tif_path:, **|
-        OS.gdalwarp "-s_srs", @projection, "-t_srs", "EPSG:3857", "-ts", *ts, "-te", *te, "-r", "cubic", "-dstalpha", png_path, tif_path
-      end.flat_map do |tif_path:, indices:, zoom:, **|
-        cols, rows = indices.map(&:to_a)
-        [cols, rows.reverse].map(&:each).map(&:with_index).map(&:entries).inject(&:product).map do |(col, j), (row, i)|
-          row ^= 2**zoom - 1 if extension == "gemf"
-          tile_path = temp_dir / "tile.#{zoom}.#{col}.#{row}.png"
-          args = ["-srcwin", j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE, TILE_SIZE, tif_path, tile_path]
-          { zoom: zoom, row: row, col: col, tile_path: tile_path, args: args}
+        log_update "#{extension}: creating zoom levels %s" % levels.map(&:zoom).minmax.uniq.join(?-)
+      end.each.concurrently do |level|
+        OS.gdalwarp "-s_srs", @projection, "-t_srs", "EPSG:3857", "-ts", *level.ts, "-te", *level.te, "-r", "cubic", "-dstalpha", png_path, level.tif_path
+      end.flat_map do |level|
+        cols, rows = level.indices
+        [cols.each, rows.reverse_each].map(&:with_index).map(&:entries).inject(&:product).map do |(col, j), (row, i)|
+          row ^= 2**level.zoom - 1 if extension == "gemf"
+          path = temp_dir / "tile.#{level.zoom}.#{col}.#{row}.png"
+          args = ["-srcwin", j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE, TILE_SIZE, level.tif_path, path]
+          OpenStruct.new zoom: level.zoom, row: row, col: col, path: path, args: args
         end
       end.tap do |tiles|
         log_update "#{extension}: creating %i tiles" % tiles.length
-      end.each.concurrently do |args:, tile_path:, **|
-        OS.gdal_translate *args
-      end.map do |tiles|
-        tiles.slice :zoom, :col, :row, :tile_path
-      end.tap do |tiles|
+      end.each.concurrently do |tile|
+        OS.gdal_translate *tile.args
+      end.entries.tap do |tiles|
         log_update "#{extension}: optimising %i tiles" % tiles.length
-        tiles.map do |tile_path:, **|
-          tile_path
-        end.each.concurrent_groups do |png_paths|
-          dither *png_paths
+        tiles.map(&:path).each.concurrent_groups do |paths|
+          dither *paths
         rescue Dither::Missing
         end
       end

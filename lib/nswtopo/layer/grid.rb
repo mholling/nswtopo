@@ -21,7 +21,7 @@ module NSWTopo
     def get_features
       Projection.utm_zones(@map.bounding_box).flat_map do |zone|
         utm, utm_hull = Projection.utm(zone), Projection.utm_hull(zone)
-        map_hull = @map.bounding_box(MARGIN).reproject_to_wgs84.coordinates.first
+        map_hull = @map.bounding_box(**MARGIN).reproject_to_wgs84.coordinates.first
 
         eastings, northings = @map.bounds(projection: utm).map do |min, max|
           (min / @interval).floor..(max / @interval).ceil

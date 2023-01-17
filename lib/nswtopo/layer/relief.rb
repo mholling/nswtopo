@@ -35,12 +35,12 @@ module NSWTopo
           attribute = Hash === attribute_or_hash ? attribute_or_hash["attribute"] : attribute_or_hash
           case url_or_path
           when ArcGIS::Service
-            layer = ArcGIS::Service.new(url_or_path).layer(**options, geometry: @map.bounding_box(margin))
+            layer = ArcGIS::Service.new(url_or_path).layer(**options, geometry: @map.bounding_box(**margin))
             layer.features do |count, total|
               log_update "%s: retrieved %i of %i contours" % [@name, count, total]
             end
           when Shapefile::Source
-            Shapefile::Source.new(url_or_path).layer(**options, geometry: @map.bounding_box(margin), projection: @map.projection).features
+            Shapefile::Source.new(url_or_path).layer(**options, geometry: @map.bounding_box(**margin), projection: @map.projection).features
           else
             raise "unrecognised elevation data source: #{url_or_path}"
           end.each do |feature|

@@ -10,7 +10,7 @@ module NSWTopo
     VALUE, POINT, ANGLE = "%.5f", "%.5f %.5f", "%.2f"
 
     def create
-      @features = get_features.reproject_to(@map.projection).clip!(@map.bounding_box(MARGIN).coordinates.first)
+      @features = get_features.reproject_to(@map.projection).clip!(@map.bounding_box(**MARGIN).coordinates.first)
       @map.write filename, @features.to_json
     end
 
@@ -114,7 +114,7 @@ module NSWTopo
         commands = params_for categories
         font_size, bezier, section = commands.values_at "font-size", "bezier", "section"
         commands.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
-          commands[key] = commands[key].to_i * font_size * 0.01 if value =~ /^\d+%$/
+          commands[key] = commands[key].to_i * font_size * 0.01 if /^\d+%$/ === value
         end if font_size
 
         features.each do |feature, _|

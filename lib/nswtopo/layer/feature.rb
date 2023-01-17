@@ -11,31 +11,34 @@ module NSWTopo
         else raise "#{@source.basename}: invalid or no features specified"
         end
       end.slice_before do |args|
-        !args[:fallback]
+        !args.delete(:fallback)
       end.map do |fallbacks|
-        options, collection, error = fallbacks.inject [{}, nil, nil] do |(options, *), source: nil, fallback: false, **args|
-          source = @path if @path
-          log_update "%s: %s" % [@name, fallback ? "failed to retrieve features, trying fallback source" : "retrieving features"]
-          raise "#{@source.basename}: no feature source defined" unless source
-          source_path = Pathname(source).expand_path(@source.parent)
-          options.merge! args
-          case
-          when ArcGIS::Service === source
-            layer = ArcGIS::Service.new(source).layer(**options.slice(:layer, :where), geometry: @map.bounding_box(MARGIN), decode: true)
-            break options, layer.features(**options.slice(:per_page)) do |count, total|
-              log_update "%s: retrieved %i of %i feature%s" % [@name, count, total, (?s if total > 1)]
-            end
-          when Shapefile::Source === source_path
-            layer = Shapefile::Source.new(source_path).layer(**options.slice(:where, :sql, :layer), geometry: @map.bounding_box(MARGIN), projection: @map.projection)
-            break options, layer.features
-          end
+        fallbacks.each.with_object({})
+      end.map do |fallbacks|
+        args, options = *fallbacks.next
+        source, error = args.delete(:source), nil
+        source = @path if @path
+        log_update "%s: %s" % [@name, options.any? ? "failed to retrieve features, trying fallback source" : "retrieving features"]
+        raise "#{@source.basename}: no feature source defined" unless source
+        source_path = Pathname(source).expand_path(@source.parent)
+        options.merge! args
+        collection = case
+        when ArcGIS::Service === source
+          layer = ArcGIS::Service.new(source).layer(**options.slice(:layer, :where), geometry: @map.bounding_box(**MARGIN), decode: true)
+          layer.features(**options.slice(:per_page)) do |count, total|
+            log_update "%s: retrieved %i of %i feature%s" % [@name, count, total, (?s if total > 1)]
+          end.reproject_to(@map.projection)
+        when Shapefile::Source === source_path
+          layer = Shapefile::Source.new(source_path).layer(**options.slice(:where, :sql, :layer), geometry: @map.bounding_box(**MARGIN), projection: @map.projection)
+          layer.features
+        else
           raise "#{@source.basename}: invalid feature source: #{source}"
-        rescue ArcGIS::Connection::Error => error
-          next options, nil, error
         end
-
-        raise error if error
-        next collection.reproject_to(@map.projection), options
+        next collection, options
+      rescue ArcGIS::Connection::Error => error
+        retry
+      rescue StopIteration
+        raise error
       end.each do |collection, options|
         rotation_attribute, arithmetic = case options[:rotation]
         when /^90 - (\w+)$/ then [$1, true]

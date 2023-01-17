@@ -45,11 +45,11 @@ module NSWTopo
       end
 
       def get_json(relative_path = "", **query)
-        get relative_path, query.merge(f: "json"), &method(:process_json)
+        get relative_path, **query, f: "json", &method(:process_json)
       end
 
       def post_json(relative_path = "", **query)
-        post relative_path, query.merge(f: "json"), &method(:process_json)
+        post relative_path, **query, f: "json", &method(:process_json)
       end
     end
   end

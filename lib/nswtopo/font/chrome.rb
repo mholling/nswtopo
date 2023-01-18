@@ -8,7 +8,9 @@ module NSWTopo
         lines, match = @output.expect(/(\{.*)\n/, 1)
         response = JSON.parse match
         raise "unexpected chrome error: %s" % response.dig("exceptionDetails", "exception", "description") if response["exceptionDetails"]
-        response.fetch("result").dig("value")
+        response.fetch("result").then do |result|
+          result.fetch("result", result) # chrome behaviour changed...
+        end.dig("value")
       rescue TypeError, JSON::ParserError, KeyError
         raise "unexpected chrome error"
       end

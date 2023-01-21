@@ -76,7 +76,7 @@ module NSWTopo
           end.flatten.group_by(&:buffer).keys.each do |buffer|
             filter = defs.add_element("filter", "id" => "map.filter.knockout.#{buffer}")
             filter.add_element("feColorMatrix", "values" => "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 5 0")
-            filter.add_element("feMorphology", "operator" => "dilate", "radius" => buffer)
+            filter.add_element("feMorphology", "operator" => "dilate", "radius" => buffer) unless buffer.zero?
             filter.add_element("feComponentTransfer").add_element("feFuncA", "type" => "discrete", "tableValues" => "0 1")
           end
         end.reject do |element|

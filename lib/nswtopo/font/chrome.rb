@@ -24,7 +24,12 @@ module NSWTopo
             <text id='text' />
           </svg>
         XML
-        @output, @input, @pid = PTY.spawn chrome_path, "--headless", "--disable-gpu", "--repl", "data:image/svg+xml;base64,#{Base64.encode64 svg}"
+        @output, @input, @pid = PTY.spawn chrome_path, *%W[
+          --headless
+          --repl
+          --disable-gpu
+          data:image/svg+xml;base64,#{Base64.encode64 svg}
+        ]
         command %Q[text = document.getElementById("text")]
         @mm = command %Q[document.getElementById("mm").getBoundingClientRect().width]
       end

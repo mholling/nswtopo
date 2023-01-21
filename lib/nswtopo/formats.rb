@@ -11,7 +11,16 @@ module NSWTopo
     include Log
     PPI = 300
     PAGE = 2048
-    CHROME_ARGS = %W[--window-size=#{PAGE},#{PAGE} --headless --force-device-scale-factor=1 --disable-lcd-text --disable-extensions --hide-scrollbars --disable-gpu --force-color-profile=srgb]
+    CHROME_ARGS = %W[
+      --headless
+      --window-size=#{PAGE},#{PAGE}
+      --force-device-scale-factor=1
+      --disable-lcd-text
+      --disable-extensions
+      --hide-scrollbars
+      --disable-gpu
+      --force-color-profile=srgb
+    ]
 
     def self.extensions
       instance_methods.grep(/^render_([a-z]+)/) { $1 }

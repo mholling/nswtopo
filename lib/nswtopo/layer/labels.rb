@@ -273,20 +273,256 @@ module NSWTopo
       end
     end
 
-    def drawing_features
-      segment_index = barriers.flat_map do |barrier|
+    def labelling_hull
+      @labelling_hull ||= @map.bounding_box(mm: -INSET).coordinates.first.map(&to_mm)
+    end
+
+    def barrier_segments
+      @barrier_segments ||= barriers.flat_map do |barrier|
         barrier.segments(&to_mm)
       end.then do |segments|
         RTree.load(segments, &:bounds)
       end
+    end
 
-      labelling_hull = @map.bounding_box(mm: -INSET).coordinates.first.map(&to_mm)
-      debug, debug_features = Config["debug"], []
-      @params = DEBUG_PARAMS.deep_merge @params if debug
+    def point_candidates(collection, label_index, feature_index, feature)
+      attributes  = feature.properties
+      margin      = attributes["margin"]
+      line_height = attributes["line-height"]
+      font_size   = attributes["font-size"]
 
-      candidates = label_features.map.with_index do |collection, label_index|
+      point = feature.coordinates.then(&to_mm)
+      lines = Font.in_two collection.text, attributes
+      lines = [[collection.text, Font.glyph_length(collection.text, attributes)]] if lines.map(&:first).map(&:length).min == 1
+      height = lines.map { font_size }.inject { |total| total + line_height }
+      # if attributes["shield"]
+      #   width += SHIELD_X * font_size
+      #   height += SHIELD_Y * font_size
+      # end
+
+      [*attributes["position"] || "over"].map do |position|
+        dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
+        dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
+        next dx, dy, dx * dy == 0 ? 1 : 0.6
+      end.uniq.map.with_index do |(dx, dy, f), position_index|
+        text_elements, hulls = lines.map.with_index do |(line, text_length), index|
+          anchor = point.dup
+          anchor[0] += dx * (f * margin + 0.5 * text_length)
+          anchor[1] += dy * (f * margin + 0.5 * height)
+          anchor[1] += (index - 0.5) * 0.5 * height unless lines.one?
+
+          text_element = REXML::Element.new("text")
+          text_element.add_attribute "transform", "translate(%s)" % POINT % anchor
+          text_element.add_attribute "text-anchor", "middle"
+          text_element.add_attribute "textLength", VALUE % text_length
+          text_element.add_attribute "y", VALUE % (CENTRELINE_FRACTION * font_size)
+          text_element.add_text line
+
+          hull = [text_length, font_size].zip(anchor).map do |size, origin|
+            [origin - 0.5 * size, origin + 0.5 * size]
+          end.inject(&:product).values_at(0,2,3,1)
+
+          next text_element, hull
+        end.transpose
+
+        next unless hulls.all? do |hull|
+          labelling_hull.surrounds? hull
+        end
+
+        barrier_count = barrier_segments.search(hulls.flatten(1).transpose.map(&:minmax)).with_object(Set[]) do |segment, barriers|
+          next if barriers === segment.barrier
+          hulls.any? do |hull|
+            barriers << segment.barrier if segment.conflicts_with? hull
+          end
+        end.size
+        priority = [barrier_count, position_index, feature_index]
+        Label.new collection.text, collection.layer_name, label_index, feature_index, priority, hulls, attributes, text_elements
+      end.compact.tap do |candidates|
+        candidates.combination(2).each do |candidate1, candidate2|
+          candidate1.conflicts << candidate2
+          candidate2.conflicts << candidate1
+        end
+      end
+    end
+
+    def line_string_candidates(collection, label_index, feature_index, feature)
+      closed = feature.coordinates.first == feature.coordinates.last
+      pairs = closed ? :ring : :segments
+      data = feature.coordinates.map(&to_mm)
+
+      attributes  = feature.properties
+      orientation = attributes["orientation"]
+      max_turn    = attributes["max-turn"] * Math::PI / 180
+      min_radius  = attributes["min-radius"]
+      max_angle   = attributes["max-angle"] * Math::PI / 180
+      curved      = attributes["curved"]
+      sample      = attributes["sample"]
+      separation  = attributes["separation-along"]
+      font_size   = attributes["font-size"]
+
+      text_length = case collection.text
+      when REXML::Element then data.path_length
+      when String then Font.glyph_length collection.text, attributes
+      end
+
+      points = data.segments.inject([]) do |memo, segment|
+        distance = segment.distance
+        case
+        when REXML::Element === collection.text
+          memo << segment[0]
+        when curved && distance >= text_length
+          memo << segment[0]
+        else
+          steps = (distance / sample).ceil
+          memo += steps.times.map do |step|
+            segment.along(step.to_f / steps)
+          end
+        end
+      end
+      points << data.last unless closed
+
+      segments = points.send(pairs)
+      vectors = segments.map(&:diff)
+      distances = vectors.map(&:norm)
+
+      cumulative = distances.inject([0]) do |memo, distance|
+        memo << memo.last + distance
+      end
+      total = closed ? cumulative.pop : cumulative.last
+
+      angles = vectors.map(&:normalised).send(pairs).map do |directions|
+        Math.atan2 directions.inject(&:cross), directions.inject(&:dot)
+      end
+      closed ? angles.rotate!(-1) : angles.unshift(0).push(0)
+
+      curvatures = segments.send(pairs).map do |(p0, p1), (_, p2)|
+        sides = [[p0, p1], [p1, p2], [p2, p0]].map(&:distance)
+        semiperimeter = 0.5 * sides.inject(&:+)
+        diffs = sides.map { |side| semiperimeter - side }
+        area_squared = [semiperimeter * diffs.inject(&:*), 0].max
+        4 * Math::sqrt(area_squared) / sides.inject(&:*)
+      end
+      closed ? curvatures.rotate!(-1) : curvatures.unshift(0).push(0)
+
+      dont_use = angles.zip(curvatures).map do |angle, curvature|
+        angle.abs > max_angle || min_radius * curvature > 1
+      end
+
+      squared_angles = angles.map { |angle| angle * angle }
+
+      overlaps = Hash.new do |hash, segment|
+        bounds = segment.transpose.map(&:minmax).map do |min, max|
+          [min - 0.5 * font_size, max + 0.5 * font_size]
+        end
+        hash[segment] = barrier_segments.search(bounds).any? do |barrier_segment|
+          barrier_segment.conflicts_with? segment, 0.5 * font_size
+        end
+      end
+
+      Enumerator.new do |yielder|
+        indices, distance, bad_indices, angle_integral = [0], 0, [], []
+        loop do
+          while distance < text_length
+            break true if closed ? indices.many? && indices.last == indices.first : indices.last == points.length - 1
+            unless indices.one?
+              bad_indices << dont_use[indices.last]
+              angle_integral << (angle_integral.last || 0) + angles[indices.last]
+            end
+            distance += distances[indices.last]
+            indices << (indices.last + 1) % points.length
+          end && break
+
+          while distance >= text_length
+            case
+            when indices.length == 2 && curved
+            when indices.length == 2 then yielder << indices.dup
+            when distance - distances[indices.first] >= text_length
+            when bad_indices.any?
+            when angle_integral.max - angle_integral.min > max_turn
+            else yielder << indices.dup
+            end
+            angle_integral.shift
+            bad_indices.shift
+            distance -= distances[indices.first]
+            indices.shift
+            break true if indices.first == (closed ? 0 : points.length - 1)
+          end && break
+        end if points.many?
+      end.map do |indices|
+        start, stop = cumulative.values_at(*indices)
+        along = (start + 0.5 * (stop - start) % total) % total
+        total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
+        baseline = points.values_at(*indices).crop(text_length)
+
+        barrier = baseline.segments.any? do |segment|
+          overlaps[segment]
+        end
+        priority = [barrier ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f]
+
+        baseline.reverse! unless case orientation
+        when "uphill", "anticlockwise" then true
+        when "downhill", "clockwise" then false
+        else baseline.values_at(0, -1).map(&:first).inject(&:<=)
+        end
+
+        hull = GeoJSON::LineString.new(baseline).multi.buffer(0.5 * font_size, splits: false).coordinates.flatten(1).convex_hull
+        next unless labelling_hull.surrounds? hull
+
+        path_id = [@name, collection.layer_name, "path", label_index, feature_index, indices.first, indices.last].join ?.
+        path_element = REXML::Element.new("path")
+        path_element.add_attributes "id" => path_id, "d" => svg_path_data(baseline), "pathLength" => VALUE % text_length
+        text_element = REXML::Element.new("text")
+
+        case collection.text
+        when REXML::Element
+          fixed = true
+          text_element.add_element collection.text, "href" => "#%s" % path_id
+        when String
+          text_path = text_element.add_element "textPath", "href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
+          text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
+        end
+        Label.new collection.text, collection.layer_name, label_index, feature_index, priority, [hull], attributes, [text_element, path_element], along, fixed
+      end.compact.map do |candidate|
+        [candidate, []]
+      end.to_h.tap do |matrix|
+        matrix.keys.nearby_pairs(closed) do |pair|
+          diff = pair.map(&:along).inject(&:-)
+          2 * (closed ? [diff % total, -diff % total].min : diff.abs) < sample
+        end.each do |pair|
+          matrix[pair[0]] << pair[1]
+          matrix[pair[1]] << pair[0]
+        end
+      end.sort_by do |candidate, nearby|
+        candidate.priority
+      end.to_h.tap do |matrix|
+        matrix.each do |candidate, nearby|
+          nearby.each do |candidate|
+            matrix.delete candidate
+          end
+        end
+      end.keys.tap do |candidates|
+        candidates.sort_by(&:along).inject do |(*candidates), candidate2|
+          while candidates.any?
+            break if (candidate2.along - candidates.first.along) % total < separation + text_length
+            candidates.shift
+          end
+          candidates.each do |candidate1|
+            candidate1.conflicts << candidate2
+            candidate2.conflicts << candidate1
+          end.push(candidate2)
+        end if separation
+      end
+    end
+
+    def label_candidates(&debug)
+      label_features.flat_map.with_index do |collection, label_index|
         log_update "compositing %s: feature %i of %i" % [@name, label_index + 1, label_features.length]
-        collection.flat_map do |feature|
+        collection.each do |feature|
+          font_size = feature.properties["font-size"]
+          feature.properties.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
+            feature.properties[key] = value.to_i * font_size * 0.01 if /^\d+%$/ === value
+          end
+        end.flat_map do |feature|
           case feature
           when GeoJSON::Point, GeoJSON::LineString
             feature
@@ -295,282 +531,68 @@ module NSWTopo
               GeoJSON::LineString.new ring, feature.properties
             end
           end
-        end.map.with_index do |feature, feature_index|
-          attributes = feature.properties
-          font_size = attributes["font-size"]
-          attributes.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
-            attributes[key] = value.to_i * font_size * 0.01 if /^\d+%$/ === value
-          end
-
-          debug_features << [feature, Set["debug", "feature"]] if debug
-          next [] if debug == "features"
-
+        end.tap do |features|
+          features.each.with_object("feature", &debug) if Config["debug"]
+        end.flat_map.with_index do |feature, feature_index|
           case feature
           when GeoJSON::Point
-            margin, line_height = attributes.values_at "margin", "line-height"
-            point = feature.coordinates.then(&to_mm)
-            lines = Font.in_two collection.text, attributes
-            lines = [[collection.text, Font.glyph_length(collection.text, attributes)]] if lines.map(&:first).map(&:length).min == 1
-            height = lines.map { font_size }.inject { |total| total + line_height }
-            # if attributes["shield"]
-            #   width += SHIELD_X * font_size
-            #   height += SHIELD_Y * font_size
-            # end
-
-            [*attributes["position"] || "over"].map do |position|
-              dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
-              dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
-              next dx, dy, dx * dy == 0 ? 1 : 0.6
-            end.uniq.map.with_index do |(dx, dy, f), position_index|
-              text_elements, hulls = lines.map.with_index do |(line, text_length), index|
-                anchor = point.dup
-                anchor[0] += dx * (f * margin + 0.5 * text_length)
-                anchor[1] += dy * (f * margin + 0.5 * height)
-                anchor[1] += (index - 0.5) * 0.5 * height unless lines.one?
-
-                text_element = REXML::Element.new("text")
-                text_element.add_attribute "transform", "translate(%s)" % POINT % anchor
-                text_element.add_attribute "text-anchor", "middle"
-                text_element.add_attribute "textLength", VALUE % text_length
-                text_element.add_attribute "y", VALUE % (CENTRELINE_FRACTION * font_size)
-                text_element.add_text line
-
-                hull = [text_length, font_size].zip(anchor).map do |size, origin|
-                  [origin - 0.5 * size, origin + 0.5 * size]
-                end.inject(&:product).values_at(0,2,3,1)
-
-                next text_element, hull
-              end.transpose
-
-              next unless hulls.all? do |hull|
-                labelling_hull.surrounds? hull
-              end
-
-              barrier_count = segment_index.search(hulls.flatten(1).transpose.map(&:minmax)).with_object(Set[]) do |segment, barriers|
-                next if barriers === segment.barrier
-                hulls.any? do |hull|
-                  barriers << segment.barrier if segment.conflicts_with? hull
-                end
-              end.size
-              priority = [barrier_count, position_index, feature_index]
-              Label.new collection.text, collection.layer_name, label_index, feature_index, priority, hulls, attributes, text_elements
-            end.compact.tap do |candidates|
-              candidates.combination(2).each do |candidate1, candidate2|
-                candidate1.conflicts << candidate2
-                candidate2.conflicts << candidate1
-              end
-            end
+            point_candidates(collection, label_index, feature_index, feature)
           when GeoJSON::LineString
-            closed = feature.coordinates.first == feature.coordinates.last
-            pairs = closed ? :ring : :segments
-            data = feature.coordinates.map(&to_mm)
-
-            orientation = attributes["orientation"]
-            max_turn    = attributes["max-turn"] * Math::PI / 180
-            min_radius  = attributes["min-radius"]
-            max_angle   = attributes["max-angle"] * Math::PI / 180
-            curved      = attributes["curved"]
-            sample      = attributes["sample"]
-            separation  = attributes["separation-along"]
-
-            text_length = case collection.text
-            when REXML::Element then data.path_length
-            when String then Font.glyph_length collection.text, attributes
-            end
-
-            points = data.segments.inject([]) do |memo, segment|
-              distance = segment.distance
-              case
-              when REXML::Element === collection.text
-                memo << segment[0]
-              when curved && distance >= text_length
-                memo << segment[0]
-              else
-                steps = (distance / sample).ceil
-                memo += steps.times.map do |step|
-                  segment.along(step.to_f / steps)
-                end
-              end
-            end
-            points << data.last unless closed
-
-            segments = points.send(pairs)
-            vectors = segments.map(&:diff)
-            distances = vectors.map(&:norm)
-
-            cumulative = distances.inject([0]) do |memo, distance|
-              memo << memo.last + distance
-            end
-            total = closed ? cumulative.pop : cumulative.last
-
-            angles = vectors.map(&:normalised).send(pairs).map do |directions|
-              Math.atan2 directions.inject(&:cross), directions.inject(&:dot)
-            end
-            closed ? angles.rotate!(-1) : angles.unshift(0).push(0)
-
-            curvatures = segments.send(pairs).map do |(p0, p1), (_, p2)|
-              sides = [[p0, p1], [p1, p2], [p2, p0]].map(&:distance)
-              semiperimeter = 0.5 * sides.inject(&:+)
-              diffs = sides.map { |side| semiperimeter - side }
-              area_squared = [semiperimeter * diffs.inject(&:*), 0].max
-              4 * Math::sqrt(area_squared) / sides.inject(&:*)
-            end
-            closed ? curvatures.rotate!(-1) : curvatures.unshift(0).push(0)
-
-            dont_use = angles.zip(curvatures).map do |angle, curvature|
-              angle.abs > max_angle || min_radius * curvature > 1
-            end
-
-            squared_angles = angles.map { |angle| angle * angle }
-
-            overlaps = Hash.new do |hash, segment|
-              bounds = segment.transpose.map(&:minmax).map do |min, max|
-                [min - 0.5 * font_size, max + 0.5 * font_size]
-              end
-              hash[segment] = segment_index.search(bounds).any? do |barrier_segment|
-                barrier_segment.conflicts_with? segment, 0.5 * font_size
-              end
-            end
-
-            Enumerator.new do |yielder|
-              indices, distance, bad_indices, angle_integral = [0], 0, [], []
-              loop do
-                while distance < text_length
-                  break true if closed ? indices.many? && indices.last == indices.first : indices.last == points.length - 1
-                  unless indices.one?
-                    bad_indices << dont_use[indices.last]
-                    angle_integral << (angle_integral.last || 0) + angles[indices.last]
-                  end
-                  distance += distances[indices.last]
-                  indices << (indices.last + 1) % points.length
-                end && break
-
-                while distance >= text_length
-                  case
-                  when indices.length == 2 && curved
-                  when indices.length == 2 then yielder << indices.dup
-                  when distance - distances[indices.first] >= text_length
-                  when bad_indices.any?
-                  when angle_integral.max - angle_integral.min > max_turn
-                  else yielder << indices.dup
-                  end
-                  angle_integral.shift
-                  bad_indices.shift
-                  distance -= distances[indices.first]
-                  indices.shift
-                  break true if indices.first == (closed ? 0 : points.length - 1)
-                end && break
-              end if points.many?
-            end.map do |indices|
-              start, stop = cumulative.values_at(*indices)
-              along = (start + 0.5 * (stop - start) % total) % total
-              total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
-              baseline = points.values_at(*indices).crop(text_length)
-
-              barrier = baseline.segments.any? do |segment|
-                overlaps[segment]
-              end
-              priority = [barrier ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f]
-
-              baseline.reverse! unless case orientation
-              when "uphill", "anticlockwise" then true
-              when "downhill", "clockwise" then false
-              else baseline.values_at(0, -1).map(&:first).inject(&:<=)
-              end
-
-              hull = GeoJSON::LineString.new(baseline).multi.buffer(0.5 * font_size, splits: false).coordinates.flatten(1).convex_hull
-              next unless labelling_hull.surrounds? hull
-
-              path_id = [@name, collection.layer_name, "path", label_index, feature_index, indices.first, indices.last].join ?.
-              path_element = REXML::Element.new("path")
-              path_element.add_attributes "id" => path_id, "d" => svg_path_data(baseline), "pathLength" => VALUE % text_length
-              text_element = REXML::Element.new("text")
-
-              case collection.text
-              when REXML::Element
-                fixed = true
-                text_element.add_element collection.text, "href" => "#%s" % path_id
-              when String
-                text_path = text_element.add_element "textPath", "href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
-                text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
-              end
-              Label.new collection.text, collection.layer_name, label_index, feature_index, priority, [hull], attributes, [text_element, path_element], along, fixed
-            end.compact.map do |candidate|
-              [candidate, []]
-            end.to_h.tap do |matrix|
-              matrix.keys.nearby_pairs(closed) do |pair|
-                diff = pair.map(&:along).inject(&:-)
-                2 * (closed ? [diff % total, -diff % total].min : diff.abs) < sample
-              end.each do |pair|
-                matrix[pair[0]] << pair[1]
-                matrix[pair[1]] << pair[0]
-              end
-            end.sort_by do |candidate, nearby|
-              candidate.priority
-            end.to_h.tap do |matrix|
-              matrix.each do |candidate, nearby|
-                nearby.each do |candidate|
-                  matrix.delete candidate
-                end
-              end
-            end.keys.tap do |candidates|
-              candidates.sort_by(&:along).inject do |(*candidates), candidate2|
-                while candidates.any?
-                  break if (candidate2.along - candidates.first.along) % total < separation + text_length
-                  candidates.shift
-                end
-                candidates.each do |candidate1|
-                  candidate1.conflicts << candidate2
-                  candidate2.conflicts << candidate1
-                end.push(candidate2)
-              end if separation
-            end
+            line_string_candidates(collection, label_index, feature_index, feature)
           end
-        end.flatten.tap do |candidates|
+        end.tap do |candidates|
           candidates.reject!(&:point?) unless candidates.all?(&:point?)
         end.sort_by(&:priority).each.with_index do |candidate, index|
           candidate.priority = index
         end
-      end.flatten
+      end.tap do |candidates|
+        log_update "compositing %s: chosing label positions" % @name
 
-      log_update "compositing %s: chosing label positions" % @name
-      candidates.flat_map(&:hulls).each do |hull|
-        debug_features << [hull, Set["debug", "candidate"]]
-      end if debug
-      return debug_features if %w[features candidates].include? debug
+        if Config["debug"]
+          candidates.flat_map(&:hulls).each.with_object("candidate", &debug)
+          candidates.clear
+        end
 
-      Label.overlaps(candidates).each do |candidate1, candidate2|
-        next if candidate1.coexists_with? candidate2
-        next if candidate2.coexists_with? candidate1
-        candidate1.conflicts << candidate2
-        candidate2.conflicts << candidate1
-      end
-
-      candidates.group_by do |candidate|
-        [candidate.label_index, candidate.attributes["separation"]]
-      end.each do |(label_index, buffer), candidates|
-        Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
+        Label.overlaps(candidates).each do |candidate1, candidate2|
+          next if candidate1.coexists_with? candidate2
+          next if candidate2.coexists_with? candidate1
           candidate1.conflicts << candidate2
           candidate2.conflicts << candidate1
-        end if buffer
-      end
+        end
 
-      candidates.group_by do |candidate|
-        [candidate.text, candidate.layer_name, candidate.attributes["separation-same"]]
-      end.each do |(text, layer_name, buffer), candidates|
-        Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
-          candidate1.conflicts << candidate2
-          candidate2.conflicts << candidate1
-        end if buffer
-      end
+        candidates.group_by do |candidate|
+          [candidate.label_index, candidate.attributes["separation"]]
+        end.each do |(label_index, buffer), candidates|
+          Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
+            candidate1.conflicts << candidate2
+            candidate2.conflicts << candidate1
+          end if buffer
+        end
 
-      candidates.group_by do |candidate|
-        [candidate.layer_name, candidate.attributes["separation-all"]]
-      end.each do |(layer_name, buffer), candidates|
-        Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
-          candidate1.conflicts << candidate2
-          candidate2.conflicts << candidate1
-        end if buffer
+        candidates.group_by do |candidate|
+          [candidate.text, candidate.layer_name, candidate.attributes["separation-same"]]
+        end.each do |(text, layer_name, buffer), candidates|
+          Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
+            candidate1.conflicts << candidate2
+            candidate2.conflicts << candidate1
+          end if buffer
+        end
+
+        candidates.group_by do |candidate|
+          [candidate.layer_name, candidate.attributes["separation-all"]]
+        end.each do |(layer_name, buffer), candidates|
+          Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
+            candidate1.conflicts << candidate2
+            candidate2.conflicts << candidate1
+          end if buffer
+        end
+      end
+    end
+
+    def drawing_features
+      debug_features = []
+      candidates = label_candidates do |feature, category|
+        debug_features << [feature, Set["debug", category]]
       end
 
       conflicts = candidates.map do |candidate|
@@ -641,7 +663,9 @@ module NSWTopo
           [element, label.categories]
         end
       end.tap do |result|
-        result.concat debug_features if debug
+        next unless debug_features.any?
+        @params = DEBUG_PARAMS.deep_merge @params
+        result.concat debug_features
       end
     end
   end

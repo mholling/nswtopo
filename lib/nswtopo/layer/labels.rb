@@ -339,7 +339,7 @@ module NSWTopo
           labelling_hull.surrounds? hull
         end
 
-        barrier_count = barrier_segments.search(hulls.flatten(1).transpose.map(&:minmax)).with_object(Set[]) do |segment, barriers|
+        barrier_count = barrier_segments.search(hulls.flatten(1).transpose.map(&:minmax)).with_object Set[] do |segment, barriers|
           next if barriers === segment.barrier
           hulls.any? do |hull|
             barriers << segment.barrier if segment.conflicts_with? hull
@@ -420,12 +420,14 @@ module NSWTopo
 
       squared_angles = angles.map { |angle| angle * angle }
 
-      overlaps = Hash.new do |hash, segment|
-        bounds = segment.transpose.map(&:minmax).map do |min, max|
+      overlaps = Hash.new do |overlaps, label_segment|
+        bounds = label_segment.transpose.map(&:minmax).map do |min, max|
           [min - 0.5 * font_size, max + 0.5 * font_size]
         end
-        hash[segment] = barrier_segments.search(bounds).any? do |barrier_segment|
-          barrier_segment.conflicts_with? segment, 0.5 * font_size
+        overlaps[label_segment] = barrier_segments.search(bounds).select do |barrier_segment|
+          barrier_segment.conflicts_with?(label_segment, 0.5 * font_size)
+        end.inject Set[] do |barriers, segment|
+          barriers.add segment.barrier
         end
       end
 
@@ -464,9 +466,9 @@ module NSWTopo
         total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
         baseline = points.values_at(*indices).crop(text_length)
 
-        barrier_count = baseline.segments.any? do |segment|
-          overlaps[segment]
-        end ? 1 : 0
+        barrier_count = baseline.segments.inject Set[] do |barriers, segment|
+          barriers.merge overlaps[segment]
+        end.size
         priority = [total_squared_curvature, (total - 2 * along).abs / total.to_f]
 
         baseline.reverse! unless case orientation

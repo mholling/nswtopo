@@ -231,28 +231,38 @@ module NSWTopo
       end
     end
 
-    Label = Struct.new(:text, :layer_name, :label_index, :feature_index, :priority, :hulls, :attributes, :elements, :along, :fixed) do
+    class Label
+      def initialize(collection, label_index, feature_index, barrier_count, priority, hulls, attributes, elements, along = nil, fixed = nil)
+        @label_index, @feature_index, @indices = label_index, feature_index, [label_index, feature_index]
+        @collection, @barrier_count, @priority, @hulls, @attributes, @elements, @along, @fixed = collection, barrier_count, priority, hulls, attributes, elements, along, fixed
+        @ordinal = [@barrier_count, @priority]
+        @conflicts = Set.new
+      end
+
+      extend Forwardable
+      delegate %i[text layer_name] => :@collection
+      delegate :[] => :@attributes
+
+      attr_reader :label_index, :feature_index, :indices
+      attr_reader :hulls, :elements, :along, :fixed, :conflicts
+      attr_accessor :priority, :ordinal
+
       def point?
-        along.nil?
+        @along.nil?
+      end
+
+      def barriers?
+        @barrier_count > 0
       end
 
       def optional?
-        attributes["optional"]
-      end
-
-      def categories
-        attributes["categories"]
+        @attributes["optional"] && barriers?
       end
 
       def coexists_with?(other)
-        Array(attributes["coexist"]).include? other.layer_name
+        Array(@attributes["coexist"]).include? other.layer_name
       end
 
-      def conflicts
-        @conflicts ||= Set.new
-      end
-
-      attr_accessor :ordinal
       def <=>(other)
         self.ordinal <=> other.ordinal
       end
@@ -261,7 +271,7 @@ module NSWTopo
       alias eql? equal?
 
       def bounds
-        hulls.flatten(1).transpose.map(&:minmax)
+        @hulls.flatten(1).transpose.map(&:minmax)
       end
 
       def self.overlaps(labels, buffer = 0)
@@ -335,9 +345,9 @@ module NSWTopo
             barriers << segment.barrier if segment.conflicts_with? hull
           end
         end.size
-        priority = [barrier_count, position_index, feature_index]
-        Label.new collection.text, collection.layer_name, label_index, feature_index, priority, hulls, attributes, text_elements
-      end.compact.tap do |candidates|
+        priority = [position_index, feature_index]
+        Label.new collection, label_index, feature_index, barrier_count, priority, hulls, attributes, text_elements
+      end.compact.reject(&:optional?).tap do |candidates|
         candidates.combination(2).each do |candidate1, candidate2|
           candidate1.conflicts << candidate2
           candidate2.conflicts << candidate1
@@ -454,10 +464,10 @@ module NSWTopo
         total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
         baseline = points.values_at(*indices).crop(text_length)
 
-        barrier = baseline.segments.any? do |segment|
+        barrier_count = baseline.segments.any? do |segment|
           overlaps[segment]
-        end
-        priority = [barrier ? 1 : 0, total_squared_curvature, (total - 2 * along).abs / total.to_f]
+        end ? 1 : 0
+        priority = [total_squared_curvature, (total - 2 * along).abs / total.to_f]
 
         baseline.reverse! unless case orientation
         when "uphill", "anticlockwise" then true
@@ -481,23 +491,20 @@ module NSWTopo
           text_path = text_element.add_element "textPath", "href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
           text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
         end
-        Label.new collection.text, collection.layer_name, label_index, feature_index, priority, [hull], attributes, [text_element, path_element], along, fixed
-      end.compact.map do |candidate|
-        [candidate, []]
-      end.to_h.tap do |matrix|
-        matrix.keys.nearby_pairs(closed) do |pair|
+        Label.new collection, label_index, feature_index, barrier_count, priority, [hull], attributes, [text_element, path_element], along, fixed
+      end.compact.reject(&:optional?).sort.each.with_object({}) do |candidate, nearby|
+        nearby[candidate] = []
+      end.tap do |nearby|
+        nearby.keys.nearby_pairs(closed) do |pair|
           diff = pair.map(&:along).inject(&:-)
           2 * (closed ? [diff % total, -diff % total].min : diff.abs) < sample
         end.each do |pair|
-          matrix[pair[0]] << pair[1]
-          matrix[pair[1]] << pair[0]
+          nearby[pair[0]] << pair[1]
+          nearby[pair[1]] << pair[0]
         end
-      end.sort_by do |candidate, nearby|
-        candidate.priority
-      end.to_h.tap do |matrix|
-        matrix.each do |candidate, nearby|
-          nearby.each do |candidate|
-            matrix.delete candidate
+        nearby.each do |candidate, others|
+          others.each do |candidate|
+            nearby.delete candidate
           end
         end
       end.keys.tap do |candidates|
@@ -542,7 +549,7 @@ module NSWTopo
           end
         end.tap do |candidates|
           candidates.reject!(&:point?) unless candidates.all?(&:point?)
-        end.sort_by(&:priority).each.with_index do |candidate, index|
+        end.sort.each.with_index do |candidate, index|
           candidate.priority = index
         end
       end.tap do |candidates|
@@ -561,7 +568,7 @@ module NSWTopo
         end
 
         candidates.group_by do |candidate|
-          [candidate.label_index, candidate.attributes["separation"]]
+          [candidate.label_index, candidate["separation"]]
         end.each do |(label_index, buffer), candidates|
           Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
@@ -570,7 +577,7 @@ module NSWTopo
         end
 
         candidates.group_by do |candidate|
-          [candidate.text, candidate.layer_name, candidate.attributes["separation-same"]]
+          [candidate.text, candidate.layer_name, candidate["separation-same"]]
         end.each do |(text, layer_name, buffer), candidates|
           Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
@@ -579,7 +586,7 @@ module NSWTopo
         end
 
         candidates.group_by do |candidate|
-          [candidate.layer_name, candidate.attributes["separation-all"]]
+          [candidate.layer_name, candidate["separation-all"]]
         end.each do |(layer_name, buffer), candidates|
           Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
@@ -608,9 +615,8 @@ module NSWTopo
             other.label_index != candidate.label_index
           end
           labelled = counts[candidate.label_index].zero? ? 0 : 1
-          optional = candidate.optional? ? 1 : 0
           fixed = candidate.fixed ? 0 : 1
-          ordinal = [fixed, optional, conflict_count, labelled, candidate.priority]
+          ordinal = [fixed, conflict_count, labelled, candidate.priority]
           next if candidate.ordinal == ordinal
           remaining.delete candidate
           candidate.ordinal = ordinal
@@ -618,8 +624,10 @@ module NSWTopo
         end
         break unless label = remaining.first
         labels << label
+        first = counts[label.label_index].zero?
         counts[label.label_index] += 1
         removals = Set[label] | conflicts[label]
+        removals.merge grouped[label.label_index].select(&:barriers?) if first
         removals.each do |candidate|
           grouped[candidate.label_index].delete candidate
           remaining.delete candidate
@@ -627,32 +635,15 @@ module NSWTopo
         changed = conflicts.values_at(*removals).inject(Set[], &:|).subtract(removals).each do |candidate|
           conflicts[candidate].subtract removals
         end
-        changed.merge grouped[label.label_index] if counts[label.label_index] == 1
+        changed.merge grouped[label.label_index] if first
       end
 
-      candidates.reject(&:optional?).group_by(&:label_index).select do |label_index, candidates|
-        counts[label_index].zero?
-      end.each do |label_index, candidates|
-        label = candidates.min_by do |candidate|
-          [(candidate.conflicts & labels).length, candidate.priority]
-        end
-        label.conflicts.intersection(labels).each do |other|
-          next unless counts[other.label_index] > 1
-          labels.delete other
-          counts[other.label_index] -= 1
-        end
-        labels << label
-        counts[label_index] += 1
-      end if Config["allow-overlaps"]
-
-      grouped = candidates.group_by do |candidate|
-        [candidate.label_index, candidate.feature_index]
-      end
+      grouped = candidates.group_by(&:indices)
       5.times do
         labels = labels.inject(labels.dup) do |labels, label|
           next labels unless label.point?
           labels.delete label
-          labels << grouped[[label.label_index, label.feature_index]].min_by do |candidate|
+          labels << grouped[label.indices].min_by do |candidate|
             [(labels & candidate.conflicts - Set[label]).count, candidate.priority]
           end
         end
@@ -660,7 +651,7 @@ module NSWTopo
 
       labels.flat_map do |label|
         label.elements.map do |element|
-          [element, label.categories]
+          [element, label["categories"]]
         end
       end.tap do |result|
         next unless debug_features.any?

@@ -1,3 +1,7 @@
+# Based on:
+#   Fast Point-Feature Label Placement Algorithm for Real Time Screen Maps
+#   (Missae Yamamoto, Gilberto Camara, Luiz Antonio Nogueira Lorena)
+
 require_relative 'labels/barrier'
 
 module NSWTopo

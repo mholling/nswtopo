@@ -617,9 +617,9 @@ module NSWTopo
 
       loop do
         changed.each do |candidate|
-          conflict_count = conflicts[candidate].count do |other|
-            other.label_index != candidate.label_index
-          end
+          conflict_count = conflicts[candidate].each.with_object Set[] do |other, indices|
+            indices << other.label_index
+          end.delete(candidate.label_index).size
           labelled = counts[candidate.label_index].zero? ? 0 : 1
           fixed = candidate.fixed ? 0 : 1
           ordinal = [fixed, conflict_count, labelled, candidate.priority]

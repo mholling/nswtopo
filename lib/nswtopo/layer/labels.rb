@@ -11,8 +11,49 @@ module NSWTopo
     DEFAULT_SAMPLE = 5
     INSET = 1
 
-    PROPERTIES = %w[font-size font-family font-variant font-style font-weight letter-spacing word-spacing margin orientation position separation separation-along separation-same separation-all max-turn min-radius max-angle format categories optional sample line-height upcase shield curved coexist]
-    TRANSFORMS = %w[reduce fallback offset buffer smooth remove-holes minimum-area minimum-hole minimum-length remove keep-largest trim]
+    PROPERTIES = %w[
+      font-size
+      font-family
+      font-variant
+      font-style
+      font-weight
+      letter-spacing
+      word-spacing
+      margin
+      orientation
+      position
+      separation
+      separation-along
+      separation-same
+      separation-all
+      max-turn
+      min-radius
+      max-angle
+      format
+      categories
+      optional
+      sample
+      line-height
+      upcase
+      shield
+      curved
+      coexist
+    ]
+
+    TRANSFORMS = %w[
+      reduce
+      fallback
+      offset
+      buffer
+      smooth
+      remove-holes
+      minimum-area
+      minimum-hole
+      minimum-length
+      remove
+      keep-largest
+      trim
+    ]
 
     DEFAULTS = YAML.load <<~YAML
       knockout: true

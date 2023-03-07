@@ -3,7 +3,7 @@ class RTree
     @nodes, @bounds, @object = nodes, bounds, object
   end
 
-  def overlaps?(bounds, buffer = 0)
+  def overlaps?(bounds, buffer)
     return false if @bounds.empty?
     return true unless bounds
     bounds.zip(@bounds).all? do |bound1, bound2|
@@ -31,12 +31,12 @@ class RTree
     end
   end
 
-  def search(bounds, buffer = 0, searched = Set.new)
+  def search(bounds, buffer: 0, searched: Set.new)
     Enumerator.new do |yielder|
       next if searched.include? self
       if overlaps? bounds, buffer
         @nodes.each do |node|
-          node.search(bounds, buffer, searched).inject(yielder, &:<<)
+          node.search(bounds, buffer: buffer, searched: searched).inject(yielder, &:<<)
         end
         yielder << @object if @nodes.empty?
       end
@@ -51,10 +51,10 @@ class RTree
     yield @bounds, @object if @object
   end
 
-  def overlaps(buffer = 0)
+  def overlaps(buffer)
     Enumerator.new do |yielder|
       bounds_objects do |bounds, object|
-        search(bounds, buffer).each do |other|
+        search(bounds, buffer: buffer).each do |other|
           yielder << [object, other]
         end
       end

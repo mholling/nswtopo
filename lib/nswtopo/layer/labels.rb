@@ -319,7 +319,7 @@ module NSWTopo
         @hulls.flatten(1).transpose.map(&:minmax)
       end
 
-      def self.overlaps(labels, buffer = 0)
+      def self.overlaps(labels, buffer)
         RTree.load(labels, &:bounds).overlaps(buffer).select do |pair|
           pair.map(&:hulls).inject(&:product).any? do |hulls|
             hulls.overlap?(buffer)
@@ -470,7 +470,7 @@ module NSWTopo
           [min - 0.5 * font_size, max + 0.5 * font_size]
         end
         overlaps[label_segment] = barrier_segments.search(bounds).select do |barrier_segment|
-          barrier_segment.conflicts_with?(label_segment, 0.5 * font_size)
+          barrier_segment.conflicts_with?(label_segment, buffer: 0.5 * font_size)
         end.inject Set[] do |barriers, segment|
           barriers.add segment.barrier
         end
@@ -607,7 +607,7 @@ module NSWTopo
           candidates.clear
         end
 
-        Label.overlaps(candidates).each do |candidate1, candidate2|
+        Label.overlaps(candidates, 0).each do |candidate1, candidate2|
           next if candidate1.coexists_with? candidate2
           next if candidate2.coexists_with? candidate1
           candidate1.conflicts << candidate2

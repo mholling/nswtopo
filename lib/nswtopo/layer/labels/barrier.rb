@@ -10,7 +10,7 @@ module NSWTopo
         end
         attr_reader :barrier, :bounds
 
-        def conflicts_with?(segment, buffer = 0)
+        def conflicts_with?(segment, buffer: 0)
           [@segment, segment].overlap?(@barrier.buffer + buffer)
         end
       end

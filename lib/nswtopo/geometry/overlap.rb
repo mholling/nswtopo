@@ -39,7 +39,7 @@ module Overlap
     end
   end
 
-  def overlap?(buffer = 0)
+  def overlap?(buffer)
     !separated_by?(buffer)
   end
 end

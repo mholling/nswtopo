@@ -26,6 +26,7 @@ module NSWTopo
       separation-along
       separation-same
       separation-all
+      separation-any
       max-turn
       min-radius
       max-angle
@@ -319,10 +320,17 @@ module NSWTopo
         @hulls.flatten(1).transpose.map(&:minmax)
       end
 
-      def self.overlaps(labels, buffer)
-        RTree.load(labels, &:bounds).overlaps(buffer).select do |pair|
-          pair.map(&:hulls).inject(&:product).any? do |hulls|
-            hulls.overlap?(buffer)
+      def self.overlaps(labels, buffer: nil)
+        Enumerator.new do |yielder|
+          index = RTree.load(labels, &:bounds)
+          index.each do |bounds, label|
+            buffer = yield(label) if block_given?
+            index.search(bounds, buffer: buffer).with_object(label).select do |other, label|
+              next false if other == label
+              [other, label].map(&:hulls).inject(&:product).any? do |hulls|
+                hulls.overlap?(buffer)
+              end
+            end.inject(yielder, &:<<)
           end
         end
       end
@@ -607,7 +615,9 @@ module NSWTopo
           candidates.clear
         end
 
-        Label.overlaps(candidates, 0).each do |candidate1, candidate2|
+        Label.overlaps(candidates) do |candidate|
+          candidate["separation-any"] || 0
+        end.each do |candidate1, candidate2|
           next if candidate1.coexists_with? candidate2
           next if candidate2.coexists_with? candidate1
           candidate1.conflicts << candidate2
@@ -617,7 +627,7 @@ module NSWTopo
         candidates.group_by do |candidate|
           [candidate.label_index, candidate["separation"]]
         end.each do |(label_index, buffer), candidates|
-          Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
+          Label.overlaps(candidates, buffer: buffer).each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
           end if buffer
@@ -626,7 +636,7 @@ module NSWTopo
         candidates.group_by do |candidate|
           [candidate.text, candidate.layer_name, candidate["separation-same"]]
         end.each do |(text, layer_name, buffer), candidates|
-          Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
+          Label.overlaps(candidates, buffer: buffer).each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
           end if buffer
@@ -635,7 +645,7 @@ module NSWTopo
         candidates.group_by do |candidate|
           [candidate.layer_name, candidate["separation-all"]]
         end.each do |(layer_name, buffer), candidates|
-          Label.overlaps(candidates, buffer).each do |candidate1, candidate2|
+          Label.overlaps(candidates, buffer: buffer).each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
           end if buffer

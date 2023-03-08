@@ -44,20 +44,10 @@ class RTree
     end
   end
 
-  def bounds_objects(&block)
+  def each(&block)
     @nodes.each do |node|
-      node.bounds_objects(&block)
+      node.each(&block)
     end
     yield @bounds, @object if @object
-  end
-
-  def overlaps(buffer)
-    Enumerator.new do |yielder|
-      bounds_objects do |bounds, object|
-        search(bounds, buffer: buffer).each do |other|
-          yielder << [object, other]
-        end
-      end
-    end
   end
 end

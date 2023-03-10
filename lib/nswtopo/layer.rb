@@ -38,7 +38,7 @@ module NSWTopo
       raise "layer '%s' has unrecognised type: %s" % [name, params["type"].inspect] unless TYPES === @type
       extend @type
 
-      @params = @type.const_defined?(:DEFAULTS) ? @type.const_get(:DEFAULTS).transform_keys(&:to_s).merge(params) : params
+      @params = @type.const_defined?(:DEFAULTS) ? @type.const_get(:DEFAULTS).transform_keys(&:to_s).deep_merge(params) : params
       @name, @map, @source, @path, @resolution, ppi = Layer.sanitise(name), map, @params.delete("source"), @params.delete("path"), @params.delete("resolution"), @params.delete("ppi")
       @resolution ||= 0.0254 * map.scale / ppi if ppi
 

@@ -15,22 +15,20 @@ module NSWTopo
         end
       end
 
-      def initialize(features, buffer)
-        @features, @buffer = features, buffer
+      def initialize(feature, buffer)
+        @feature, @buffer = feature, buffer
       end
       attr_reader :buffer
 
       def segments(&to_mm)
-        @features.flat_map do |feature|
-          case feature
-          when GeoJSON::Point
-            [[feature.coordinates.then(&to_mm)] * 2]
-          when GeoJSON::LineString
-            feature.coordinates.map(&to_mm).segments
-          when GeoJSON::Polygon
-            feature.coordinates.flat_map do |coordinates|
-              coordinates.map(&to_mm).segments
-            end
+        case @feature
+        when GeoJSON::Point
+          [[@feature.coordinates.then(&to_mm)] * 2]
+        when GeoJSON::LineString
+          @feature.coordinates.map(&to_mm).segments
+        when GeoJSON::Polygon
+          @feature.coordinates.flat_map do |coordinates|
+            coordinates.map(&to_mm).segments
           end
         end.map do |segment|
           Segment.new segment, self

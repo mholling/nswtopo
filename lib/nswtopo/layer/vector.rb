@@ -229,7 +229,9 @@ module NSWTopo
           when "barrier", "fence" # fence deprecated
             next unless content && args
             buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
-            Labels::Barrier.new(features.grep_v(REXML::Element), buffer).tap(&block)
+            features.grep_v(REXML::Element).each do |feature|
+              Labels::Barrier.new(feature, buffer).tap(&block)
+            end
 
           when "shield"
             next unless content

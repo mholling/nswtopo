@@ -290,7 +290,7 @@ module NSWTopo
       delegate :[] => :@attributes
 
       attr_reader :label_index, :feature_index, :indices
-      attr_reader :hulls, :elements, :along, :fixed, :conflicts
+      attr_reader :barrier_count, :hulls, :elements, :along, :fixed, :conflicts
       attr_accessor :priority, :ordinal
 
       def point?
@@ -392,7 +392,8 @@ module NSWTopo
           labelling_hull.surrounds? hull
         end
 
-        barrier_count = barrier_segments.search(hulls.flatten(1).transpose.map(&:minmax)).with_object Set[] do |segment, barriers|
+        bounds = hulls.flatten(1).transpose.map(&:minmax)
+        barrier_count = barrier_segments.search(bounds).with_object Set[] do |segment, barriers|
           next if barriers === segment.barrier
           hulls.any? do |hull|
             barriers << segment.barrier if segment.conflicts_with? hull
@@ -473,12 +474,11 @@ module NSWTopo
 
       squared_angles = angles.map { |angle| angle * angle }
 
-      overlaps = Hash.new do |overlaps, label_segment|
-        bounds = label_segment.transpose.map(&:minmax).map do |min, max|
-          [min - 0.5 * font_size, max + 0.5 * font_size]
-        end
-        overlaps[label_segment] = barrier_segments.search(bounds).select do |barrier_segment|
-          barrier_segment.conflicts_with?(label_segment, buffer: 0.5 * font_size)
+      barrier_overlaps = Hash.new do |overlaps, label_segment|
+        bounds = label_segment.transpose.map(&:minmax)
+        buffer = 0.5 * font_size
+        overlaps[label_segment] = barrier_segments.search(bounds, buffer: buffer).select do |barrier_segment|
+          barrier_segment.conflicts_with?(label_segment, buffer: buffer)
         end.inject Set[] do |barriers, segment|
           barriers.add segment.barrier
         end
@@ -519,8 +519,8 @@ module NSWTopo
         total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
         baseline = points.values_at(*indices).crop(text_length)
 
-        barrier_count = baseline.segments.inject Set[] do |barriers, segment|
-          barriers.merge overlaps[segment]
+        barrier_count = baseline.segments.each.with_object Set[] do |segment, barriers|
+          barriers.merge barrier_overlaps[segment]
         end.size
         priority = [total_squared_curvature, (total - 2 * along).abs / total.to_f]
 
@@ -671,6 +671,7 @@ module NSWTopo
           conflict_count = conflicts[candidate].each.with_object Set[] do |other, indices|
             indices << other.label_index
           end.delete(candidate.label_index).size
+          conflict_count += candidate.barrier_count
           labelled = counts[candidate.label_index].zero? ? 0 : 1
           fixed = candidate.fixed ? 0 : 1
           ordinal = [fixed, conflict_count, labelled, candidate.priority]

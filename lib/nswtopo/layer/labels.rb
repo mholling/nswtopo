@@ -320,11 +320,12 @@ module NSWTopo
         @hulls.flatten(1).transpose.map(&:minmax)
       end
 
-      def self.overlaps(labels, buffer: nil)
+      def self.overlaps(labels, &block)
         Enumerator.new do |yielder|
+          next unless labels.any?(&block)
           index = RTree.load(labels, &:bounds)
           index.each do |bounds, label|
-            buffer = yield(label) if block_given?
+            next unless buffer = yield(label)
             index.search(bounds, buffer: buffer).with_object(label).select do |other, label|
               next false if other == label
               [other, label].map(&:hulls).inject(&:product).any? do |hulls|
@@ -615,7 +616,9 @@ module NSWTopo
           candidates.clear
         end
 
+        # separation-any: minimum distance between a label and *any* other label
         Label.overlaps(candidates) do |candidate|
+          # default of zero prevents any two labels overlapping
           candidate["separation-any"] || 0
         end.each do |candidate1, candidate2|
           next if candidate1.coexists_with? candidate2
@@ -624,31 +627,40 @@ module NSWTopo
           candidate2.conflicts << candidate1
         end
 
+        # separation: minimum distance between multiple labels for the same labeling feature
         candidates.group_by do |candidate|
-          [candidate.label_index, candidate["separation"]]
-        end.each do |(label_index, buffer), candidates|
-          Label.overlaps(candidates, buffer: buffer).each do |candidate1, candidate2|
+          candidate.label_index
+        end.each do |label_index, candidates|
+          Label.overlaps(candidates) do |candidate|
+            candidate["separation"]
+          end.each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
-          end if buffer
+          end
         end
 
+        # separation-same: minimum distance between any two layer labels with the same text
         candidates.group_by do |candidate|
-          [candidate.text, candidate.layer_name, candidate["separation-same"]]
-        end.each do |(text, layer_name, buffer), candidates|
-          Label.overlaps(candidates, buffer: buffer).each do |candidate1, candidate2|
+          [candidate.layer_name, candidate.text]
+        end.each do |(layer_name, text), candidates|
+          Label.overlaps(candidates) do |candidate|
+            candidate["separation-same"]
+          end.each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
-          end if buffer
+          end
         end
 
+        # separation-all: minimum distance between any two labels from the same layer
         candidates.group_by do |candidate|
-          [candidate.layer_name, candidate["separation-all"]]
-        end.each do |(layer_name, buffer), candidates|
-          Label.overlaps(candidates, buffer: buffer).each do |candidate1, candidate2|
+          candidate.layer_name
+        end.each do |layer_name, candidates|
+          Label.overlaps(candidates) do |candidate|
+            candidate["separation-all"]
+          end.each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
-          end if buffer
+          end
         end
       end
     end

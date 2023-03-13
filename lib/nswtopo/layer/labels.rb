@@ -27,6 +27,7 @@ module NSWTopo
       separation-same
       separation-all
       separation-any
+      separation-dual
       max-turn
       min-radius
       max-angle
@@ -100,7 +101,7 @@ module NSWTopo
     end
 
     module LabelFeatures
-      attr_accessor :text, :layer_name
+      attr_accessor :text, :dual, :layer_name
     end
 
     extend Forwardable
@@ -135,13 +136,15 @@ module NSWTopo
 
         features.map do |feature|
           log_update "collecting labels: %s: feature %i of %i" % [layer.name, feature_count += 1, feature_total]
-          label = feature["label"]
+          text = feature["label"]
           text = case
-          when REXML::Element === label then label
-          when attributes["format"] then attributes["format"] % label
-          else Array(label).map(&:to_s).map(&:strip).join(?\s)
+          when REXML::Element === text then text
+          when attributes["format"] then attributes["format"] % text
+          else Array(text).map(&:to_s).map(&:strip).join(?\s)
           end
+          dual = feature["dual"]
           text.upcase! if String === text && attributes["upcase"]
+          dual.upcase! if String === dual && attributes["upcase"]
 
           transforms.inject([feature]) do |features, (transform, (arg, *args))|
             next features unless arg
@@ -264,7 +267,7 @@ module NSWTopo
           end.then do |features|
             GeoJSON::Collection.new(projection: @map.projection, features: features).explode.extend(LabelFeatures)
           end.tap do |collection|
-            collection.text, collection.layer_name = text, layer.name
+            collection.text, collection.dual, collection.layer_name = text, dual, layer.name
           end
         end.then do |collections|
           next collections unless collate
@@ -286,7 +289,7 @@ module NSWTopo
       end
 
       extend Forwardable
-      delegate %i[text layer_name] => :@collection
+      delegate %i[text dual layer_name] => :@collection
       delegate :[] => :@attributes
 
       attr_reader :label_index, :feature_index, :indices
@@ -661,6 +664,18 @@ module NSWTopo
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
           end
+        end
+
+        # separation-dual: minimum distance between any two dual labels
+        candidates.select(&:dual).group_by do |candidate|
+          [candidate.layer_name, Set[candidate.text, candidate.dual]]
+        end.each do |(layer_name, buffer), candidates|
+          Label.overlaps(candidates) do |candidate|
+            candidate["separation-dual"]
+          end.each do |candidate1, candidate2|
+            candidate1.conflicts << candidate2
+            candidate2.conflicts << candidate1
+          end if buffer
         end
       end
     end

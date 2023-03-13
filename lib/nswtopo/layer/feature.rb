@@ -80,10 +80,15 @@ module NSWTopo
             feature.fetch(attribute, attribute)
           end.map(&:to_s).reject(&:empty?)
 
+          dual = options[:dual].then do |attribute|
+            feature.fetch(attribute, attribute) if attribute
+          end
+
           categories = categories.map(&:to_s).reject(&:empty?).map(&method(:categorise))
           properties = {}
           properties["category"] = categories if categories.any?
           properties["label"] = labels if labels.any?
+          properties["dual"] = dual if dual
           properties["draw"] = false if options[:draw] == false
           properties["draw"] = false if @name =~ /[-_]labels$/ && !options.key?(:draw)
           properties["rotation"] = rotation if rotation

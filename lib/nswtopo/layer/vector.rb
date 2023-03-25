@@ -26,6 +26,8 @@ module NSWTopo
       visibility
       word-spacing
       nswtopo:overprint
+      nswtopo:stroke
+      nswtopo:fill
     ]
     FONT_SCALED_ATTRIBUTES = %w[
       word-spacing

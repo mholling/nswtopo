@@ -305,7 +305,7 @@ module NSWTopo
       end
 
       def optional?
-        @attributes["optional"] && barriers?
+        @attributes["optional"]
       end
 
       def coexists_with?(other)
@@ -405,7 +405,9 @@ module NSWTopo
         end.size
         priority = [position_index, feature_index]
         Label.new collection, label_index, feature_index, barrier_count, priority, hulls, attributes, text_elements
-      end.compact.reject(&:optional?).tap do |candidates|
+      end.compact.reject do |candidate|
+        candidate.optional? && candidate.barriers?
+      end.tap do |candidates|
         candidates.combination(2).each do |candidate1, candidate2|
           candidate1.conflicts << candidate2
           candidate2.conflicts << candidate1
@@ -551,7 +553,9 @@ module NSWTopo
           text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
         end
         Label.new collection, label_index, feature_index, barrier_count, priority, [hull], attributes, [text_element, path_element], along, fixed
-      end.compact.reject(&:optional?).sort.each.with_object({}) do |candidate, nearby|
+      end.compact.reject do |candidate|
+        candidate.optional? && candidate.barriers?
+      end.sort.each.with_object({}) do |candidate, nearby|
         nearby[candidate] = []
       end.tap do |nearby|
         nearby.keys.nearby_pairs(closed) do |pair|
@@ -699,9 +703,17 @@ module NSWTopo
             indices << other.label_index
           end.delete(candidate.label_index).size
           conflict_count += candidate.barrier_count
-          labelled = counts[candidate.label_index].zero? ? 0 : 1
-          fixed = candidate.fixed ? 0 : 1
-          ordinal = [fixed, conflict_count, labelled, candidate.priority]
+          unsafe = candidate.conflicts.classify(&:label_index).any? do |label_index, conflicts|
+            counts[label_index] == 0 && grouped[label_index] == conflicts # TODO: consider optional
+          end
+          ordinal = [
+            candidate.fixed ? 0 : 1,                     # fixed grid-line labels, first
+            candidate.optional? ? 1 : 0,                 # optional candidates, last
+            unsafe ? 1 : 0,                              # candidates causing unlabeled features, last
+            counts[candidate.label_index].zero? ? 0 : 1, # candidates for unlabeled features, first
+            conflict_count,                              # candidates with fewer conflicts, first
+            candidate.priority                           # better quality candidates, first
+          ]
           next if candidate.ordinal == ordinal
           remaining.delete candidate
           candidate.ordinal = ordinal

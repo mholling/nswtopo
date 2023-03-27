@@ -693,9 +693,10 @@ module NSWTopo
       conflicts = candidates.map do |candidate|
         [candidate, candidate.conflicts.dup]
       end.to_h
-      labels, remaining, changed = Set.new, AVLTree.new, candidates
-      grouped = candidates.to_set.classify(&:label_index)
-      counts = Hash.new { |hash, label_index| hash[label_index] = 0 }
+
+      labels, ordered, changed = Set.new, AVLTree.new, candidates
+      remaining = candidates.to_set.classify(&:label_index)
+      unlabeled = Hash.new { |hash, label_index| hash[label_index] = true }
 
       loop do
         changed.each do |candidate|
@@ -703,50 +704,55 @@ module NSWTopo
             indices << other.label_index
           end.delete(candidate.label_index).size
           conflict_count += candidate.barrier_count
+
           unsafe = candidate.conflicts.classify(&:label_index).any? do |label_index, conflicts|
-            counts[label_index] == 0 && grouped[label_index] == conflicts # TODO: consider optional
+            unlabeled[label_index] && remaining[label_index] == conflicts # TODO: consider optional
           end
+
           ordinal = [
-            candidate.fixed ? 0 : 1,                     # fixed grid-line labels, first
-            candidate.optional? ? 1 : 0,                 # optional candidates, last
-            unsafe ? 1 : 0,                              # candidates causing unlabeled features, last
-            counts[candidate.label_index].zero? ? 0 : 1, # candidates for unlabeled features, first
-            conflict_count,                              # candidates with fewer conflicts, first
-            candidate.priority                           # better quality candidates, first
+            candidate.fixed ? 0 : 1,                  # fixed grid-line labels, first
+            candidate.optional? ? 1 : 0,              # optional candidates, last
+            unsafe ? 1 : 0,                           # candidates causing unlabeled features, last
+            unlabeled[candidate.label_index] ? 0 : 1, # candidates for unlabeled features, first
+            conflict_count,                           # candidates with fewer conflicts, first
+            candidate.priority                        # better quality candidates, first
           ]
           next if candidate.ordinal == ordinal
-          remaining.delete candidate
+
+          ordered.delete candidate
           candidate.ordinal = ordinal
-          remaining.insert candidate
+          ordered.insert candidate
         end
-        break unless label = remaining.first
+
+        break unless label = ordered.first
         labels << label
-        first = counts[label.label_index].zero?
-        counts[label.label_index] += 1
         removals = Set[label] | conflicts[label]
-        removals.merge grouped[label.label_index].select(&:barriers?) if first
+
+        if first = unlabeled[label.label_index]
+          removals.merge remaining[label.label_index].select(&:barriers?)
+          unlabeled[label.label_index] = false
+        end
+
         removals.each do |candidate|
-          grouped[candidate.label_index].delete candidate
-          remaining.delete candidate
+          remaining[candidate.label_index].delete candidate
+          ordered.delete candidate
         end
         changed = conflicts.values_at(*removals).inject(Set[], &:|).subtract(removals).each do |candidate|
           conflicts[candidate].subtract removals
         end
-        changed.merge grouped[label.label_index] if first
+        changed.merge remaining[label.label_index] if first
       end
 
       grouped = candidates.group_by(&:indices)
-      5.times do
-        labels = labels.inject(labels.dup) do |labels, label|
+      5.times.inject(labels) do |labels|
+        labels.inject(labels.dup) do |labels, label|
           next labels unless label.point?
           labels.delete label
           labels << grouped[label.indices].min_by do |candidate|
             [(labels & candidate.conflicts - Set[label]).count, candidate.priority]
           end
         end
-      end
-
-      labels.flat_map do |label|
+      end.flat_map do |label|
         label.elements.map do |element|
           [element, label["categories"]]
         end

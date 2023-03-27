@@ -690,66 +690,68 @@ module NSWTopo
         debug_features << [feature, Set["debug", category]]
       end
 
-      conflicts = candidates.map do |candidate|
-        [candidate, candidate.conflicts.dup]
-      end.to_h
+      Enumerator.new do |yielder|
+        conflicts = candidates.map do |candidate|
+          [candidate, candidate.conflicts.dup]
+        end.to_h
 
-      labels, ordered, changed = Set.new, AVLTree.new, candidates
-      remaining = candidates.to_set.classify(&:label_index)
-      unlabeled = Hash.new { |hash, label_index| hash[label_index] = true }
+        ordered, changed = AVLTree.new, candidates
+        remaining = candidates.to_set.classify(&:label_index)
+        unlabeled = Hash.new(true)
 
-      loop do
-        changed.each do |candidate|
-          conflict_count = conflicts[candidate].each.with_object Set[] do |other, indices|
-            indices << other.label_index
-          end.delete(candidate.label_index).size
-          conflict_count += candidate.barrier_count
+        loop do
+          changed.each do |candidate|
+            conflict_count = conflicts[candidate].each.with_object Set[] do |other, indices|
+              indices << other.label_index
+            end.delete(candidate.label_index).size
+            conflict_count += candidate.barrier_count
 
-          unsafe = candidate.conflicts.classify(&:label_index).any? do |label_index, conflicts|
-            unlabeled[label_index] && remaining[label_index] == conflicts # TODO: consider optional
+            unsafe = candidate.conflicts.classify(&:label_index).any? do |label_index, conflicts|
+              unlabeled[label_index] && remaining[label_index] == conflicts # TODO: consider optional
+            end
+
+            ordinal = [
+              candidate.fixed ? 0 : 1,                  # fixed grid-line labels, first
+              candidate.optional? ? 1 : 0,              # optional candidates, last
+              unsafe ? 1 : 0,                           # candidates causing unlabeled features, last
+              unlabeled[candidate.label_index] ? 0 : 1, # candidates for unlabeled features, first
+              conflict_count,                           # candidates with fewer conflicts, first
+              candidate.priority                        # better quality candidates, first
+            ]
+            next if candidate.ordinal == ordinal
+
+            ordered.delete candidate
+            candidate.ordinal = ordinal
+            ordered.insert candidate
           end
 
-          ordinal = [
-            candidate.fixed ? 0 : 1,                  # fixed grid-line labels, first
-            candidate.optional? ? 1 : 0,              # optional candidates, last
-            unsafe ? 1 : 0,                           # candidates causing unlabeled features, last
-            unlabeled[candidate.label_index] ? 0 : 1, # candidates for unlabeled features, first
-            conflict_count,                           # candidates with fewer conflicts, first
-            candidate.priority                        # better quality candidates, first
-          ]
-          next if candidate.ordinal == ordinal
+          break unless label = ordered.first
+          yielder << label
 
-          ordered.delete candidate
-          candidate.ordinal = ordinal
-          ordered.insert candidate
+          removals = Set[label] | conflicts[label]
+          if first = unlabeled[label.label_index]
+            removals.merge remaining[label.label_index].select(&:barriers?)
+            unlabeled[label.label_index] = false
+          end
+
+          removals.each do |candidate|
+            remaining[candidate.label_index].delete candidate
+            ordered.delete candidate
+          end
+
+          changed = conflicts.values_at(*removals).inject(Set[], &:|).subtract(removals).each do |candidate|
+            conflicts[candidate].subtract removals
+          end
+          changed.merge remaining[label.label_index] if first
         end
-
-        break unless label = ordered.first
-        labels << label
-        removals = Set[label] | conflicts[label]
-
-        if first = unlabeled[label.label_index]
-          removals.merge remaining[label.label_index].select(&:barriers?)
-          unlabeled[label.label_index] = false
-        end
-
-        removals.each do |candidate|
-          remaining[candidate.label_index].delete candidate
-          ordered.delete candidate
-        end
-        changed = conflicts.values_at(*removals).inject(Set[], &:|).subtract(removals).each do |candidate|
-          conflicts[candidate].subtract removals
-        end
-        changed.merge remaining[label.label_index] if first
-      end
-
-      grouped = candidates.group_by(&:indices)
-      5.times.inject(labels) do |labels|
-        labels.inject(labels.dup) do |labels, label|
-          next labels unless label.point?
-          labels.delete label
-          labels << grouped[label.indices].min_by do |candidate|
-            [(labels & candidate.conflicts - Set[label]).count, candidate.priority]
+      end.then do |labels|
+        grouped = candidates.group_by(&:indices)
+        5.times.inject(labels.to_set) do |labels|
+          labels.select(&:point?).each.with_object(labels.dup) do |label, labels|
+            labels.delete label
+            labels << grouped[label.indices].min_by do |candidate|
+              [(labels & candidate.conflicts - Set[label]).count, candidate.priority]
+            end
           end
         end
       end.flat_map do |label|

@@ -724,7 +724,9 @@ module NSWTopo
           conflict_count += candidate.barrier_count
 
           unsafe = candidate.conflicts.classify(&:label_index).any? do |label_index, conflicts|
-            unlabeled[label_index] && remaining[label_index] == conflicts # TODO: consider optional
+            next false unless unlabeled[label_index]
+            others = remaining[label_index].reject(&:optional?)
+            others.any? && others.all?(conflicts)
           end
 
           ordinal = [

@@ -9,7 +9,7 @@ module NSWTopo
       min-length: 2.0
       knolls: 0.2
       section: 100
-      stroke: "#805100"
+      stroke: hsl(40,100%,25%)
       stroke-width: 0.08
       Auxiliary:
         stroke-dasharray: 0.5 0.5

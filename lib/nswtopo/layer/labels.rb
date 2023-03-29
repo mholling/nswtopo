@@ -79,15 +79,15 @@ module NSWTopo
         opacity: 0.5
         knockout: false
       debug feature:
-        stroke: "#6600ff"
+        stroke: hsl(260,100%,50%)
         stroke-width: 0.2
         symbol:
           circle:
             r: 0.3
             stroke: none
-            fill: "#6600ff"
+            fill: hsl(260,100%,50%)
       debug candidate:
-        stroke: magenta
+        stroke: hsl(300,100%,50%)
         stroke-width: 0.2
     YAML
 

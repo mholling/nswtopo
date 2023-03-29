@@ -635,63 +635,54 @@ module NSWTopo
           candidates.clear
         end
 
-        # separation/all: minimum distance between a label and *any* other label
-        Label.overlaps(candidates) do |candidate|
-          # default of zero prevents any two labels overlapping
-          candidate.dig("separation", "all") || 0
-        end.each do |candidate1, candidate2|
-          next if candidate1.coexists_with? candidate2
-          next if candidate2.coexists_with? candidate1
-          candidate1.conflicts << candidate2
-          candidate2.conflicts << candidate1
-        end
+        Enumerator.new do |yielder|
+          # separation/all: minimum distance between a label and *any* other label
+          Label.overlaps(candidates) do |label|
+            # default of zero prevents any two labels overlapping
+            label.dig("separation", "all") || 0
+          end.reject do |candidate1, candidate2|
+            candidate1.coexists_with?(candidate2) ||
+            candidate2.coexists_with?(candidate1)
+          end.inject(yielder, &:<<)
 
-        # separation/self: minimum distance between multiple labels for the same labeling feature
-        candidates.group_by do |candidate|
-          candidate.label_index
-        end.values.each do |group|
-          Label.overlaps(group) do |candidate|
-            candidate.dig("separation", "self")
-          end.each do |candidate1, candidate2|
-            candidate1.conflicts << candidate2
-            candidate2.conflicts << candidate1
+          # separation/self: minimum distance between multiple labels for the same labeling feature
+          candidates.group_by do |label|
+            label.label_index
+          end.values.each do |group|
+            Label.overlaps(group) do |label|
+              label.dig("separation", "self")
+            end.inject(yielder, &:<<)
           end
-        end
 
-        # separation/same: minimum distance between any two layer labels with the same text
-        candidates.group_by do |candidate|
-          [candidate.layer_name, candidate.text]
-        end.values.each do |group|
-          Label.overlaps(group) do |candidate|
-            candidate.dig("separation", "same")
-          end.each do |candidate1, candidate2|
-            candidate1.conflicts << candidate2
-            candidate2.conflicts << candidate1
+          # separation/same: minimum distance between any two layer labels with the same text
+          candidates.group_by do |label|
+            [label.layer_name, label.text]
+          end.values.each do |group|
+            Label.overlaps(group) do |label|
+              label.dig("separation", "same")
+            end.inject(yielder, &:<<)
           end
-        end
 
-        # separation/layer: minimum distance between any two labels from the same layer
-        candidates.group_by do |candidate|
-          candidate.layer_name
-        end.values.each do |group|
-          Label.overlaps(group) do |candidate|
-            candidate.dig("separation", "layer")
-          end.each do |candidate1, candidate2|
-            candidate1.conflicts << candidate2
-            candidate2.conflicts << candidate1
+          # separation/layer: minimum distance between any two labels from the same layer
+          candidates.group_by do |label|
+            label.layer_name
+          end.values.each do |group|
+            Label.overlaps(group) do |label|
+              label.dig("separation", "layer")
+            end.inject(yielder, &:<<)
           end
-        end
 
-        # separation/dual: minimum distance between any two dual labels
-        candidates.select(&:dual).group_by do |candidate|
-          [candidate.layer_name, Set[candidate.text, candidate.dual]]
-        end.values.each do |group|
-          Label.overlaps(group) do |candidate|
-            candidate.dig("separation", "dual")
-          end.each do |candidate1, candidate2|
-            candidate1.conflicts << candidate2
-            candidate2.conflicts << candidate1
+          # separation/dual: minimum distance between any two dual labels
+          candidates.select(&:dual).group_by do |label|
+            [label.layer_name, Set[label.text, label.dual]]
+          end.values.each do |group|
+            Label.overlaps(group) do |label|
+              label.dig("separation", "dual")
+            end.inject(yielder, &:<<)
           end
+        end.each do |label1, label2|
+          label1.conflicts << label2
+          label2.conflicts << label1
         end
       end
     end

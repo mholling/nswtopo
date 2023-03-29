@@ -335,6 +335,13 @@ module NSWTopo
         @hulls.flatten(1).transpose.map(&:minmax)
       end
 
+      def self.overlaps?(label1, label2, buffer:)
+        return false if label1 == label2
+        [label1, label2].map(&:hulls).inject(&:product).any? do |hulls|
+          hulls.overlap?(buffer)
+        end
+      end
+
       def self.overlaps(labels, &block)
         Enumerator.new do |yielder|
           next unless labels.any?(&block)
@@ -342,10 +349,7 @@ module NSWTopo
           index.each do |bounds, label|
             next unless buffer = yield(label)
             index.search(bounds, buffer: buffer).with_object(label).select do |other, label|
-              next false if other == label
-              [other, label].map(&:hulls).inject(&:product).any? do |hulls|
-                hulls.overlap?(buffer)
-              end
+              overlaps? label, other, buffer: buffer
             end.inject(yielder, &:<<)
           end
         end
@@ -663,13 +667,26 @@ module NSWTopo
             end.inject(yielder, &:<<)
           end
 
-          # separation/layer: minimum distance between any two labels from the same layer
-          candidates.group_by do |label|
-            label.layer_name
-          end.values.each do |group|
-            Label.overlaps(group) do |label|
-              label.dig("separation", "layer")
-            end.inject(yielder, &:<<)
+          candidates.group_by do |candidate|
+            candidate.layer_name
+          end.each do |layer_name, group|
+            index = RTree.load(group, &:bounds)
+
+            # separation/layer: minimum distance between any two labels from the same layer
+            index.each do |bounds, label|
+              next unless buffer = label.dig("separation", "layer")
+              index.search(bounds, buffer: buffer).with_object(label).select do |other, label|
+                Label.overlaps? label, other, buffer: buffer
+              end.inject(yielder, &:<<)
+            end
+
+            # separation/<layer>: minimum distance between a label and any label from <layer>
+            candidates.each do |label|
+              next unless buffer = label.dig("separation", layer_name)
+              index.search(label.bounds, buffer: buffer).with_object(label).select do |other, label|
+                Label.overlaps? label, other, buffer: buffer
+              end.inject(yielder, &:<<)
+            end
           end
 
           # separation/dual: minimum distance between any two dual labels

@@ -644,9 +644,9 @@ module NSWTopo
           Label.overlaps(candidates) do |label|
             # default of zero prevents any two labels overlapping
             label.dig("separation", "all") || 0
-          end.reject do |candidate1, candidate2|
-            candidate1.coexists_with?(candidate2) ||
-            candidate2.coexists_with?(candidate1)
+          end.reject do |label1, label2|
+            label1.coexists_with?(label2) ||
+            label2.coexists_with?(label1)
           end.inject(yielder, &:<<)
 
           # separation/multi: minimum distance between multiple labels for the same labeling feature

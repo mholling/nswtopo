@@ -11,7 +11,7 @@ module NSWTopo
     DEFAULT_SAMPLE = 5
     INSET = 1
 
-    LABEL_PROPERTIES = %w[
+    LABEL_ATTRIBUTES = %w[
       coexist
       curved
       font-family
@@ -54,7 +54,7 @@ module NSWTopo
       trim
     ]
 
-    LABEL_PARAMS = LABEL_PROPERTIES + LABEL_TRANSFORMS + SVG_ATTRIBUTES
+    LABEL_PARAMS = LABEL_ATTRIBUTES + LABEL_TRANSFORMS + SVG_ATTRIBUTES
 
     DEFAULTS = YAML.load <<~YAML
       knockout: true
@@ -118,6 +118,17 @@ module NSWTopo
         { layer.name => label_params }.merge(params)
       end.transform_values do |params|
         params.slice(*LABEL_PARAMS)
+      end.transform_values do |params|
+        # handle legacy format for separation, separation-all, separation-along
+        params.each.with_object("separation" => Hash[]) do |(key, value), hash|
+          case [key, value]
+          in ["separation",    Hash] then hash["separation"].merge! value
+          in ["separation",       *] then hash["separation"]["multi"] = value
+          in ["separation-all",   *] then hash["separation"]["layer"] = value
+          in ["separation-along", *] then hash["separation"]["along"] = value
+          else hash[key] = value
+          end
+        end
       end.then do |category_params|
         @params.merge! category_params
       end
@@ -132,18 +143,7 @@ module NSWTopo
         attributes, point_attributes, line_attributes = [nil, "point", "line"].map do |extra_category|
           categories | Set[*extra_category]
         end.map do |categories|
-          params_for(categories).slice(*LABEL_PROPERTIES).merge("categories" => categories)
-        end.map do |attributes|
-          # handle legacy format for separation-all, separation-along
-          attributes.each.with_object("separation" => {}) do |(key, value), hash|
-            case [key, value]
-            in ["separation",    Hash] then hash["separation"].merge! value
-            in ["separation",       *] then hash["separation"]["self"]  = value
-            in ["separation-all",   *] then hash["separation"]["layer"] = value
-            in ["separation-along", *] then hash["separation"]["along"] = value
-            else hash[key] = value
-            end
-          end
+          params_for(categories).slice(*LABEL_ATTRIBUTES).merge("categories" => categories)
         end
 
         features.map do |feature|
@@ -649,12 +649,12 @@ module NSWTopo
             candidate2.coexists_with?(candidate1)
           end.inject(yielder, &:<<)
 
-          # separation/self: minimum distance between multiple labels for the same labeling feature
+          # separation/multi: minimum distance between multiple labels for the same labeling feature
           candidates.group_by do |label|
             label.label_index
           end.values.each do |group|
             Label.overlaps(group) do |label|
-              label.dig("separation", "self")
+              label.dig("separation", "multi")
             end.inject(yielder, &:<<)
           end
 

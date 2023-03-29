@@ -29,12 +29,14 @@ module NSWTopo
       nswtopo:stroke
       nswtopo:fill
     ]
+
     FONT_SCALED_ATTRIBUTES = %w[
       word-spacing
       letter-spacing
       stroke-width
       line-height
     ]
+
     SHIELD_X, SHIELD_Y = 1.0, 0.5
     MARGIN = { mm: 1.0 }
     VALUE, POINT, ANGLE = "%.5f", "%.5f %.5f", "%.2f"
@@ -107,7 +109,7 @@ module NSWTopo
         Array(key).any? do |selector|
           String(selector).split(?\s).to_set <= categories
         end
-      end.values.inject(params, &:merge)
+      end.values.inject(params, &:deep_merge)
     end
 
     def render(knockout:, **, &block)
@@ -141,11 +143,15 @@ module NSWTopo
         end
         use.tap(&block)
 
-        commands = params_for categories
-        font_size, bezier, section = commands.values_at "font-size", "bezier", "section"
-        commands.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
-          commands[key] = commands[key].to_i * font_size * 0.01 if /^\d+%$/ === value
-        end if font_size
+        category_params = params_for(categories)
+        font_size, stroke_width, bezier, section = category_params.values_at "font-size", "stroke-width", "bezier", "section"
+
+        category_params.slice(*SVG_ATTRIBUTES).tap do |svg_attributes|
+          svg_attributes.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
+            svg_attributes[key] = svg_attributes[key].to_i * font_size * 0.01 if /^\d+%$/ === value
+          end if font_size
+          use.add_attributes svg_attributes
+        end
 
         features.each do |feature, _|
           case feature
@@ -177,7 +183,7 @@ module NSWTopo
           end
         end if content
 
-        commands.each do |command, args|
+        category_params.each do |command, args|
           next unless args
           args = args.map(&:to_a).inject([], &:+) if Array === args && args.all?(Hash)
 
@@ -258,7 +264,7 @@ module NSWTopo
 
           when "barrier", "fence" # fence deprecated
             next unless content && args
-            buffer = 0.5 * (Numeric === args ? args : commands.fetch("stroke-width", 0))
+            buffer = 0.5 * (Numeric === args ? args : Numeric === stroke_width ? stroke_width : 0)
             features.grep_v(REXML::Element).each do |feature|
               Labels::Barrier.new(feature, buffer).tap(&block)
             end
@@ -283,9 +289,6 @@ module NSWTopo
                 shield << element
               end
             end
-
-          when *SVG_ATTRIBUTES
-            use.add_attribute command, args
           end
         end
       end

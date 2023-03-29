@@ -11,51 +11,50 @@ module NSWTopo
     DEFAULT_SAMPLE = 5
     INSET = 1
 
-    PROPERTIES = %w[
-      font-size
+    LABEL_PROPERTIES = %w[
+      coexist
+      curved
       font-family
-      font-variant
+      font-size
       font-style
+      font-variant
       font-weight
+      format
+      knockout
       letter-spacing
-      word-spacing
+      line-height
       margin
-      orientation
-      position
-      separation
-      separation-along
-      separation-same
-      separation-all
-      separation-any
-      separation-dual
+      max-angle
       max-turn
       min-radius
-      max-angle
-      format
-      categories
       optional
+      orientation
+      position
       sample
-      line-height
-      upcase
+      separation
+      separation-all
+      separation-along
       shield
-      curved
-      coexist
+      upcase
+      word-spacing
     ]
 
-    TRANSFORMS = %w[
-      reduce
-      fallback
-      offset
+    LABEL_TRANSFORMS = %w[
       buffer
-      smooth
-      remove-holes
+      fallback
+      keep-largest
       minimum-area
       minimum-hole
       minimum-length
+      offset
+      reduce
       remove
-      keep-largest
+      remove-holes
+      smooth
       trim
     ]
+
+    LABEL_PARAMS = LABEL_PROPERTIES + LABEL_TRANSFORMS + SVG_ATTRIBUTES
 
     DEFAULTS = YAML.load <<~YAML
       knockout: true
@@ -108,16 +107,19 @@ module NSWTopo
     delegate :<< => :barriers
 
     def add(layer)
-      category_params, base_params = layer.params.fetch("labels", {}).partition do |key, value|
+      label_params = layer.params.fetch("labels", {})
+      label_params.except(*LABEL_PARAMS).select do |key, value|
         Hash === value
-      end.map(&:to_h)
-      collate = base_params.delete "collate"
-      @params.store layer.name, base_params if base_params.any?
-      category_params.each do |category, params|
-        categories = Array(category).map do |category|
+      end.transform_keys do |categories|
+        Array(categories).map do |category|
           [layer.name, category].join(?\s)
         end
-        @params.store categories, params
+      end.then do |params|
+        { layer.name => label_params }.merge(params)
+      end.transform_values do |params|
+        params.slice(*LABEL_PARAMS)
+      end.then do |category_params|
+        @params.merge! category_params
       end
 
       feature_count = feature_total = 0
@@ -126,12 +128,22 @@ module NSWTopo
       end.map(&:multi).group_by do |feature|
         Set[layer.name, *feature["category"]]
       end.each do |categories, features|
-        transforms, attributes, point_attributes, line_attributes = [nil, nil, "point", "line"].map do |extra_category|
+        transforms = params_for(categories).slice(*LABEL_TRANSFORMS)
+        attributes, point_attributes, line_attributes = [nil, "point", "line"].map do |extra_category|
           categories | Set[*extra_category]
         end.map do |categories|
-          params_for(categories).merge("categories" => categories)
-        end.zip([TRANSFORMS, PROPERTIES, PROPERTIES, PROPERTIES]).map do |selected_params, keys|
-          selected_params.slice *keys
+          params_for(categories).slice(*LABEL_PROPERTIES).merge("categories" => categories)
+        end.map do |attributes|
+          # handle legacy format for separation-all, separation-along
+          attributes.each.with_object("separation" => {}) do |(key, value), hash|
+            case [key, value]
+            in ["separation",    Hash] then hash["separation"].merge! value
+            in ["separation",       *] then hash["separation"]["self"]  = value
+            in ["separation-all",   *] then hash["separation"]["layer"] = value
+            in ["separation-along", *] then hash["separation"]["along"] = value
+            else hash[key] = value
+            end
+          end
         end
 
         features.map do |feature|
@@ -270,7 +282,7 @@ module NSWTopo
             collection.text, collection.dual, collection.layer_name = text, dual, layer.name
           end
         end.then do |collections|
-          next collections unless collate
+          next collections unless label_params["collate"]
           collections.group_by(&:text).map do |text, collections|
             collections.inject(&:merge!)
           end
@@ -290,7 +302,7 @@ module NSWTopo
 
       extend Forwardable
       delegate %i[text dual layer_name] => :@collection
-      delegate :[] => :@attributes
+      delegate %i[[] dig] => :@attributes
 
       attr_reader :label_index, :feature_index, :indices
       attr_reader :barrier_count, :hulls, :elements, :along, :fixed, :conflicts
@@ -427,7 +439,7 @@ module NSWTopo
       max_angle   = attributes["max-angle"] * Math::PI / 180
       curved      = attributes["curved"]
       sample      = attributes["sample"]
-      separation  = attributes["separation-along"]
+      separation  = attributes["separation"]["along"]
       font_size   = attributes["font-size"]
 
       text_length = case collection.text
@@ -623,10 +635,10 @@ module NSWTopo
           candidates.clear
         end
 
-        # separation-any: minimum distance between a label and *any* other label
+        # separation/all: minimum distance between a label and *any* other label
         Label.overlaps(candidates) do |candidate|
           # default of zero prevents any two labels overlapping
-          candidate["separation-any"] || 0
+          candidate.dig("separation", "all") || 0
         end.each do |candidate1, candidate2|
           next if candidate1.coexists_with? candidate2
           next if candidate2.coexists_with? candidate1
@@ -634,52 +646,52 @@ module NSWTopo
           candidate2.conflicts << candidate1
         end
 
-        # separation: minimum distance between multiple labels for the same labeling feature
+        # separation/self: minimum distance between multiple labels for the same labeling feature
         candidates.group_by do |candidate|
           candidate.label_index
-        end.each do |label_index, candidates|
-          Label.overlaps(candidates) do |candidate|
-            candidate["separation"]
+        end.values.each do |group|
+          Label.overlaps(group) do |candidate|
+            candidate.dig("separation", "self")
           end.each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
           end
         end
 
-        # separation-same: minimum distance between any two layer labels with the same text
+        # separation/same: minimum distance between any two layer labels with the same text
         candidates.group_by do |candidate|
           [candidate.layer_name, candidate.text]
-        end.each do |(layer_name, text), candidates|
-          Label.overlaps(candidates) do |candidate|
-            candidate["separation-same"]
+        end.values.each do |group|
+          Label.overlaps(group) do |candidate|
+            candidate.dig("separation", "same")
           end.each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
           end
         end
 
-        # separation-all: minimum distance between any two labels from the same layer
+        # separation/layer: minimum distance between any two labels from the same layer
         candidates.group_by do |candidate|
           candidate.layer_name
-        end.each do |layer_name, candidates|
-          Label.overlaps(candidates) do |candidate|
-            candidate["separation-all"]
+        end.values.each do |group|
+          Label.overlaps(group) do |candidate|
+            candidate.dig("separation", "layer")
           end.each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
           end
         end
 
-        # separation-dual: minimum distance between any two dual labels
+        # separation/dual: minimum distance between any two dual labels
         candidates.select(&:dual).group_by do |candidate|
           [candidate.layer_name, Set[candidate.text, candidate.dual]]
-        end.each do |(layer_name, buffer), candidates|
-          Label.overlaps(candidates) do |candidate|
-            candidate["separation-dual"]
+        end.values.each do |group|
+          Label.overlaps(group) do |candidate|
+            candidate.dig("separation", "dual")
           end.each do |candidate1, candidate2|
             candidate1.conflicts << candidate2
             candidate2.conflicts << candidate1
-          end if buffer
+          end
         end
       end
     end

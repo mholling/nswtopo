@@ -18,8 +18,13 @@ module NSWTopo
       end
 
       def only_layer
-        names = OS.ogrinfo("-ro", "-so", @path).scan(/^\w*\d+: (.*?)(?: \([\w\s]+\))?$/).flatten
-        names.one? ? names.first : nil
+        name, *others = OS.ogrinfo("-ro", "-so", @path).scan(/^\w*\d+: (.*?)(?: \([\w\s]+\))?$/).flatten
+        return nil if others.any?
+        return name if name
+        File.basename(@path, File.extname(@path)).tap do |name|
+          OS.ogrinfo "-ro", "-so", @path, name
+        end
+      rescue OS::Error
       end
 
       def layer_info

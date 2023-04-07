@@ -1,4 +1,21 @@
 module NSWTopo
+  class SVGFormatter < REXML::Formatters::Pretty
+    def initialize(*args)
+      super
+      self.compact, @default = true, REXML::Formatters::Default.new
+    end
+
+    def write_element(node, output)
+      case node.name
+      when "text"
+        output << ' ' * @level
+        @default.write_element node, output
+      else
+        super
+      end
+    end
+  end
+
   module Formats
     def render_svg(svg_path, background:, **options)
       if uptodate?("map.svg", "map.yml")
@@ -100,9 +117,7 @@ module NSWTopo
       xml.elements["svg/use[@id='map.background']"].add_attributes("fill" => background) if background
 
       svg_path.open("w") do |file|
-        formatter = REXML::Formatters::Pretty.new
-        formatter.compact = true
-        formatter.write xml, file
+        SVGFormatter.new.write xml, file
       end
     end
   end

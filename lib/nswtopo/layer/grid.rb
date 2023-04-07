@@ -58,7 +58,7 @@ module NSWTopo
 
     def label_element(labels, label_params)
       font_size = label_params["font-size"]
-      parts = labels.zip(%w[%d %02d %03d]).map do |part, format|
+      parts = labels.zip(["%d ", "%02d", " %03d"]).map do |part, format|
         format % part
       end.zip([80, 100, 80])
 

@@ -123,9 +123,9 @@ module NSWTopo
         params.each.with_object("separation" => Hash[]) do |(key, value), hash|
           case [key, value]
           in ["separation",    Hash] then hash["separation"].merge! value
-          in ["separation",       *] then hash["separation"]["multi"] = value
-          in ["separation-all",   *] then hash["separation"]["layer"] = value
-          in ["separation-along", *] then hash["separation"]["along"] = value
+          in ["separation",       *] then hash["separation"].merge! "self"  => value
+          in ["separation-all",   *] then hash["separation"].merge! "other" => value
+          in ["separation-along", *] then hash["separation"].merge! "along" => value
           else hash[key] = value
           end
         end
@@ -640,25 +640,16 @@ module NSWTopo
         end
 
         Enumerator.new do |yielder|
-          # separation/all: minimum distance between a label and *any* other label
-          Label.overlaps(candidates) do |label|
-            # default of zero prevents any two labels overlapping
-            label.dig("separation", "all") || 0
-          end.reject do |label1, label2|
-            label1.coexists_with?(label2) ||
-            label2.coexists_with?(label1)
-          end.inject(yielder, &:<<)
-
-          # separation/multi: minimum distance between multiple labels for the same labeling feature
+          # separation/self: minimum distance between a label and another label for the same feature
           candidates.group_by do |label|
             label.label_index
           end.values.each do |group|
             Label.overlaps(group) do |label|
-              label.dig("separation", "multi")
+              label.dig("separation", "self")
             end.inject(yielder, &:<<)
           end
 
-          # separation/same: minimum distance between any two layer labels with the same text
+          # separation/same: minimum distance between a label and another label with the same text
           candidates.group_by do |label|
             [label.layer_name, label.text]
           end.values.each do |group|
@@ -672,9 +663,9 @@ module NSWTopo
           end.each do |layer_name, group|
             index = RTree.load(group, &:bounds)
 
-            # separation/layer: minimum distance between any two labels from the same layer
+            # separation/other: minimum distance between a label and another label from the same layer
             index.each do |bounds, label|
-              next unless buffer = label.dig("separation", "layer")
+              next unless buffer = label.dig("separation", "other")
               index.search(bounds, buffer: buffer).with_object(label).select do |other, label|
                 Label.overlaps? label, other, buffer: buffer
               end.inject(yielder, &:<<)
@@ -697,6 +688,15 @@ module NSWTopo
               label.dig("separation", "dual")
             end.inject(yielder, &:<<)
           end
+
+          # separation/all: minimum distance between a label and *any* other label
+          Label.overlaps(candidates) do |label|
+            # default of zero prevents any two labels overlapping
+            label.dig("separation", "all") || 0
+          end.reject do |label1, label2|
+            label1.coexists_with?(label2) ||
+            label2.coexists_with?(label1)
+          end.inject(yielder, &:<<)
         end.each do |label1, label2|
           label1.conflicts << label2
           label2.conflicts << label1

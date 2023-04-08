@@ -29,9 +29,10 @@ module NSWTopo
         max-turn: 20
         sample: 10
         minimum-area: 70
-        separation: 40
-        separation-all: 15
-        separation-along: 100
+        separation:
+          self: 40
+          other: 15
+          along: 100
     YAML
 
     def margin

@@ -443,7 +443,6 @@ module NSWTopo
       max_angle   = attributes["max-angle"] * Math::PI / 180
       curved      = attributes["curved"]
       sample      = attributes["sample"]
-      separation  = attributes["separation"]["along"]
       font_size   = attributes["font-size"]
 
       text_length = case collection.text
@@ -536,7 +535,7 @@ module NSWTopo
           end && break
         end if points.many?
       end.map do |indices|
-        start, stop = cumulative.values_at(*indices)
+        start, stop = cumulative.values_at(indices.first, indices.last)
         along = (start + 0.5 * (stop - start) % total) % total
         total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
         baseline = points.values_at(*indices).crop(text_length)
@@ -571,32 +570,44 @@ module NSWTopo
         Label.new collection, label_index, feature_index, barrier_count, priority, [hull], attributes, [text_element, path_element], along, fixed
       end.compact.reject do |candidate|
         candidate.optional? && candidate.barriers?
-      end.sort.each.with_object({}) do |candidate, nearby|
-        nearby[candidate] = []
-      end.tap do |nearby|
-        nearby.keys.nearby_pairs(closed) do |pair|
-          diff = pair.map(&:along).inject(&:-)
-          2 * (closed ? [diff % total, -diff % total].min : diff.abs) < sample
-        end.each do |pair|
-          nearby[pair[0]] << pair[1]
-          nearby[pair[1]] << pair[0]
+      end.then do |candidates|
+        neighbours = Hash.new do |hash, candidate|
+          hash[candidate] = Set[]
         end
-        nearby.each do |candidate, others|
-          others.each do |candidate|
-            nearby.delete candidate
+        candidates.each.with_index do |candidate1, index1|
+          index2 = index1
+          loop do
+            index2 = (index2 + 1) % candidates.length
+            break if index2 == (closed ? index1 : 0)
+            candidate2 = candidates[index2]
+            offset = candidate2.along - candidate1.along
+            break unless offset % total < sample || (closed && -offset % total < sample)
+            neighbours[candidate2] << candidate1
+            neighbours[candidate1] << candidate2
           end
         end
-      end.keys.tap do |candidates|
-        candidates.sort_by(&:along).inject do |(*candidates), candidate2|
-          while candidates.any?
-            break if (candidate2.along - candidates.first.along) % total < separation + text_length
-            candidates.shift
+        removed = Set[]
+        candidates.sort.each.with_object Array[] do |candidate, sampled|
+          next if removed === candidate
+          removed.merge neighbours[candidate]
+          sampled << candidate
+        end.tap do |candidates|
+          next unless separation = attributes.dig("separation", "along")
+          separation += text_length
+          sorted = candidates.sort_by(&:along)
+          sorted.each.with_index do |candidate1, index1|
+            index2 = index1
+            loop do
+              index2 = (index2 + 1) % candidates.length
+              break if index2 == (closed ? index1 : 0)
+              candidate2 = sorted[index2]
+              offset = candidate2.along - candidate1.along
+              break unless offset % total < separation || (closed && -offset % total < separation)
+              candidate2.conflicts << candidate1
+              candidate1.conflicts << candidate2
+            end
           end
-          candidates.each do |candidate1|
-            candidate1.conflicts << candidate2
-            candidate2.conflicts << candidate1
-          end.push(candidate2)
-        end if separation
+        end
       end
     end
 

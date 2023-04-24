@@ -197,7 +197,11 @@ module NSWTopo
             next unless content
             symbol = defs.add_element "g", "id" => [*ids, "symbol"].join(?.)
             args.each do |element, attributes|
-              symbol.add_element element, attributes
+              if attributes
+                symbol.add_element element, attributes
+              else
+                symbol.add_element REXML::Document.new(element).root
+              end
             end
 
           when "pattern"

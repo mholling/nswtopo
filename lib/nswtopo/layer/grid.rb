@@ -19,9 +19,9 @@ module NSWTopo
     YAML
 
     def get_features
-      Projection.utm_zones(@map.bounding_box).flat_map do |zone|
-        utm, utm_hull = Projection.utm(zone), Projection.utm_hull(zone)
-        map_hull = @map.bounding_box(**MARGIN).reproject_to_wgs84.coordinates.first
+      Projection.utm_zones(@map.geometry).flat_map do |zone|
+        utm, utm_geometry = Projection.utm(zone), Projection.utm_geometry(zone)
+        map_geometry = @map.geometry(**MARGIN).reproject_to_wgs84
 
         eastings, northings = @map.bounds(projection: utm).map do |min, max|
           (min / @interval).floor..(max / @interval).ceil
@@ -39,20 +39,20 @@ module NSWTopo
             label = [coord / 100000, (coord / 1000) % 100]
             label << coord % 1000 unless @interval % 1000 == 0
             collection.add_linestring line, "label" => label, "ends" => [0, 1], "category" => index.zero? ? "easting" : "northing"
-          end.reproject_to_wgs84.clip!(utm_hull).clip!(map_hull).each do |linestring|
+          end.reproject_to_wgs84.clip(utm_geometry).clip(map_geometry).explode.each do |linestring|
             linestring["ends"].delete 0 if linestring.coordinates[0][0] % 6 < 0.00001
             linestring["ends"].delete 1 if linestring.coordinates[-1][0] % 6 < 0.00001
           end
         end
 
-        boundary_points = GeoJSON.multilinestring(grid.transpose, projection: utm).reproject_to_wgs84.clip!(utm_hull).coordinates.map(&:first)
+        boundary_points = GeoJSON.multilinestring(grid.transpose, projection: utm).reproject_to_wgs84.clip(utm_geometry).coordinates.map(&:first)
         boundary = GeoJSON.linestring boundary_points, properties: { "category" => "boundary" }
 
         [eastings, northings, boundary]
       end.tap do |collections|
         next unless @border
         mm, properties = -0.5 * @params["stroke-width"], { "category" => "edge" }
-        collections << @map.bounding_box(mm: mm, properties: properties).reproject_to_wgs84
+        collections << @map.geometry(mm: mm, properties: properties).reproject_to_wgs84
       end.inject(&:merge)
     end
 
@@ -82,7 +82,7 @@ module NSWTopo
       font_size = label_params["font-size"]
       offset = 0.85 * font_size * @map.metres_per_mm
       inset = INSET + font_size * 0.5 * Math::sin(@map.rotation.abs * Math::PI / 180)
-      inset_hull = @map.bounding_box(mm: -inset).coordinates.first
+      inset_geometry = @map.geometry(mm: -inset)
 
       gridlines = features.select do |linestring|
         linestring["label"]
@@ -99,9 +99,9 @@ module NSWTopo
         easting["ends"].map! { |index| 1 - index }
       end if flip_eastings
 
-      gridlines.map do |gridline|
-        gridline.offset(offset, splits: false).clip(inset_hull)
-      end.compact.flat_map do |gridline|
+      gridlines.inject(GeoJSON::Collection.new(projection: @map.projection)) do |collection, gridline|
+        collection << gridline.offset(offset, splits: false)
+      end.clip(inset_geometry).explode.flat_map do |gridline|
         label, ends = gridline.values_at "label", "ends"
         %i[itself reverse].values_at(*ends).map do |order|
           text_length, text_path = label_element(label, label_params)

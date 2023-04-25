@@ -57,8 +57,8 @@ module NSWTopo
       end
 
       extend Forwardable
-      delegate %i[coordinates properties] => :first
-      delegate %i[reject! select!] => :@features
+      delegate %i[coordinates properties wkt] => :first
+      delegate %i[reject! select! length] => :@features
 
       def to_json(**extras)
         to_h.merge(extras).to_json
@@ -82,11 +82,12 @@ module NSWTopo
         tap { @features.concat other.features }
       end
 
-      def clip!(hull)
-        @features.map! do |feature|
-          feature.clip hull
-        end.compact!
-        self
+      def clip(polygon)
+        OS.ogr2ogr "-f", "GeoJSON", "-lco", "RFC7946=NO", "-clipsrc", polygon.wkt, "/vsistdout/", "GeoJSON:/vsistdin/" do |stdin|
+          stdin.puts to_json
+        end.then do |json|
+          Collection.load json, projection
+        end
       end
 
       def rename(name = nil)

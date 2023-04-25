@@ -42,7 +42,7 @@ module NSWTopo
     VALUE, POINT, ANGLE = "%.5f", "%.5f %.5f", "%.2f"
 
     def create
-      @features = get_features.reproject_to(@map.projection).clip!(@map.bounding_box(**MARGIN).coordinates.first)
+      @features = get_features.reproject_to(@map.projection).clip(@map.geometry(**MARGIN))
       @map.write filename, @features.to_json
     end
 

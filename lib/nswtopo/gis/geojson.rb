@@ -94,6 +94,5 @@ end
 require_relative 'geojson/point'
 require_relative 'geojson/line_string'
 require_relative 'geojson/polygon'
-require_relative 'geojson/multi_point'
 require_relative 'geojson/multi_line_string'
 require_relative 'geojson/multi_polygon'

@@ -35,7 +35,7 @@ module NSWTopo
       end
 
       REXML::Element.new("use").tap do |use|
-        use.add_attributes "id" => @name, "mask" => "url(##{@name}.mask)", "href" => "#map.rect", "fill" => shade || colour
+        use.add_attributes "id" => @name, "mask" => "url(##{@name}.mask)", "href" => "#map.neatline", "fill" => shade || colour
         use.add_attributes @params.slice("opacity")
       end.tap(&block)
     end

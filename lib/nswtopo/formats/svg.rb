@@ -17,6 +17,14 @@ module NSWTopo
   end
 
   module Formats
+    def neatline
+      geometry.coordinates.map do |ring|
+        ring.map do |point|
+          coords_to_mm(point).join(" ")
+        end.join(" L ").prepend("M ").concat(" Z")
+      end.join(" ")
+    end
+
     def render_svg(svg_path, background:, **options)
       if uptodate?("map.svg", "map.yml")
         xml = REXML::Document.new read("map.svg")
@@ -51,6 +59,8 @@ module NSWTopo
         # add defs for map filters and masks
         defs = svg.add_element("defs", "id" => "map.defs")
         defs.add_element("rect", "id" => "map.rect", "width" => width, "height" => height)
+        defs.add_element("path", "id" => "map.neatline", "d" => neatline)
+        defs.add_element("clipPath", "id" => "map.clip").add_element("use", "href" => "#map.neatline")
 
         # add a filter converting alpha channel to cutout mask
         defs.add_element("filter", "id" => "map.filter.cutout").tap do |filter|
@@ -99,12 +109,12 @@ module NSWTopo
         end.reject do |element|
           svg.add_element(element) if "defs" == element.name
         end.tap do
-          svg.add_element("use", "id" => "map.background", "href" => "#map.rect", "fill" => "white")
+          svg.add_element("use", "id" => "map.background", "href" => "#map.neatline", "fill" => "white")
         end.chunk do |element|
           element.attributes["mask"]
-        end.each do |mask, elements|
-          elements.each.with_object(svg.add_element("g", "mask" => mask)) do |element, group|
-            group.add_element element
+        end.each.with_object(svg.add_element("g", "clip-path" => "url(#map.clip)")) do |(mask, elements), clip_group|
+          elements.each.with_object(clip_group.add_element("g", "mask" => mask)) do |element, mask_group|
+            mask_group.add_element element
             element.delete_attribute "mask"
           end
         end

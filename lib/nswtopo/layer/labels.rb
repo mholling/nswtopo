@@ -357,7 +357,8 @@ module NSWTopo
     end
 
     def labelling_hull
-      @labelling_hull ||= @map.bounding_box(mm: -INSET).coordinates.first.map(&to_mm)
+      # TODO: doesn't account for map insets, need to replace with generalised check for non-covex @map.geometry
+      @labelling_hull ||= @map.geometry(mm: -INSET).coordinates.first.transpose.map(&:minmax).inject(&:product).values_at(0,2,3,1,0).map(&to_mm)
     end
 
     def barrier_segments

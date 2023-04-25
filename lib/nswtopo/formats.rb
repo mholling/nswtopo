@@ -20,6 +20,7 @@ module NSWTopo
       --hide-scrollbars
       --disable-gpu
       --force-color-profile=srgb
+      --default-background-color=00000000
     ]
 
     def self.extensions
@@ -105,7 +106,6 @@ module NSWTopo
           raise "couldn't rasterise map using chrome" unless status.success? && page_path.file?
 
           REXML::Document.new(OS.gdal_translate "-of", "VRT", page_path, "/vsistdout/").tap do |vrt|
-            vrt.elements.each("VRTDataset/VRTRasterBand[@band='4']", &:remove)
             vrt.elements.each("VRTDataset/VRTRasterBand/SimpleSource/DstRect") do |dst_rect|
               dst_rect.add_attributes "xOff" => raster_offset[0], "yOff" => raster_offset[1]
             end
@@ -116,6 +116,7 @@ module NSWTopo
           vrt.elements["VRTDataset/VRTRasterBand[@band='1']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='1']/SimpleSource"]
           vrt.elements["VRTDataset/VRTRasterBand[@band='2']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='2']/SimpleSource"]
           vrt.elements["VRTDataset/VRTRasterBand[@band='3']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='3']/SimpleSource"]
+          vrt.elements["VRTDataset/VRTRasterBand[@band='4']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='4']/SimpleSource"]
           vrt
         end.tap do |vrt|
           vrt.elements.each("VRTDataset/VRTRasterBand/@blockYSize", &:remove)

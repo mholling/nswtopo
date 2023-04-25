@@ -36,3 +36,7 @@ $ nswtopo init --dimensions 210,297 --coords 148.387,-36.148 map.tgz
 # Map Scale
 
 A 1:25000 scale is conventional and should work well for most purposes. Change to a smaller or larger scale using the `--scale` option.
+
+# Map Corner Inset
+
+Use the `--inset` option to remove a rectangular corner from the map. Specify the size of the inset in millimetres, using the sign to indicate which corner of the map to inset: positive values for the northeast corner, negative values for the southwest corner, and so on.

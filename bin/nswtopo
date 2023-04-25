@@ -54,6 +54,7 @@ begin
   PositiveFloat = /\A#{float}\z/
   NonNegFloat   = 0..Float::INFINITY
   Dimensions    = /\A#{float},#{float}\z/
+  Inset         = Class.new
   Margins       = /\A#{float}(?:,#{float})?\z/
   CoordList     = /\A#{coords}(?:,#{coords})*\z/
   Rotation      = /\A(?:#{float}|magnetic|auto)\z/
@@ -83,6 +84,12 @@ begin
     dimensions = string.split(?,).map(&:to_f)
     raise OptionParser::InvalidArgument, string unless dimensions.all?(&:positive?)
     dimensions
+  end
+
+  OptionParser.accept Inset, Dimensions do |string|
+    inset = string.split(?,).map(&:to_f)
+    raise OptionParser::InvalidArgument, string if inset.any?(&:zero?)
+    inset
   end
 
   OptionParser.accept Margins, Margins do |string|
@@ -207,7 +214,8 @@ begin
       parser.on "-b", "--bounds      <bounds.kml>",   Pathname,     "bounds for map as KML or GPX file"
       parser.on "-c", "--coords      <x1,y1,...>",    CoordList,    "bounds for map as one or more WGS84",
                                                                     "longitude/latitude pairs" 
-      parser.on "-d", "--dimensions  <width,height>", Dimensions,   "dimensions of map in mm"
+      parser.on "-d", "--dimensions  <width,height>", Dimensions,   "map dimensions in mm"
+      parser.on "-i", "--inset       <width,height>", Inset,        "map corner inset in mm"
       parser.on "-m", "--margins     <x[,y]>",        Margins,      "map margins in mm"
       parser.on "-r", "--rotation    <rotation>",     Rotation,     "map rotation angle in clockwise",
                                                                     "degrees, 'auto' or 'magnetic'"
@@ -450,7 +458,7 @@ begin
   case command
   when "layers"
     raise OptionParser::NeedlessArgument, ARGV if ARGV.any?
-    NSWTopo.layers options
+    NSWTopo.layers **options
     exit
   when "config"
     layer = ARGV.shift

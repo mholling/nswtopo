@@ -3,28 +3,6 @@ module NSWTopo
     class MultiLineString
       include StraightSkeleton
 
-      def clip(hull)
-        [hull, hull.perps].transpose.inject(@coordinates) do |result, (vertex, perp)|
-          result.flat_map do |points|
-            [*points, points.last].segments.each.with_object [[]] do |segment, lines|
-              inside = segment.map { |point| point.minus(vertex).dot(perp) >= 0 }
-              case
-              when inside.all?
-                lines.last << segment[0]
-              when inside[0]
-                lines.last << segment[0]
-                lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.diff.dot(perp))
-              when inside[1]
-                lines << []
-                lines.last << segment.along(vertex.minus(segment[0]).dot(perp) / segment.diff.dot(perp))
-              end
-            end
-          end
-        end.select(&:many?).then do |lines|
-          lines.none? ? nil : lines.one? ? LineString.new(*lines, @properties) : MultiLineString.new(lines, @properties)
-        end
-      end
-
       def length
         @coordinates.sum(&:path_length)
       end

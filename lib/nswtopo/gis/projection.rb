@@ -49,10 +49,11 @@ module NSWTopo
       end
     end
 
-    def self.utm_hull(zone)
+    def self.utm_geometry(zone)
       longitudes = [31, 30].map { |offset| (zone - offset) * 6.0 }
       latitudes = [-80.0, 84.0]
-      longitudes.product(latitudes).values_at(0,2,3,1)
+      ring = longitudes.product(latitudes).values_at(0,2,3,1,0)
+      GeoJSON.polygon [ring], projection: Projection.wgs84
     end
   end
 end

@@ -2,13 +2,14 @@ module NSWTopo
   class Map
     include Formats, Dither, Zip, Log, Safely, TiledWebMap
 
-    def initialize(archive, projection:, scale:, extents:, insets: [0, 0], rotation:, layers: {})
-      @archive, @scale, @extents, @insets, @rotation, @layers = archive, scale, extents, insets, rotation, layers
-      @projection = Projection.new projection
+    def initialize(archive, geometry:, scale:, rotation:, layers: {})
+      @archive, @geometry, @scale, @rotation, @layers = archive, geometry, scale, rotation, layers
+      @projection = @geometry.projection
+      @extents = @geometry.bounds.map { |min, max| max - min }
       @top_right = @extents.times(0.5)
       @mm_per_metre, @metres_per_mm = 1000.0 / @scale, @scale / 1000.0
     end
-    attr_reader :projection, :scale, :extents, :rotation, :metres_per_mm
+    attr_reader :projection, :scale, :rotation, :metres_per_mm
 
     extend Forwardable
     delegate %i[write mtime read uptodate?] => :@archive
@@ -91,12 +92,30 @@ module NSWTopo
         raise OptionParser::InvalidArgument, "inset larger than map dimension" unless inset.abs < extent
       end
 
-      new(archive, projection: projection, scale: scale, extents: extents, insets: insets, rotation: rotation).save
+      extents.map do |extent|
+        [-0.5 * extent, 0.5 * extent]
+      end.zip(insets).map do |(min, max), inset|
+        inset > 0 ? [min, max - inset, max] : [min, min - inset, max]
+      end.inject(&:product).then do |points|
+        case
+        when insets[0] > 0 && insets[1] > 0 then points.values_at(0,6,7,4,5,2,0)
+        when insets[0] > 0 && insets[1] < 0 then points.values_at(0,3,4,7,8,2,0)
+        when insets[0] < 0 && insets[1] > 0 then points.values_at(0,6,8,5,4,1,0)
+        when insets[0] < 0 && insets[1] < 0 then points.values_at(3,6,8,2,1,4,3)
+        else                                     points.values_at(0,6,8,2,0)
+        end
+      end.then do |ring|
+        GeoJSON.polygon [ring], projection: projection
+      end.then do |geometry|
+        new(archive, geometry: geometry, scale: scale, rotation: rotation).save
+      end
     end
 
     def self.load(archive)
-      new archive, **YAML.load(archive.read "map.yml")
-    rescue ArgumentError, YAML::Exception
+      properties = YAML.load(archive.read "map.yml")
+      geometry = GeoJSON::Collection.load(archive.read "map.json")
+      new archive, geometry: geometry, **properties
+    rescue ArgumentError, YAML::Exception, GeoJSON::Error
       raise NSWTopo::Archive::Invalid
     end
 
@@ -113,15 +132,22 @@ module NSWTopo
       height && xml.elements["svg[@height='#{height}mm']"] || raise(Version::Error)
 
       if metadata = xml.elements["svg/metadata/nswtopo:map[@projection][@scale]"]
-        projection = metadata.attributes["projection"]
+        wkt2 = metadata.attributes["projection"]
         scale = metadata.attributes["scale"].to_i
-        /PARAMETER\["Azimuth of initial line",(?<rotation>\-?\d+(\.\d+)?)/ =~ projection
+        /PARAMETER\["Azimuth of initial line",(?<rotation>\-?\d+(\.\d+)?)/ =~ wkt2
       else
-        projection, scale = Projection.transverse_mercator(0, 0), 25000
+        wkt2, scale = Projection.transverse_mercator(0, 0).wkt2, 25000
       end
 
-      extents = [width, height].map { |mm| Float(mm) * scale / 1000 }
-      new(archive, projection: projection, scale: scale, extents: extents, rotation: rotation.to_f).save.tap do |map|
+      [width, height].map do |mm|
+        Float(mm) * scale / 1000
+      end.map do |extent|
+        [-0.5 * extent, 0.5 * extent]
+      end.inject(&:product).values_at(0,2,3,1,0).then do |ring|
+        GeoJSON.polygon [ring], projection: Projection.new(wkt2)
+      end.then do |geometry|
+        new(archive, geometry: geometry, scale: scale, rotation: rotation.to_f).save
+      end.tap do |map|
         map.write "map.svg", svg_path.read
       end
     rescue Version::Error
@@ -133,7 +159,10 @@ module NSWTopo
     end
 
     def save
-      tap { write "map.yml", YAML.dump(projection: @projection.to_s, scale: @scale, extents: @extents, insets: @insets, rotation: @rotation, layers: @layers) }
+      tap do
+        write "map.json", @geometry.to_json
+        write "map.yml", YAML.dump(scale: @scale, rotation: @rotation, layers: @layers)
+      end
     end
 
     def layers
@@ -146,22 +175,11 @@ module NSWTopo
       GeoJSON.point([0, 0], projection: @projection).reproject_to_wgs84.coordinates
     end
 
-    def geometry(mm: nil, metres: nil, properties: {})
-      margin = mm ? mm * @metres_per_mm : metres ? metres : 0
-      @extents.map do |extent|
-        [-0.5 * extent - margin, 0.5 * extent + margin]
-      end.zip(@insets).map do |(min, max), inset|
-        inset > 0 ? [min, max - inset, max] : [min, min - inset, max]
-      end.inject(&:product).then do |points|
-        case
-        when @insets[0] > 0 && @insets[1] > 0 then points.values_at(0,6,7,4,5,2,0)
-        when @insets[0] > 0 && @insets[1] < 0 then points.values_at(0,3,4,7,8,2,0)
-        when @insets[0] < 0 && @insets[1] > 0 then points.values_at(0,6,8,5,4,1,0)
-        when @insets[0] < 0 && @insets[1] < 0 then points.values_at(3,6,8,2,1,4,3)
-        else                                       points.values_at(0,6,8,2,0)
-        end
-      end.then do |ring|
-        GeoJSON.polygon [ring], projection: @projection, properties: properties
+    def geometry(mm: nil, metres: nil)
+      case
+      when mm     then @geometry.buffer(mm * @metres_per_mm).explode
+      when metres then @geometry.buffer(metres).explode
+      else             @geometry
       end
     end
 
@@ -290,13 +308,10 @@ module NSWTopo
 
     def info(empty: nil, json: false, proj: false, wkt2: false)
       dimensions = @extents.times(@mm_per_metre)
-      inset = @insets.times(@mm_per_metre)
-      corner = [%W[E W], %W[N S]].zip(@insets).map { |(e, w), inset| inset > 0 ? e : w }.reverse.join
       case
       when json
         bbox = geometry.reproject_to_wgs84.first
-        bbox.properties.merge! scale: @scale, dimensions: dimensions, extents: @extents, rotation: rotation, projection: @projection, layers: layers.map(&:name)
-        bbox.properties.merge! inset: inset unless inset.any?(&:zero?)
+        bbox.properties.merge! scale: @scale, dimensions: dimensions, extents: @extents, rotation: @rotation, projection: @projection, layers: layers.map(&:name)
         JSON.pretty_generate bbox.to_h
       when proj
         OS.gdalsrsinfo("-o", "proj4", "--single-line", @projection)
@@ -306,10 +321,9 @@ module NSWTopo
         StringIO.new.tap do |io|
           io.puts "%-11s 1:%i" %                    ["scale:",      @scale]
           io.puts "%-11s %imm × %imm" %             ["dimensions:", *dimensions.map(&:round)]
-          io.puts "%-11s %imm × %imm (%s corner)" % ["inset:",      *inset.map(&:round).map(&:abs), corner] unless inset.any?(&:zero?)
           io.puts "%-11s %.1fkm × %.1fkm" %         ["extent:",     *@extents.times(0.001)]
-          io.puts "%-11s %.1fkm²" %                 ["area:",       @extents.inject(&:*) * 0.000001]
-          io.puts "%-11s %.1f°" %                   ["rotation:",   rotation]
+          io.puts "%-11s %.1fkm²" %                 ["area:",       @geometry.area * 0.000001]
+          io.puts "%-11s %.1f°" %                   ["rotation:",   @rotation]
           layers.reject(&empty ? :nil? : :empty?).inject("layers:") do |heading, layer|
             io.puts "%-11s %s" % [heading, layer]
             nil

@@ -57,7 +57,7 @@ module NSWTopo
       end
 
       extend Forwardable
-      delegate %i[coordinates properties wkt] => :first
+      delegate %i[coordinates properties wkt area] => :first
       delegate %i[reject! select! length] => :@features
 
       def to_json(**extras)
@@ -86,7 +86,15 @@ module NSWTopo
         OS.ogr2ogr "-f", "GeoJSON", "-lco", "RFC7946=NO", "-clipsrc", polygon.wkt, "/vsistdout/", "GeoJSON:/vsistdin/" do |stdin|
           stdin.puts to_json
         end.then do |json|
-          Collection.load json, projection
+          Collection.load json, @projection
+        end
+      end
+
+      def buffer(*margins, **options)
+        map do |feature|
+          feature.buffer(*margins, **options)
+        end.then do |features|
+          Collection.new features: features, projection: @projection
         end
       end
 

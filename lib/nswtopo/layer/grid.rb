@@ -51,8 +51,11 @@ module NSWTopo
         [eastings, northings, boundary]
       end.tap do |collections|
         next unless @border
-        mm, properties = -0.5 * @params["stroke-width"], { "category" => "edge" }
-        collections << @map.geometry(mm: mm, properties: properties).reproject_to_wgs84
+        mm = -0.5 * @params["stroke-width"]
+        @map.geometry(mm: mm).reproject_to_wgs84.tap do |border|
+          border.properties.replace "category" => "edge"
+          collections << border
+        end
       end.inject(&:merge)
     end
 

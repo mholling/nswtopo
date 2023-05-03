@@ -173,15 +173,15 @@ module NSWTopo
                 when "centrelines"
                   feature.respond_to?(arg) ? feature.send(arg, **opts) : feature
                 when "centrepoints"
-                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.metres_per_mm
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE)
                   feature.respond_to?(arg) ? feature.send(arg, interval: interval, **opts) : feature
                 when "centres"
-                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.metres_per_mm
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE)
                   feature.respond_to?(arg) ? feature.send(arg, interval: interval, **opts) : feature
                 when "centroids"
                   feature.respond_to?(arg) ? feature.send(arg) : feature
                 when "samples"
-                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.metres_per_mm
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE)
                   feature.respond_to?(arg) ? feature.send(arg, interval) : feature
                 else
                   raise "unrecognised label transform: reduce: %s" % arg
@@ -191,7 +191,7 @@ module NSWTopo
                 case arg
                 when "samples"
                   next feature unless feature.respond_to? arg
-                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE) * @map.metres_per_mm
+                  interval = Float(opts.delete(:interval) || DEFAULT_SAMPLE)
                   [feature, *feature.send(arg, interval)]
                 else
                   raise "unrecognised label transform: fallback: %s" % arg
@@ -199,17 +199,17 @@ module NSWTopo
 
               when "offset", "buffer"
                 next feature unless feature.respond_to? transform
-                margins = [arg, *args].map { |value| Float(value) * @map.metres_per_mm }
+                margins = [arg, *args].map { |value| Float(value) }
                 feature.send transform, *margins, **opts
 
               when "smooth"
                 next feature unless feature.respond_to? transform
-                margin = Float(arg) * @map.metres_per_mm
+                margin = Float(arg)
                 max_turn = attributes["max-turn"] * Math::PI / 180
                 feature.send transform, margin, cutoff_angle: max_turn, **opts
 
               when "minimum-area"
-                area = Float(arg) * @map.metres_per_mm**2
+                area = Float(arg)
                 case feature
                 when GeoJSON::MultiLineString
                   feature.coordinates = feature.coordinates.reject do |linestring|
@@ -224,14 +224,14 @@ module NSWTopo
 
               when "minimum-length"
                 next feature unless GeoJSON::MultiLineString === feature
-                distance = Float(arg) * @map.metres_per_mm
+                distance = Float(arg)
                 feature.coordinates = feature.coordinates.reject do |linestring|
                   linestring.path_length < distance
                 end
                 feature.empty? ? [] : feature
 
               when "minimum-hole", "remove-holes"
-                area = Float(arg).abs * @map.metres_per_mm**2 unless true == arg
+                area = Float(arg).abs unless true == arg
                 feature.coordinates = feature.coordinates.map do |rings|
                   rings.reject do |ring|
                     area ? (-area...0) === ring.signed_area : ring.signed_area < 0
@@ -261,7 +261,7 @@ module NSWTopo
 
               when "trim"
                 next feature unless GeoJSON::MultiLineString === feature
-                distance = Float(arg) * @map.metres_per_mm
+                distance = Float(arg)
                 feature.coordinates = feature.coordinates.map do |linestring|
                   linestring.trim distance
                 end.reject(&:empty?)
@@ -277,7 +277,7 @@ module NSWTopo
             when GeoJSON::MultiPolygon    then line_attributes
             end
           end.then do |features|
-            GeoJSON::Collection.new(projection: @map.projection, features: features).explode.extend(LabelFeatures)
+            GeoJSON::Collection.new(projection: @map.neatline.projection, features: features).explode.extend(LabelFeatures)
           end.tap do |collection|
             collection.text, collection.dual, collection.layer_name = text, dual, layer.name
           end
@@ -357,14 +357,12 @@ module NSWTopo
     end
 
     def labelling_hull
-      # TODO: doesn't account for map insets, need to replace with generalised check for non-covex @map.geometry
-      @labelling_hull ||= @map.geometry(mm: -INSET).coordinates.first.transpose.map(&:minmax).inject(&:product).values_at(0,2,3,1,0).map(&to_mm)
+      # TODO: doesn't account for map insets, need to replace with generalised check for non-covex @map.neatline
+      @labelling_hull ||= @map.neatline(mm: -INSET).coordinates.first.transpose.map(&:minmax).inject(&:product).values_at(0,2,3,1,0)
     end
 
     def barrier_segments
-      @barrier_segments ||= barriers.flat_map do |barrier|
-        barrier.segments(&to_mm)
-      end.then do |segments|
+      @barrier_segments ||= barriers.flat_map(&:segments).then do |segments|
         RTree.load(segments, &:bounds)
       end
     end
@@ -375,7 +373,7 @@ module NSWTopo
       line_height = attributes["line-height"]
       font_size   = attributes["font-size"]
 
-      point = feature.coordinates.then(&to_mm)
+      point = feature.coordinates
       lines = Font.in_two collection.text, attributes
       lines = [[collection.text, Font.glyph_length(collection.text, attributes)]] if lines.map(&:first).map(&:length).min == 1
       height = lines.map { font_size }.inject { |total| total + line_height }
@@ -435,7 +433,7 @@ module NSWTopo
     def line_string_candidates(collection, label_index, feature_index, feature)
       closed = feature.coordinates.first == feature.coordinates.last
       pairs = closed ? :ring : :segments
-      data = feature.coordinates.map(&to_mm)
+      data = feature.coordinates
 
       attributes  = feature.properties
       orientation = attributes["orientation"]

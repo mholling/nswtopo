@@ -39,4 +39,4 @@ A 1:25000 scale is conventional and should work well for most purposes. Change t
 
 # Map Corner Inset
 
-Use the `--inset` option to remove a rectangular corner from the map. Specify the size of the inset in millimetres, using the sign to indicate which corner of the map to inset: positive values for the northeast corner, negative values for the southwest corner, and so on.
+Use the `--inset` option to remove a rectangular corner from the map. Specify the size of the inset in millimetres, using the sign to indicate which corner of the map to inset: positive values for the southeast corner, negative values for the northwest corner, and so on.

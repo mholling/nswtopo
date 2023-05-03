@@ -42,7 +42,7 @@ module NSWTopo
     VALUE, POINT, ANGLE = "%.5f", "%.5f %.5f", "%.2f"
 
     def create
-      @features = get_features.reproject_to(@map.projection).clip(@map.geometry(**MARGIN))
+      @features = get_features.reproject_to(@map.neatline.projection).clip(@map.neatline(**MARGIN))
       @map.write filename, @features.to_json
     end
 
@@ -56,10 +56,6 @@ module NSWTopo
 
     extend Forwardable
     def_delegator :features, :none?, :empty?
-
-    def to_mm
-      @to_mm ||= @map.method(:coords_to_mm)
-    end
 
     def drawing_features
       features.explode.reject do |feature|
@@ -157,18 +153,18 @@ module NSWTopo
           case feature
           when GeoJSON::Point
             symbol_id = [*ids, "symbol"].join(?.)
-            transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*feature.coordinates.then(&to_mm), feature.fetch("rotation", @map.rotation) - @map.rotation]
+            transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*feature.coordinates, feature.fetch("rotation", @map.rotation) - @map.rotation]
             content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
 
           when GeoJSON::LineString
-            linestring = feature.coordinates.map(&to_mm)
+            linestring = feature.coordinates
             (section ? linestring.in_sections(section) : [linestring]).each do |linestring|
               content.add_element "path", "fill" => "none", "d" => svg_path_data(linestring, bezier: bezier)
             end
 
           when GeoJSON::Polygon
             path_data = feature.coordinates.map do |ring|
-              svg_path_data ring.map(&to_mm), bezier: bezier
+              svg_path_data ring, bezier: bezier
             end.each.with_object("Z").entries.join(?\s)
             content.add_element "path", "fill-rule" => "nonzero", "d" => path_data
 
@@ -230,7 +226,7 @@ module NSWTopo
             lines_or_rings = features.grep(GeoJSON::LineString).map(&:coordinates)
             lines_or_rings += features.grep(GeoJSON::Polygon).flat_map(&:coordinates)
             lines_or_rings.each do |points|
-              points.map(&to_mm).sample_at(interval, angle: true, offset: offset).each do |point, angle|
+              points.sample_at(interval, angle: true, offset: offset).each do |point, angle|
                 transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*point, 180.0 * angle / Math::PI]
                 content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_ids.sample
               end
@@ -243,9 +239,7 @@ module NSWTopo
             args.each do |element, attributes|
               symbol.add_element element, attributes
             end
-            features.grep(GeoJSON::LineString).map do |feature|
-              feature.coordinates.map(&to_mm)
-            end.each do |line|
+            features.grep(GeoJSON::LineString).map(&:coordinates).each do |line|
               case command
               when "inpoint"  then [line.first(2)]
               when "outpoint" then [line.last(2).rotate]

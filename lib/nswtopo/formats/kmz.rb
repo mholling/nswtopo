@@ -49,8 +49,9 @@ module NSWTopo
       metre_resolution = 0.0254 * @scale / ppi
       degree_resolution = 180.0 * metre_resolution / Math::PI / Kmz::EARTH_RADIUS
 
-      wgs84_bounds = bounds(projection: Projection.wgs84)
+      wgs84_bounds = @cutline.reproject_to_wgs84.bounds
       wgs84_dimensions = wgs84_bounds.transpose.diff / degree_resolution
+
       max_zoom = Math::log2(wgs84_dimensions.max).ceil - Math::log2(Kmz::TILE_SIZE).to_i
       png_path = yield(ppi: ppi)
 
@@ -130,7 +131,7 @@ module NSWTopo
             document.add_element("LookAt").tap do |look_at|
               range_x = @extents.first / 2.0 / Math::tan(Kmz::FOV) / Math::cos(Kmz::TILT)
               range_y = @extents.last / Math::cos(Kmz::FOV - Kmz::TILT) / 2 / (Math::tan(Kmz::FOV - Kmz::TILT) + Math::sin(Kmz::TILT))
-              names_values = [%w[longitude latitude], wgs84_centre].transpose
+              names_values = [%w[longitude latitude], @centre].transpose
               names_values << ["tilt", Kmz::TILT * 180.0 / Math::PI] << ["range", 1.2 * [range_x, range_y].max] << ["heading", rotation]
               names_values.each { |name, value| look_at.add_element(name).text = value }
             end

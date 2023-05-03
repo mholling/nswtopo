@@ -29,16 +29,24 @@ module NSWTopo
       new("EPSG:4326")
     end
 
-    def self.transverse_mercator(lon, lat)
-      new("+proj=tmerc +lon_0=#{lon} +lat_0=#{lat} +datum=WGS84")
+    def self.from(**params)
+      params.map do |key, value|
+        "+#{key}=#{value}"
+      end.then do |args|
+        new args.join(?\s)
+      end
     end
 
-    def self.oblique_mercator(lon, lat, alpha)
-      new("+proj=omerc +lonc=#{lon} +lat_0=#{lat} +alpha=#{alpha} +gamma=0 +datum=WGS84")
+    def self.transverse_mercator(lon_0, lat_0, **params)
+      from proj: "tmerc", datum: "WGS84", lon_0: lon_0, lat_0: lat_0, **params
     end
 
-    def self.azimuthal_equidistant(lon, lat)
-      new("+proj=aeqd +lon_0=#{lon} +lat_0=#{lat} +datum=WGS84")
+    def self.oblique_mercator(lonc, lat_0, alpha:, **params)
+      from proj: "omerc", datum: "WGS84", lonc: lonc, lat_0: lat_0, gamma: 0, alpha: alpha, **params
+    end
+
+    def self.azimuthal_equidistant(lon_0, lat_0)
+      from proj: "aeqd", datum: "WGS84", lon_0: lon_0, lat_0: lat_0
     end
 
     def self.utm_zones(collection)

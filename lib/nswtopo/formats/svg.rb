@@ -17,10 +17,10 @@ module NSWTopo
   end
 
   module Formats
-    def neatline
-      geometry.coordinates.map do |ring|
+    def neatline_path_data
+      @neatline.coordinates.map do |ring|
         ring.map do |point|
-          coords_to_mm(point).join(" ")
+          point.join(" ")
         end.join(" L ").prepend("M ").concat(" Z")
       end.join(" ")
     end
@@ -31,7 +31,7 @@ module NSWTopo
         xml.elements["svg/metadata/rdf:RDF/rdf:Description"].add_attributes("xmp:ModifyDate" => Time.now.iso8601)
 
       else
-        width, height = @extents.times(@mm_per_metre)
+        width, height = @dimensions
         xml = REXML::Document.new
         xml << REXML::XMLDecl.new(1.0, "utf-8")
         svg = xml.add_element "svg",
@@ -44,8 +44,10 @@ module NSWTopo
 
         metadata = svg.add_element("metadata")
         metadata.add_element("nswtopo:map",
-          "projection" => @projection,
-          "scale" => @scale
+          "projection" => @neatline.projection.wkt2,
+          "centre" => @centre.join(?,),
+          "scale" => @scale,
+          "rotation" => @rotation
         )
         metadata.add_element("rdf:RDF",
           "xmlns:rdf" => "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
@@ -59,7 +61,7 @@ module NSWTopo
         # add defs for map filters and masks
         defs = svg.add_element("defs", "id" => "map.defs")
         defs.add_element("rect", "id" => "map.rect", "width" => width, "height" => height)
-        defs.add_element("path", "id" => "map.neatline", "d" => neatline)
+        defs.add_element("path", "id" => "map.neatline", "d" => neatline_path_data)
         defs.add_element("clipPath", "id" => "map.clip").add_element("use", "href" => "#map.neatline")
 
         # add a filter converting alpha channel to cutout mask

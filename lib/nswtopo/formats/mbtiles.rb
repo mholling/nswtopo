@@ -1,7 +1,7 @@
 module NSWTopo
   module Formats
     def render_mbtiles(mbtiles_path, name:, **options, &block)
-      wgs84_bounds = bounds(projection: Projection.wgs84)
+      wgs84_bounds = @cutline.reproject_to_wgs84.bounds
       sql = <<~SQL
         CREATE TABLE metadata (name TEXT, value TEXT);
         INSERT INTO metadata VALUES ("name", "#{name}");

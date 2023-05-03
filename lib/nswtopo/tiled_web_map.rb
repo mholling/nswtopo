@@ -3,8 +3,8 @@ module NSWTopo
     HALF, TILE_SIZE, DEFAULT_ZOOM = Math::PI * 6378137, 256, 16
 
     def tiled_web_map(temp_dir, extension:, zoom: [DEFAULT_ZOOM], **options, &block)
-      web_mercator_bounds = bounds(projection: Projection.new("EPSG:3857"))
-      wgs84_bounds = bounds(projection: Projection.wgs84)
+      web_mercator_bounds = @cutline.reproject_to(Projection.new("EPSG:3857")).bounds
+      wgs84_bounds = @cutline.reproject_to_wgs84.bounds
 
       png_path = nil
       max_zoom, min_zoom = *zoom.sort.reverse

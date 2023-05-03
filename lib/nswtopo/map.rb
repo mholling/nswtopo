@@ -2,20 +2,24 @@ module NSWTopo
   class Map
     include Formats, Dither, Zip, Log, Safely, TiledWebMap
 
-    def initialize(archive, geometry:, scale:, rotation:, layers: {})
-      @archive, @geometry, @scale, @rotation, @layers = archive, geometry, scale, rotation, layers
-      @projection = @geometry.projection
-      @extents = @geometry.bounds.map { |min, max| max - min }
-      @top_right = @extents.times(0.5)
-      @mm_per_metre, @metres_per_mm = 1000.0 / @scale, @scale / 1000.0
+    def initialize(archive, neatline:, centre:, dimensions:, scale:, rotation:, layers: {})
+      @archive, @neatline, @centre, @dimensions, @scale, @rotation, @layers = archive, neatline, centre, dimensions, scale, rotation, layers
+      @projection = rotation.zero? ?
+        Projection.transverse_mercator(*centre) :
+        Projection.oblique_mercator(*centre, alpha: rotation)
+      @cutline = @neatline.reproject_to(@projection)
+      @metres_per_mm = @scale / 1000.0
+      @extents = @dimensions.times(@metres_per_mm)
     end
-    attr_reader :projection, :scale, :rotation, :metres_per_mm
+    attr_reader :centre, :dimensions, :scale, :rotation, :projection, :metres_per_mm
 
     extend Forwardable
     delegate %i[write mtime read uptodate?] => :@archive
 
     def self.init(archive, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, inset: [0, 0], margins: nil)
-      wgs84_points = case
+      points = case
+      when dimensions && margins
+        raise "can't specify both margins and map dimensions"
       when coords && bounds
         raise "can't specify both bounds file and map coordinates"
       when coords
@@ -36,85 +40,73 @@ module NSWTopo
       else
         raise "no bounds file or map coordinates specified"
       end
+      margins ||= [0, 0]
 
-      wgs84_centre = wgs84_points.transpose.map(&:minmax).map(&:sum).times(0.5)
-      projection = Projection.azimuthal_equidistant *wgs84_centre
+      centre = points.transpose.map(&:minmax).map(&:sum).times(0.5)
+      equidistant = Projection.azimuthal_equidistant *centre
 
       case rotation
       when "auto"
         raise "can't specify both map dimensions and auto-rotation" if dimensions
-        points = GeoJSON.multipoint(wgs84_points).reproject_to(projection).coordinates
-        centre, extents, rotation = points.minimum_bounding_box(*margins)
+        local_points = GeoJSON.multipoint(points).reproject_to(equidistant).coordinates
+        local_centre, local_extents, rotation = local_points.minimum_bounding_box(*margins)
         rotation *= -180.0 / Math::PI
       when "magnetic"
-        rotation = declination(*wgs84_centre)
+        rotation = declination(*centre)
       else
         raise "map rotation must be between ±45°" unless rotation.abs <= 45
       end
 
-      case
-      when centre
-      when dimensions
-        raise "can't specify both margins and map dimensions" if margins
-        extents = dimensions.times(0.001 * scale)
-        centre = GeoJSON.point(wgs84_centre).reproject_to(projection).coordinates
-      else
-        points = GeoJSON.multipoint(wgs84_points).reproject_to(projection).coordinates
-        centre, extents = points.map do |point|
+      unless dimensions || local_centre
+        local_points = GeoJSON.multipoint(points).reproject_to(equidistant).coordinates
+        local_centre, local_extents = local_points.map do |point|
           point.rotate_by_degrees rotation
         end.transpose.map(&:minmax).map do |min, max|
           [0.5 * (max + min), max - min]
         end.transpose
-        centre.rotate_by_degrees! -rotation
+        local_centre.rotate_by_degrees! -rotation
       end
 
-      wgs84_centre = GeoJSON.point(centre, projection: projection).reproject_to_wgs84.coordinates
-      projection = if rotation.zero?
-        Projection.transverse_mercator *wgs84_centre
-      else
-        Projection.oblique_mercator *wgs84_centre, rotation
+      unless dimensions
+        dimensions = local_extents.times(1000.0 / scale).plus margins.times(2)
+        centre = GeoJSON.point(local_centre, projection: equidistant).reproject_to_wgs84.coordinates
       end
 
-      extents = extents.zip(margins).map do |extent, margin|
-        extent + 2 * margin * 0.001 * scale
-      end if margins
+      params = { units: "mm", axis: "esu", k_0: 1.0 / scale, x_0: 0.0005 * dimensions[0], y_0: -0.0005 * dimensions[1] }
+      projection = rotation.zero? ?
+        Projection.transverse_mercator(*centre, **params) :
+        Projection.oblique_mercator(*centre, alpha: rotation, **params)
 
       case
-      when extents.all?(&:positive?)
+      when dimensions.all?(&:positive?)
       when coords
         raise "not enough information to calculate map size – add more coordinates, or specify map dimensions or margins"
       when bounds
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      insets = inset.times(0.001 * scale)
-      insets.zip(extents).each do |inset, extent|
-        raise OptionParser::InvalidArgument, "inset larger than map dimension" unless inset.abs < extent
-      end
-
-      extents.map do |extent|
-        [-0.5 * extent, 0.5 * extent]
-      end.zip(insets).map do |(min, max), inset|
-        inset > 0 ? [min, max - inset, max] : [min, min - inset, max]
+      dimensions.zip(inset).map do |dimension, inset|
+        raise OptionParser::InvalidArgument, "inset larger than map dimension" unless inset.abs < dimension
+        inset > 0 ? [0, dimension - inset, dimension] : [0, 0 - inset, dimension]
       end.inject(&:product).then do |points|
         case
-        when insets[0] > 0 && insets[1] > 0 then points.values_at(0,6,7,4,5,2,0)
-        when insets[0] > 0 && insets[1] < 0 then points.values_at(0,3,4,7,8,2,0)
-        when insets[0] < 0 && insets[1] > 0 then points.values_at(0,6,8,5,4,1,0)
-        when insets[0] < 0 && insets[1] < 0 then points.values_at(3,6,8,2,1,4,3)
-        else                                     points.values_at(0,6,8,2,0)
+        when inset[0] > 0 && inset[1] > 0 then points.values_at(0,6,7,4,5,2,0)
+        when inset[0] > 0 && inset[1] < 0 then points.values_at(0,3,4,7,8,2,0)
+        when inset[0] < 0 && inset[1] > 0 then points.values_at(0,6,8,5,4,1,0)
+        when inset[0] < 0 && inset[1] < 0 then points.values_at(3,6,8,2,1,4,3)
+        else                                   points.values_at(0,6,8,2,0)
         end
       end.then do |ring|
         GeoJSON.polygon [ring], projection: projection
-      end.then do |geometry|
-        new(archive, geometry: geometry, scale: scale, rotation: rotation).save
+      end.then do |neatline|
+        new(archive, neatline: neatline, centre: centre, dimensions: dimensions, scale: scale, rotation: rotation).save
       end
     end
 
     def self.load(archive)
       properties = YAML.load(archive.read "map.yml")
-      geometry = GeoJSON::Collection.load(archive.read "map.json")
-      new archive, geometry: geometry, **properties
+      neatline = GeoJSON::Collection.load(archive.read "map.json")
+      new archive, neatline: neatline, **properties
     rescue ArgumentError, YAML::Exception, GeoJSON::Error
       raise NSWTopo::Archive::Invalid
     end
@@ -130,24 +122,22 @@ module NSWTopo
       /^0\s+0\s+(?<width>\S+)\s+(?<height>\S+)$/ =~ xml.elements["svg[@viewBox]/@viewBox"]&.value
        width && xml.elements["svg[ @width='#{ width}mm']"] || raise(Version::Error)
       height && xml.elements["svg[@height='#{height}mm']"] || raise(Version::Error)
+      dimensions = [width, height].map(&:to_f)
 
-      if metadata = xml.elements["svg/metadata/nswtopo:map[@projection][@scale]"]
-        wkt2 = metadata.attributes["projection"]
-        scale = metadata.attributes["scale"].to_i
-        /PARAMETER\["Azimuth of initial line",(?<rotation>\-?\d+(\.\d+)?)/ =~ wkt2
-      else
-        wkt2, scale = Projection.transverse_mercator(0, 0).wkt2, 25000
+      metadata = xml.elements["svg/metadata/nswtopo:map[@projection][@centre][@scale][@rotation]"] || raise(Version::Error)
+      projection = Projection.new metadata.attributes["projection"]
+      centre = metadata.attributes["centre"].split(?,).map(&:to_f)
+      scale = metadata.attributes["scale"].to_i
+      rotation = metadata.attributes["rotation"].to_f
+
+      path = xml.elements["svg/defs/path[@id='map.neatline'][@d]"] || raise(Version::Error)
+      neatline = path.attributes["d"].delete_prefix("M ").delete_suffix(" Z").split(" L ").map do |pair|
+        pair.split(" ").map(&:to_f)
+      end.then do |ring|
+        GeoJSON.polygon [ring], projection: projection
       end
 
-      [width, height].map do |mm|
-        Float(mm) * scale / 1000
-      end.map do |extent|
-        [-0.5 * extent, 0.5 * extent]
-      end.inject(&:product).values_at(0,2,3,1,0).then do |ring|
-        GeoJSON.polygon [ring], projection: Projection.new(wkt2)
-      end.then do |geometry|
-        new(archive, geometry: geometry, scale: scale, rotation: rotation.to_f).save
-      end.tap do |map|
+      new(archive, neatline: neatline, centre: centre, dimensions: dimensions, scale: scale, rotation: rotation).save.tap do |map|
         map.write "map.svg", svg_path.read
       end
     rescue Version::Error
@@ -160,8 +150,8 @@ module NSWTopo
 
     def save
       tap do
-        write "map.json", @geometry.to_json
-        write "map.yml", YAML.dump(scale: @scale, rotation: @rotation, layers: @layers)
+        write "map.json", @neatline.to_json
+        write "map.yml", YAML.dump(centre: @centre, dimensions: @dimensions, scale: @scale, rotation: @rotation, layers: @layers)
       end
     end
 
@@ -171,22 +161,12 @@ module NSWTopo
       end
     end
 
-    def wgs84_centre
-      GeoJSON.point([0, 0], projection: @projection).reproject_to_wgs84.coordinates
+    def neatline(mm: nil)
+      mm ? @neatline.buffer(mm).explode : @neatline
     end
 
-    def geometry(mm: nil, metres: nil)
-      case
-      when mm     then @geometry.buffer(mm * @metres_per_mm).explode
-      when metres then @geometry.buffer(metres).explode
-      else             @geometry
-      end
-    end
-
-    def bounds(margin: {}, projection: nil)
-      geometry(**margin).then do |bbox|
-        projection ? bbox.reproject_to(projection) : bbox
-      end.coordinates.first.transpose.map(&:minmax)
+    def cutline(mm: nil)
+      mm ? @cutline.buffer(mm * @scale / 1000.0).explode: @cutline
     end
 
     def write_world_file(path, resolution: nil, ppi: nil)
@@ -196,11 +176,6 @@ module NSWTopo
         file.puts -0.5 * (@extents[0] - resolution)
         file.puts  0.5 * (@extents[1] - resolution)
       end
-    end
-
-    def coords_to_mm(point)
-      [ @top_right[0] + point[0],
-        @top_right[1] - point[1] ].times(@mm_per_metre)
     end
 
     def self.declination(longitude, latitude)
@@ -214,7 +189,7 @@ module NSWTopo
     end
 
     def declination
-      Map.declination *wgs84_centre
+      Map.declination *@centre
     end
 
     def add(*layers, after: nil, before: nil, replace: nil, overwrite: false, strict: false)
@@ -307,23 +282,24 @@ module NSWTopo
     end
 
     def info(empty: nil, json: false, proj: false, wkt2: false)
-      dimensions = @extents.times(@mm_per_metre)
       case
       when json
-        bbox = geometry.reproject_to_wgs84.first
-        bbox.properties.merge! scale: @scale, dimensions: dimensions, extents: @extents, rotation: @rotation, projection: @projection, layers: layers.map(&:name)
+        bbox = @neatline.reproject_to_wgs84.first
+        bbox.properties.merge! dimensions: @dimensions, scale: @scale, rotation: @rotation, layers: layers.map(&:name)
         JSON.pretty_generate bbox.to_h
       when proj
         OS.gdalsrsinfo("-o", "proj4", "--single-line", @projection)
       when wkt2
         OS.gdalsrsinfo("-o", "wkt2", @projection).gsub(/\n\n+|\A\n+/, "")
       else
+        area_km2 = @neatline.area * (0.000001 * @scale)**2
+        extents_km = @dimensions.times(0.000001 * @scale)
         StringIO.new.tap do |io|
-          io.puts "%-11s 1:%i" %                    ["scale:",      @scale]
-          io.puts "%-11s %imm × %imm" %             ["dimensions:", *dimensions.map(&:round)]
-          io.puts "%-11s %.1fkm × %.1fkm" %         ["extent:",     *@extents.times(0.001)]
-          io.puts "%-11s %.1fkm²" %                 ["area:",       @geometry.area * 0.000001]
-          io.puts "%-11s %.1f°" %                   ["rotation:",   @rotation]
+          io.puts "%-11s 1:%i" %            ["scale:",      @scale]
+          io.puts "%-11s %imm × %imm" %     ["dimensions:", *@dimensions.map(&:round)]
+          io.puts "%-11s %.1fkm × %.1fkm" % ["extent:",     *extents_km]
+          io.puts "%-11s %.1fkm²" %         ["area:",       area_km2]
+          io.puts "%-11s %.1f°" %           ["rotation:",   @rotation]
           layers.reject(&empty ? :nil? : :empty?).inject("layers:") do |heading, layer|
             io.puts "%-11s %s" % [heading, layer]
             nil

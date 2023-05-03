@@ -17,23 +17,23 @@ module NSWTopo
     def get_features
       @params["fill"] ||= @params["stroke"]
       declination = @angle || @map.declination
-      col_spacing = @map.metres_per_mm * @spacing
-      row_spacing = @map.metres_per_mm * @arrows * 0.5
-      col_offset = @map.metres_per_mm * (@offset % @spacing)
+      col_spacing = @spacing
+      row_spacing = @arrows * 0.5
+      col_offset = @offset % @spacing
 
-      radius = 0.5 * @map.bounds.transpose.distance
+      radius = 0.5 * @map.neatline.bounds.transpose.distance
       j_max = (radius / col_spacing).ceil
       i_max = (radius / row_spacing).ceil
 
-      collection = GeoJSON::Collection.new(projection: @map.projection)
+      collection = GeoJSON::Collection.new(projection: @map.neatline.projection)
       (-j_max..j_max).each do |j|
         x = j * col_spacing + col_offset
-        coordinates = [[x, -radius], [x, radius]].map do |point|
-          point.rotate_by_degrees(@map.rotation - declination)
+        coordinates = [[x, radius], [x, -radius]].map do |point|
+          point.rotate_by_degrees(declination - @map.rotation).plus @map.dimensions.times(0.5)
         end
         collection.add_linestring coordinates
         (-i_max..i_max).reject(&j.even? ? :even? : :odd?).map do |i|
-          [x, i * row_spacing].rotate_by_degrees(@map.rotation - declination)
+          [x, i * row_spacing].rotate_by_degrees(declination - @map.rotation).plus @map.dimensions.times(0.5)
         end.each do |coordinates|
           collection.add_point coordinates, "rotation" => declination
         end

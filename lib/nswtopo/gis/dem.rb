@@ -5,7 +5,7 @@ module NSWTopo
     def get_dem(temp_dir, dem_path)
       txt_path = temp_dir / "dem.txt"
       vrt_path = temp_dir / "dem.vrt"
-      te = @map.bounds(margin: margin).transpose.flatten
+      cutline = @map.cutline(**margin)
 
       Dir.chdir(@source ? @source.parent : Pathname.pwd) do
         log_update "%s: examining DEM" % @name
@@ -29,7 +29,9 @@ module NSWTopo
 
         indexed_dem_path = temp_dir / "dem.#{index}.tif"
         OS.gdalbuildvrt "-overwrite", "-allow_projection_difference", "-a_srs", projection, "-input_file_list", txt_path, vrt_path
-        OS.gdalwarp "-t_srs", @map.projection, "-te", *te, "-tr", @resolution, @resolution, "-r", "bilinear", vrt_path, indexed_dem_path
+        OS.gdalwarp "-t_srs", @map.projection, "-tr", @resolution, @resolution, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline", vrt_path, indexed_dem_path do |stdin|
+          stdin.puts cutline.to_json
+        end
         indexed_dem_path
       end.tap do |dem_paths|
         txt_path.write dem_paths.join(?\n)

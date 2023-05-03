@@ -16,6 +16,7 @@ module NSWTopo
     end
 
     def get_raster(temp_dir)
+      cutline = @map.cutline(**margin)
       dem_path = temp_dir / "dem.tif"
 
       case
@@ -23,9 +24,7 @@ module NSWTopo
         get_dem temp_dir, dem_path
 
       when @contours
-        bounds = @map.bounds(margin: margin)
-        txe, tye, spat = bounds[0], bounds[1].reverse, bounds.transpose.flatten
-
+        bounds = cutline.bounds
         raise "no resolution specified for #{@name}" unless Numeric === @resolution
         outsize = (bounds.transpose.diff / @resolution).map(&:ceil)
 
@@ -35,12 +34,12 @@ module NSWTopo
           attribute = Hash === attribute_or_hash ? attribute_or_hash["attribute"] : attribute_or_hash
           case url_or_path
           when ArcGIS::Service
-            layer = ArcGIS::Service.new(url_or_path).layer(**options, geometry: @map.geometry(**margin))
+            layer = ArcGIS::Service.new(url_or_path).layer(**options, geometry: cutline)
             layer.features do |count, total|
               log_update "%s: retrieved %i of %i contours" % [@name, count, total]
             end
           when Shapefile::Source
-            Shapefile::Source.new(url_or_path).layer(**options, geometry: @map.geometry(**margin), projection: @map.projection).features
+            Shapefile::Source.new(url_or_path).layer(**options, geometry: cutline).features
           else
             raise "unrecognised elevation data source: #{url_or_path}"
           end.each do |feature|
@@ -49,7 +48,7 @@ module NSWTopo
         end.inject(&:merge)
 
         log_update "%s: calculating DEM" % @name
-        OS.gdal_grid "-a", "linear:radius=0:nodata=-9999", "-zfield", "elevation", "-ot", "Float32", "-txe", *txe, "-tye", *tye, "-spat", *spat, "-outsize", *outsize, "/vsistdin/", dem_path do |stdin|
+        OS.gdal_grid "-a", "linear:radius=0:nodata=-9999", "-zfield", "elevation", "-ot", "Float32", "-txe", *bounds[0], "-tye", *bounds[1], "-outsize", *outsize, "/vsistdin/", dem_path do |stdin|
           stdin.puts collection.to_json
         end
 
@@ -63,7 +62,9 @@ module NSWTopo
       begin
         log_update "%s: generating shaded relief" % @name
         OS.gdaldem *%W[hillshade -q -compute_edges -s 1 -z #{@factor} -az #{@azimuth} -#{@method}], dem_path, raw_path
-        OS.gdalwarp "-t_srs", @map.projection, raw_path, tif_path
+        OS.gdalwarp "-t_srs", @map.projection, "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline", raw_path, tif_path do |stdin|
+          stdin.puts cutline.to_json
+        end
       rescue OS::Error
         raise "invalid elevation data"
       end

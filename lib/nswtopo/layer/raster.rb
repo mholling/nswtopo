@@ -4,9 +4,11 @@ module NSWTopo
       Dir.mktmppath do |temp_dir|
         out_path = temp_dir / "output.tif"
 
-        args = ["-t_srs", @map.projection, "-r", "bilinear", "-te", *@map.bounds.transpose.flatten]
+        args = ["-t_srs", @map.projection, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline"]
         args += ["-tr", @resolution, @resolution] if Numeric === @resolution
-        OS.gdalwarp *args, get_raster(temp_dir), out_path
+        OS.gdalwarp *args, get_raster(temp_dir), out_path do |stdin|
+          stdin.puts @map.cutline.to_json
+        end
 
         @map.write filename, out_path.binread
       end

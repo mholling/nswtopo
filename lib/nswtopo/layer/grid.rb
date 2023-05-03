@@ -19,11 +19,11 @@ module NSWTopo
     YAML
 
     def get_features
-      Projection.utm_zones(@map.geometry).flat_map do |zone|
+      Projection.utm_zones(@map.neatline).flat_map do |zone|
         utm, utm_geometry = Projection.utm(zone), Projection.utm_geometry(zone)
-        map_geometry = @map.geometry(**MARGIN).reproject_to_wgs84
+        map_geometry = @map.neatline(**MARGIN).reproject_to_wgs84
 
-        eastings, northings = @map.bounds(projection: utm).map do |min, max|
+        eastings, northings = @map.neatline.reproject_to(utm).bounds.map do |min, max|
           (min / @interval).floor..(max / @interval).ceil
         end.map do |counts|
           counts.map { |count| count * @interval }
@@ -52,7 +52,7 @@ module NSWTopo
       end.tap do |collections|
         next unless @border
         mm = -0.5 * @params["stroke-width"]
-        @map.geometry(mm: mm).reproject_to_wgs84.tap do |border|
+        @map.neatline(mm: mm).reproject_to_wgs84.tap do |border|
           border.properties.replace "category" => "edge"
           collections << border
         end
@@ -83,9 +83,9 @@ module NSWTopo
       return [] if @params["unlabeled"]
       label_params = @params["labels"]
       font_size = label_params["font-size"]
-      offset = 0.85 * font_size * @map.metres_per_mm
+      offset = -0.85 * font_size
       inset = INSET + font_size * 0.5 * Math::sin(@map.rotation.abs * Math::PI / 180)
-      inset_geometry = @map.geometry(mm: -inset)
+      inset_geometry = @map.neatline(mm: -inset)
 
       gridlines = features.select do |linestring|
         linestring["label"]
@@ -102,14 +102,14 @@ module NSWTopo
         easting["ends"].map! { |index| 1 - index }
       end if flip_eastings
 
-      gridlines.inject(GeoJSON::Collection.new(projection: @map.projection)) do |collection, gridline|
+      gridlines.inject(GeoJSON::Collection.new(projection: @map.neatline.projection)) do |collection, gridline|
         collection << gridline.offset(offset, splits: false)
       end.clip(inset_geometry).explode.flat_map do |gridline|
         label, ends = gridline.values_at "label", "ends"
         %i[itself reverse].values_at(*ends).map do |order|
           text_length, text_path = label_element(label, label_params)
           segment = gridline.coordinates.send(order).take(2)
-          fraction = text_length * @map.metres_per_mm / segment.distance
+          fraction = text_length / segment.distance
           coordinates = [segment[0], segment.along(fraction)].send(order)
           GeoJSON::LineString.new coordinates, "label" => text_path
         end

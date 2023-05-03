@@ -64,9 +64,11 @@ module NSWTopo
         tif_path = temp_dir / "source.tif"
         vrt_path = temp_dir / "source.vrt"
 
-        args = ["-t_srs", @map.projection, "-r", "nearest", "-te", *@map.bounds.transpose.flatten]
+        args = ["-t_srs", @map.projection, "-r", "nearest", "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline"]
         args += ["-tr", @resolution, @resolution] if @resolution
-        OS.gdalwarp *args, *vrt_paths, tif_path
+        OS.gdalwarp *args, *vrt_paths, tif_path do |stdin|
+          stdin.puts @map.cutline.to_json
+        end
         OS.gdal_translate "-expand", "gray", "-a_nodata", "none", tif_path, vrt_path
 
         return vrt_path

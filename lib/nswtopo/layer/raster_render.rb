@@ -1,18 +1,10 @@
 module NSWTopo
   module RasterRender
     def render(**, &block)
-      defs = REXML::Element.new("defs").tap(&block)
-      defs.add_attributes "id" => "#{@name}.defs"
-
-      Dir.mktmppath do |tmp|
-        tmp.join("temp.tif").binwrite @map.read(filename)
-        OS.gdal_translate "-of", "PNG", "-co", "ZLEVEL=9", "temp.tif", "/vsistdout/", chdir: tmp
-      end.tap do |png|
-        (width, height), resolution = size_resolution
-        transform = "scale(#{resolution})"
-        href = "data:image/png;base64,#{Base64.encode64 png}"
-        defs.add_element "image", "id" => "#{@name}.content", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
-      end
+      REXML::Element.new("defs").tap do |defs|
+        defs.add_attributes("id" => "#{@name}.defs")
+        defs.add_element(image_element).add_attributes("id" => "#{@name}.content")
+      end.tap(&block)
 
       REXML::Element.new("use").tap do |use|
         use.add_attributes "id" => @name, "mask" => "none", "href" => "##{@name}.content"

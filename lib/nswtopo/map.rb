@@ -172,6 +172,10 @@ module NSWTopo
       metres * 1000.0 / @scale
     end
 
+    def to_metres(mm)
+      mm * @scale / 1000.0
+    end
+
     def geotransform(resolution: nil, ppi: nil)
       mm_per_px = ppi ? 25.4 / ppi : to_mm(resolution)
       [0.0, mm_per_px, 0.0, @dimensions[1], 0.0, -mm_per_px]

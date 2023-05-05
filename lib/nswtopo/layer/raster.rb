@@ -22,21 +22,34 @@ module NSWTopo
       false
     end
 
-    def size_resolution
-      OS.gdalinfo "-json", "/vsistdin/" do |stdin|
-        stdin.binmode.write @map.read(filename)
-      end.then do |json|
-        JSON.parse(json).values_at "size", "geoTransform"
-      end.then do |size, geotransform|
-        next size, geotransform[1]
+    def image_element
+      REXML::Element.new("image").tap do |image|
+        tif = @map.read filename
+        OS.gdalinfo "-json", "/vsistdin/" do |stdin|
+          stdin.binmode.write tif
+        end.then do |json|
+          JSON.parse(json).values_at "size", "geoTransform"
+        end.then do |(width, height), (_, mm_per_px, *)|
+          image.add_attributes "width" => width, "height" => height, "transform" => "scale(#{mm_per_px})"
+        end
+        OS.gdal_translate "-of", "PNG", "-co", "ZLEVEL=9", "/vsistdin/", "/vsistdout/" do |stdin|
+          stdin.binmode.write tif
+        end.then do |png|
+          image.add_attributes "href" => "data:image/png;base64,#{Base64.encode64 png}", "image-rendering" => "optimizeQuality"
+        end
       end
     end
 
     def to_s
-      size, resolution = size_resolution
-      megapixels = size.inject(&:*) / 1024.0 / 1024.0
-      ppi = 25.4 / resolution
-      "%s: %i×%i (%.1fMpx) @ %smm/px (%.0f ppi)" % [@name, *size, megapixels, resolution, ppi]
+      OS.gdalinfo "-json", "/vsistdin/" do |stdin|
+        stdin.binmode.write @map.read(filename)
+      end.then do |json|
+        JSON.parse(json).values_at "size", "geoTransform"
+      end.then do |(width, height), (_, mm_per_px, *)|
+        resolution, ppi = @map.to_metres(mm_per_px), 25.4 / mm_per_px
+        megapixels = width * height / 1024.0 / 1024.0
+        "%s: %i×%i (%.1fMpx) @ %.1fm/px (%.0f ppi)" % [@name, width, height, megapixels, resolution, ppi]
+      end
     end
   end
 end

@@ -191,7 +191,7 @@ module NSWTopo
     end
 
     def write_pam_file(path, **opts)
-      REXML::Element.new("PAMDataset").tap do |pam|
+      REXML::Document.new("", raw: %w[SRS], attribute_quote: :quote).add_element("PAMDataset").tap do |pam|
         pam.add_element("SRS", "dataAxisToSRSAxisMapping" => "1,2").add_text @projection.wkt2
         pam.add_element("GeoTransform").add_text geotransform(**opts).join(?,)
         path.write pam

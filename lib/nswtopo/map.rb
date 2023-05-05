@@ -172,12 +172,25 @@ module NSWTopo
       metres * 1000.0 / @scale
     end
 
-    def write_world_file(path, resolution: nil, ppi: nil)
+    def geotransform(resolution: nil, ppi: nil)
       mm_per_px = ppi ? 25.4 / ppi : to_mm(resolution)
+      [0.0, mm_per_px, 0.0, @dimensions[1], 0.0, -mm_per_px]
+    end
+
+    def write_world_file(path, **opts)
+      ulx, mm_per_px, _, uly, _, _ = geotransform(**opts)
       path.open("w") do |file|
         file.puts mm_per_px, 0, 0, -mm_per_px
-        file.puts 0.5 * mm_per_px
-        file.puts @dimensions[1] - 0.5 * mm_per_px
+        file.puts ulx + 0.5 * mm_per_px
+        file.puts uly - 0.5 * mm_per_px
+      end
+    end
+
+    def write_pam_file(path, **opts)
+      REXML::Element.new("PAMDataset").tap do |pam|
+        pam.add_element("SRS", "dataAxisToSRSAxisMapping" => "1,2").add_text @projection.wkt2
+        pam.add_element("GeoTransform").add_text geotransform(**opts).join(?,)
+        path.write pam
       end
     end
 
@@ -317,17 +330,17 @@ module NSWTopo
       Dir.mktmppath do |temp_dir|
         rasters = Hash.new do |rasters, opts|
           png_path = temp_dir / "raster.#{rasters.size}.png"
-          pgw_path = temp_dir / "raster.#{rasters.size}.pgw"
+          pam_path = temp_dir / "raster.#{rasters.size}.png.aux.xml"
           rasterise png_path, background: background, **opts
-          write_world_file pgw_path, **opts
+          write_pam_file pam_path, **opts
           rasters[opts] = png_path
         end
         dithers = Hash.new do |dithers, opts|
           png_path = temp_dir / "dither.#{dithers.size}.png"
-          pgw_path = temp_dir / "dither.#{dithers.size}.pgw"
+          pam_path = temp_dir / "dither.#{dithers.size}.png.aux.xml"
           FileUtils.cp rasters[opts], png_path
           dither png_path
-          write_world_file pgw_path, **opts
+          write_pam_file pam_path, **opts
           dithers[opts] = png_path
         end
 

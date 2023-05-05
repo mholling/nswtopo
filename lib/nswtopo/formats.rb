@@ -49,7 +49,6 @@ module NSWTopo
         "-mo", "TIFFTAG_XRESOLUTION=#{ppi}",
         "-mo", "TIFFTAG_YRESOLUTION=#{ppi}",
         "-mo", "TIFFTAG_RESOLUTIONUNIT=2",
-        "-a_srs", @projection,
         tif_path
     end
 

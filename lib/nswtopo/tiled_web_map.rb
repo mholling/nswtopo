@@ -29,7 +29,7 @@ module NSWTopo
       end.tap do |levels|
         log_update "#{extension}: creating zoom levels %s" % levels.map(&:zoom).minmax.uniq.join(?-)
       end.each.concurrently do |level|
-        OS.gdalwarp "-s_srs", @projection, "-t_srs", "EPSG:3857", "-ts", *level.ts, "-te", *level.te, "-r", "cubic", "-dstalpha", png_path, level.tif_path
+        OS.gdalwarp "-t_srs", "EPSG:3857", "-ts", *level.ts, "-te", *level.te, "-r", "cubic", "-dstalpha", png_path, level.tif_path
       end.flat_map do |level|
         cols, rows = level.indices
         [cols.each, rows.reverse_each].map(&:with_index).map(&:entries).inject(&:product).map do |(col, j), (row, i)|

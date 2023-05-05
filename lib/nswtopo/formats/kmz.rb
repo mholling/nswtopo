@@ -61,7 +61,7 @@ module NSWTopo
           degrees_per_tile = resolution * Kmz::TILE_SIZE
 
           tif_path = temp_dir / "#{name}.kmz.zoom.#{zoom}.tif"
-          OS.gdalwarp "-s_srs", @projection, "-t_srs", "EPSG:4326", "-tr", resolution, resolution, "-r", "bilinear", "-dstalpha", png_path, tif_path
+          OS.gdalwarp "-t_srs", "EPSG:4326", "-tr", resolution, resolution, "-r", "bilinear", "-dstalpha", png_path, tif_path
 
           corners = JSON.parse(OS.gdalinfo "-json", tif_path)["cornerCoordinates"]
           top_left = corners["upperLeft"]

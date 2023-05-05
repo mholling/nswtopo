@@ -3,7 +3,7 @@ module NSWTopo
     module Kmz
       TILE_SIZE = 512
       EARTH_RADIUS = 6378137.0
-      TILT = 40 * Math::PI / 180.0
+      TILT = 0 # 40 * Math::PI / 180.0
       FOV = 25 * Math::PI / 180.0
       extend self
 
@@ -129,8 +129,9 @@ module NSWTopo
         xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
           kml.add_element("Document").tap do |document|
             document.add_element("LookAt").tap do |look_at|
-              range_x = @extents.first / 2.0 / Math::tan(Kmz::FOV) / Math::cos(Kmz::TILT)
-              range_y = @extents.last / Math::cos(Kmz::FOV - Kmz::TILT) / 2 / (Math::tan(Kmz::FOV - Kmz::TILT) + Math::sin(Kmz::TILT))
+              extents = @dimensions.times(@scale / 1000.0)
+              range_x = extents.first / 2.0 / Math::tan(Kmz::FOV) / Math::cos(Kmz::TILT)
+              range_y = extents.last / Math::cos(Kmz::FOV - Kmz::TILT) / 2 / (Math::tan(Kmz::FOV - Kmz::TILT) + Math::sin(Kmz::TILT))
               names_values = [%w[longitude latitude], @centre].transpose
               names_values << ["tilt", Kmz::TILT * 180.0 / Math::PI] << ["range", 1.2 * [range_x, range_y].max] << ["heading", rotation]
               names_values.each { |name, value| look_at.add_element(name).text = value }

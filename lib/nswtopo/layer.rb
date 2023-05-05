@@ -39,8 +39,8 @@ module NSWTopo
       extend @type
 
       @params = @type.const_defined?(:DEFAULTS) ? @type.const_get(:DEFAULTS).transform_keys(&:to_s).deep_merge(params) : params
-      @name, @map, @source, @path, @resolution, ppi = Layer.sanitise(name), map, @params.delete("source"), @params.delete("path"), @params.delete("resolution"), @params.delete("ppi")
-      @resolution ||= 0.0254 * @map.scale / ppi if ppi
+      @name, @map, @source, @path, resolution, ppi = Layer.sanitise(name), map, @params.delete("source"), @params.delete("path"), @params.delete("resolution"), @params.delete("ppi")
+      @mm_per_px = ppi ? 25.4 / ppi : resolution ? @map.to_mm(resolution) : nil
 
       @type.const_get(:CREATE).map(&:to_s).each do |attr|
         instance_variable_set ?@ + attr.tr_s(?-, ?_), @params.delete(attr)

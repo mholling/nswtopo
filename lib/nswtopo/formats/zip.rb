@@ -7,8 +7,8 @@ module NSWTopo
         png_path = yield(ppi: ppi)
 
         2.downto(0).map.with_index do |level, index|
-          resolution = 0.0254 * @scale * 2**index / ppi
-          dimensions = (@extents / resolution).map(&:ceil)
+          mm_per_px = 25.4 * 2**index / ppi
+          dimensions = (@dimensions / mm_per_px).map(&:ceil)
           case index
           when 0
             outsize = dimensions.inject(&:<) ? [0, 64] : [64, 0]
@@ -16,7 +16,7 @@ module NSWTopo
           when 1
             zip_dir.join("#{name}.ref").open("w") do |file|
               file.puts @projection.wkt2
-              file.puts [-0.5 * @extents[0], resolution, 0.0, 0.5 * @extents[1], 0.0, -resolution].join(?,)
+              file.puts [0.0, mm_per_px, 0.0, @dimensions[1], 0.0, -mm_per_px].join(?,)
               file << dimensions.join(?,)
             end
           end

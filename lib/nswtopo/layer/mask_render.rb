@@ -9,7 +9,7 @@ module NSWTopo
         OS.gdal_translate "-of", "PNG", "-co", "ZLEVEL=9", "temp.tif", "/vsistdout/", chdir: tmp
       end.tap do |png|
         (width, height), resolution = size_resolution
-        transform = "scale(#{resolution / @map.metres_per_mm})"
+        transform = "scale(#{resolution})"
         href = "data:image/png;base64,#{Base64.encode64 png}"
         defs.add_element "image", "id" => "#{@name}.content", "transform" => transform, "width" => width, "height" => height, "image-rendering" => "optimizeQuality", "href" => href
       end

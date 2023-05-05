@@ -25,8 +25,8 @@ module NSWTopo
 
       when @contours
         bounds = cutline.bounds
-        raise "no resolution specified for #{@name}" unless Numeric === @resolution
-        outsize = (bounds.transpose.diff / @resolution).map(&:ceil)
+        raise "no resolution specified for #{@name}" unless Numeric === @mm_per_px
+        outsize = (bounds.transpose.diff / @mm_per_px).map(&:ceil)
 
         collection = @contours.map do |url_or_path, attribute_or_hash|
           raise "no elevation attribute specified for #{url_or_path}" unless attribute_or_hash
@@ -61,7 +61,7 @@ module NSWTopo
 
       begin
         log_update "%s: generating shaded relief" % @name
-        OS.gdaldem *%W[hillshade -q -compute_edges -s 1 -z #{@factor} -az #{@azimuth} -#{@method}], dem_path, raw_path
+        OS.gdaldem *%W[hillshade -q -compute_edges -s #{@map.scale / 1000.0} -z #{@factor} -az #{@azimuth} -#{@method}], dem_path, raw_path
         OS.gdalwarp "-t_srs", @map.projection, "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline", raw_path, tif_path do |stdin|
           stdin.puts cutline.to_json
         end

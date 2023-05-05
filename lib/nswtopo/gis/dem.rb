@@ -25,11 +25,11 @@ module NSWTopo
         end.sort_by(&:last).transpose
 
         txt_path.write paths.reverse.join(?\n)
-        @resolution ||= resolutions.first
+        @mm_per_px ||= @map.to_mm(resolutions.first)
 
         indexed_dem_path = temp_dir / "dem.#{index}.tif"
         OS.gdalbuildvrt "-overwrite", "-allow_projection_difference", "-a_srs", projection, "-input_file_list", txt_path, vrt_path
-        OS.gdalwarp "-t_srs", @map.projection, "-tr", @resolution, @resolution, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline", vrt_path, indexed_dem_path do |stdin|
+        OS.gdalwarp "-t_srs", @map.projection, "-tr", @mm_per_px, @mm_per_px, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline", vrt_path, indexed_dem_path do |stdin|
           stdin.puts cutline.to_json
         end
         indexed_dem_path
@@ -41,11 +41,10 @@ module NSWTopo
     end
 
     def blur_dem(dem_path, blur_path)
-      sigma = @smooth * @map.metres_per_mm
-      half = (3 * sigma / @resolution).ceil
+      half = (3 * @smooth / @mm_per_px).ceil
 
       coeffs = (-half..half).map do |n|
-        n * @resolution / sigma
+        n * @mm_per_px / @smooth
       end.map do |x|
         Math::exp(-x**2)
       end

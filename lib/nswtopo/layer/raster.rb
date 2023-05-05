@@ -5,7 +5,7 @@ module NSWTopo
         out_path = temp_dir / "output.tif"
 
         args = ["-t_srs", @map.projection, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline"]
-        args += ["-tr", @resolution, @resolution] if Numeric === @resolution
+        args += ["-tr", @mm_per_px, @mm_per_px] if Numeric === @mm_per_px
         OS.gdalwarp *args, get_raster(temp_dir), out_path do |stdin|
           stdin.puts @map.cutline.to_json
         end
@@ -35,8 +35,8 @@ module NSWTopo
     def to_s
       size, resolution = size_resolution
       megapixels = size.inject(&:*) / 1024.0 / 1024.0
-      ppi = 0.0254 * @map.scale / resolution
-      "%s: %i×%i (%.1fMpx) @ %.2fm/px (%.0f ppi)" % [@name, *size, megapixels, resolution, ppi]
+      ppi = 25.4 / resolution
+      "%s: %i×%i (%.1fMpx) @ %smm/px (%.0f ppi)" % [@name, *size, megapixels, resolution, ppi]
     end
   end
 end

@@ -77,14 +77,15 @@ module NSWTopo
 
         case
         when ppi
-          resolution = 0.0254 * @scale / ppi
           info = "%i ppi" % ppi
+          mm_per_px = 25.4 / ppi
         when resolution
           ppi = 0.0254 * @scale / resolution
           info = "%.1f m/px" % resolution
+          mm_per_px = to_mm(resolution)
         end
 
-        raster_size = (@extents / resolution).map(&:ceil)
+        raster_size = (@dimensions / mm_per_px).map(&:ceil)
         megapixels = raster_size.inject(&:*) / 1024.0 / 1024.0
         log_update "chrome: creating %i×%i (%.1fMpx) map raster at %s" % [*raster_size, megapixels, info]
 
@@ -92,9 +93,9 @@ module NSWTopo
         xml.elements["svg/@height"].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
 
         viewport_dimensions = xml.elements["svg/@viewBox"].value.split.map(&:to_f).last(2)
-        viewport_dimensions.map do |dimension|
-          (0...(dimension * ppi / 25.4).ceil).step(PAGE).map do |px|
-            [px, px * 25.4 / ppi]
+        viewport_dimensions.map do |mm|
+          (0...(mm / mm_per_px).ceil).step(PAGE).map do |px|
+            [px, px * mm_per_px]
           end
         end.inject(&:product).map(&:transpose).map do |raster_offset, viewport_offset|
           page_path = temp_dir.join("page.%i.%i.png" % raster_offset)

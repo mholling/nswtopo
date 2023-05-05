@@ -4,14 +4,14 @@ module NSWTopo
     CREATE = %w[url]
 
     def get_raster(temp_dir)
-      raise "no resolution specified for #{@name}" unless Numeric === @resolution
+      raise "no resolution specified for #{@name}" unless Numeric === @mm_per_px
       txt_path = temp_dir / "mosaic.txt"
       vrt_path = temp_dir / "mosaic.vrt"
 
       service = ArcGIS::Service.new @url
       local_bbox = @map.cutline.bbox
       target_bbox = local_bbox.reproject_to service.projection
-      target_resolution = @resolution * Math::sqrt(target_bbox.first.area / local_bbox.first.area)
+      target_resolution = @mm_per_px * Math::sqrt(target_bbox.first.area / local_bbox.first.area)
 
       raise "not a tiled map or image server: #{@url}" unless tile_info = service["tileInfo"]
       lods = tile_info["lods"]

@@ -54,7 +54,7 @@ module NSWTopo
           end
 
           options[:sizes].tap do |mm, max = 9|
-            unit = (mm == true ? 5 : mm) * @map.metres_per_mm
+            unit = (mm == true ? 5 : mm)
             case feature
             when GeoJSON::LineString, GeoJSON::MultiLineString
               size = (Math::log2(feature.length) - Math::log2(unit)).ceil rescue 0

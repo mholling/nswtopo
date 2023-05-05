@@ -4,14 +4,13 @@ module NSWTopo
 
     def initialize(archive, neatline:, centre:, dimensions:, scale:, rotation:, layers: {})
       @archive, @neatline, @centre, @dimensions, @scale, @rotation, @layers = archive, neatline, centre, dimensions, scale, rotation, layers
+      params = { k_0: 1.0 / @scale, units: "mm", x_0: 0.0005 * @dimensions[0], y_0: 0.0005 * @dimensions[1] }
       @projection = rotation.zero? ?
-        Projection.transverse_mercator(*centre) :
-        Projection.oblique_mercator(*centre, alpha: rotation)
+        Projection.transverse_mercator(*centre, **params) :
+        Projection.oblique_mercator(*centre, alpha: rotation, **params)
       @cutline = @neatline.reproject_to(@projection)
-      @metres_per_mm = @scale / 1000.0
-      @extents = @dimensions.times(@metres_per_mm)
     end
-    attr_reader :centre, :dimensions, :scale, :rotation, :projection, :metres_per_mm
+    attr_reader :centre, :dimensions, :scale, :rotation, :projection
 
     extend Forwardable
     delegate %i[write mtime read uptodate?] => :@archive
@@ -111,6 +110,13 @@ module NSWTopo
       raise NSWTopo::Archive::Invalid
     end
 
+    def save
+      tap do
+        write "map.json", @neatline.to_json
+        write "map.yml", YAML.dump(centre: @centre, dimensions: @dimensions, scale: @scale, rotation: @rotation, layers: @layers)
+      end
+    end
+
     def self.from_svg(archive, svg_path)
       xml = REXML::Document.new(svg_path.read)
 
@@ -148,13 +154,6 @@ module NSWTopo
       raise "unrecognised map file: %s" % svg_path
     end
 
-    def save
-      tap do
-        write "map.json", @neatline.to_json
-        write "map.yml", YAML.dump(centre: @centre, dimensions: @dimensions, scale: @scale, rotation: @rotation, layers: @layers)
-      end
-    end
-
     def layers
       @layers.map do |name, params|
         Layer.new(name, self, params)
@@ -166,15 +165,19 @@ module NSWTopo
     end
 
     def cutline(mm: nil)
-      mm ? @cutline.buffer(mm * @scale / 1000.0).explode: @cutline
+      mm ? @cutline.buffer(mm).explode : @cutline
+    end
+
+    def to_mm(metres)
+      metres * 1000.0 / @scale
     end
 
     def write_world_file(path, resolution: nil, ppi: nil)
-      resolution ||= 0.0254 * @scale / ppi
+      mm_per_px = ppi ? 25.4 / ppi : to_mm(resolution)
       path.open("w") do |file|
-        file.puts resolution, 0, 0, -resolution
-        file.puts -0.5 * (@extents[0] - resolution)
-        file.puts  0.5 * (@extents[1] - resolution)
+        file.puts mm_per_px, 0, 0, -mm_per_px
+        file.puts 0.5 * mm_per_px
+        file.puts @dimensions[1] - 0.5 * mm_per_px
       end
     end
 

@@ -50,7 +50,7 @@ module NSWTopo
     end
 
     def get_features
-      @simplify ||= [0.5 * @interval / Math::tan(Math::PI * 85 / 180), 0.05 * @map.metres_per_mm].min
+      @simplify ||= [@map.to_mm(0.5 * @interval) / Math::tan(Math::PI * 85 / 180), 0.05].min
       @index ||= 10 * @interval
       @params = {
         "Index" => { "stroke-width" => 2 * @params["stroke-width"] },
@@ -98,7 +98,7 @@ module NSWTopo
 
         contours.reject! do |feature|
           feature.coordinates.last == feature.coordinates.first &&
-          feature.bounds.all? { |min, max| max - min < @knolls * @map.metres_per_mm }
+          feature.bounds.all? { |min, max| max - min < @knolls }
         end
 
         contours.each do |feature|
@@ -120,7 +120,6 @@ module NSWTopo
         if @thin
           slope_tif_path = temp_dir / "slope.tif"
           slope_vrt_path = temp_dir / "slope.vrt"
-          min_length = @min_length * @map.metres_per_mm
 
           log_update "%s: generating slope masks" % @name
           OS.gdaldem "slope", blur_path, slope_tif_path, "-compute_edges"
@@ -137,14 +136,14 @@ module NSWTopo
               yielder << drop
             end
           end.inject(multiplier) do |count, drop|
-            angle = Math::atan(@index * @density / @map.metres_per_mm / count) * 180.0 / Math::PI
+            angle = Math::atan(@index * @density / count) * 180.0 / Math::PI
             mask_path = temp_dir / "mask.#{count}.sqlite"
 
             OS.gdal_contour "-nln", "ring", "-a", "angle", "-fl", angle, *db_flags, slope_vrt_path, mask_path
 
             OS.ogr2ogr "-update", "-nln", "mask", "-nlt", "MULTIPOLYGON", mask_path, mask_path, "-dialect", "SQLite", "-sql", <<~SQL
               SELECT
-                ST_Buffer(ST_Buffer(ST_Polygonize(geometry), #{0.5 * min_length}, 6), #{-0.5 * min_length}, 6) AS geometry
+                ST_Buffer(ST_Buffer(ST_Polygonize(geometry), #{0.5 * @min_length}, 6), #{-0.5 * @min_length}, 6) AS geometry
               FROM ring
             SQL
 
@@ -197,14 +196,14 @@ module NSWTopo
           OS.ogr2ogr "-nln", "thinned", "-update", "-explodecollections", db_path, db_path, "-dialect", "SQLite", "-sql", <<~SQL
             SELECT ST_LineMerge(ST_Collect(geometry)) AS geometry, id, elevation, modulo, depression, unaltered
             FROM divided
-            WHERE unmasked OR ST_Length(geometry) < #{min_length}
+            WHERE unmasked OR ST_Length(geometry) < #{@min_length}
             GROUP BY id, elevation, modulo, unaltered
           SQL
 
           OS.ogr2ogr "-nln", "contour", "-update", "-overwrite", db_path, db_path, "-dialect", "SQLite", "-sql", <<~SQL
             SELECT geometry, id, elevation, modulo, depression
             FROM thinned
-            WHERE unaltered OR ST_Length(geometry) > #{min_length}
+            WHERE unaltered OR ST_Length(geometry) > #{@min_length}
           SQL
         end
 

@@ -12,8 +12,8 @@ module NSWTopo
     def get_features
       GPS.new(@path).tap do |gps|
         @simplify = true if GPS::GPX === gps
-        @tolerance ||= [5, TOLERANCE * @map.metres_per_mm].max if @simplify
-      end.collection.reproject_to(@map.projection).explode.each do |feature|
+        @tolerance ||= [@map.to_mm(5), TOLERANCE].max if @simplify
+      end.collection.reproject_to(@map.neatline.projection).explode.each do |feature|
         styles, folder, name = feature.values_at "styles", "folder", "name"
         styles ||= GPX_STYLES
 

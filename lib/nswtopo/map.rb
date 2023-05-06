@@ -132,21 +132,15 @@ module NSWTopo
 
       metadata = xml.elements["svg/metadata/nswtopo:map[@projection][@centre][@scale][@rotation]"] || raise(Version::Error)
       projection = Projection.new metadata.attributes["projection"]
-      centre = metadata.attributes["centre"].split(?,).map(&:to_f)
+      neatline = GeoJSON.polygon JSON.parse(metadata.attributes["neatline"]), projection: projection
+      centre = JSON.parse metadata.attributes["centre"]
       scale = metadata.attributes["scale"].to_i
       rotation = metadata.attributes["rotation"].to_f
-
-      path = xml.elements["svg/defs/path[@id='map.neatline'][@d]"] || raise(Version::Error)
-      neatline = path.attributes["d"].delete_prefix("M ").delete_suffix(" Z").split(" L ").map do |pair|
-        pair.split(" ").map(&:to_f)
-      end.then do |ring|
-        GeoJSON.polygon [ring], projection: projection
-      end
 
       new(archive, neatline: neatline, centre: centre, dimensions: dimensions, scale: scale, rotation: rotation).save.tap do |map|
         map.write "map.svg", svg_path.read
       end
-    rescue Version::Error
+    rescue Version::Error, JSON::ParserError
       raise "not an nswtopo SVG file: %s" % svg_path
     rescue SystemCallError
       raise "couldn't read file: %s" % svg_path

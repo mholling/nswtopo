@@ -45,7 +45,8 @@ module NSWTopo
         metadata = svg.add_element("metadata")
         metadata.add_element("nswtopo:map",
           "projection" => @neatline.projection.wkt2,
-          "centre" => @centre.join(?,),
+          "neatline" => @neatline.coordinates.to_json,
+          "centre" => @centre.to_json,
           "scale" => @scale,
           "rotation" => @rotation
         )

@@ -46,7 +46,7 @@ module NSWTopo
       end.then do |(width, height), (_, mm_per_px, *)|
         resolution, ppi = @map.to_metres(mm_per_px), 25.4 / mm_per_px
         megapixels = width * height / 1024.0 / 1024.0
-        "%s: %i×%i (%.1fMpx) @ %.1fm/px (%.0f ppi)" % [@name, width, height, megapixels, resolution, ppi]
+        "%s: %i×%i (%.1fMpx) @ %.3gm/px (%.3g ppi)" % [@name, width, height, megapixels, resolution, ppi]
       end
     end
   end

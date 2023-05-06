@@ -84,43 +84,31 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      neatline = dimensions.map do |dimension|
-        [0, dimension]
-      end.inject(&:product).values_at(0,2,3,1,0).then do |ring|
+      insets = inset.map do |inset|
+        inset.each_slice(2).entries.transpose.map(&:sort)
+      end.each.with_object GeoJSON::Collection.new(projection: projection, name: "insets") do |bounds, collection|
+        dimensions.zip(bounds).each do |dimension, (min, max)|
+          raise OptionParser::InvalidArgument, "inset falls outside map dimensions" unless max > 0 && min < dimension
+        end
+        collection.add_polygon [bounds.inject(&:product).values_at(0,2,3,1,0)]
+      end
+
+      neatline = if insets.any?
+        OS.ogr2ogr *%w[-f GeoJSON  /vsistdout/ GeoJSON:/vsistdin/ -dialect sqlite -sql], <<~SQL do |stdin|
+          SELECT ST_Difference(BuildMbr(0,0,#{dimensions.join ?,}), ST_Union(geometry)) AS geometry
+          FROM insets
+        SQL
+          stdin.puts insets.to_json
+        end.then do |json|
+          GeoJSON::Collection.load(json, projection: projection, name: "neatline").explode
+        end
+      else
+        ring = [[0, 0], dimensions].transpose.inject(&:product).values_at(0,2,3,1,0)
         GeoJSON.polygon [ring], projection: projection, name: "neatline"
       end
 
-      inset.map do |inset|
-        dimensions.zip(inset).map do |dimension, inset|
-          raise OptionParser::InvalidArgument, "inset larger than map dimension" unless inset.abs < dimension
-          inset > 0 ? [0, dimension - inset, dimension] : [0, 0 - inset, dimension]
-        end.inject(&:product).then do |points|
-          case
-          when inset[0] > 0 && inset[1] > 0 then [points.values_at(0,6,7,4,5,2,0)]
-          when inset[0] > 0 && inset[1] < 0 then [points.values_at(0,3,4,7,8,2,0)]
-          when inset[0] < 0 && inset[1] > 0 then [points.values_at(0,6,8,5,4,1,0)]
-          when inset[0] < 0 && inset[1] < 0 then [points.values_at(3,6,8,2,1,4,3)]
-          else                                   [points.values_at(0,6,8,2,0)]
-          end
-        end
-      end.inject(neatline, &:add_polygon)
-
-      OS.ogr2ogr *%w[-f GeoJSON -nln neatline /vsistdout/ GeoJSON:/vsistdin/ -dialect sqlite -sql], <<~SQL do |stdin|
-        WITH RECURSIVE intersected(multi, geometry, idx) AS (
-          SELECT ST_Collect(geometry), ST_Union(geometry), count(geometry) FROM neatline
-          UNION ALL
-          SELECT multi, ST_Intersection(geometry, ST_GeometryN(multi, idx)), idx - 1 FROM intersected
-          WHERE idx > 0
-        )
-        SELECT geometry FROM intersected WHERE idx = 0 AND geometry IS NOT NULL
-      SQL
-        stdin.puts neatline.to_json
-      end.then do |json|
-        raise OptionParser::InvalidArgument, "invalid inset" if json.empty?
-        neatline = GeoJSON::Collection.load(json, projection: projection).explode
-        raise OptionParser::InvalidArgument, "inset creates non-contiguous map area" unless neatline.one?
-      end unless neatline.one?
-
+      raise OptionParser::InvalidArgument, "inset covers map" if neatline.none?
+      raise OptionParser::InvalidArgument, "inset creates non-contiguous map" unless neatline.one?
       new(archive, neatline: neatline, centre: centre, dimensions: dimensions, scale: scale, rotation: rotation).save
     end
 

@@ -61,23 +61,23 @@ module NSWTopo
 
       extend Forwardable
       delegate %i[coordinates properties wkt area] => :first
-      delegate %i[reject! select! length one?] => :@features
+      delegate %i[reject! select! length] => :@features
 
       def to_json(**extras)
         to_h.merge(extras).to_json
       end
 
       def explode
-        Collection.new projection: @projection, features: flat_map(&:explode)
+        Collection.new projection: @projection, name: @name, features: flat_map(&:explode)
       end
 
       def multi
-        Collection.new projection: @projection, features: map(&:multi)
+        Collection.new projection: @projection, name: @name, features: map(&:multi)
       end
 
       def merge(other)
         raise Error, "can't merge different projections" unless @projection == other.projection
-        Collection.new projection: @projection, features: @features + other.features
+        Collection.new projection: @projection, name: @name, features: @features + other.features
       end
 
       def merge!(other)
@@ -97,7 +97,7 @@ module NSWTopo
         map do |feature|
           feature.buffer(*margins, **options)
         end.then do |features|
-          Collection.new features: features, projection: @projection
+          Collection.new projection: @projection, name: @name, features: features
         end
       end
 

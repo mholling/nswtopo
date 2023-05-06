@@ -48,6 +48,7 @@ begin
   digits = '\d+(?:_\d+)*'
   float  = "[-+]?(?:#{digits}(?=(.)?)(?:\\.(?:#{digits})?)?|\\.#{digits})(?:[eE][-+]?#{digits})?"
   pair   = "#{float},#{float}"
+  quad   = "#{float},#{float},#{float},#{float}"
   field  = '[^\s",]+'
 
   PositiveInt   = Class.new
@@ -85,14 +86,8 @@ begin
     dimensions
   end
 
-  OptionParser.accept Inset, /\A#{pair}(?:,#{pair})*\z/ do |string|
-    string.split(?,).map(&:to_f).each_slice(2).group_by do |width, height|
-      [width <=> 0, height <=> 0]
-    end.flat_map do |signs, group|
-      raise OptionParser::InvalidArgument, string if signs.any?(&:zero?)
-      raise OptionParser::InvalidArgument, string unless group.one?
-      group
-    end
+  OptionParser.accept Inset, /\A#{quad}(?:,#{quad})*\z/ do |string|
+    string.split(?,).map(&:to_f).each_slice(4).entries
   end
 
   OptionParser.accept Margins, /\A#{float}(?:,#{float})?\z/ do |string|
@@ -218,10 +213,10 @@ begin
       parser.on "-c", "--coords      <x1,y1,...>",    CoordList,   "bounds for map as one or more WGS84",
                                                                    "longitude/latitude pairs" 
       parser.on "-d", "--dimensions  <width,height>", Dimensions,  "map dimensions in mm"
-      parser.on "-i", "--inset       <width,height>", Inset,       "map corner inset in mm"
-      parser.on "-m", "--margins     <x[,y]>",        Margins,     "map margins in mm"
       parser.on "-r", "--rotation    <rotation>",     Rotation,    "map rotation angle in clockwise",
                                                                    "degrees, 'auto' or 'magnetic'"
+      parser.on "-m", "--margins     <x[,y]>",        Margins,     "map margins in mm"
+      parser.on "-i", "--inset       <x1,y1,x2,y2>",  Inset,       "map inset coordinates in mm"
       parser.on "-o", "--overwrite",                               "overwrite existing map file"
 
     when "info"

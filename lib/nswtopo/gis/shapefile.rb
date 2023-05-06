@@ -51,7 +51,7 @@ module NSWTopo
         spat  = ["-spat", *@geometry.bounds.transpose.flatten, "-spat_srs", @geometry.projection] if @geometry
         misc  = %w[-mapFieldType Date=Integer,DateTime=Integer -dim XY]
         json = OS.ogr2ogr *(sql || where), *srs, *spat, *misc, *%w[-f GeoJSON -lco RFC7946=NO /vsistdout/], @source.path, *@layer
-        GeoJSON::Collection.load json, *@projection
+        GeoJSON::Collection.load json, **{projection: @projection}.compact
       rescue OS::Error => error
         raise unless /Couldn't fetch requested layer (.*)!/ === error.message
         raise "no such layer: #{$1}"

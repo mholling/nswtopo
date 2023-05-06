@@ -47,8 +47,8 @@ module NSWTopo
         one? && klass === first
       end
 
-      define_singleton_method type.downcase do |coordinates, projection: DEFAULT_PROJECTION, properties: {}|
-        Collection.new(projection: projection) << klass.new(coordinates, properties)
+      define_singleton_method type.downcase do |coordinates, projection: DEFAULT_PROJECTION, name: nil, properties: {}|
+        Collection.new(projection: projection, name: name) << klass.new(coordinates, properties)
       end
     end
 

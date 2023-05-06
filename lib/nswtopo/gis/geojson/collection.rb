@@ -8,17 +8,18 @@ module NSWTopo
       end
       attr_reader :projection, :features, :name
 
-      def self.load(json, projection = nil)
+      def self.load(json, projection: nil, name: nil)
         collection = JSON.parse(json)
         crs_name = collection.dig "crs", "properties", "name"
         projection ||= crs_name ? Projection.new(crs_name) : DEFAULT_PROJECTION
+        name ||= collection["name"]
         collection["features"].map do |feature|
           geometry, properties = feature.values_at "geometry", "properties"
           type, coordinates = geometry.values_at "type", "coordinates"
           raise Error, "unsupported geometry type: #{type}" unless TYPES === type
           GeoJSON.const_get(type).new coordinates, properties
         end.then do |features|
-          new projection: projection, features: features, name: collection["name"]
+          new projection: projection, features: features, name: name
         end
       rescue JSON::ParserError
         raise Error, "invalid GeoJSON data"
@@ -39,7 +40,7 @@ module NSWTopo
         json = OS.ogr2ogr "-t_srs", projection, "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "GeoJSON:/vsistdin/" do |stdin|
           stdin.puts to_json
         end
-        Collection.load json, projection
+        Collection.load json, projection: projection
       end
 
       def reproject_to_wgs84
@@ -86,7 +87,7 @@ module NSWTopo
         OS.ogr2ogr "-f", "GeoJSON", "-lco", "RFC7946=NO", "-clipsrc", polygon.wkt, "/vsistdout/", "GeoJSON:/vsistdin/" do |stdin|
           stdin.puts to_json
         end.then do |json|
-          Collection.load json, @projection
+          Collection.load json, projection: @projection
         end
       end
 

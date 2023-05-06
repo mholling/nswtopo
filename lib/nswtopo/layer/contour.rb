@@ -75,7 +75,7 @@ module NSWTopo
 
         log_update "%s: generating contour lines" % @name
         json = OS.gdal_contour "-q", "-a", "elevation", "-i", @interval, "-f", "GeoJSON", "-lco", "RFC7946=NO", blur_path, "/vsistdout/"
-        contours = GeoJSON::Collection.load json, @map.projection
+        contours = GeoJSON::Collection.load json, projection: @map.projection
 
         if @no_depression.nil?
           candidates = contours.select do |feature|
@@ -208,7 +208,7 @@ module NSWTopo
         end
 
         json = OS.ogr2ogr "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", db_path, "contour"
-        GeoJSON::Collection.load(json, @map.projection).each do |feature|
+        GeoJSON::Collection.load(json, projection: @map.projection).each do |feature|
           elevation, modulo, depression = feature.values_at "elevation", "modulo", "depression"
           category = case
           when @auxiliary && elevation % (2 * @interval) != 0 then %w[Auxiliary]

@@ -24,7 +24,7 @@ module NSWTopo
         options.merge! args
         collection = case
         when ArcGIS::Service === source
-          layer = ArcGIS::Service.new(source).layer(**options.slice(:layer, :where), geometry: @map.neatline(**MARGIN), decode: true)
+          layer = ArcGIS::Service.new(source).layer(**options.slice(:layer, :where), geometry: @map.neatline(**MARGIN).bbox, decode: true)
           layer.features(**options.slice(:per_page)) do |count, total|
             log_update "%s: retrieved %i of %i feature%s" % [@name, count, total, (?s if total > 1)]
           end.reproject_to(@map.neatline.projection)

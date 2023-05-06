@@ -13,7 +13,9 @@ module NSWTopo
         crs_name = collection.dig "crs", "properties", "name"
         projection ||= crs_name ? Projection.new(crs_name) : DEFAULT_PROJECTION
         name ||= collection["name"]
-        collection["features"].map do |feature|
+        collection["features"].select do |feature|
+          feature["geometry"]
+        end.map do |feature|
           geometry, properties = feature.values_at "geometry", "properties"
           type, coordinates = geometry.values_at "type", "coordinates"
           raise Error, "unsupported geometry type: #{type}" unless TYPES === type
@@ -59,7 +61,7 @@ module NSWTopo
 
       extend Forwardable
       delegate %i[coordinates properties wkt area] => :first
-      delegate %i[reject! select! length] => :@features
+      delegate %i[reject! select! length one?] => :@features
 
       def to_json(**extras)
         to_h.merge(extras).to_json

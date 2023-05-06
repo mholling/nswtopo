@@ -85,10 +85,14 @@ begin
     dimensions
   end
 
-  OptionParser.accept Inset, /\A#{pair}\z/ do |string|
-    inset = string.split(?,).map(&:to_f)
-    raise OptionParser::InvalidArgument, string if inset.any?(&:zero?)
-    inset
+  OptionParser.accept Inset, /\A#{pair}(?:,#{pair})*\z/ do |string|
+    string.split(?,).map(&:to_f).each_slice(2).group_by do |width, height|
+      [width <=> 0, height <=> 0]
+    end.flat_map do |signs, group|
+      raise OptionParser::InvalidArgument, string if signs.any?(&:zero?)
+      raise OptionParser::InvalidArgument, string unless group.one?
+      group
+    end
   end
 
   OptionParser.accept Margins, /\A#{float}(?:,#{float})?\z/ do |string|

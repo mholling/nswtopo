@@ -2,7 +2,7 @@ module NSWTopo
   module Raster
     def create
       Dir.mktmppath do |temp_dir|
-        args = ["-t_srs", @map.projection, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline", "-of", "GTiff", "-co", "TILED=YES"]
+        args = ["-t_srs", @map.projection, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin/", "-te", *@map.te, "-of", "GTiff", "-co", "TILED=YES"]
         args += ["-tr", @mm_per_px, @mm_per_px] if Numeric === @mm_per_px
         OS.gdalwarp *args, get_raster(temp_dir), "/vsistdout/" do |stdin|
           stdin.puts @map.cutline.to_json

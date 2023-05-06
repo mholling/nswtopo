@@ -162,6 +162,10 @@ module NSWTopo
       mm ? @cutline.buffer(mm).explode : @cutline
     end
 
+    def te
+      [0, 0, *@dimensions]
+    end
+
     def to_mm(metres)
       metres * 1000.0 / @scale
     end

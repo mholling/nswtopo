@@ -40,7 +40,7 @@ module NSWTopo
     end
 
     def check_geos!
-      json = OS.ogr2ogr "-dialect", "SQLite", "-sql", "SELECT geos_version() AS version", "-f", "GeoJSON", "/vsistdout/", "/vsistdin/" do |stdin|
+      json = OS.ogr2ogr "-dialect", "SQLite", "-sql", "SELECT geos_version() AS version", "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "/vsistdin/" do |stdin|
         stdin.write GeoJSON::Collection.new.to_json
       end
       raise unless version = JSON.parse(json).dig("features", 0, "properties", "version")

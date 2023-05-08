@@ -68,7 +68,7 @@ module NSWTopo
           %s
           GROUP BY %s
         SQL
-        json = OS.ogr2ogr *%w[-f GeoJSON -dialect sqlite -sql], sql, "/vsistdout/", @source.path
+        json = OS.ogr2ogr *%w[-f GeoJSON -lco RFC7946=NO -dialect sqlite -sql], sql, "/vsistdout/", @source.path
         JSON.parse(json)["features"].map do |feature|
           feature["properties"]
         end.map do |properties|

@@ -94,7 +94,7 @@ module NSWTopo
       end
 
       neatline = if insets.any?
-        OS.ogr2ogr *%w[-f GeoJSON  /vsistdout/ GeoJSON:/vsistdin/ -dialect sqlite -sql], <<~SQL do |stdin|
+        OS.ogr2ogr *%w[-f GeoJSON -lco RFC7946=NO /vsistdout/ GeoJSON:/vsistdin/ -dialect sqlite -sql], <<~SQL do |stdin|
           SELECT ST_Difference(BuildMbr(0,0,#{dimensions.join ?,}), ST_Union(geometry)) AS geometry
           FROM insets
         SQL

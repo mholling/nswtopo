@@ -10,10 +10,12 @@ module NSWTopo
 
         filter = defs.add_element("filter", "id" => "#{@name}.filter") if shade || gamma
         filter.add_element("feColorMatrix", "values" => "-1 0 0 0 1  -1 0 0 0 1  -1 0 0 0 1  0 0 0 1 0", "color-interpolation-filters" => "sRGB") if shade
-        filter.add_element("feComponentTransfer", "color-interpolation-filters" => "linearRGB").tap do |transfer|
-          transfer.add_element("feFuncR", "type" => "gamma", "exponent" => gamma)
-          transfer.add_element("feFuncG", "type" => "gamma", "exponent" => gamma)
-          transfer.add_element("feFuncB", "type" => "gamma", "exponent" => gamma)
+        filter.add_element("feComponentTransfer", "color-interpolation-filters" => "sRGB").tap do |transfer|
+          gamma, clip = [*gamma, 0]
+          amplitude, offset = 1 / (1 - clip), clip / (clip - 1)
+          transfer.add_element("feFuncR", "type" => "gamma", "exponent" => gamma, "amplitude" => amplitude, "offset" => offset)
+          transfer.add_element("feFuncG", "type" => "gamma", "exponent" => gamma, "amplitude" => amplitude, "offset" => offset)
+          transfer.add_element("feFuncB", "type" => "gamma", "exponent" => gamma, "amplitude" => amplitude, "offset" => offset)
         end if gamma
 
         defs.add_element("mask", "id" => "#{@name}.mask").tap do |mask|

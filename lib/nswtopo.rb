@@ -18,11 +18,7 @@ require 'ostruct'
 require 'forwardable'
 require 'rubygems/package'
 require 'zlib'
-begin
-  require 'pty'
-  require 'expect'
-rescue LoadError
-end
+require 'ferrum'
 
 require_relative 'nswtopo/helpers'
 require_relative 'nswtopo/avl_tree'

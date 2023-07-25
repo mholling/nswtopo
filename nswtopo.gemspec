@@ -11,4 +11,5 @@ Gem::Specification.new do |spec|
   spec.executables  << "nswtopo"
   spec.requirements << "GDAL >= v3.4"
   spec.requirements << "Google Chrome"
+  spec.add_runtime_dependency "ferrum", ">= 0.13"
 end

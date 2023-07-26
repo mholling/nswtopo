@@ -11,17 +11,6 @@ module NSWTopo
     include Log
     PPI = 300
     PAGE = 2048
-    CHROME_ARGS = %W[
-      --headless
-      --window-size=#{PAGE},#{PAGE}
-      --force-device-scale-factor=1
-      --disable-lcd-text
-      --disable-extensions
-      --hide-scrollbars
-      --disable-gpu
-      --force-color-profile=srgb
-      --default-background-color=00000000
-    ]
 
     def self.extensions
       instance_methods.grep(/^render_([a-z]+)/) { $1 }
@@ -65,14 +54,8 @@ module NSWTopo
     def rasterise(png_path, background:, ppi: nil, resolution: nil)
       Dir.mktmppath do |temp_dir|
         svg_path = temp_dir / "map.svg"
-        src_path = temp_dir / "browser.svg"
         vrt_path = temp_dir / "map.vrt"
-
-        chrome_path = Config["chrome"]
-        raise "please configure a path for google chrome" unless chrome_path
-
         render_svg svg_path, background: background
-        xml = REXML::Document.new svg_path.read
 
         case
         when ppi
@@ -88,30 +71,41 @@ module NSWTopo
         megapixels = raster_size.inject(&:*) / 1024.0 / 1024.0
         log_update "chrome: creating %i×%i (%.1fMpx) map raster at %s" % [*raster_size, megapixels, info]
 
-        xml.elements["svg/@width" ].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
-        xml.elements["svg/@height"].value.sub!(/^(.*)mm$/) { "%smm" % ($1.to_f * ppi / 96) }
+        viewport_size = [PAGE * mm_per_px] * 2
+        page_size = PAGE * mm_per_px * ppi / 96.0
 
-        viewport_dimensions = xml.elements["svg/@viewBox"].value.split.map(&:to_f).last(2)
-        viewport_dimensions.map do |mm|
+        chrome = Ferrum::Browser.new(
+          browser_path: Config["chrome"],
+          window_size: [PAGE, PAGE],
+          browser_options: {
+            "force-device-scale-factor" => 1,
+            "disable-lcd-text" => nil,
+            "hide-scrollbars" => nil,
+            "disable-gpu" => nil,
+            "force-color-profile" => "srgb",
+            # "default-background-color" => "00000000"
+          }
+        )
+        chrome.goto "file://#{svg_path}"
+
+        chrome.evaluate %Q[document.documentElement.setAttribute("width",  "#{page_size}mm")]
+        chrome.evaluate %Q[document.documentElement.setAttribute("height", "#{page_size}mm")]
+
+        chrome.evaluate(%Q[document.documentElement.getAttribute("viewBox")]).split.map(&:to_f).last(2).map do |mm|
           (0...(mm / mm_per_px).ceil).step(PAGE).map do |px|
             [px, px * mm_per_px]
           end
         end.inject(&:product).map(&:transpose).map do |raster_offset, viewport_offset|
           page_path = temp_dir.join("page.%i.%i.png" % raster_offset)
-          xml.elements["svg"].add_attribute "viewBox", [*viewport_offset, *viewport_dimensions].join(?\s)
-          src_path.write xml
-
-          chrome_args = %W[--screenshot=#{page_path} file://#{src_path}]
-          stdout, stderr, status = Open3.capture3 chrome_path, *CHROME_ARGS, *chrome_args
-          raise "couldn't rasterise map using chrome" unless status.success? && page_path.file?
+          viewbox = [*viewport_offset, *viewport_size].join(?\s)
+          chrome.evaluate %Q[document.documentElement.setAttribute("viewBox", "#{viewbox}")]
+          chrome.screenshot path: page_path
 
           REXML::Document.new(OS.gdal_translate "-of", "VRT", page_path, "/vsistdout/").tap do |vrt|
             vrt.elements.each("VRTDataset/VRTRasterBand/SimpleSource/DstRect") do |dst_rect|
               dst_rect.add_attributes "xOff" => raster_offset[0], "yOff" => raster_offset[1]
             end
           end
-        rescue Errno::ENOENT
-          raise "invalid chrome path: %s" % chrome_path
         end.inject do |vrt, page_vrt|
           vrt.elements["VRTDataset/VRTRasterBand[@band='1']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='1']/SimpleSource"]
           vrt.elements["VRTDataset/VRTRasterBand[@band='2']"].add_element page_vrt.elements["VRTDataset/VRTRasterBand[@band='2']/SimpleSource"]
@@ -125,6 +119,8 @@ module NSWTopo
           File.write vrt_path, vrt
           OS.gdal_translate vrt_path, png_path
         end
+      rescue Ferrum::Error, SystemCallError
+        log_abort "problem running chrome"
       end
     end
   end

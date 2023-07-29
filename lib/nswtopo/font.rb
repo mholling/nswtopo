@@ -3,24 +3,17 @@ module NSWTopo
     module Chrome
       include Log
       ATTRIBUTES = %w[font-family font-variant font-style font-weight font-size letter-spacing word-spacing]
+      SVG = <<~XML
+        <?xml version='1.0' encoding='UTF-8'?>
+        <svg xmlns='http://www.w3.org/2000/svg' width='1mm' height='1mm' viewBox='0 0 1 1' text-rendering='geometricPrecision'>
+          <rect id='mm' width='1' height='1' stroke='none' />
+          <text id='text' />
+        </svg>
+      XML
 
       def start_chrome
-        svg = <<~XML
-          <?xml version='1.0' encoding='UTF-8'?>
-          <svg xmlns='http://www.w3.org/2000/svg' width='1mm' height='1mm' viewBox='0 0 1 1' text-rendering='geometricPrecision'>
-            <rect id='mm' width='1' height='1' stroke='none' />
-            <text id='text' />
-          </svg>
-        XML
-
-        @chrome = Ferrum::Browser.new browser_path: Config["chrome"]
-        @chrome.goto "data:image/svg+xml;base64,#{Base64.encode64 svg}"
-
-        @mm = @chrome.at_css("#mm").evaluate %Q[this.getBoundingClientRect().width]
-        @text = @chrome.at_css("#text")
         @families = Set[]
-      rescue Ferrum::Error, Errno::ENOENT
-        log_abort "couldn't find or run chrome"
+        @browser = NSWTopo::Chrome.new "data:image/svg+xml;base64,#{Base64.encode64 SVG}"
       end
 
       def self.extended(instance)
@@ -30,10 +23,10 @@ module NSWTopo
       def validate(attributes)
         return unless family = attributes["font-family"]
         return unless @families.add? family
-        @text.evaluate %Q[this.textContent="abcdefghijklmnopqrstuvwxyz"]
-        ["font-family:#{family}", ""].map do |style|
-          @text.evaluate %Q[this.setAttribute("style", #{style.inspect})]
-          @text.evaluate %Q[this.getBoundingClientRect().width]
+        @browser.evaluate %Q[document.getElementById("text").textContent="abcdefghijklmnopqrstuvwxyz"]
+        [%Q[setAttribute("style",%s)] % %Q[font-family:#{family}].inspect, %Q[removeAttribute("style")]].map do |set_style|
+          @browser.evaluate %Q[document.getElementById("text").#{set_style}]
+          @browser.evaluate %Q[document.getElementById("text").getBoundingClientRect().width]
         end.tap do |specific, generic|
           log_neutral "font '#{family}' doesn't appear to be available" if specific == generic
         end
@@ -46,11 +39,9 @@ module NSWTopo
         end.map do |pair|
           pair.join ?:
         end.join(?;)
-        @text.evaluate %Q[this.setAttribute("style", #{style.inspect})]
-        @text.evaluate %Q[this.textContent=#{string.inspect}]
-        @text.evaluate(%Q[this.getBoundingClientRect().width]) / @mm
-      rescue Ferrum::Error, SystemCallError
-        log_abort "couldn't find or run chrome"
+        @browser.evaluate %Q[document.getElementById("text").setAttribute("style",#{style.inspect})]
+        @browser.evaluate %Q[document.getElementById("text").textContent=#{string.inspect}]
+        @browser.evaluate %Q[document.getElementById("text").getBoundingClientRect().width/document.getElementById("mm").getBoundingClientRect().width]
       end
     end
 

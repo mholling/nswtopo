@@ -84,13 +84,10 @@ module NSWTopo
           end
 
           FileUtils.rm pdf_path if pdf_path.exist?
-          Config["chrome"].tap do |chrome_path|
-            raise "please configure a path for google chrome" unless chrome_path
-            args = %W[--headless --disable-gpu --print-to-pdf=#{pdf_path}]
-            stdout, stderr, status = Open3.capture3 chrome_path, *args, "file://#{svg_path}"
-            raise "couldn't create PDF using chrome" unless status.success? && pdf_path.file?
-          rescue Errno::ENOENT
-            raise "invalid chrome path: %s" % chrome_path
+          log_update "chrome: rendering PDF"
+
+          Chrome.with_browser("file://#{svg_path}") do |browser|
+            browser.print_to_pdf pdf_path
           end
         end
       end

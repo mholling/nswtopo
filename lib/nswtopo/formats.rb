@@ -60,16 +60,19 @@ module NSWTopo
 
         case
         when ppi
-          info = "%i ppi" % ppi
+          ppi_info = "%i ppi" % ppi
           mm_per_px = 25.4 / ppi
         when resolution
-          info = "%.1f m/px" % resolution
+          ppi_info = "%.1f m/px" % resolution
           mm_per_px = to_mm(resolution)
         end
 
         raster_size = (@dimensions / mm_per_px).map(&:ceil)
         megapixels = raster_size.inject(&:*) / 1024.0 / 1024.0
-        log_update "chrome: creating %i×%i (%.1fMpx) map raster at %s" % [*raster_size, megapixels, info]
+
+        raster_info = "%i×%i (%.1fMpx) map raster at %s" % [*raster_size, megapixels, ppi_info]
+        chrome_message = "chrome: creating #{raster_info}"
+        log_update chrome_message
 
         NSWTopo::Chrome.with_browser("--window-size=#{TILE},#{TILE}", "--force-gpu-mem-available-mb=4096", "file://#{svg_path}") do |browser|
           tile = browser.command("Page.getLayoutMetrics").fetch("cssLayoutViewport").values_at("clientWidth", "clientHeight")
@@ -82,9 +85,14 @@ module NSWTopo
             (0...(mm / mm_per_px).ceil).step(tile).map do |px|
               [px, px * mm_per_px]
             end
-          end.inject(&:product).map(&:transpose).map do |raster_offset, viewport_offset|
+          end.inject(&:product).map(&:transpose).tap do |grid|
+            chrome_message += " (tile %i of #{grid.size})"
+          end.map.with_index do |(raster_offset, viewport_offset), index|
+            log_update chrome_message % [index + 1]
+
             tile_path = temp_dir.join("tile.%i.%i.png" % raster_offset)
             viewbox = [*viewport_offset, *viewport_size].join(?\s)
+
             browser.evaluate %Q[document.documentElement.setAttribute("viewBox","#{viewbox}")]
             browser.screenshot tile_path
 
@@ -107,6 +115,7 @@ module NSWTopo
           end
         end
 
+        log_update "nswtopo: finalising #{raster_info}"
         OS.gdal_translate vrt_path, png_path
       end
     end

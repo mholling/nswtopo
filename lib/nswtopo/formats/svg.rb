@@ -27,6 +27,7 @@ module NSWTopo
 
     def render_svg(svg_path, background:, **options)
       if uptodate?("map.svg", "map.yml")
+        log_update "nswtopo: reading existing map SVG"
         xml = REXML::Document.new read("map.svg")
         xml.elements["svg/metadata/rdf:RDF/rdf:Description"].add_attributes("xmp:ModifyDate" => Time.now.iso8601)
 

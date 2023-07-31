@@ -36,13 +36,11 @@ module NSWTopo
 
       def glyph_length(string, attributes)
         validate attributes
-        style = attributes.slice(*ATTRIBUTES).tap do |styles|
-          styles["white-space"] = "pre" if ?\s == string
-        end.map do |pair|
+        style = attributes.slice(*ATTRIBUTES).map do |pair|
           pair.join ?:
         end.join(?;)
         @text[:style] = style
-        @text.value = string
+        @text.value = string == ?\s ? "\u00a0" : string
         @text.width / @scale
       end
     end

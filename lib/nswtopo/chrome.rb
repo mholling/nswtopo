@@ -119,6 +119,7 @@ module NSWTopo
       @session_id = command("Target.attachToTarget", targetId: target_id, flatten: true).fetch("sessionId")
       command "Page.enable"
       wait "Page.loadEventFired", timeout: TIMEOUT_LOADEVENT
+      @node_id = command("DOM.getDocument").fetch("root").fetch("nodeId")
     rescue SystemCallError
       raise Error, "couldn't start chrome"
     rescue KeyError
@@ -163,14 +164,6 @@ module NSWTopo
       raise Error
     end
 
-    def evaluate(expression)
-      command("Runtime.evaluate", expression: expression, returnByValue: true).fetch("result").tap do |result|
-        raise Error if result["subtype"] == "error"
-      end.fetch("value", nil)
-    rescue KeyError
-      raise Error
-    end
-
     def screenshot(png_path)
       data = command("Page.captureScreenshot", timeout: TIMEOUT_SCREENSHOT).fetch("data")
       png_path.binwrite Base64.decode64(data)
@@ -185,29 +178,39 @@ module NSWTopo
       raise Error
     end
 
+    def query_selector_node_id(selector)
+      command("DOM.querySelector", selector: selector, nodeId: @node_id).fetch("nodeId")
+    rescue KeyError
+      raise Error
+    end
+
     class Node
       def initialize(browser, selector)
-        @browser, @selector = browser, selector
+        @browser, @node_id = browser, browser.query_selector_node_id(selector)
       end
 
       def [](name)
-        @browser.evaluate %Q[document.querySelector(#{@selector.inspect}).getAttribute(#{name.to_s.inspect})]
+        @browser.command("DOM.getAttributes", nodeId: @node_id).fetch("attributes").each_slice(2).to_h.fetch(name.to_s)
+      rescue KeyError
+        raise Error
       end
 
       def []=(name, value)
         if value.nil?
-          @browser.evaluate %Q[document.querySelector(#{@selector.inspect}).removeAttribute(#{name.to_s.inspect})]
+          @browser.command "DOM.removeAttribute", nodeId: @node_id, name: name
         else
-          @browser.evaluate %Q[document.querySelector(#{@selector.inspect}).setAttribute(#{name.to_s.inspect},#{value.inspect})]
+          @browser.command "DOM.setAttributeValue", nodeId: @node_id, name: name, value: value
         end
       end
 
-      def value=(string)
-        @browser.evaluate %Q[document.querySelector(#{@selector.inspect}).textContent=#{string.inspect}]
+      def value=(value)
+        @browser.command "DOM.setNodeValue", nodeId: @node_id + 1, value: value
       end
 
       def width
-        @browser.evaluate %Q[document.querySelector(#{@selector.inspect}).getBoundingClientRect().width]
+        @browser.command("DOM.getBoxModel", nodeId: @node_id).fetch("model").fetch("content").each_slice(2).map(&:first).minmax.reverse.inject(&:-)
+      rescue KeyError
+        raise Error
       end
     end
 

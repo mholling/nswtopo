@@ -79,8 +79,10 @@ module NSWTopo
           viewport_size = tile.times(mm_per_px)
           width, height = tile.times(25.4 / 96)
 
+          browser.command "Emulation.setDefaultBackgroundColorOverride", color: { r: 0, g: 0, b: 0, a: 0 }
           browser.evaluate %Q[document.documentElement.setAttribute("width","#{width}mm")]
           browser.evaluate %Q[document.documentElement.setAttribute("height","#{height}mm")]
+
           browser.evaluate(%Q[document.documentElement.getAttribute("viewBox")]).split.map(&:to_f).last(2).zip(tile).map do |mm, tile|
             (0...(mm / mm_per_px).ceil).step(tile).map do |px|
               [px, px * mm_per_px]

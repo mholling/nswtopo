@@ -86,7 +86,6 @@ module NSWTopo
       ObjectSpace.define_finalizer self, Chrome.rmdir(@data_dir)
 
       defaults = %W[
-        --default-background-color=00000000
         --disable-background-networking
         --disable-component-extensions-with-background-pages
         --disable-component-update

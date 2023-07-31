@@ -16,7 +16,7 @@ The following software is required in order to run *nswtopo*:
 
 * The [*Ruby* programming language](https://www.ruby-lang.org). You'll need at least Ruby 3.0.4.
 * The [*GDAL*](https://gdal.org) command-line utilities, version 3.4 or later, for geospatial data processing.
-* The [*Google Chrome*](https://www.google.com/chrome) web browser, for getting font information and rendering your map.
+* The [*Google Chrome*](https://www.google.com/chrome) or [*Chromium*](https://www.chromium.org/) web browser.
 
 Some optional software helps with additional functionality:
 
@@ -46,7 +46,7 @@ Each program should return version information if it's installed correctly.
     setx GDAL_DATA "C:\OSGeo4W64\share\gdal"
     ```
   * (Other ways of obtaining Windows GDAL utilities are listed [here](https://trac.osgeo.org/gdal/wiki/DownloadingGdalBinaries#Windows), but check the minimum version requirement.)
-  * Download and install [Google Chrome](https://www.google.com/chrome).
+  * Download and install [Google Chrome](https://www.google.com/chrome) or [Chromium](https://www.chromium.org/).
   * If you want to create KMZ maps, install [7-Zip](https://www.7-zip.org) and add its location to your PATH:
     ```sh
     setx PATH "%PATH%;C:\Program Files\7-Zip"
@@ -59,11 +59,11 @@ Each program should return version information if it's installed correctly.
   * Another popular package manager for MacOS is [Homebrew](https://brew.sh/). Install GDAL with Homebrew using `brew install gdal`
   * Alternatively, you can download and install pre-built binaries for GDAL; try [here](http://www.kyngchaos.com/software/frameworks). (This may or may not be quicker/easier than installing XCode and MacPorts!)
   * Type `ruby -v` in a terminal window to see whether a compatible Ruby version already exists. If not, you can install Ruby a number of ways, as explained [here](https://www.ruby-lang.org/en/downloads). (If you are using MacPorts, `sudo port install ruby25 +nosuffix` should also work.)
-  * Download and install [Google Chrome](https://www.google.com/chrome).
+  * Download and install [Google Chrome](https://www.google.com/chrome) or [Chromium](https://www.chromium.org/).
 
 ## Linux
 
-Dependencies should be easy to install on a Linux PC. The appropriate Ruby and GDAL packages should all be available using your distro's package manager (Pacman, RPM, Aptitude, etc).
+Dependencies should be easy to install on a Linux PC. The appropriate Ruby, GDAL and Chrome packages should all be available using your distro's package manager (Pacman, RPM, Aptitude, etc).
 
 # Installation
 
@@ -163,11 +163,10 @@ There are also some advanced tools for map developers:
 
 The following workflow is suggested to create a rogaine map.
 
-1.  Configure nswtopo, if you haven't already done so. Download and save the 9GB [SPOT5 vegetation data](ftp://qld.auscover.org.au/spot/woody_fpc_extent/nsw-2011/s5hgps_nsw_y20082012_bcvl0.tif) for NSW. Set its location, and that of Google Chrome:
+1.  Download and save the 9GB [SPOT5 vegetation data](ftp://qld.auscover.org.au/spot/woody_fpc_extent/nsw-2011/s5hgps_nsw_y20082012_bcvl0.tif) for NSW, and set its location:
 
     ```sh
     $ nswtopo config --path /path/to/s5hgps_nsw_y20082012_bcvl0.tif nsw.vegetation-spot5
-    $ nswtopo config --chrome "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     ```
 
 1.  Set out the expected bounds of your course using the polygon tool in Google Earth, saving it as `bounds.kml`. Use a partially transparent style to make it easier to see. Configure a new map file with these bounds:

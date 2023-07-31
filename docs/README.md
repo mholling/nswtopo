@@ -10,20 +10,9 @@ Help screens are available describing usage for each commands. Use the `--help` 
 $ nswtopo init --help
 ```
 
-# Configuration
-
-An important initial step is to configure the location of *Google Chrome* on your PC. Chrome is required for rendering the map in most formats. Use the *configure* command to set the path:
-
-```
-$ nswtopo config --chrome "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-nswtopo: configuration updated
-```
-
-Use forward slashes for paths, even on Windows.
-
 # Map Files
 
-Most commands need a map file to work on. Name this file anything you want. A `.tgz` extension is suggested, as the file is in *gzipped tar* archive format. All map contents are contained within the file, so a separate directory per map is not necessary.
+Most commands need a map file to work on. Name this file anything you want. A `.tgz` extension is suggested, as the file is in *gzipped tar* archive format. All map contents are contained within the file.
 
 # Example
 

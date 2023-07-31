@@ -1,6 +1,6 @@
 # Description
 
-Configure and view permanent *nswtopo* settings using the *config* command. For example, to set the *Google Chrome* path for rendering maps:
+Configure and view permanent *nswtopo* settings using the *config* command. For example, to manually set the *Google Chrome* path:
 
 ```
 $ nswtopo config --chrome "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"

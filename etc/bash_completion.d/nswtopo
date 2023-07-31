@@ -95,7 +95,7 @@ _nswtopo() {
 					;;
 				config)
 					args+=()
-					flag_opts+=(--labelling --no-labelling --debug --no-debug)
+					flag_opts+=(--labelling --no-labelling --debug --no-debug --gpu --no-gpu)
 					file_opts+=(-c --chrome -p --path --layer-dir)
 					arg_opts+=(-d --delete -r --resolution -z --zlib-level -k --knockout)
 					;;

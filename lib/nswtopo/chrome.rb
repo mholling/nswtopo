@@ -106,6 +106,7 @@ module NSWTopo
         --use-mock-keychain
         --user-data-dir=#{@data_dir}
       ]
+      defaults << "--disable-gpu" if Config["gpu"] == false
 
       input, @input, @output, output = *IO.pipe, *IO.pipe
       input.nonblock, output.nonblock = false, false

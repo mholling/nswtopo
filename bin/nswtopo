@@ -507,6 +507,7 @@ begin
   ARGV.prepend in_path.basename(".tgz").basename(".tar.gz").basename(".svg") if "render" == command
 
   nil.tap do |partial_failure|
+    log_update "nswtopo: reading map file"
     NSWTopo::Archive.open(in_path: in_path, out_path: tgz_path) do |archive|
       NSWTopo.method(command).parameters.group_by(&:first).inject [archive] do |args, (type, params)|
         case type
@@ -534,7 +535,7 @@ rescue OptionParser::ParseError => error
   warn ansi[command_parser] if $stderr.tty?
   log_abort error.message
 rescue Interrupt
-  abort $stderr.tty? ? "\r\e[K\e[31mnswtopo:\e[0m interrupted" : "nswtopo: interrupted"
+  log_abort "interrupted"
 rescue RuntimeError => error
   log_abort error.message
 end

@@ -6,14 +6,17 @@ module NSWTopo
       SVG = <<~XML
         <?xml version='1.0' encoding='UTF-8'?>
         <svg xmlns='http://www.w3.org/2000/svg' width='1mm' height='1mm' viewBox='0 0 1 1' text-rendering='geometricPrecision'>
-          <rect id='mm' width='1' height='1' stroke='none' />
-          <text id='text' />
+          <rect width='1' height='1' stroke='none' />
+          <text>placeholder</text>
         </svg>
       XML
 
       def start_chrome
         @families = Set[]
-        @browser = NSWTopo::Chrome.new "data:image/svg+xml;base64,#{Base64.encode64 SVG}"
+        NSWTopo::Chrome.new("data:image/svg+xml;base64,#{Base64.encode64 SVG}").tap do |browser|
+          @scale = browser.query_selector("rect").width
+          @text = browser.query_selector "text"
+        end
       end
 
       def self.extended(instance)
@@ -23,13 +26,12 @@ module NSWTopo
       def validate(attributes)
         return unless family = attributes["font-family"]
         return unless @families.add? family
-        @browser.evaluate %Q[document.getElementById("text").textContent="abcdefghijklmnopqrstuvwxyz"]
-        [%Q[setAttribute("style",%s)] % %Q[font-family:#{family}].inspect, %Q[removeAttribute("style")]].map do |set_style|
-          @browser.evaluate %Q[document.getElementById("text").#{set_style}]
-          @browser.evaluate %Q[document.getElementById("text").getBoundingClientRect().width]
-        end.tap do |specific, generic|
-          log_neutral "font '#{family}' doesn't appear to be available" if specific == generic
-        end
+        @text.value = "abcdefghijklmnopqrstuvwxyz"
+        @text[:style] = "font-family:#{family}"
+        styled_width = @text.width
+        @text[:style] = nil
+        unstyled_width = @text.width
+        log_neutral "font '#{family}' doesn't appear to be available" if styled_width == unstyled_width
       end
 
       def glyph_length(string, attributes)
@@ -39,9 +41,9 @@ module NSWTopo
         end.map do |pair|
           pair.join ?:
         end.join(?;)
-        @browser.evaluate %Q[document.getElementById("text").setAttribute("style",#{style.inspect})]
-        @browser.evaluate %Q[document.getElementById("text").textContent=#{string.inspect}]
-        @browser.evaluate %Q[document.getElementById("text").getBoundingClientRect().width/document.getElementById("mm").getBoundingClientRect().width]
+        @text[:style] = style
+        @text.value = string
+        @text.width / @scale
       end
     end
 

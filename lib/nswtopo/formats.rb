@@ -75,15 +75,17 @@ module NSWTopo
         log_update chrome_message
 
         NSWTopo::Chrome.with_browser("--window-size=#{TILE},#{TILE}", "--force-gpu-mem-available-mb=4096", "file://#{svg_path}") do |browser|
+          browser.command "Emulation.setDefaultBackgroundColorOverride", color: { r: 0, g: 0, b: 0, a: 0 }
+
           tile = browser.command("Page.getLayoutMetrics").fetch("cssLayoutViewport").values_at("clientWidth", "clientHeight")
           viewport_size = tile.times(mm_per_px)
           width, height = tile.times(25.4 / 96)
 
-          browser.command "Emulation.setDefaultBackgroundColorOverride", color: { r: 0, g: 0, b: 0, a: 0 }
-          browser.evaluate %Q[document.documentElement.setAttribute("width","#{width}mm")]
-          browser.evaluate %Q[document.documentElement.setAttribute("height","#{height}mm")]
+          svg = browser.query_selector "svg"
+          svg[:width] = "#{width}mm"
+          svg[:height] = "#{height}mm"
 
-          browser.evaluate(%Q[document.documentElement.getAttribute("viewBox")]).split.map(&:to_f).last(2).zip(tile).map do |mm, tile|
+          svg[:viewBox].split.map(&:to_f).last(2).zip(tile).map do |mm, tile|
             (0...(mm / mm_per_px).ceil).step(tile).map do |px|
               [px, px * mm_per_px]
             end
@@ -95,7 +97,7 @@ module NSWTopo
             tile_path = temp_dir.join("tile.%i.%i.png" % raster_offset)
             viewbox = [*viewport_offset, *viewport_size].join(?\s)
 
-            browser.evaluate %Q[document.documentElement.setAttribute("viewBox","#{viewbox}")]
+            svg[:viewBox] = viewbox
             browser.screenshot tile_path
 
             REXML::Document.new(OS.gdal_translate "-of", "VRT", tile_path, "/vsistdout/").tap do |vrt|

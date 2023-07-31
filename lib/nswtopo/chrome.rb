@@ -184,5 +184,35 @@ module NSWTopo
     rescue KeyError
       raise Error
     end
+
+    class Node
+      def initialize(browser, selector)
+        @browser, @selector = browser, selector
+      end
+
+      def [](name)
+        @browser.evaluate %Q[document.querySelector(#{@selector.inspect}).getAttribute(#{name.to_s.inspect})]
+      end
+
+      def []=(name, value)
+        if value.nil?
+          @browser.evaluate %Q[document.querySelector(#{@selector.inspect}).removeAttribute(#{name.to_s.inspect})]
+        else
+          @browser.evaluate %Q[document.querySelector(#{@selector.inspect}).setAttribute(#{name.to_s.inspect},#{value.inspect})]
+        end
+      end
+
+      def value=(string)
+        @browser.evaluate %Q[document.querySelector(#{@selector.inspect}).textContent=#{string.inspect}]
+      end
+
+      def width
+        @browser.evaluate %Q[document.querySelector(#{@selector.inspect}).getBoundingClientRect().width]
+      end
+    end
+
+    def query_selector(selector)
+      Node.new self, selector
+    end
   end
 end

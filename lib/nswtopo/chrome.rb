@@ -27,7 +27,7 @@ module NSWTopo
       when mac?
         ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Chromium.app/Contents/MacOS/Chromium"]
       when windows?
-        ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files/Google/Chrome Dev/Application/chrome.exe"]
+        ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe"]
       else
         ENV["PATH"].split(File::PATH_SEPARATOR).product(%w[chrome google-chrome chromium chromium-browser]).map do |path, binary|
           [path, binary].join(File::SEPARATOR)

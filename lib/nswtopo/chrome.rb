@@ -127,7 +127,7 @@ module NSWTopo
     end
 
     def send(**message)
-      message.merge!(id: @id += 1, sessionId: @session_id).compact!
+      message.merge! sessionId: @session_id if @session_id
       @input.write message.to_json, ?\0
     end
 
@@ -154,7 +154,7 @@ module NSWTopo
     end
 
     def command(method, timeout: TIMEOUT_COMMAND, **params)
-      send method: method, params: params
+      send id: @id += 1, method: method, params: params
       Timeout.timeout(timeout) do
         messages.find do |message|
           message["id"] == @id

@@ -75,9 +75,9 @@ module NSWTopo
         log_update chrome_message
 
         NSWTopo::Chrome.with_browser("--window-size=#{TILE},#{TILE}", "--force-gpu-mem-available-mb=4096", "file://#{svg_path}") do |browser|
-          browser.command "Emulation.setDefaultBackgroundColorOverride", color: { r: 0, g: 0, b: 0, a: 0 }
+          browser.set_background r: 0, g: 0, b: 0, a: 0
 
-          tile = browser.command("Page.getLayoutMetrics").fetch("cssLayoutViewport").values_at("clientWidth", "clientHeight")
+          tile = browser.get_viewport_size
           viewport_size = tile.times(mm_per_px)
           width, height = tile.times(25.4 / 96)
 

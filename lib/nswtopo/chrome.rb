@@ -178,6 +178,16 @@ module NSWTopo
       raise Error
     end
 
+    def set_background(**colour)
+      command "Emulation.setDefaultBackgroundColorOverride", color: colour
+    end
+
+    def get_viewport_size
+      command("Page.getLayoutMetrics").fetch("cssLayoutViewport").values_at("clientWidth", "clientHeight")
+    rescue KeyError
+      raise Error
+    end
+
     def query_selector_node_id(selector)
       command("DOM.querySelector", selector: selector, nodeId: @node_id).fetch("nodeId")
     rescue KeyError

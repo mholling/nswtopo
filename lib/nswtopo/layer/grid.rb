@@ -61,7 +61,7 @@ module NSWTopo
 
     def label_element(labels, label_params)
       font_size = label_params["font-size"]
-      parts = labels.zip(["%d ", "%02d", " %03d"]).map do |part, format|
+      parts = labels.zip(["%d\u00a0", "%02d", "\u00a0%03d"]).map do |part, format|
         format % part
       end.zip([80, 100, 80])
 
@@ -72,9 +72,9 @@ module NSWTopo
         tspan.add_text text
       end
 
-      text_length = parts.flat_map do |text, percent|
-        [Font.glyph_length(?\s, label_params), Font.glyph_length(text, label_params.merge("font-size" => font_size * percent / 100.0))]
-      end.drop(1).sum
+      text_length = parts.sum do |text, percent|
+        Font.glyph_length text, label_params.merge("font-size" => font_size * percent / 100.0)
+      end
       text_path.add_attribute "textLength", VALUE % text_length
       [text_length, text_path]
     end

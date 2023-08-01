@@ -40,7 +40,7 @@ module NSWTopo
           pair.join ?:
         end.join(?;)
         @text[:style] = style
-        @text.value = string == ?\s ? "\u00a0" : string
+        @text.value = string
         @text.width / @scale
       end
     end

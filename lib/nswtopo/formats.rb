@@ -76,14 +76,11 @@ module NSWTopo
 
         NSWTopo::Chrome.with_browser("--window-size=#{TILE},#{TILE}", "--force-gpu-mem-available-mb=4096", "file://#{svg_path}") do |browser|
           browser.set_background r: 0, g: 0, b: 0, a: 0
+          svg = browser.query_selector "svg"
+          svg[:width], svg[:height] = nil, nil
 
           tile = browser.get_viewport_size
           viewport_size = tile.times(mm_per_px)
-          width, height = tile.times(25.4 / 96)
-
-          svg = browser.query_selector "svg"
-          svg[:width] = "#{width}mm"
-          svg[:height] = "#{height}mm"
 
           svg[:viewBox].split.map(&:to_f).last(2).zip(tile).map do |mm, tile|
             (0...(mm / mm_per_px).ceil).step(tile).map do |px|

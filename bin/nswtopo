@@ -507,7 +507,6 @@ begin
   ARGV.prepend in_path.basename(".tgz").basename(".tar.gz").basename(".svg") if "render" == command
 
   nil.tap do |partial_failure|
-    log_update "nswtopo: reading map file"
     NSWTopo::Archive.open(in_path: in_path, out_path: tgz_path) do |archive|
       NSWTopo.method(command).parameters.group_by(&:first).inject [archive] do |args, (type, params)|
         case type

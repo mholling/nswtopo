@@ -6,6 +6,26 @@ module NSWTopo
     TIMEOUT_COMMAND = 10
     TIMEOUT_SCREENSHOT = 120
 
+    ARGS = %W[
+      --disable-background-networking
+      --disable-component-extensions-with-background-pages
+      --disable-component-update
+      --disable-default-apps
+      --disable-extensions
+      --disable-features=site-per-process,Translate
+      --disable-lcd-text
+      --disable-renderer-backgrounding
+      --force-color-profile=srgb
+      --force-device-scale-factor=1
+      --headless=new
+      --hide-scrollbars
+      --no-default-browser-check
+      --no-first-run
+      --no-startup-window
+      --remote-debugging-pipe=JSON
+      --use-mock-keychain
+    ]
+
     class Error < RuntimeError
       def initialize(message = "chrome error")
         super
@@ -88,33 +108,14 @@ module NSWTopo
       @id, @data_dir = 0, Dir.mktmpdir("nswtopo_headless_chrome_")
       ObjectSpace.define_finalizer self, Chrome.rmdir(@data_dir)
 
-      defaults = %W[
-        --disable-background-networking
-        --disable-component-extensions-with-background-pages
-        --disable-component-update
-        --disable-default-apps
-        --disable-extensions
-        --disable-features=site-per-process,Translate
-        --disable-lcd-text
-        --disable-renderer-backgrounding
-        --force-color-profile=srgb
-        --force-device-scale-factor=1
-        --headless=new
-        --hide-scrollbars
-        --no-default-browser-check
-        --no-first-run
-        --no-startup-window
-        --remote-debugging-pipe=JSON
-        --use-mock-keychain
-        --user-data-dir=#{@data_dir}
-      ]
-      defaults << "--disable-gpu" if Config["gpu"] == false
+      args << "--disable-gpu" if Config["gpu"] == false
+      args << "--user-data-dir=#{@data_dir}"
 
       input, @input, @output, output = *IO.pipe, *IO.pipe
       input.nonblock, output.nonblock = false, false
       @input.sync = true
 
-      @pid = Process.spawn Chrome.path, *defaults, *args, 1 => File::NULL, 2 => File::NULL, 3 => input, 4 => output, :pgroup => Chrome.windows? ? nil : true
+      @pid = Process.spawn Chrome.path, *ARGS, *args, 1 => File::NULL, 2 => File::NULL, 3 => input, 4 => output, :pgroup => Chrome.windows? ? nil : true
       ObjectSpace.define_finalizer self, Chrome.kill(@pid, @input, @output)
       input.close; output.close
 

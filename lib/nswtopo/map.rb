@@ -309,7 +309,7 @@ module NSWTopo
       save
     end
 
-    def info(empty: nil, json: false, proj: false, wkt2: false)
+    def info(empty: nil, json: false, proj: false, wkt: false)
       case
       when json
         bbox = @neatline.reproject_to_wgs84.first
@@ -317,7 +317,7 @@ module NSWTopo
         JSON.pretty_generate bbox.to_h
       when proj
         OS.gdalsrsinfo("-o", "proj4", "--single-line", @projection)
-      when wkt2
+      when wkt
         OS.gdalsrsinfo("-o", "wkt2", @projection).gsub(/\n\n+|\A\n+/, "")
       else
         area_km2 = @neatline.area * (0.000001 * @scale)**2

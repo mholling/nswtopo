@@ -77,11 +77,14 @@ module NSWTopo
       ObjectSpace.undefine_finalizer self
     end
 
-    def self.with_browser(*args, &block)
-      new(*args).tap(&block).close
+    def self.with_browser(url, **opts, &block)
+      browser = new url, **opts
+      block.call browser
+    ensure
+      browser&.close
     end
 
-    def initialize(*args, url)
+    def initialize(url, width: 800, height: 600, background: { r: 0, g: 0, b: 0, a: 0 }, args: [])
       @id, @data_dir = 0, Dir.mktmpdir("nswtopo_headless_chrome_")
       ObjectSpace.define_finalizer self, Chrome.rmdir(@data_dir)
 
@@ -119,6 +122,8 @@ module NSWTopo
       @session_id = command("Target.attachToTarget", targetId: target_id, flatten: true).fetch("sessionId")
       command "Page.enable"
       wait "Page.loadEventFired", timeout: TIMEOUT_LOADEVENT
+      command "Emulation.setDeviceMetricsOverride", width: width, height: height, deviceScaleFactor: 1, mobile: false
+      command "Emulation.setDefaultBackgroundColorOverride", color: background
       @node_id = command("DOM.getDocument").fetch("root").fetch("nodeId")
     rescue SystemCallError
       raise Error, "couldn't start chrome"
@@ -174,16 +179,6 @@ module NSWTopo
     def print_to_pdf(pdf_path)
       data = command("Page.printToPDF", timeout: nil, preferCSSPageSize: true).fetch("data")
       pdf_path.binwrite Base64.decode64(data)
-    rescue KeyError
-      raise Error
-    end
-
-    def set_background(**colour)
-      command "Emulation.setDefaultBackgroundColorOverride", color: colour
-    end
-
-    def get_viewport_size
-      command("Page.getLayoutMetrics").fetch("cssLayoutViewport").values_at("clientWidth", "clientHeight")
     rescue KeyError
       raise Error
     end

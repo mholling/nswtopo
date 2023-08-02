@@ -11,6 +11,7 @@ module NSWTopo
     include Log
     PPI = 300
     TILE = 1500
+    ARGS = %w[--force-gpu-mem-available-mb=4096]
 
     def self.extensions
       instance_methods.grep(/^render_([a-z]+)/) { $1 }
@@ -67,6 +68,7 @@ module NSWTopo
           mm_per_px = to_mm(resolution)
         end
 
+        viewport_size = [TILE * mm_per_px] * 2
         raster_size = (@dimensions / mm_per_px).map(&:ceil)
         megapixels = raster_size.inject(&:*) / 1024.0 / 1024.0
 
@@ -74,16 +76,11 @@ module NSWTopo
         chrome_message = "chrome: creating #{raster_info}"
         log_update chrome_message
 
-        NSWTopo::Chrome.with_browser("--window-size=#{TILE},#{TILE}", "--force-gpu-mem-available-mb=4096", "file://#{svg_path}") do |browser|
-          browser.set_background r: 0, g: 0, b: 0, a: 0
+        NSWTopo::Chrome.with_browser "file://#{svg_path}", width: TILE, height: TILE, args: ARGS do |browser|
           svg = browser.query_selector "svg"
           svg[:width], svg[:height] = nil, nil
-
-          tile = browser.get_viewport_size
-          viewport_size = tile.times(mm_per_px)
-
-          svg[:viewBox].split.map(&:to_f).last(2).zip(tile).map do |mm, tile|
-            (0...(mm / mm_per_px).ceil).step(tile).map do |px|
+          svg[:viewBox].split.map(&:to_f).last(2).map do |mm|
+            (0...(mm / mm_per_px).ceil).step(TILE).map do |px|
               [px, px * mm_per_px]
             end
           end.inject(&:product).map(&:transpose).tap do |grid|

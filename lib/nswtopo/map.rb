@@ -130,10 +130,12 @@ module NSWTopo
     def self.from_svg(archive, svg_path)
       xml = REXML::Document.new(svg_path.read)
 
-      creator_tool = xml.elements["svg/metadata/rdf:RDF/rdf:Description[@xmp:CreatorTool]/@xmp:CreatorTool"]&.value
-      version = Version[creator_tool]
-      raise "SVG nswtopo version too old: %s" % svg_path unless version >= MIN_VERSION
-      raise "SVG nswtopo version too new: %s" % svg_path unless version <= VERSION
+      unless false == Config["versioning"]
+        creator_tool = xml.elements["svg/metadata/rdf:RDF/rdf:Description[@xmp:CreatorTool]/@xmp:CreatorTool"]&.value
+        version = Version[creator_tool]
+        raise "SVG nswtopo version too old: %s" % svg_path unless version >= MIN_VERSION
+        raise "SVG nswtopo version too new: %s" % svg_path unless version <= VERSION
+      end
 
       /^0\s+0\s+(?<width>\S+)\s+(?<height>\S+)$/ =~ xml.elements["svg[@viewBox]/@viewBox"]&.value
        width && xml.elements["svg[ @width='#{ width}mm']"] || raise(Version::Error)

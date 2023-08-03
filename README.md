@@ -2,7 +2,7 @@
 
 ### _Version 2.0.0_
 
-This software is a tool for downloading and compiling high-resolution vector topographic maps from internet map servers. Map layers are currently provided for NSW and Tasmanian topographic maps. Maps are produced in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. A number of other raster formats, including GeoTIFF, KMZ, mbtiles and Avenza Maps, can also be produced.
+This software is a tool for downloading and compiling high-resolution vector topographic maps from internet map servers. Map layers are currently provided for NSW topographic maps. Maps are produced in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. A number of other raster formats, including GeoTIFF, KMZ, mbtiles and Avenza Maps, can also be produced.
 
 The software was originally designed for the production of rogaining maps and includes several useful features for this purpose (including control checkpoint layers, arbitrary map rotation and magnetic declination marker lines). However the software is also useful for anyone wanting to create custom NSW topo maps for outdoor recreation, particularly on mobile apps.
 
@@ -57,8 +57,8 @@ Each program should return version information if it's installed correctly.
 ## macOS
   * GDAL can obtained for macOS by first setting up [MacPorts](https://www.macports.org), a macOS package manager; follow [these instructions](https://guide.macports.org/chunked/installing.html) on the MacPorts site. After MacPorts is installed, use it to install GDAL with `sudo port install gdal`
   * Another popular package manager for MacOS is [Homebrew](https://brew.sh/). Install GDAL with Homebrew using `brew install gdal`
-  * Alternatively, you can download and install pre-built binaries for GDAL; try [here](http://www.kyngchaos.com/software/frameworks). (This may or may not be quicker/easier than installing XCode and MacPorts!)
-  * Type `ruby -v` in a terminal window to see whether a compatible Ruby version already exists. If not, you can install Ruby a number of ways, as explained [here](https://www.ruby-lang.org/en/downloads). (If you are using MacPorts, `sudo port install ruby25 +nosuffix` should also work.)
+  * Alternatively, you can download and install pre-built binaries for GDAL; try [here](https://www.kyngchaos.com/software/archive/gdal-complete/). (This may or may not be quicker/easier than installing XCode and MacPorts!)
+  * You can install Ruby a number of ways, as explained [here](https://www.ruby-lang.org/en/downloads). If you are using MacPorts, `sudo port install ruby31 +nosuffix` should also work. (Note that the ruby installation included in macOS is outdated and won't suffice.)
   * Download and install [Google Chrome](https://www.google.com/chrome) or [Chromium](https://www.chromium.org/).
 
 ## Linux

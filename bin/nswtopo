@@ -399,6 +399,7 @@ begin
       parser.on       "--[no-]labelling",                            "enable or disable map labelling"
       parser.on       "--[no-]debug",                                "enable or disable label debuging"
       parser.on       "--[no-]gpu",                                  "enable or disable Chrome GPU usage"
+      parser.on       "--[no-]versioning",                           "enable or disable map version checking"
       parser.on "-z", "--zlib-level    <0-9>",        ZlibLevel,     "set zlib compression level"
       parser.on "-k", "--knockout      <width>",      NonNegFloat,   "set label knockout width in mm"
 

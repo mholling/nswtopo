@@ -68,7 +68,7 @@ module NSWTopo
           raise "nswtopo too old: map file created with nswtopo %s, this version %s" % [version, VERSION] unless version <= VERSION
         rescue Version::Error
           raise "unrecognised map file: %s" % in_path
-        end if in_path
+        end if in_path && false != Config["versioning"]
         Gem::Package::TarReader.new(input) do |tar|
           archive = new(tar).tap(&block)
           Gem::Package::TarWriter.new(buffer) do |tar|

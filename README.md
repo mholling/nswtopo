@@ -1,6 +1,6 @@
 # nswtopo – Vector Topographic Mapping Tool
 
-### _Version 2.0.0_
+### _Version 3.0_
 
 This software is a tool for downloading and compiling high-resolution vector topographic maps from internet map servers. Map layers are currently provided for NSW topographic maps. Maps are produced in [scalable vector graphics](http://en.wikipedia.org/wiki/Scalable_Vector_Graphics) (SVG) format for use and further editing with vector graphics programs such as Inkscape or Illustrator. A number of other raster formats, including GeoTIFF, KMZ, mbtiles and Avenza Maps, can also be produced.
 

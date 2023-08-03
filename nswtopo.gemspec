@@ -10,5 +10,5 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.0.4"
   spec.executables  << "nswtopo"
   spec.requirements << "GDAL >= v3.4"
-  spec.requirements << "Google Chrome"
+  spec.requirements << "Google Chrome >= v112"
 end

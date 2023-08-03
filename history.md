@@ -41,3 +41,4 @@
 * 11/8/2018: version 1.6: fix bug with shaded relief when coastline is present; switch to Google Chrome as preferred rasterising method; more accurate font sizing when using Chrome; add ACT map source for 5-metre contours; numerous internal changes and fixes
   *  12/8/2018: version 1.6.1: Windows bugfix
 * 13/2/2019: version 2.0.0: major rewrite with new command structure
+* 3/8/2023: version 3.0: many improvements, no longer tracked here

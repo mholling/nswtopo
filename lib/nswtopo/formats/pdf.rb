@@ -10,7 +10,7 @@ module NSWTopo
 
           REXML::Document.new(svg_path.read).tap do |xml|
             xml.elements["svg"].tap do |svg|
-              style = "@media print { @page { margin: 0; size: %s %s; } }"
+              style = "@media print { @page { margin: 0 0 -1mm 0; size: %s %s; } }"
               svg.add_element("style").text = style % svg.attributes.values_at("width", "height")
             end
 

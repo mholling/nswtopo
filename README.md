@@ -20,11 +20,12 @@ The following software is required in order to run *nswtopo*:
 
 Some optional software helps with additional functionality:
 
-* A zip command utility (either *zip* or *7z*), if you wish to produce *KMZ* maps.
-* [*SQLite*](https://sqlite.org), if you need to produce maps in *mbtiles* format.
-* [*pngquant*](https://pngquant.org), if you wish to produce indexed colour map images.
+* A zip command utility (either *zip* or *7z*), to produce *KMZ* maps.
+* [*SQLite*](https://sqlite.org), to produce maps in *mbtiles* format.
+* [*pngquant*](https://pngquant.org), to produce indexed colour map images.
 * [*ImageMagick*](https://imagemagick.org), as an alternative to *pngquant*.
-* [*Inkscape*](https://inkscape.org), if you wish to make manual edits or additions to your map.
+* [*Inkscape*](https://inkscape.org), to make manual edits or additions to your map.
+* The [*HexaPDF*](https://rubygems.org/gems/hexapdf) gem, to georeference maps in PDF format.
 
 Finally, a geographic viewing or mapping program such as [*Google Earth Pro*](https://www.google.com/earth) is useful for easily defining the area you wish to map, and for viewing your resulting map and other GPS data.
 

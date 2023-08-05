@@ -19,6 +19,10 @@ require 'forwardable'
 require 'rubygems/package'
 require 'zlib'
 require 'io/nonblock'
+begin
+  require 'hexapdf'
+rescue LoadError
+end
 
 require_relative 'nswtopo/helpers'
 require_relative 'nswtopo/avl_tree'

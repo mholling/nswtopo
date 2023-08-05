@@ -177,9 +177,14 @@ module NSWTopo
       raise Error
     end
 
-    def print_to_pdf(pdf_path)
+    def print_to_pdf(pdf_path, &block)
       data = command("Page.printToPDF", timeout: nil, preferCSSPageSize: true).fetch("data")
-      pdf_path.binwrite Base64.decode64(data)
+      pdf = Base64.decode64 data
+      if defined? HexaPDF
+        HexaPDF::Document.new(io: StringIO.new(pdf)).tap(&block).write(pdf_path.to_s)
+      else
+        pdf_path.binwrite(pdf)
+      end
     rescue KeyError
       raise Error
     end

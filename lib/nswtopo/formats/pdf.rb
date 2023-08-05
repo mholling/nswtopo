@@ -83,11 +83,40 @@ module NSWTopo
             svg_path.write xml
           end
 
-          FileUtils.rm pdf_path if pdf_path.exist?
           log_update "chrome: rendering PDF"
-
           Chrome.with_browser("file://#{svg_path}") do |browser|
-            browser.print_to_pdf pdf_path
+            browser.print_to_pdf(pdf_path) do |doc|
+              bbox = [0, 0, *dimensions.times(72/25.4)]
+              bounds = cutline.coordinates[0][...-1].map do |coords|
+                coords.zip(dimensions).map { |coord, dimension| coord / dimension }
+              end.flatten
+              lpts = [0, 0].zip(    [1, 1]).inject(&:product).values_at(0,1,3,2).flatten
+              gpts = [0, 0].zip(dimensions).inject(&:product).values_at(0,1,3,2).then do |corners|
+                # corners.map(&:reverse) # ISO 32000-2 specifies this, but not observed in practice
+                GeoJSON.multipoint(corners, projection: projection).reproject_to_wgs84.coordinates.map(&:reverse)
+              end.flatten
+              pcsm = [25.4/72, 0, 0, 0, 25.4/72, 0, 0, 0, 1, 0, 0, 0]
+
+              doc.pages.first[:VP] = [doc.add({
+                Type: :Viewport,
+                BBox: bbox,
+                Measure: doc.add({
+                  Type: :Measure,
+                  Subtype: :GEO,
+                  Bounds: bounds,
+                  GCS: doc.add({
+                    Type: :PROJCS,
+                    WKT: projection.wkt2
+                  }),
+                  GPTS: gpts,
+                  LPTS: lpts,
+                  PCSM: pcsm
+                })
+              })]
+
+              doc.trailer.info[:Creator] = "nswtopo"
+              doc.version = "1.7"
+            end
           end
         end
       end

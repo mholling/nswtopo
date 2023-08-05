@@ -5,7 +5,7 @@ Gem::Specification.new do |spec|
   spec.summary               = "A vector topographic mapping tool"
   spec.authors               = ["Matthew Hollingworth"]
   spec.homepage              = "https://github.com/mholling/nswtopo"
-  spec.license               = "GPL-3.0"
+  spec.license               = "AGPL-3.0"
   spec.files                 = Dir["lib/**/*.rb", "bin/nswtopo", "docs/**/*.md", "COPYING"]
   spec.required_ruby_version = ">= 3.0.4"
   spec.executables  << "nswtopo"

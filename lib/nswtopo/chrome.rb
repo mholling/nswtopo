@@ -77,10 +77,13 @@ module NSWTopo
           *, status = Open3.capture2e *%W[taskkill /f /t /pid #{pid}]
           Process.kill "KILL", pid unless status.success?
         else
-          Timeout.timeout(TIMEOUT_KILL, Error) do
-            Process.kill "-USR1", Process.getpgid(pid)
-            Process.wait pid
-          rescue Error
+          Process.kill "-USR1", Process.getpgid(pid)
+          Enumerator.produce(Time.now) do |time|
+            sleep 0.05 and Time.now
+          end.each.with_object(Time.now) do |time, start|
+            break true if Process.wait pid, Process::WNOHANG
+            break false if time - start > TIMEOUT_KILL
+          end or begin
             Process.kill "-KILL", Process.getpgid(pid)
             Process.wait pid
           end

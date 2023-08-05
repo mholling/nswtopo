@@ -24,6 +24,6 @@ module NSWTopo
     end
   end
 
-  VERSION     = Version["nswtopo 3.0"]
+  VERSION     = Version["nswtopo 3.0.1"]
   MIN_VERSION = Version["nswtopo 3.0"]
 end

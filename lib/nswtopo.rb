@@ -19,6 +19,7 @@ require 'forwardable'
 require 'rubygems/package'
 require 'zlib'
 require 'io/nonblock'
+require 'bigdecimal/util'
 begin
   require 'hexapdf'
 rescue LoadError

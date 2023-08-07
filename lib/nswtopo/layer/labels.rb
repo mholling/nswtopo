@@ -550,7 +550,20 @@ module NSWTopo
         else baseline.values_at(0, -1).map(&:first).inject(&:<=)
         end
 
-        hull = GeoJSON::LineString.new(baseline).multi.buffer(0.5 * font_size, splits: false).coordinates.flatten(1).convex_hull
+        segment_offsets = baseline.each_cons(2).map do |p0, p1|
+          p1.minus(p0).perp.normalised.times(0.5 * font_size)
+        end
+        midpoints_curvatures = segment_offsets.each_cons(2).map do |d01, d12|
+          next d01.plus(d12).normalised.times(0.5 * font_size), d01.cross(d12) <=> 0
+        end
+        hull = baseline.each_cons(2).zip(segment_offsets, midpoints_curvatures).each.with_object [] do |((p0, p1), offset, (midpoint, curvature)), points|
+          points << p0.plus(offset) << p0.minus(offset) << p1.plus(offset) << p1.minus(offset)
+          case curvature
+          when +1 then points << p1.minus(midpoint)
+          when -1 then points << p1.plus(midpoint)
+          end
+        end.convex_hull
+
         next unless labelling_hull.surrounds? hull
 
         path_id = [@name, collection.layer_name, "path", label_index, feature_index, indices.first, indices.last].join ?.

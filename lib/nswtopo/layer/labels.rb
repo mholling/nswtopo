@@ -655,7 +655,7 @@ module NSWTopo
           candidate.priority = index
         end
       end.tap do |candidates|
-        log_update "compositing %s: chosing label positions" % @name
+        log_update "compositing %s: choosing label positions" % @name
 
         if Config["debug"]
           candidates.flat_map(&:hulls).each.with_object("candidate", &debug)

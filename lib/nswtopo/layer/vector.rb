@@ -82,7 +82,9 @@ module NSWTopo
       if bezier
         fraction = Numeric === bezier ? bezier.clamp(0.0, 1.0) : 1.0
         extras = points.first == points.last ? [points[-2], *points, points[2]] : [points.first, *points, points.last]
-        midpoints = extras.segments.map(&:midpoint)
+        midpoints = extras.segments.map do |p0, p1|
+          p0.plus(p1).times(0.5)
+        end
         distances = extras.segments.map(&:distance)
         offsets = midpoints.zip(distances).segments.map(&:transpose).map do |segment, distance|
           segment.along(distance.first / distance.inject(&:+))

@@ -508,7 +508,7 @@ module NSWTopo
         indices, distance, bad_indices, angle_integral = [0], 0, [], []
         loop do
           while distance < text_length
-            break true if closed ? indices.many? && indices.last == indices.first : indices.last == points.length - 1
+            break true if closed ? indices.length > 1 && indices.last == indices.first : indices.last == points.length - 1
             unless indices.one?
               bad_indices << dont_use[indices.last]
               angle_integral << (angle_integral.last || 0) + angles[indices.last]
@@ -532,7 +532,7 @@ module NSWTopo
             indices.shift
             break true if indices.first == (closed ? 0 : points.length - 1)
           end && break
-        end if points.many?
+        end if points.length > 1
       end.map do |indices|
         start, stop = cumulative.values_at(indices.first, indices.last)
         along = (start + 0.5 * (stop - start) % total) % total

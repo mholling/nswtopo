@@ -40,7 +40,7 @@ module VectorSequence
     remaining.sort_by do |point|
       [point.minus(start).angle, point.minus(start).norm]
     end.inject(hull) do |memo, p3|
-      while memo.many? do
+      while memo.length > 1 do
         p1, p2 = memo.last(2)
         (p3.minus p1).cross(p2.minus p1) < 0 ? break : memo.pop
       end

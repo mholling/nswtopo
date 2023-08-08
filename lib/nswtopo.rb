@@ -59,3 +59,5 @@ begin
   require 'nswtopo/layers'
 rescue LoadError
 end
+
+BigDecimal.limit 1000

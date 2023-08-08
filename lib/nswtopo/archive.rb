@@ -71,8 +71,10 @@ module NSWTopo
         end if in_path && false != Config["versioning"]
         Gem::Package::TarReader.new(input) do |tar|
           archive = new(tar).tap(&block)
-          Gem::Package::TarWriter.new(buffer) do |tar|
-            archive.each &tar.method(:add_entry)
+          archive.each do |entry|
+            buffer.write entry.header
+            buffer.write entry.read
+            buffer.write ?\0 while buffer.pos % 512 > 0
           end if archive.changed?
         end
       end

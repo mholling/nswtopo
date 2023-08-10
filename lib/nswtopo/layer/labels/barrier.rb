@@ -25,10 +25,10 @@ module NSWTopo
         when GeoJSON::Point
           [[@feature.coordinates] * 2]
         when GeoJSON::LineString
-          @feature.coordinates.segments
+          @feature.coordinates.each_cons(2).entries
         when GeoJSON::Polygon
           @feature.coordinates.flat_map do |coordinates|
-            coordinates.segments
+            coordinates.each_cons(2).entries
           end
         end.map do |segment|
           Segment.new segment, self

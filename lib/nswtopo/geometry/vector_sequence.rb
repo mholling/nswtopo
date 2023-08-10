@@ -1,10 +1,6 @@
 module VectorSequence
-  def perps
-    ring.map(&:diff).map(&:perp)
-  end
-
   def signed_area
-    0.5 * ring.map { |p1, p2| p1.cross p2 }.inject(&:+)
+    0.5 * each_cons(2).sum { |v0, v1| v0.cross(v1) }
   end
 
   def clockwise?
@@ -17,15 +13,9 @@ module VectorSequence
   end
 
   def centroid
-    ring.map do |p1, p2|
-      (p1.plus p2).times(p1.cross p2)
-    end.inject(&:plus) / (6.0 * signed_area)
-  end
-
-  def convex?
-    ring.map(&:diff).ring.all? do |directions|
-      directions.inject(&:cross) >= 0
-    end
+    each_cons(2).map do |v0, v1|
+      (v0.plus v1).times(v0.cross v1)
+    end.inject(&:plus) / (6 * signed_area)
   end
 
   def surrounds?(points)
@@ -39,12 +29,12 @@ module VectorSequence
     hull, remaining = uniq.partition { |point| point == start }
     remaining.sort_by do |point|
       [point.minus(start).angle, point.minus(start).norm]
-    end.inject(hull) do |memo, p3|
+    end.inject(hull) do |memo, v2|
       while memo.length > 1 do
-        p1, p2 = memo.last(2)
-        (p3.minus p1).cross(p2.minus p1) < 0 ? break : memo.pop
+        v0, v1 = memo.last(2)
+        (v2.minus v0).cross(v1.minus v0) < 0 ? break : memo.pop
       end
-      memo << p3
+      memo << v2
     end
   end
 
@@ -101,7 +91,7 @@ module VectorSequence
   end
 
   def path_length
-    segments.map(&:diff).sum(&:norm)
+    each_cons(2).sum { |v0, v1| v1.minus(v0).norm }
   end
 
   def trim(margin)
@@ -109,7 +99,7 @@ module VectorSequence
     stop = path_length - start
     return [] unless start < stop
     points, total = [], 0
-    segments.each do |segment|
+    each_cons(2) do |segment|
       distance = segment.distance
       case
       when total + distance <= start
@@ -133,7 +123,7 @@ module VectorSequence
   def sample_at(interval, along: false, angle: false, offset: nil)
     Enumerator.new do |yielder|
       alpha = (0.5 + Float(offset || 0) / interval) % 1.0
-      segments.inject [alpha, 0] do |(alpha, sum), segment|
+      each_cons(2).inject [alpha, 0] do |(alpha, sum), segment|
         loop do
           fraction = alpha * interval / segment.distance
           break unless fraction < 1
@@ -152,9 +142,9 @@ module VectorSequence
   end
 
   def in_sections(count)
-    segments.each_slice(count).map do |segments|
-      segments.inject do |section, segment|
-        section << segment[1]
+    each_cons(2).each_slice(count).map do |pairs|
+      pairs.inject do |section, (p0, p1)|
+        section << p1
       end
     end
   end

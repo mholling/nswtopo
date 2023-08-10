@@ -449,7 +449,7 @@ module NSWTopo
       when String then Font.glyph_length collection.text, attributes
       end
 
-      points = data.segments.inject([]) do |memo, segment|
+      points = data.each_cons(2).inject [] do |memo, segment|
         distance = segment.distance
         case
         when REXML::Element === collection.text
@@ -539,7 +539,7 @@ module NSWTopo
         total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
         baseline = points.values_at(*indices).crop(text_length)
 
-        barrier_count = baseline.segments.each.with_object Set[] do |segment, barriers|
+        barrier_count = baseline.each_cons(2).with_object Set[] do |segment, barriers|
           barriers.merge barrier_overlaps[segment]
         end.size
         priority = [total_squared_curvature, (total - 2 * along).abs / total.to_f]

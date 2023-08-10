@@ -110,7 +110,7 @@ module StraightSkeleton
       @track[node.normals[1]] << node if node.normals[1]
       2.times.inject [node] do |nodes|
         [nodes.first.prev, *nodes, nodes.last.next].compact
-      end.segments.uniq.each do |edge|
+      end.each_cons(2).uniq.each do |edge|
         collapse edge
       end
       split node if node.splits?
@@ -192,7 +192,9 @@ module StraightSkeleton
           when :incoming then [-@direction * node.normals[1].angle,        1]
           when :outgoing then [-@direction * node.normals[0].negate.angle, 0]
           end
-        end.ring.map(&:transpose).each do |events, neighbours|
+        end.then do |events|
+          events.zip events.rotate
+        end.map(&:transpose).each do |events, neighbours|
           node = Vertex.new self, point
           case events
           when [:outgoing, :incoming] then next
@@ -236,9 +238,9 @@ module StraightSkeleton
         end.each do |extra_node|
           @active << extra_node
         end
-        edges = [node.neighbours[0], node, *extra_nodes, node.neighbours[1]].segments
+        edges = [node.neighbours[0], node, *extra_nodes, node.neighbours[1]].each_cons(2)
         normals = [node.normals[0], *extra_normals, node.normals[1]]
-        edges.zip(normals).each do |edge, normal|
+        edges.zip(normals) do |edge, normal|
           Nodes.stitch normal, *edge
         end
       end
@@ -281,8 +283,8 @@ module StraightSkeleton
           node.project(travel).to_f
         end
       end.map do |points|
-        points.segments.reject do |segment|
-          segment.inject(&:==)
+        points.each_cons(2).reject do |p0, p1|
+          p0 == p1
         end.map(&:last).unshift(points.first)
       end.reject(&:one?)
     end

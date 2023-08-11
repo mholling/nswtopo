@@ -431,10 +431,6 @@ module NSWTopo
     end
 
     def line_string_candidates(collection, label_index, feature_index, feature)
-      closed = feature.coordinates.first == feature.coordinates.last
-      pairs = closed ? :ring : :segments
-      data = feature.coordinates
-
       attributes  = feature.properties
       orientation = attributes["orientation"]
       max_turn    = attributes["max-turn"] * Math::PI / 180
@@ -444,59 +440,16 @@ module NSWTopo
       sample      = attributes["sample"]
       font_size   = attributes["font-size"]
 
+      closed = feature.coordinates.first == feature.coordinates.last
+      buffer = 0.5 * font_size
+
       text_length = case collection.text
-      when REXML::Element then data.path_length
+      when REXML::Element then feature.coordinates.path_length
       when String then Font.glyph_length collection.text, attributes
       end
 
-      points = data.each_cons(2).inject [] do |memo, segment|
-        distance = segment.distance
-        case
-        when REXML::Element === collection.text
-          memo << segment[0]
-        when curved && distance >= text_length
-          memo << segment[0]
-        else
-          steps = (distance / sample).ceil
-          memo += steps.times.map do |step|
-            segment.along(step.to_f / steps)
-          end
-        end
-      end
-      points << data.last unless closed
-
-      segments = points.send(pairs)
-      vectors = segments.map(&:diff)
-      distances = vectors.map(&:norm)
-
-      cumulative = distances.inject([0]) do |memo, distance|
-        memo << memo.last + distance
-      end
-      total = closed ? cumulative.pop : cumulative.last
-
-      angles = vectors.map(&:normalised).send(pairs).map do |directions|
-        Math.atan2 directions.inject(&:cross), directions.inject(&:dot)
-      end
-      closed ? angles.rotate!(-1) : angles.unshift(0).push(0)
-
-      curvatures = segments.send(pairs).map do |(p0, p1), (_, p2)|
-        sides = [[p0, p1], [p1, p2], [p2, p0]].map(&:distance)
-        semiperimeter = 0.5 * sides.inject(&:+)
-        diffs = sides.map { |side| semiperimeter - side }
-        area_squared = [semiperimeter * diffs.inject(&:*), 0].max
-        4 * Math::sqrt(area_squared) / sides.inject(&:*)
-      end
-      closed ? curvatures.rotate!(-1) : curvatures.unshift(0).push(0)
-
-      dont_use = angles.zip(curvatures).map do |angle, curvature|
-        angle.abs > max_angle || min_radius * curvature > 1
-      end
-
-      squared_angles = angles.map { |angle| angle * angle }
-
       barrier_overlaps = Hash.new do |overlaps, label_segment|
         bounds = label_segment.transpose.map(&:minmax)
-        buffer = 0.5 * font_size
         overlaps[label_segment] = barrier_segments.search(bounds, buffer: buffer).select do |barrier_segment|
           barrier_segment.conflicts_with?(label_segment, buffer: buffer)
         end.inject Set[] do |barriers, segment|
@@ -504,67 +457,86 @@ module NSWTopo
         end
       end
 
-      Enumerator.new do |yielder|
-        indices, distance, bad_indices, angle_integral = [0], 0, [], []
-        loop do
-          while distance < text_length
-            break true if closed ? indices.length > 1 && indices.last == indices.first : indices.last == points.length - 1
-            unless indices.one?
-              bad_indices << dont_use[indices.last]
-              angle_integral << (angle_integral.last || 0) + angles[indices.last]
-            end
-            distance += distances[indices.last]
-            indices << (indices.last + 1) % points.length
-          end && break
+      points, deltas, angles, avoid = feature.coordinates.each_cons(2).flat_map do |v0, v1|
+        next [v0] if REXML::Element === collection.text
+        distance = v1.minus(v0).norm
+        next [v0] if curved && distance >= text_length
+        (0...1).step(sample/distance).map do |fraction|
+          v0.times(1 - fraction).plus(v1.times(fraction))
+        end
+      end.then do |points|
+        if closed
+          v0, v2 = points.last, points.first
+          points.unshift(v0).push(v2)
+        else
+          points.push(feature.coordinates.last).unshift(nil).push(nil)
+        end
+      end.each_cons(3).map do |v0, v1, v2|
+        next v1, 0, 0, 0 unless v0
+        next v1, v1.minus(v0).norm, 0, 0 unless v2
+        o01, o12, o20 = v1.minus(v0), v2.minus(v1), v0.minus(v2)
+        l01, l12, l20 = o01.norm, o12.norm, o20.norm
+        h01, h12 = o01 / l01, o12 / l12
+        angle = Math::atan2 h01.cross(h12), h01.dot(h12)
+        semiperimeter = (l01 + l12 + l20) / 2
+        area_squared = [0, semiperimeter * (semiperimeter - l01) * (semiperimeter - l12) * (semiperimeter - l20)].max
+        curvature = 4 * Math::sqrt(area_squared) / (l01 * l12 * l20)
+        avoid = angle.abs > max_angle || min_radius * (curvature || 0) > 1
+        next v1, l01, angle, avoid
+      end.transpose
 
-          while distance >= text_length
-            case
-            when indices.length == 2 && curved
-            when indices.length == 2 then yielder << indices.dup
-            when distance - distances[indices.first] >= text_length
-            when bad_indices.any?
-            when angle_integral.max - angle_integral.min > max_turn
-            else yielder << indices.dup
-            end
-            angle_integral.shift
-            bad_indices.shift
-            distance -= distances[indices.first]
-            indices.shift
-            break true if indices.first == (closed ? 0 : points.length - 1)
-          end && break
-        end if points.length > 1
-      end.map do |indices|
-        start, stop = cumulative.values_at(indices.first, indices.last)
-        along = (start + 0.5 * (stop - start) % total) % total
-        total_squared_curvature = squared_angles.values_at(*indices[1...-1]).inject(0, &:+)
+      total, distances = deltas.inject([0, []]) do |(total, distances), delta|
+        next total += delta, distances << total
+      end
+
+      start = points.length.times
+      stop = closed ? points.length.times.cycle : points.length.times
+      indices = [stop.next]
+
+      Enumerator.produce do
+        while indices.length > 1 && deltas.values_at(*indices).drop(1).sum > text_length do
+          start.next
+          indices.shift
+        end
+        until indices.length > 1 && deltas.values_at(*indices).drop(1).sum > text_length do
+          indices.push stop.next
+        end
+
+        angle_sum, angle_sum_min, angle_sum_max, angle_square_sum = angles.values_at(*indices[1...-1]).inject [0, 0, 0, 0] do |(sum, min, max, square_sum), angle|
+          next sum += angle, [min, sum].min, [max, sum].max, square_sum + angle**2
+        end
+
+        redo if angle_sum_max - angle_sum_min > max_turn
+        redo if curved && indices.length < 3
+        redo if avoid.values_at(*indices).any?
+
         baseline = points.values_at(*indices).crop(text_length)
-
-        barrier_count = baseline.each_cons(2).with_object Set[] do |segment, barriers|
-          barriers.merge barrier_overlaps[segment]
-        end.size
-        priority = [total_squared_curvature, (total - 2 * along).abs / total.to_f]
-
         baseline.reverse! unless case orientation
         when "uphill", "anticlockwise" then true
         when "downhill", "clockwise" then false
         else baseline.values_at(0, -1).map(&:first).inject(&:<=)
         end
 
-        segment_offsets = baseline.each_cons(2).map do |p0, p1|
-          p1.minus(p0).perp.normalised.times(0.5 * font_size)
+        offsets = baseline.each_cons(2).map do |p0, p1|
+          p1.minus(p0).perp.normalised.times(buffer)
         end
-        midpoints_curvatures = segment_offsets.each_cons(2).map do |d01, d12|
-          next d01.plus(d12).normalised.times(0.5 * font_size), d01.cross(d12) <=> 0
+        corners = offsets.each_cons(2).map do |d01, d12|
+          d01.plus(d12).normalised.times(buffer * (d12.cross(d01) <=> 0))
         end
-        hull = baseline.each_cons(2).zip(segment_offsets, midpoints_curvatures).each.with_object [] do |((p0, p1), offset, (midpoint, curvature)), points|
-          points << p0.plus(offset) << p0.minus(offset) << p1.plus(offset) << p1.minus(offset)
-          case curvature
-          when +1 then points << p1.minus(midpoint)
-          when -1 then points << p1.plus(midpoint)
-          end
+        hull = baseline.each_cons(2).zip(offsets, corners).each.with_object [] do |((p0, p1), offset, corner), buffered|
+          buffered << p0.plus(offset) << p0.minus(offset) << p1.plus(offset) << p1.minus(offset)
+          buffered << p1.plus(corner) if corner
         end.convex_hull
+        redo unless labelling_hull.surrounds? hull
 
-        next unless labelling_hull.surrounds? hull
+        barrier_count = baseline.each_cons(2).with_object Set[] do |segment, barriers|
+          barriers.merge barrier_overlaps[segment]
+        end.size
+
+        along = distances.values_at(indices.first, indices.last).then do |d0, d1|
+          (d0 + ((d1 - d0) % total) / 2) % total
+        end
+        priority = [angle_square_sum, (total - 2 * along).abs / total]
 
         path_id = [@name, collection.layer_name, "path", label_index, feature_index, indices.first, indices.last].join ?.
         path_element = REXML::Element.new("path")
@@ -580,7 +552,7 @@ module NSWTopo
           text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
         end
         Label.new collection, label_index, feature_index, barrier_count, priority, [hull], attributes, [text_element, path_element], along, fixed
-      end.compact.reject do |candidate|
+      end.reject do |candidate|
         candidate.optional? && candidate.barriers?
       end.then do |candidates|
         neighbours = Hash.new do |hash, candidate|

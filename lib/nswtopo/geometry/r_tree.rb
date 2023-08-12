@@ -18,16 +18,14 @@ class RTree
     when block_given? then load bounds_objects.map(&block).zip(bounds_objects)
     when bounds_objects.one? then RTree.new [], *bounds_objects.first
     else
-      bounds_objects.sort_by do |bounds, object|
+      sorted_x = bounds_objects.sort_by do |bounds, object|
         bounds[0].inject(&:+)
-      end.then do |bounds_object|
-        bounds_objects.each_slice(1 + [bounds_objects.length - 1, 0].max / 2)
-      end.flat_map do |bounds_objects|
-        bounds_objects.sort_by do |bounds, object|
+      end
+      sorted_x.each_slice(1 + [sorted_x.length - 1, 0].max / 2).flat_map do |bounds_objects|
+        sorted_y = bounds_objects.sort_by do |bounds, object|
           bounds[1].inject(&:+)
-        end.then do |bounds_objects|
-          bounds_objects.each_slice(1 + [bounds_objects.length - 1, 0].max / 2)
-        end.map do |bounds_objects|
+        end
+        sorted_y.each_slice(1 + [sorted_y.length - 1, 0].max / 2).map do |bounds_objects|
           load bounds_objects
         end
       end.then do |nodes|

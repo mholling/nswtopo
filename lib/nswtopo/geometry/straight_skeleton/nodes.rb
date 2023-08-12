@@ -14,15 +14,19 @@ module StraightSkeleton
         points.each.with_object [] do |point, points|
           points << point unless points.last == point
         end
-      end.map.with_index do |(*points, point), index|
-        points.first == point ? [points, :ring, (index unless points.hole?)] : [points << point, :segments, nil]
-      end.each do |points, pair, index|
-        normals = points.send(pair).map(&:diff).map(&:normalised).map(&:perp)
+      end.each.with_index do |points, index|
+        closed = points.first == points.last
+        index = nil unless closed && !points.hole?
+        normals = points.each_cons(2).map do |v0, v1|
+          v1.minus(v0).normalised.perp
+        end
         points.map do |point|
           Vertex.new self, point
-        end.each do |node|
-          @active << node
-        end.send(pair).zip(normals).each do |edge, normal|
+        end.tap do |nodes|
+          nodes.pop if closed
+          nodes.inject(@active, &:<<)
+          nodes << nodes.first if closed
+        end.each_cons(2).zip(normals) do |edge, normal|
           Nodes.stitch normal, *edge
           @indices[normal] = index if index
         end
@@ -123,7 +127,7 @@ module StraightSkeleton
     end
 
     def nodeset
-      [].tap do |result|
+      Enumerator.new do |yielder|
         pending, processed = @active.dup, Set[]
         while pending.any?
           nodes = pending.take 1
@@ -137,9 +141,9 @@ module StraightSkeleton
           end
           pending.subtract nodes
           nodes << nodes.first if nodes.first == nodes.last.next
-          result << nodes unless nodes.one?
+          yielder << nodes unless nodes.one?
         end
-      end
+      end.entries
     end
 
     attr_reader :direction
@@ -150,17 +154,18 @@ module StraightSkeleton
       nodeset.tap do
         @active.clear
         @indices = nil
-      end.map do |*nodes, node|
-        nodes.first == node ? [nodes, :ring] : [nodes << node, :segments]
-      end.each.with_index do |(nodes, pair), index|
-        normals = nodes.send(pair).map do |edge|
-          edge[0].normals[1]
+      end.each do |nodes|
+        closed = nodes.first == nodes.last
+        normals = nodes.map do |node|
+          node.normals[1]
         end
         nodes.map do |node|
           Vertex.new self, node.project(@limit)
-        end.each do |node|
-          @active << node
-        end.send(pair).zip(normals).each do |edge, normal|
+        end.tap do |nodes|
+          nodes.pop if closed
+          nodes.inject(@active, &:<<)
+          nodes << nodes.first if closed
+        end.each_cons(2).zip(normals).each do |edge, normal|
           Nodes.stitch normal, *edge
         end
       end if @limit

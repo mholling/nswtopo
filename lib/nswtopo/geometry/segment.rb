@@ -1,12 +1,4 @@
 module Segment
-  def segments
-    each_cons(2).entries
-  end
-
-  def ring
-    zip rotate
-  end
-
   def diff
     last.minus first
   end

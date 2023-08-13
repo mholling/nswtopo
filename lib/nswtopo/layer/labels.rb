@@ -472,8 +472,8 @@ module NSWTopo
           points.push(feature.coordinates.last).unshift(nil).push(nil)
         end
       end.each_cons(3).map do |v0, v1, v2|
-        next v1, 0, 0, 0 unless v0
-        next v1, v1.minus(v0).norm, 0, 0 unless v2
+        next v1, 0, 0, false unless v0
+        next v1, v1.minus(v0).norm, 0, false unless v2
         o01, o12, o20 = v1.minus(v0), v2.minus(v1), v0.minus(v2)
         l01, l12, l20 = o01.norm, o12.norm, o20.norm
         h01, h12 = o01 / l01, o12 / l12
@@ -494,21 +494,22 @@ module NSWTopo
       indices = [stop.next]
 
       Enumerator.produce do
-        while indices.length > 1 && deltas.values_at(*indices).drop(1).sum > text_length do
+        while indices.length > 1 && deltas.values_at(*indices).drop(1).sum >= text_length do
           start.next
           indices.shift
         end
-        until indices.length > 1 && deltas.values_at(*indices).drop(1).sum > text_length do
+        until indices.length > 1 && deltas.values_at(*indices).drop(1).sum >= text_length do
           indices.push stop.next
         end
 
-        angle_sum, angle_sum_min, angle_sum_max, angle_square_sum = angles.values_at(*indices[1...-1]).inject [0, 0, 0, 0] do |(sum, min, max, square_sum), angle|
-          next sum += angle, [min, sum].min, [max, sum].max, square_sum + angle**2
+        interior = indices.values_at(1...-1)
+        angle_sum, angle_sum_min, angle_sum_max, angle_square_sum = interior.inject [0, 0, 0, 0] do |(sum, min, max, square_sum), index|
+          next sum += angles[index], [min, sum].min, [max, sum].max, square_sum + angles[index]**2
         end
 
         redo if angle_sum_max - angle_sum_min > max_turn
         redo if curved && indices.length < 3
-        redo if avoid.values_at(*indices).any?
+        redo if avoid.values_at(*interior).any?
 
         baseline = points.values_at(*indices).crop(text_length)
         baseline.reverse! unless case orientation

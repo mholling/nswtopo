@@ -80,21 +80,21 @@ module NSWTopo
 
     def svg_path_data(points, bezier: false)
       if bezier
-        fraction = Numeric === bezier ? bezier.clamp(0.0, 1.0) : 1.0
+        fraction = Numeric === bezier ? bezier.clamp(0, 1) : 1
         extras = points.first == points.last ? [points[-2], *points, points[2]] : [points.first, *points, points.last]
         midpoints = extras.each_cons(2).map do |p0, p1|
-          p0.plus(p1).times(0.5)
+          p0.plus(p1) / 2
         end
         distances = extras.each_cons(2).map do |p0, p1|
           p1.minus(p0).norm
         end
-        offsets = midpoints.zip(distances).each_cons(2).map(&:transpose).map do |segment, distance|
-          segment.along(distance.first / distance.inject(&:+))
+        offsets = midpoints.zip(distances).each_cons(2).map do |(m0, d0), (m1, d1)|
+          (m0.times(d1).plus m1.times(d0)) / (d0 + d1)
         end.zip(points).map do |p0, p1|
           p1.minus(p0)
         end
-        controls = midpoints.each_cons(2).zip(offsets).flat_map do |segment, offset|
-          segment.map { |point| [point, point.plus(offset)].along(fraction) }
+        controls = midpoints.each_cons(2).zip(offsets).flat_map do |(m0, m1), offset|
+          [offset.times(fraction).plus(m0), offset.times(fraction).plus(m1)]
         end.drop(1).each_slice(2).entries.prepend(nil)
         points.zip(controls).map do |point, controls|
           controls ? "C %s %s %s" % [POINT, POINT, POINT] % [*controls.flatten, *point] : "M %s" % POINT % point

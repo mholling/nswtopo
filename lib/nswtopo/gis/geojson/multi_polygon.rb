@@ -52,7 +52,7 @@ module NSWTopo
             neighbours.delete node
             neighbours[neighbour].delete node
             nodes, length = tails.delete(node) || [[node], 0]
-            candidate = [nodes << neighbour, length + [node.point, neighbour.point].distance]
+            candidate = [nodes << neighbour, length + node.point.minus(neighbour.point).norm]
             tails[neighbour] = [tails[neighbour], candidate].compact.max_by(&:last)
           end.any?
         end
@@ -61,7 +61,7 @@ module NSWTopo
         while candidates.any?
           (*nodes, node), length = candidates.pop
           next if (neighbours[node] - nodes).each do |neighbour|
-            candidates << [[*nodes, node, neighbour], length + [node.point, neighbour.point].distance]
+            candidates << [[*nodes, node, neighbour], length + node.point.minus(neighbour.point).norm]
           end.any?
           index = nodes.find(&:index).index
           tail_nodes, tail_length = tails[node] || [[node], 0]

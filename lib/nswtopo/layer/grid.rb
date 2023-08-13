@@ -108,9 +108,10 @@ module NSWTopo
         label, ends = gridline.values_at "label", "ends"
         %i[itself reverse].values_at(*ends).map do |order|
           text_length, text_path = label_element(label, label_params)
-          segment = gridline.coordinates.send(order).take(2)
-          fraction = text_length / segment.distance
-          coordinates = [segment[0], segment.along(fraction)].send(order)
+          v0, v1 = gridline.coordinates.send(order).take(2)
+          fraction = text_length / v1.minus(v0).norm
+          v01 = v1.times(fraction).plus v0.times(1 - fraction)
+          coordinates = [v0, v01].send(order)
           GeoJSON::LineString.new coordinates, "label" => text_path
         end
       end

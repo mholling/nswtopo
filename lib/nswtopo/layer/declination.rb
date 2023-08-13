@@ -21,7 +21,7 @@ module NSWTopo
       row_spacing = @arrows * 0.5
       col_offset = @offset % @spacing
 
-      radius = 0.5 * @map.neatline.bounds.transpose.distance
+      radius = 0.5 * @map.neatline.bounds.transpose.inject(&:minus).norm
       j_max = (radius / col_spacing).ceil
       i_max = (radius / row_spacing).ceil
 

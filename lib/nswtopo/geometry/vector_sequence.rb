@@ -99,16 +99,16 @@ module VectorSequence
     stop = path_length - start
     return [] unless start < stop
     points, total = [], 0
-    each_cons(2) do |segment|
-      distance = segment.distance
+    each_cons(2) do |v0, v1|
+      distance = v1.minus(v0).norm
       case
       when total + distance <= start
       when total <= start
-        points << segment.along((start - total) / distance)
-        points << segment.along((stop  - total) / distance) if total + distance >= stop
+        points << (v0.times(distance + total - start).plus v1.times(start - total)) / distance
+        points << (v0.times(distance + total - stop ).plus v1.times(stop  - total)) / distance if total + distance >= stop
       else
-        points << segment[0]
-        points << segment.along((stop  - total) / distance) if total + distance >= stop
+        points << v0
+        points << (v0.times(distance + total - stop ).plus v1.times(stop  - total)) / distance if total + distance >= stop
       end
       total += distance
       break if total >= stop
@@ -129,7 +129,7 @@ module VectorSequence
           distance = v1.minus(v0).norm
           fraction = alpha * interval / distance
           break unless fraction < 1
-          v0 = [v0, v1].along(fraction)
+          v0 = v1.times(fraction).plus v0.times(1 - fraction)
           along += alpha * interval
           yielder << (block_given? ? yield(v0, along, angle) : v0)
           alpha = 1.0

@@ -1,5 +1,4 @@
 require_relative 'geometry/vector'
-require_relative 'geometry/segment'
 require_relative 'geometry/vector_sequence'
 require_relative 'geometry/overlap'
 require_relative 'geometry/r_tree'

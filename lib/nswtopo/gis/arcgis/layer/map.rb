@@ -116,7 +116,10 @@ module NSWTopo
                     curves = [[coords.last.last, *points]]
                     while curve = curves.shift
                       next if curve.first == curve.last
-                      if curve.values_at(0,-1).distance < 0.99 * curve.each_cons(2).sum(&:distance)
+                      curve_length = curve.each_cons(2).sum do |v0, v1|
+                        v1.minus(v0).norm
+                      end
+                      if curve.first.minus(curve.last).norm < 0.99 * curve_length
                         reduced = 3.times.inject [ curve ] do |reduced|
                           reduced << reduced.last.each_cons(2).map do |(x0, y0), (x1, y1)|
                             [0.5 * (x0 + x1), 0.5 * (y0 + y1)]

@@ -26,7 +26,9 @@ module NSWTopo
       when @contours
         bounds = cutline.bounds
         raise "no resolution specified for #{@name}" unless Numeric === @mm_per_px
-        outsize = (bounds.transpose.diff / @mm_per_px).map(&:ceil)
+        outsize = bounds.map do |min, max|
+          (max - min) / @mm_per_px
+        end.map(&:ceil)
 
         collection = @contours.map do |url_or_path, attribute_or_hash|
           raise "no elevation attribute specified for #{url_or_path}" unless attribute_or_hash

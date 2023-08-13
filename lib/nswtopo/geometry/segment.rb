@@ -1,10 +1,6 @@
 module Segment
-  def diff
-    last.minus first
-  end
-
   def distance
-    diff.norm
+    last.minus(first).norm
   end
 
   def along(fraction)

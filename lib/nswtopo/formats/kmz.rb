@@ -50,7 +50,9 @@ module NSWTopo
       degree_resolution = 180.0 * metre_resolution / Math::PI / Kmz::EARTH_RADIUS
 
       wgs84_bounds = @cutline.reproject_to_wgs84.bounds
-      wgs84_dimensions = wgs84_bounds.transpose.diff / degree_resolution
+      wgs84_dimensions = wgs84_bounds.map do |min, max|
+        (max - min) / degree_resolution
+      end
 
       max_zoom = Math::log2(wgs84_dimensions.max).ceil - Math::log2(Kmz::TILE_SIZE).to_i
       png_path = yield(ppi: ppi)

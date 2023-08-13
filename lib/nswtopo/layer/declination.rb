@@ -44,8 +44,11 @@ module NSWTopo
     def to_s
       lines = features.grep(GeoJSON::LineString)
       return @name if lines.none?
-      line = lines.map(&:coordinates).max_by(&:distance)
-      angle = 90 + 180 * Math::atan2(*line.diff.reverse) / Math::PI + @map.rotation
+      angle = lines.map(&:coordinates).map do |v0, v1|
+        v1.minus(v0)
+      end.max_by(&:norm).then do |delta|
+        90 + 180 * Math::atan2(*delta.reverse) / Math::PI + @map.rotation
+      end
       "%s: %i line%s at %.1f°%s" % [@name, lines.length, (?s unless lines.one?), angle.abs, angle > 0 ? ?E : angle < 0 ? ?W : nil]
     end
 

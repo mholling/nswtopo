@@ -120,23 +120,22 @@ module VectorSequence
     trim(0.5 * (path_length - length))
   end
 
-  def sample_at(interval, along: false, angle: false, offset: nil)
+  def sample_at(interval, offset: nil)
     Enumerator.new do |yielder|
       alpha = (0.5 + Float(offset || 0) / interval) % 1.0
-      each_cons(2).inject [alpha, 0] do |(alpha, sum), segment|
+      each_cons(2).inject [alpha, 0] do |(alpha, along), (v0, v1)|
+        angle = v1.minus(v0).angle
         loop do
-          fraction = alpha * interval / segment.distance
+          distance = v1.minus(v0).norm
+          fraction = alpha * interval / distance
           break unless fraction < 1
-          segment[0] = segment.along(fraction)
-          sum += alpha * interval
-          yielder << case
-          when along then [segment[0], sum]
-          when angle then [segment[0], segment.diff.angle]
-          else segment[0]
-          end
+          v0 = [v0, v1].along(fraction)
+          along += alpha * interval
+          yielder << (block_given? ? yield(v0, along, angle) : v0)
           alpha = 1.0
         end
-        [alpha - segment.distance / interval, sum + segment.distance]
+        distance = v1.minus(v0).norm
+        next alpha - distance / interval, along + distance
       end
     end.entries
   end

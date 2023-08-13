@@ -230,7 +230,7 @@ module NSWTopo
             lines_or_rings = features.grep(GeoJSON::LineString).map(&:coordinates)
             lines_or_rings += features.grep(GeoJSON::Polygon).flat_map(&:coordinates)
             lines_or_rings.each do |points|
-              points.sample_at(interval, angle: true, offset: offset).each do |point, angle|
+              points.sample_at(interval, offset: offset) do |point, along, angle|
                 transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*point, 180.0 * angle / Math::PI]
                 content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_ids.sample
               end

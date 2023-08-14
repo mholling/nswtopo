@@ -131,7 +131,7 @@ module NSWTopo
         xml.add_element("kml", "xmlns" => "http://earth.google.com/kml/2.1").tap do |kml|
           kml.add_element("Document").tap do |document|
             document.add_element("LookAt").tap do |look_at|
-              extents = @dimensions.times(@scale / 1000.0)
+              extents = @dimensions.map { |dimension| dimension * @scale / 1000.0 }
               range_x = extents.first / 2.0 / Math::tan(Kmz::FOV) / Math::cos(Kmz::TILT)
               range_y = extents.last / Math::cos(Kmz::FOV - Kmz::TILT) / 2 / (Math::tan(Kmz::FOV - Kmz::TILT) + Math::sin(Kmz::TILT))
               names_values = [%w[longitude latitude], @centre].transpose

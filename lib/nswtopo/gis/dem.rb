@@ -21,7 +21,8 @@ module NSWTopo
         raise "DEM data not in planar projection with metre units" unless projection.metres?
 
         paths, resolutions = rasters.map do |path, info|
-          [path, info["geoTransform"].values_at(1, 2).norm]
+          rx, ry = info["geoTransform"].values_at(1, 2)
+          next path, Vector[rx, ry].norm
         end.sort_by(&:last).transpose
 
         txt_path.write paths.reverse.join(?\n)

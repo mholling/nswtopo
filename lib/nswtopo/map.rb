@@ -16,32 +16,25 @@ module NSWTopo
     delegate %i[write mtime read uptodate?] => :@archive
 
     def self.init(archive, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, inset: [], margins: nil)
-      points = case
+      centre = case
       when dimensions && margins
         raise "can't specify both margins and map dimensions"
       when coords && bounds
         raise "can't specify both bounds file and map coordinates"
       when coords
-        coords
+        GeoJSON.multipoint(coords)
       when bounds
-        gps = GPS.load(bounds).explode
-        margins ||= [15, 15] unless dimensions || gps.polygons.any?
-        case
-        when gps.polygons.any?
-          gps.polygons.flat_map(&:coordinates).inject(&:+)
-        when gps.linestrings.any?
-          gps.linestrings.map(&:coordinates).inject(&:+)
-        when gps.points.any?
-          gps.points.map(&:coordinates)
-        else
-          raise "no features found in %s" % bounds
+        GPS.load(bounds).explode.tap do |gps|
+          margins ||= [15, 15] unless dimensions || gps.polygons.any?
+          raise "no features found in %s" % bounds if gps.none?
         end
       else
         raise "no bounds file or map coordinates specified"
+      end.bounds.map do |min, max|
+        (max + min) / 2
       end
       margins ||= [0, 0]
 
-      centre = points.transpose.map(&:minmax).map(&:sum).times(0.5)
       equidistant = Projection.azimuthal_equidistant *centre
 
       case rotation
@@ -67,7 +60,9 @@ module NSWTopo
       end
 
       unless dimensions
-        dimensions = local_extents.times(1000.0 / scale).plus margins.times(2)
+        dimensions = local_extents.zip(margins).map do |extent, margin|
+          extent * 1000.0 / scale + 2 * margin
+        end
         centre = GeoJSON.point(local_centre, projection: equidistant).reproject_to_wgs84.coordinates
       end
 
@@ -323,7 +318,7 @@ module NSWTopo
         OS.gdalsrsinfo("-o", "wkt2", @projection).gsub(/\n\n+|\A\n+/, "")
       else
         area_km2 = @neatline.area * (0.000001 * @scale)**2
-        extents_km = @dimensions.times(0.000001 * @scale)
+        extents_km = @dimensions.map { |dimension| dimension * 0.000001 * @scale }
         StringIO.new.tap do |io|
           io.puts "%-11s 1:%i" %            ["scale:",      @scale]
           io.puts "%-11s %imm × %imm" %     ["dimensions:", *@dimensions.map(&:round)]

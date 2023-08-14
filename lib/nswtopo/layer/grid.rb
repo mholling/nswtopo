@@ -40,8 +40,8 @@ module NSWTopo
             label << coord % 1000 unless @interval % 1000 == 0
             collection.add_linestring line, "label" => label, "ends" => [0, 1], "category" => index.zero? ? "easting" : "northing"
           end.reproject_to_wgs84.clip(utm_geometry).clip(map_geometry).explode.each do |linestring|
-            linestring["ends"].delete 0 if linestring.coordinates[0][0] % 6 < 0.00001
-            linestring["ends"].delete 1 if linestring.coordinates[-1][0] % 6 < 0.00001
+            linestring["ends"].delete 0 if linestring.coordinates.first.x % 6 < 0.00001
+            linestring["ends"].delete 1 if linestring.coordinates.last.x % 6 < 0.00001
           end
         end
 
@@ -95,7 +95,7 @@ module NSWTopo
       end
 
       flip_eastings = eastings.partition do |easting|
-        Math::atan2(*easting.coordinates.values_at(0, -1).inject(&:minus)) * 180.0 / Math::PI > @map.rotation
+        Math::atan2(*easting.coordinates.values_at(0, -1).inject(&:-)) * 180.0 / Math::PI > @map.rotation
       end.map(&:length).inject(&:>)
       eastings.each do |easting|
         easting.coordinates.reverse!
@@ -109,8 +109,8 @@ module NSWTopo
         %i[itself reverse].values_at(*ends).map do |order|
           text_length, text_path = label_element(label, label_params)
           v0, v1 = gridline.coordinates.send(order).take(2)
-          fraction = text_length / v1.minus(v0).norm
-          v01 = v1.times(fraction).plus v0.times(1 - fraction)
+          fraction = text_length / (v1 - v0).norm
+          v01 = v1 * fraction + v0 * (1 - fraction)
           coordinates = [v0, v01].send(order)
           GeoJSON::LineString.new coordinates, "label" => text_path
         end

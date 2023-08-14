@@ -86,14 +86,14 @@ module NSWTopo
           log_update "chrome: rendering PDF"
           Chrome.with_browser("file://#{svg_path}") do |browser|
             browser.print_to_pdf(pdf_path) do |doc|
-              bbox = [0, 0, *dimensions.times(72/25.4)]
+              bbox = [0, 0, dimensions[0] * 72 / 25.4, dimensions[1] * 72 / 25.4]
               bounds = cutline.coordinates[0][...-1].map do |coords|
                 coords.zip(dimensions).map { |coord, dimension| coord / dimension }
               end.flatten
               lpts = [0, 0].zip(    [1, 1]).inject(&:product).values_at(0,1,3,2).flatten
               gpts = [0, 0].zip(dimensions).inject(&:product).values_at(0,1,3,2).then do |corners|
-                # corners.map(&:reverse) # ISO 32000-2 specifies this, but not observed in practice
-                GeoJSON.multipoint(corners, projection: projection).reproject_to_wgs84.coordinates.map(&:reverse)
+                # ISO 32000-2 specifies projected coordinates instead of WGS84, but not observed in practice
+                GeoJSON.multipoint(corners, projection: projection).reproject_to_wgs84.coordinates.map(&:to_a).map(&:reverse)
               end.flatten
               pcsm = [25.4/72, 0, 0, 0, 25.4/72, 0, 0, 0, 1, 0, 0, 0]
 

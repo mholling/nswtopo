@@ -8,7 +8,7 @@ module NSWTopo
 
         2.downto(0).map.with_index do |level, index|
           geo_transform = geotransform(ppi: ppi / 2**index)
-          outsize = (@dimensions / geo_transform[1]).map(&:ceil)
+          outsize = @dimensions.map { |dimension| (dimension / geo_transform[1]).ceil }
           case index
           when 0
             thumb_size = outsize.inject(&:<) ? [0, 64] : [64, 0]

@@ -41,9 +41,9 @@ module StraightSkeleton
       case
       when det && det.nonzero?
         x = normals.map { |normal| travel - @travel + normal.dot(point) }
-        [normals[1][1] * x[0] - normals[0][1] * x[1], normals[0][0] * x[1] - normals[1][0] * x[0]] / det
-      when normals[0] then normals[0].times(travel - @travel).plus(point)
-      when normals[1] then normals[1].times(travel - @travel).plus(point)
+        (normals[0].perp * x[1] - normals[1].perp * x[0]) / det
+      when normals[0] then normals[0] * (travel - @travel) + point
+      when normals[1] then normals[1] * (travel - @travel) + point
       end
     end
   end

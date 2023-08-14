@@ -117,12 +117,12 @@ module NSWTopo
                     while curve = curves.shift
                       next if curve.first == curve.last
                       curve_length = curve.each_cons(2).sum do |v0, v1|
-                        v1.minus(v0).norm
+                        (v1 - v0).norm
                       end
-                      if curve.first.minus(curve.last).norm < 0.99 * curve_length
+                      if (curve.first - curve.last).norm < 0.99 * curve_length
                         reduced = 3.times.inject [ curve ] do |reduced|
-                          reduced << reduced.last.each_cons(2).map do |(x0, y0), (x1, y1)|
-                            [0.5 * (x0 + x1), 0.5 * (y0 + y1)]
+                          reduced << reduced.last.each_cons(2).map do |p0, p1|
+                            (p0 + p1) / 2
                           end
                         end
                         curves.unshift reduced.map(&:last).reverse

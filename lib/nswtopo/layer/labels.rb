@@ -357,8 +357,8 @@ module NSWTopo
     end
 
     def labelling_hull
-      # TODO: doesn't account for map insets, need to replace with generalised check for non-covex @map.neatline
-      @labelling_hull ||= @map.neatline(mm: -INSET).coordinates.first.transpose.map(&:minmax).inject(&:product).values_at(0,2,3,1,0)
+      # TODO: doesn't account for map insets, need to be replaced with generalised check for non-covex @map.neatline
+      @labelling_hull ||= @map.neatline(mm: -INSET).bbox.coordinates.first
     end
 
     def barrier_segments
@@ -389,9 +389,9 @@ module NSWTopo
       end.uniq.map.with_index do |(dx, dy, f), position_index|
         text_elements, hulls = lines.map.with_index do |(line, text_length), index|
           anchor = point.dup
-          anchor[0] += dx * (f * margin + 0.5 * text_length)
-          anchor[1] += dy * (f * margin + 0.5 * height)
-          anchor[1] += (index - 0.5) * 0.5 * height unless lines.one?
+          anchor.x += dx * (f * margin + 0.5 * text_length)
+          anchor.y += dy * (f * margin + 0.5 * height)
+          anchor.y += (index - 0.5) * 0.5 * height unless lines.one?
 
           text_element = REXML::Element.new("text")
           text_element.add_attribute "transform", "translate(%s)" % POINT % anchor
@@ -402,7 +402,9 @@ module NSWTopo
 
           hull = [text_length, font_size].zip(anchor).map do |size, origin|
             [origin - 0.5 * size, origin + 0.5 * size]
-          end.inject(&:product).values_at(0,2,3,1)
+          end.inject(&:product).map do |x, y|
+            Vector[x, y]
+          end.values_at(0,2,3,1,0)
 
           next text_element, hull
         end.transpose
@@ -459,10 +461,10 @@ module NSWTopo
 
       points, deltas, angles, avoid = feature.coordinates.each_cons(2).flat_map do |v0, v1|
         next [v0] if REXML::Element === collection.text
-        distance = v1.minus(v0).norm
+        distance = (v1 - v0).norm
         next [v0] if curved && distance >= text_length
         (0...1).step(sample/distance).map do |fraction|
-          v0.times(1 - fraction).plus(v1.times(fraction))
+          v0 * (1 - fraction) + v1 * fraction
         end
       end.then do |points|
         if closed
@@ -473,8 +475,8 @@ module NSWTopo
         end
       end.each_cons(3).map do |v0, v1, v2|
         next v1, 0, 0, false unless v0
-        next v1, v1.minus(v0).norm, 0, false unless v2
-        o01, o12, o20 = v1.minus(v0), v2.minus(v1), v0.minus(v2)
+        next v1, (v1 - v0).norm, 0, false unless v2
+        o01, o12, o20 = v1 - v0, v2 - v1, v0 - v2
         l01, l12, l20 = o01.norm, o12.norm, o20.norm
         h01, h12 = o01 / l01, o12 / l12
         angle = Math::atan2 h01.cross(h12), h01.dot(h12)
@@ -519,14 +521,14 @@ module NSWTopo
         end
 
         offsets = baseline.each_cons(2).map do |p0, p1|
-          p1.minus(p0).perp.normalised.times(buffer)
+          (p1 - p0).perp.normalised * buffer
         end
         corners = offsets.each_cons(2).map do |d01, d12|
-          d01.plus(d12).normalised.times(buffer * (d12.cross(d01) <=> 0))
+          (d01 + d12).normalised * (buffer * (d12.cross(d01) <=> 0))
         end
         hull = baseline.each_cons(2).zip(offsets, corners).each.with_object [] do |((p0, p1), offset, corner), buffered|
-          buffered << p0.plus(offset) << p0.minus(offset) << p1.plus(offset) << p1.minus(offset)
-          buffered << p1.plus(corner) if corner
+          buffered << p0 + offset << p0 - offset << p1 + offset << p1 - offset
+          buffered << p1 + corner if corner
         end.convex_hull
         redo unless labelling_hull.surrounds? hull
 

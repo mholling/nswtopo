@@ -23,7 +23,7 @@ module NSWTopo
           if @tolerance
             simplified = feature.coordinates.douglas_peucker(@tolerance)
             smoothed = simplified.sample_at(2*@tolerance).each_cons(2).map do |v0, v1|
-              v0.plus(v1) / 2
+              (v0 + v1) / 2
             end.push(simplified.last).prepend(simplified.first)
             feature.coordinates = smoothed
           end

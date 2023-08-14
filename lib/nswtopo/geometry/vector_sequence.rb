@@ -14,8 +14,8 @@ module VectorSequence
 
   def centroid
     each_cons(2).map do |v0, v1|
-      (v0.plus v1).times(v0.cross v1)
-    end.inject(&:plus) / (6 * signed_area)
+      (v0 + v1) * v0.cross(v1)
+    end.inject(&:+) / (6 * signed_area)
   end
 
   def surrounds?(points)
@@ -25,14 +25,14 @@ module VectorSequence
   end
 
   def convex_hull
-    start = min_by(&:reverse)
+    start = min_by { |x, y| next y, x }
     hull, remaining = uniq.partition { |point| point == start }
     remaining.sort_by do |point|
-      [point.minus(start).angle, point.minus(start).norm]
+      next (point - start).angle, (point - start).norm
     end.inject(hull) do |memo, v2|
       while memo.length > 1 do
         v0, v1 = memo.last(2)
-        (v2.minus v0).cross(v1.minus v0) < 0 ? break : memo.pop
+        (v2 - v0).cross(v1 - v0) < 0 ? break : memo.pop
       end
       memo << v2
     end
@@ -50,7 +50,7 @@ module VectorSequence
 
     while rotation < Math::PI / 2
       edges = indices.map do |index|
-        polygon[(index + 1) % polygon.length].minus polygon[index]
+        polygon[(index + 1) % polygon.length] - polygon[index]
       end
       angle, which = [edges, calipers].transpose.map do |edge, caliper|
         Math::acos caliper.proj(edge).clamp(-1, 1)
@@ -62,7 +62,7 @@ module VectorSequence
       break if rotation >= Math::PI / 2
 
       dimensions = [0, 1].map do |offset|
-        polygon[indices[offset + 2]].minus(polygon[indices[offset]]).proj(calipers[offset + 1])
+        polygon[indices[offset + 2]] - (polygon[indices[offset]]).proj(calipers[offset + 1])
       end
 
       centre = polygon.values_at(*indices).map do |point|
@@ -91,7 +91,7 @@ module VectorSequence
   end
 
   def path_length
-    each_cons(2).sum { |v0, v1| v1.minus(v0).norm }
+    each_cons(2).sum { |v0, v1| (v1 - v0).norm }
   end
 
   def trim(margin)
@@ -100,15 +100,15 @@ module VectorSequence
     return [] unless start < stop
     points, total = [], 0
     each_cons(2) do |v0, v1|
-      distance = v1.minus(v0).norm
+      distance = (v1 - v0).norm
       case
       when total + distance <= start
       when total <= start
-        points << (v0.times(distance + total - start).plus v1.times(start - total)) / distance
-        points << (v0.times(distance + total - stop ).plus v1.times(stop  - total)) / distance if total + distance >= stop
+        points << (v0 * (distance + total - start) + v1 * (start - total)) / distance
+        points << (v0 * (distance + total - stop ) + v1 * (stop  - total)) / distance if total + distance >= stop
       else
         points << v0
-        points << (v0.times(distance + total - stop ).plus v1.times(stop  - total)) / distance if total + distance >= stop
+        points << (v0 * (distance + total - stop ) + v1 * (stop  - total)) / distance if total + distance >= stop
       end
       total += distance
       break if total >= stop
@@ -124,17 +124,17 @@ module VectorSequence
     Enumerator.new do |yielder|
       alpha = (0.5 + Float(offset || 0) / interval) % 1.0
       each_cons(2).inject [alpha, 0] do |(alpha, along), (v0, v1)|
-        angle = v1.minus(v0).angle
+        angle = (v1 - v0).angle
         loop do
-          distance = v1.minus(v0).norm
+          distance = (v1 - v0).norm
           fraction = alpha * interval / distance
           break unless fraction < 1
-          v0 = v1.times(fraction).plus v0.times(1 - fraction)
+          v0 = v1 * fraction + v0 * (1 - fraction)
           along += alpha * interval
           yielder << (block_given? ? yield(v0, along, angle) : v0)
           alpha = 1.0
         end
-        distance = v1.minus(v0).norm
+        distance = (v1 - v0).norm
         next alpha - distance / interval, along + distance
       end
     end.entries
@@ -151,9 +151,9 @@ module VectorSequence
   def douglas_peucker(tolerance)
     chunks, simplified = [self], []
     while chunk = chunks.pop
-      direction = chunk.last.minus(chunk.first).normalised
+      direction = (chunk.last - chunk.first).normalised
       deltas = chunk.map do |point|
-        point.minus(chunk.first).cross(direction).abs
+        (point - chunk.first).cross(direction).abs
       end
       delta, index = deltas.each.with_index.max_by(&:first)
       if delta < tolerance

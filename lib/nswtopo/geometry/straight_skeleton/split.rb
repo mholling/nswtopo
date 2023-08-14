@@ -13,8 +13,8 @@ module StraightSkeleton
       @edge = @nodes.track(@normal).find do |edge|
         (n00, n01), (n10, n11) = edge.map(&:normals)
         p0, p1 = edge.map(&:point)
-        next if point.minus(p0).cross(n00 ? n00.plus(n01) : n01) < 0
-        next if point.minus(p1).cross(n11 ? n11.plus(n10) : n10) > 0
+        next if (point - p0).cross(n00 ? n00 + n01 : n01) < 0
+        next if (point - p1).cross(n11 ? n11 + n10 : n10) > 0
         true
       end
     end

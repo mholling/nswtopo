@@ -69,7 +69,7 @@ module NSWTopo
         end
 
         viewport_size = [TILE * mm_per_px] * 2
-        raster_size = (@dimensions / mm_per_px).map(&:ceil)
+        raster_size = @dimensions.map { |dimension| (dimension / mm_per_px).ceil }
         megapixels = raster_size.inject(&:*) / 1024.0 / 1024.0
 
         raster_info = "%i×%i (%.1fMpx) map raster at %s" % [*raster_size, megapixels, ppi_info]

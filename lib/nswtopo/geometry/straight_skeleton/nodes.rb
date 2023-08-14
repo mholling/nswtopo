@@ -9,7 +9,9 @@ module StraightSkeleton
 
     def initialize(data)
       @active, @indices = Set[], Hash.new.compare_by_identity
-      data.to_d.map do |points|
+      data.map do |points|
+        points.map(&:to_d)
+      end.map do |points|
         next points unless points.length > 2
         points.each.with_object [] do |point, points|
           points << point unless points.last == point
@@ -18,7 +20,7 @@ module StraightSkeleton
         closed = points.first == points.last
         index = nil unless closed && !points.hole?
         normals = points.each_cons(2).map do |v0, v1|
-          v1.minus(v0).normalised.perp
+          (v1 - v0).normalised.perp
         end
         points.map do |point|
           Vertex.new self, point
@@ -44,8 +46,8 @@ module StraightSkeleton
       det = n2.cross(n1) + n1.cross(n0) + n0.cross(n2)
       return if det.zero?
       travel = (x0 * n1.cross(n2) + x1 * n2.cross(n0) + x2 * n0.cross(n1)) / det
-      point = [n1.minus(n2).perp.times(x0), n2.minus(n0).perp.times(x1), n0.minus(n1).perp.times(x2)].inject(&:plus) / det
-      [point, travel]
+      point = ((n1 - n2).perp * x0 + (n2 - n0).perp * x1 + (n0 - n1).perp * x2) / det
+      return point, travel
     end
 
     # #################################
@@ -56,11 +58,11 @@ module StraightSkeleton
     # #################################
 
     def self.solve_asym(n0, n1, n2, x0, x1, x2)
-      det = n0.minus(n1).dot(n2)
+      det = (n0 - n1).dot(n2)
       return if det.zero?
       travel = (x0 * n1.dot(n2) - x1 * n2.dot(n0) + x2 * n0.cross(n1)) / det
-      point = (n2.times(x0 - x1).plus n0.minus(n1).perp.times(x2)) / det
-      [point, travel]
+      point = (n2 * (x0 - x1) + (n0 - n1).perp * x2) / det
+      return point, travel
     end
 
     def collapse(edge)
@@ -90,7 +92,7 @@ module StraightSkeleton
         next if p0 == p2 || p1 == p2
         next if node.terminal? and Split === node and node.source.normals[0].equal? n01
         next if node.terminal? and Split === node and node.source.normals[1].equal? n01
-        next unless node.terminal? || [n20, n21].compact.inject(&:plus).dot(n01) < 0
+        next unless node.terminal? || [n20, n21].compact.inject(&:+).dot(n01) < 0
         point, travel = case
         when n20 && n21 then Nodes::solve(n20, n21, n01, n20.dot(p2) - t2, n21.dot(p2) - t2, n01.dot(p0) - t0)
         when n20 then Nodes::solve_asym(n01, n20, n20, n01.dot(p0) - t0, n20.dot(p2) - t2, n20.cross(p2))
@@ -98,7 +100,7 @@ module StraightSkeleton
         end || next
         next if travel * @direction < node.travel
         next if @limit && travel.abs > @limit.abs
-        next if point.minus(p0).dot(n01) * @direction < 0
+        next if (point - p0).dot(n01) * @direction < 0
         Split.new self, point, travel, node, edge[0]
       end.compact.each do |split|
         @candidates << split
@@ -194,8 +196,8 @@ module StraightSkeleton
           events << [:outgoing, node.next] if node.next
         end.sort_by do |event, node|
           case event
-          when :incoming then [-@direction * node.normals[1].angle,        1]
-          when :outgoing then [-@direction * node.normals[0].negate.angle, 0]
+          when :incoming then [-@direction *   node.normals[1].angle,  1]
+          when :outgoing then [-@direction * (-node.normals[0]).angle, 0]
           end
         end.then do |events|
           events.zip events.rotate

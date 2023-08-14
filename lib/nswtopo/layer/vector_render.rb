@@ -83,18 +83,18 @@ module NSWTopo
         fraction = Numeric === bezier ? bezier.clamp(0, 1) : 1
         extras = points.first == points.last ? [points[-2], *points, points[2]] : [points.first, *points, points.last]
         midpoints = extras.each_cons(2).map do |p0, p1|
-          p0.plus(p1) / 2
+          (p0 + p1) / 2
         end
         distances = extras.each_cons(2).map do |p0, p1|
-          p1.minus(p0).norm
+          (p1 - p0).norm
         end
         offsets = midpoints.zip(distances).each_cons(2).map do |(m0, d0), (m1, d1)|
-          (m0.times(d1).plus m1.times(d0)) / (d0 + d1)
+          (m0 * d1 + m1 * d0) / (d0 + d1)
         end.zip(points).map do |p0, p1|
-          p1.minus(p0)
+          p1 - p0
         end
         controls = midpoints.each_cons(2).zip(offsets).flat_map do |(m0, m1), offset|
-          [offset.times(fraction).plus(m0), offset.times(fraction).plus(m1)]
+          next m0 + offset * fraction, m1 + offset * fraction
         end.drop(1).each_slice(2).entries.prepend(nil)
         points.zip(controls).map do |point, controls|
           controls ? "C %s %s %s" % [POINT, POINT, POINT] % [*controls.flatten, *point] : "M %s" % POINT % point
@@ -251,7 +251,7 @@ module NSWTopo
               when "outpoint" then [line.last(2).rotate]
               when "endpoint" then [line.first(2), line.last(2).rotate]
               end.each do |v0, v1|
-                transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*v0, 180.0 * v1.minus(v0).angle / Math::PI]
+                transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*v0, 180.0 * (v1 - v0).angle / Math::PI]
                 use.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
               end
             end

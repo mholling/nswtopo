@@ -9,9 +9,9 @@ module NSWTopo
       klass = Class.new do
         def initialize(coordinates, properties = {})
           properties ||= {}
-          raise Error, "invalid feature properties" unless Hash === properties
-          raise Error, "invalid feature geometry" unless Array === coordinates
-          @coordinates, @properties = coordinates, properties
+          @coordinates, @properties = self.class.vectorise!(coordinates), properties
+          raise Error, "invalid feature properties" unless Hash === @properties
+          raise Error, "invalid feature geometry" unless Array === @coordinates || Vector === @coordinates
           validate!
         end
         attr_accessor :coordinates, :properties
@@ -52,9 +52,23 @@ module NSWTopo
       end
     end
 
-    [[Point,      MultiPoint     ],
-     [LineString, MultiLineString],
-     [Polygon,    MultiPolygon   ]].each do |single_class, multi_class|
+    [ [Polygon, MultiPolygon],
+      [LineString, Polygon],
+      [LineString, MultiLineString],
+      [Point, LineString],
+      [Point, MultiPoint]
+    ].each do |element_class, sequence_class|
+      sequence_class.class_eval do
+        define_singleton_method :vectorise! do |coordinates|
+          coordinates.map! &element_class.method(:vectorise!)
+        end
+      end
+    end
+
+    [ [Point,      MultiPoint     ],
+      [LineString, MultiLineString],
+      [Polygon,    MultiPolygon   ]
+    ].each do |single_class, multi_class|
       single_class.class_eval do
         def explode
           [self]

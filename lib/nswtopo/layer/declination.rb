@@ -21,19 +21,22 @@ module NSWTopo
       row_spacing = @arrows * 0.5
       col_offset = @offset % @spacing
 
-      radius = 0.5 * @map.neatline.bounds.transpose.inject(&:minus).norm
+      radius = 0.5 * @map.neatline.bounds.transpose.then do |bl, tr|
+        Vector[*tr] - Vector[*bl]
+      end.norm
+
       j_max = (radius / col_spacing).ceil
       i_max = (radius / row_spacing).ceil
 
       collection = GeoJSON::Collection.new(projection: @map.neatline.projection)
       (-j_max..j_max).each do |j|
         x = j * col_spacing + col_offset
-        coordinates = [[x, radius], [x, -radius]].map do |point|
-          point.rotate_by_degrees(declination - @map.rotation).plus @map.dimensions.times(0.5)
+        coordinates = [radius, -radius].map do |y|
+          Vector[x, y].rotate_by_degrees(declination - @map.rotation) + Vector[*@map.dimensions] / 2
         end
         collection.add_linestring coordinates
         (-i_max..i_max).reject(&j.even? ? :even? : :odd?).map do |i|
-          [x, i * row_spacing].rotate_by_degrees(declination - @map.rotation).plus @map.dimensions.times(0.5)
+          Vector[x, i * row_spacing].rotate_by_degrees(declination - @map.rotation) + Vector[*@map.dimensions] / 2
         end.each do |coordinates|
           collection.add_point coordinates, "rotation" => declination
         end
@@ -45,9 +48,9 @@ module NSWTopo
       lines = features.grep(GeoJSON::LineString)
       return @name if lines.none?
       angle = lines.map(&:coordinates).map do |v0, v1|
-        v1.minus(v0)
+        v1 - v0
       end.max_by(&:norm).then do |delta|
-        90 + 180 * Math::atan2(*delta.reverse) / Math::PI + @map.rotation
+        90 + 180 * Math::atan2(delta.y, delta.x) / Math::PI + @map.rotation
       end
       "%s: %i line%s at %.1f°%s" % [@name, lines.length, (?s unless lines.one?), angle.abs, angle > 0 ? ?E : angle < 0 ? ?W : nil]
     end

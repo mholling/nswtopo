@@ -1,6 +1,6 @@
 module NSWTopo
   module Declination
-    include Vector
+    include VectorRender
     CREATE = %w[angle spacing arrows offset]
     DEFAULTS = YAML.load <<~YAML
       spacing: 40.0

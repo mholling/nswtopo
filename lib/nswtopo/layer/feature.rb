@@ -1,6 +1,6 @@
 module NSWTopo
   module Feature
-    include Vector, Log
+    include VectorRender, Log
     CREATE = %w[features]
 
     def get_features

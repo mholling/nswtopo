@@ -1,5 +1,5 @@
 module NSWTopo
-  module Vector
+  module VectorRender
     class Knockout
       def initialize(element, buffer)
         buffer = Config["knockout"] || 0.3 if buffer == true

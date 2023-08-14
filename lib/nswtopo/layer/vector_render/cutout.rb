@@ -1,5 +1,5 @@
 module NSWTopo
-  module Vector
+  module VectorRender
     class Cutout
       def initialize(element)
         @href = "#" + element.attributes["id"]

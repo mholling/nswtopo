@@ -1,6 +1,6 @@
 module NSWTopo
   module Spot
-    include Vector, DEM, Log
+    include VectorRender, DEM, Log
     CREATE = %w[spacing smooth prefer extent]
     DEFAULTS = YAML.load <<~YAML
       spacing: 15

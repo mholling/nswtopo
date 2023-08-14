@@ -78,15 +78,15 @@ module NSWTopo
             layer.empty?
           end.each do |layer|
             next if Config["labelling"] == false
-            labels.add layer if Vector === layer
+            labels.add layer if VectorRender === layer
           end.push(labels).each.with_object [[], []] do |layer, (cutouts, knockouts)|
             log_update "compositing: #{layer.name}"
             new_knockouts, knockout = [], "map.mask.knockout.#{knockouts.length+1}"
             layer.render(cutouts: cutouts, knockout: knockout) do |object|
               case object
               when Labels::Barrier then labels << object
-              when Vector::Cutout then cutouts << object
-              when Vector::Knockout then new_knockouts << object
+              when VectorRender::Cutout then cutouts << object
+              when VectorRender::Knockout then new_knockouts << object
               when REXML::Element
                 object.attributes["mask"] ||= "url(#map.mask.knockout.#{knockouts.length})" unless "defs" == object.name
                 yielder << object

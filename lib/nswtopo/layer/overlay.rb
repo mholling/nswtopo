@@ -1,6 +1,6 @@
 module NSWTopo
   module Overlay
-    include Vector
+    include VectorRender
     CREATE = %w[simplify tolerance]
     TOLERANCE = 0.4
 

@@ -1,6 +1,6 @@
 module NSWTopo
   module Grid
-    include Vector
+    include VectorRender
     CREATE = %w[interval border]
     INSET = 1.5
     DEFAULTS = YAML.load <<~YAML

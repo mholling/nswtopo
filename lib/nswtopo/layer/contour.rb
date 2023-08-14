@@ -1,6 +1,6 @@
 module NSWTopo
   module Contour
-    include Vector, DEM, Log
+    include VectorRender, DEM, Log
     CREATE = %w[interval index auxiliary smooth simplify thin density min-length no-depression knolls fill]
     DEFAULTS = YAML.load <<~YAML
       interval: 5

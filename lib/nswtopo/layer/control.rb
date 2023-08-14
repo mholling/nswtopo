@@ -1,6 +1,6 @@
 module NSWTopo
   module Control
-    include Vector
+    include VectorRender
     CREATE = %w[diameter spot font-size colour]
     DEFAULTS = YAML.load <<~YAML
       diameter: 7.0

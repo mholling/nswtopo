@@ -6,7 +6,7 @@ require_relative 'labels/barrier'
 
 module NSWTopo
   module Labels
-    include Vector, Log
+    include VectorRender, Log
     CENTRELINE_FRACTION = 0.35
     DEFAULT_SAMPLE = 5
     INSET = 1

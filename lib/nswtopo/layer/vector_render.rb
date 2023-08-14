@@ -1,8 +1,8 @@
-require_relative 'vector/cutout'
-require_relative 'vector/knockout'
+require_relative 'vector_render/cutout'
+require_relative 'vector_render/knockout'
 
 module NSWTopo
-  module Vector
+  module VectorRender
     SVG_ATTRIBUTES = %w[
       fill-opacity
       fill

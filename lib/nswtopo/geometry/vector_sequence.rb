@@ -38,58 +38,6 @@ module VectorSequence
     end
   end
 
-  def minimum_bounding_box(*margins)
-    polygon = convex_hull
-    return polygon[0], [0, 0], 0 if polygon.one?
-    indices = [%i[min_by max_by], [0, 1]].inject(:product).map do |min, axis|
-      polygon.map.with_index.send(min) { |point, index| point[axis] }.last
-    end
-    calipers = [[0, -1], [1, 0], [0, 1], [-1, 0]]
-    rotation = 0.0
-    candidates = []
-
-    while rotation < Math::PI / 2
-      edges = indices.map do |index|
-        polygon[(index + 1) % polygon.length] - polygon[index]
-      end
-      angle, which = [edges, calipers].transpose.map do |edge, caliper|
-        Math::acos caliper.proj(edge).clamp(-1, 1)
-      end.map.with_index.min_by { |angle, index| angle }
-
-      calipers.each { |caliper| caliper.rotate_by!(angle) }
-      rotation += angle
-
-      break if rotation >= Math::PI / 2
-
-      dimensions = [0, 1].map do |offset|
-        polygon[indices[offset + 2]] - (polygon[indices[offset]]).proj(calipers[offset + 1])
-      end
-
-      centre = polygon.values_at(*indices).map do |point|
-        point.rotate_by(-rotation)
-      end.partition.with_index do |point, index|
-        index.even?
-      end.map.with_index do |pair, index|
-        0.5 * pair.map { |point| point[index] }.inject(:+)
-      end.rotate_by(rotation)
-
-      if rotation < Math::PI / 4
-        candidates << [centre, dimensions, rotation]
-      else
-        candidates << [centre, dimensions.reverse, rotation - Math::PI / 2]
-      end
-
-      indices[which] += 1
-      indices[which] %= polygon.length
-    end
-
-    candidates.min_by do |centre, dimensions, rotation|
-      dimensions.zip(margins).map do |dimension, margin|
-        margin ? dimension + 2 * margin : dimension
-      end.inject(:*)
-    end
-  end
-
   def path_length
     each_cons(2).sum { |v0, v1| (v1 - v0).norm }
   end

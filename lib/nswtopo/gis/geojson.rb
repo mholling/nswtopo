@@ -78,7 +78,7 @@ module NSWTopo
           multi_class.new [@coordinates], @properties
         end
 
-        delegate :clip => :multi
+        delegate %i[clip dissolve_points +] => :multi
         alias validate! itself
       end
 
@@ -100,6 +100,17 @@ module NSWTopo
         delegate :empty? => :@coordinates
 
         alias multi dup
+
+        define_method :+ do |other|
+          case other
+          when single_class
+            multi_class.new @coordinates + [other.coordinates]
+          when multi_class
+            multi_class.new @coordinates + other.coordinates
+          else
+            raise "heterogenous geometries not implemented"
+          end
+        end
       end
     end
   end
@@ -108,5 +119,6 @@ end
 require_relative 'geojson/point'
 require_relative 'geojson/line_string'
 require_relative 'geojson/polygon'
+require_relative 'geojson/multi_point'
 require_relative 'geojson/multi_line_string'
 require_relative 'geojson/multi_polygon'

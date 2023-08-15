@@ -85,6 +85,18 @@ module NSWTopo
         tap { @features.concat other.features }
       end
 
+      def dissolve_points
+        Collection.new projection: @projection, name: @name, features: map(&:dissolve_points)
+      end
+
+      def union
+        Collection.new projection: @projection, name: @name, features: [inject(&:+)]
+      end
+
+      def rotate_by_degrees!(angle)
+        each { |feature| feature.rotate_by_degrees! angle }
+      end
+
       def clip(polygon)
         OS.ogr2ogr "-f", "GeoJSON", "-lco", "RFC7946=NO", "-clipsrc", polygon.wkt, "/vsistdout/", "GeoJSON:/vsistdin/" do |stdin|
           stdin.puts to_json
@@ -112,6 +124,19 @@ module NSWTopo
 
       def bbox
         GeoJSON.polygon [bounds.inject(&:product).values_at(0,2,3,1,0)], projection: @projection
+      end
+
+      def bbox_centre
+        midpoint = bounds.map { |min, max| (max + min) / 2 }
+        GeoJSON.point midpoint, projection: @projection
+      end
+
+      def bbox_extents
+        bounds.map { |min, max| max - min }
+      end
+
+      def minimum_bbox_angle(*margins)
+        dissolve_points.union.first.minimum_bbox_angle(*margins)
       end
     end
   end

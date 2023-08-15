@@ -111,6 +111,10 @@ module NSWTopo
         end
         MultiPoint.new points, @properties
       end
+
+      def dissolve_points
+        MultiPoint.new @coordinates.flatten(1).flat_map(&:itself)
+      end
     end
   end
 end

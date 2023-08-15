@@ -36,6 +36,10 @@ module NSWTopo
         end.sort_by(&:last).map(&:first)
         MultiPoint.new points, @properties
       end
+
+      def dissolve_points
+        MultiPoint.new @coordinates.flat_map(&:itself)
+      end
     end
   end
 end

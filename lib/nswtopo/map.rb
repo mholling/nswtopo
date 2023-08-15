@@ -16,7 +16,7 @@ module NSWTopo
     delegate %i[write mtime read uptodate?] => :@archive
 
     def self.init(archive, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, inset: [], margins: nil)
-      centre = case
+      points = case
       when dimensions && margins
         raise "can't specify both margins and map dimensions"
       when coords && bounds
@@ -30,40 +30,33 @@ module NSWTopo
         end
       else
         raise "no bounds file or map coordinates specified"
-      end.bounds.map do |min, max|
-        (max + min) / 2
-      end
-      margins ||= [0, 0]
+      end.dissolve_points
 
+      centre = *points.bbox_centre.coordinates
       equidistant = Projection.azimuthal_equidistant *centre
+      margins ||= [0, 0]
 
       case rotation
       when "auto"
         raise "can't specify both map dimensions and auto-rotation" if dimensions
-        local_points = GeoJSON.multipoint(points).reproject_to(equidistant).coordinates
-        local_centre, local_extents, rotation = local_points.minimum_bounding_box(*margins)
-        rotation *= -180.0 / Math::PI
+        local_points = points.reproject_to equidistant
+        rotation = -180 * local_points.minimum_bbox_angle(*margins) / Math::PI
       when "magnetic"
-        rotation = declination(*centre)
+        rotation = declination *centre
       else
         raise "map rotation must be between ±45°" unless rotation.abs <= 45
       end
 
-      unless dimensions || local_centre
-        local_points = GeoJSON.multipoint(points).reproject_to(equidistant).coordinates
-        local_centre, local_extents = local_points.map do |point|
-          point.rotate_by_degrees rotation
-        end.transpose.map(&:minmax).map do |min, max|
-          [0.5 * (max + min), max - min]
-        end.transpose
-        local_centre.rotate_by_degrees! -rotation
-      end
-
       unless dimensions
+        local_points ||= points.reproject_to equidistant
+        local_points.rotate_by_degrees! rotation
+        local_extents, local_centre = local_points.bbox_extents, local_points.bbox_centre
+        local_centre.rotate_by_degrees! -rotation
+
         dimensions = local_extents.zip(margins).map do |extent, margin|
           extent * 1000.0 / scale + 2 * margin
         end
-        centre = GeoJSON.point(local_centre, projection: equidistant).reproject_to_wgs84.coordinates
+        centre = *local_centre.reproject_to_wgs84.coordinates
       end
 
       params = { units: "mm", axis: "esu", k_0: 1.0 / scale, x_0: 0.0005 * dimensions[0], y_0: -0.0005 * dimensions[1] }

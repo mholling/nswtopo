@@ -68,49 +68,12 @@ module VectorSequence
     trim(0.5 * (path_length - length))
   end
 
-  def sample_at(interval, offset: nil)
-    Enumerator.new do |yielder|
-      alpha = (0.5 + Float(offset || 0) / interval) % 1.0
-      each_cons(2).inject [alpha, 0] do |(alpha, along), (v0, v1)|
-        angle = (v1 - v0).angle
-        loop do
-          distance = (v1 - v0).norm
-          fraction = alpha * interval / distance
-          break unless fraction < 1
-          v0 = v1 * fraction + v0 * (1 - fraction)
-          along += alpha * interval
-          yielder << (block_given? ? yield(v0, along, angle) : v0)
-          alpha = 1.0
-        end
-        distance = (v1 - v0).norm
-        next alpha - distance / interval, along + distance
-      end
-    end.entries
-  end
-
   def in_sections(count)
     each_cons(2).each_slice(count).map do |pairs|
       pairs.inject do |section, (p0, p1)|
         section << p1
       end
     end
-  end
-
-  def douglas_peucker(tolerance)
-    chunks, simplified = [self], []
-    while chunk = chunks.pop
-      direction = (chunk.last - chunk.first).normalised
-      deltas = chunk.map do |point|
-        (point - chunk.first).cross(direction).abs
-      end
-      delta, index = deltas.each.with_index.max_by(&:first)
-      if delta < tolerance
-        simplified.prepend chunk.first
-      else
-        chunks << chunk[0..index] << chunk[index..-1]
-      end
-    end
-    simplified << last
   end
 end
 

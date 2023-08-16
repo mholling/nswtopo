@@ -229,11 +229,12 @@ module NSWTopo
                 defs.add_element("g", "id" => symbol_id).add_element(element, attributes)
               end
             end
-            lines_or_rings = features.grep(GeoJSON::LineString).map(&:coordinates)
-            lines_or_rings += features.grep(GeoJSON::Polygon).flat_map(&:coordinates)
-            lines_or_rings.each do |points|
-              points.sample_at(interval, offset: offset) do |point, along, angle|
-                transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*point, 180.0 * angle / Math::PI]
+            rings = features.grep(GeoJSON::Polygon).map(&:rings).flat_map(&:explode)
+            lines = features.grep(GeoJSON::LineString)
+            (rings + lines).each do |feature|
+              feature.sample_at(interval, offset: offset) do |point, along, angle|
+                "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*point, 180.0 * angle / Math::PI]
+              end.each do |transform|
                 content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_ids.sample
               end
             end

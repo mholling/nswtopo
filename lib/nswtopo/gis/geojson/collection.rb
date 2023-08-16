@@ -37,6 +37,10 @@ module NSWTopo
         block_given? ? tap { @features.each(&block) } : @features.each
       end
 
+      def map!(&block)
+        block_given? ? tap { @features.map!(&block) } : @features.map!
+      end
+
       def reproject_to(projection)
         return self if self.projection == projection
         json = OS.ogr2ogr "-t_srs", projection, "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "GeoJSON:/vsistdin/" do |stdin|

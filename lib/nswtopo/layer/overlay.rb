@@ -13,20 +13,18 @@ module NSWTopo
       GPS.new(@path).tap do |gps|
         @simplify = true if GPS::GPX === gps
         @tolerance ||= [@map.to_mm(5), TOLERANCE].max if @simplify
-      end.collection.reproject_to(@map.neatline.projection).explode.each do |feature|
+      end.collection.reproject_to(@map.neatline.projection).explode.map! do |feature|
+        if @tolerance && GeoJSON::LineString === feature
+          feature.simplify(@tolerance).segmentise(2*@tolerance).smooth_window(3)
+        else
+          feature
+        end
+      end.each do |feature|
         styles, folder, name = feature.values_at "styles", "folder", "name"
         styles ||= GPX_STYLES
-
         case feature
         when GeoJSON::LineString
           styles["stroke-linejoin"] = "round"
-          if @tolerance
-            simplified = feature.coordinates.douglas_peucker(@tolerance)
-            smoothed = simplified.sample_at(2*@tolerance).each_cons(2).map do |v0, v1|
-              (v0 + v1) / 2
-            end.push(simplified.last).prepend(simplified.first)
-            feature.coordinates = smoothed
-          end
         when GeoJSON::Polygon
           styles["stroke-linejoin"] = "miter"
         end

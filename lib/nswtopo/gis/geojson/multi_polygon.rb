@@ -10,7 +10,7 @@ module NSWTopo
       def skeleton
         segments = []
         Nodes.new(@coordinates.flatten(1)).progress do |event, node0, node1|
-          segments << [node0.point, node1.point].to_f
+          segments << [node0.point.to_f, node1.point.to_f]
         end
         MultiLineString.new segments, @properties
       end
@@ -28,7 +28,7 @@ module NSWTopo
           when :interval
             travel, rings = *args
             samples[travel] = rings.flat_map do |ring|
-              ring.sample_at interval
+              GeoJSON::LineString.sample_at(ring, interval)
             end
           end
         end
@@ -72,7 +72,7 @@ module NSWTopo
           nodes.chunk do |node|
             node.travel >= min_travel
           end.select(&:first).map(&:last).reject(&:one?).map do |nodes|
-            nodes.map(&:point).to_f
+            nodes.map(&:point).map(&:to_f)
           end
         end
         features.prepend MultiLineString.new(linestrings, @properties)
@@ -105,10 +105,14 @@ module NSWTopo
         MultiPoint.new @coordinates.map(&:first).map(&:centroid), @properties
       end
 
+      def rings
+        GeoJSON::MultiLineString.new @coordinates.flatten(1), @properties
+      end
+
       def samples(interval)
-        points = @coordinates.flatten(1).flat_map do |ring|
-          ring.sample_at interval
-        end
+        points = @coordinates.flatten(1).map do |coordinates|
+          LineString.sample_at(coordinates, interval)
+        end.inject(&:+)
         MultiPoint.new points, @properties
       end
 

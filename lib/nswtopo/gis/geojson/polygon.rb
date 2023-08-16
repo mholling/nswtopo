@@ -1,7 +1,7 @@
 module NSWTopo
   module GeoJSON
     class Polygon
-      delegate %i[area skeleton centres centrepoints centrelines buffer centroids samples] => :multi
+      delegate %i[area skeleton centres centrepoints centrelines buffer centroids samples rings] => :multi
 
       def validate!
         @coordinates.inject(false) do |hole, ring|

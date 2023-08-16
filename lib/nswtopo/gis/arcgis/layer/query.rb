@@ -66,7 +66,9 @@ module NSWTopo
                 next GeoJSON::MultiLineString.new paths, properties
               when "esriGeometryPolygon"
                 raise "ArcGIS curve geometries not supported" if geometry.key? "curveRings"
-                rings = geometry["rings"]
+                rings = geometry["rings"]&.map do |ring|
+                  ring.map { |point| Vector[*point] }
+                end
                 next unless rings&.any?
                 rings.each(&:reverse!) unless rings[0].anticlockwise?
                 polys = rings.slice_before(&:anticlockwise?).entries

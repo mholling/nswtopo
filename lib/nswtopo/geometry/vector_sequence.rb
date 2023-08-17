@@ -41,32 +41,6 @@ module VectorSequence
   def path_length
     each_cons(2).sum { |v0, v1| (v1 - v0).norm }
   end
-
-  def trim(margin)
-    start = [margin, 0].max
-    stop = path_length - start
-    return [] unless start < stop
-    points, total = [], 0
-    each_cons(2) do |v0, v1|
-      distance = (v1 - v0).norm
-      case
-      when total + distance <= start
-      when total <= start
-        points << (v0 * (distance + total - start) + v1 * (start - total)) / distance
-        points << (v0 * (distance + total - stop ) + v1 * (stop  - total)) / distance if total + distance >= stop
-      else
-        points << v0
-        points << (v0 * (distance + total - stop ) + v1 * (stop  - total)) / distance if total + distance >= stop
-      end
-      total += distance
-      break if total >= stop
-    end
-    points
-  end
-
-  def crop(length)
-    trim(0.5 * (path_length - length))
-  end
 end
 
 Array.send :include, VectorSequence

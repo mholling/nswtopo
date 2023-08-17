@@ -220,7 +220,7 @@ module NSWTopo
                     rings.sum(&:signed_area) < area
                   end
                 end
-                feature.empty? ? [] : feature
+                feature
 
               when "minimum-length"
                 next feature unless GeoJSON::MultiLineString === feature
@@ -228,7 +228,7 @@ module NSWTopo
                 feature.coordinates = feature.coordinates.reject do |linestring|
                   linestring.path_length < distance
                 end
-                feature.empty? ? [] : feature
+                feature
 
               when "minimum-hole", "remove-holes"
                 area = Float(arg).abs unless true == arg
@@ -262,15 +262,12 @@ module NSWTopo
               when "trim"
                 next feature unless GeoJSON::MultiLineString === feature
                 distance = Float(arg)
-                feature.coordinates = feature.coordinates.map do |linestring|
-                  linestring.trim distance
-                end.reject(&:empty?)
-                feature.empty? ? [] : feature
+                feature.trim distance
               end
             end
           rescue ArgumentError
             raise "invalid label transform: %s: %s" % [transform, [arg, *args].join(?,)]
-          end.each do |feature|
+          end.reject(&:empty?).each do |feature|
             feature.properties = case feature
             when GeoJSON::MultiPoint      then point_attributes
             when GeoJSON::MultiLineString then line_attributes
@@ -513,11 +510,11 @@ module NSWTopo
         redo if curved && indices.length < 3
         redo if avoid.values_at(*interior).any?
 
-        baseline = points.values_at(*indices).crop(text_length)
+        baseline = GeoJSON::LineString.new(points.values_at *indices).crop(text_length)
         baseline.reverse! unless case orientation
         when "uphill", "anticlockwise" then true
         when "downhill", "clockwise" then false
-        else baseline.values_at(0, -1).map(&:first).inject(&:<=)
+        else baseline.coordinates.values_at(0, -1).map(&:x).inject(&:<=)
         end
 
         offsets = baseline.each_cons(2).map do |p0, p1|
@@ -543,7 +540,7 @@ module NSWTopo
 
         path_id = [@name, collection.layer_name, "path", label_index, feature_index, indices.first, indices.last].join ?.
         path_element = REXML::Element.new("path")
-        path_element.add_attributes "id" => path_id, "d" => svg_path_data(baseline), "pathLength" => VALUE % text_length
+        path_element.add_attributes "id" => path_id, "d" => svg_path_data(baseline.coordinates), "pathLength" => VALUE % text_length
         text_element = REXML::Element.new("text")
 
         case collection.text

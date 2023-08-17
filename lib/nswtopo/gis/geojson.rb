@@ -28,7 +28,9 @@ module NSWTopo
         end
 
         extend Forwardable
+        include Enumerable
         delegate %i[[] []= fetch values_at key? store clear] => :@properties
+        delegate %i[empty? each] => :@coordinates
       end
 
       const_set type, klass
@@ -96,8 +98,6 @@ module NSWTopo
         def bounds
           explode.map(&:bounds).transpose.map(&:flatten).map(&:minmax)
         end
-
-        delegate :empty? => :@coordinates
 
         alias multi dup
 

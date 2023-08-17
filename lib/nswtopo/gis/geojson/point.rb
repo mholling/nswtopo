@@ -9,6 +9,10 @@ module NSWTopo
         @coordinates.zip.map(&:minmax)
       end
 
+      def empty?
+        false
+      end
+
       delegate :rotate_by_degrees! => :@coordinates
     end
   end

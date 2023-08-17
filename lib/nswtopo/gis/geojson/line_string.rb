@@ -22,6 +22,7 @@ module NSWTopo
       end
 
       delegate %i[length offset buffer smooth samples subdivide] => :multi
+      delegate %i[reverse!] => :@coordinates
 
       def bounds
         @coordinates.transpose.map(&:minmax)
@@ -58,6 +59,30 @@ module NSWTopo
         end.then do |smoothed|
           LineString.new smoothed, @properties
         end
+      end
+
+      def trim(amount)
+        return self unless amount > 0
+        ending, total = @coordinates.path_length - amount, 0
+        trimmed = @coordinates.each_cons(2).with_object [] do |(p0, p1), trimmed|
+          delta = (p1 - p0).norm
+          case
+          when total >= ending then break trimmed
+          when total <= amount - delta
+          when total <= amount
+            trimmed << (p0 * (delta + total - amount) + p1 * (amount - total)) / delta
+            trimmed << (p0 * (delta + total - ending) + p1 * (ending - total)) / delta if total + delta >= ending
+          else
+            trimmed << p0
+            trimmed << (p0 * (delta + total - ending) + p1 * (ending - total)) / delta if total + delta >= ending
+          end
+          total += delta
+        end
+        LineString.new trimmed, @properties
+      end
+
+      def crop(length)
+        trim((@coordinates.path_length - length) / 2)
       end
     end
   end

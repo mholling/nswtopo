@@ -42,12 +42,18 @@ module NSWTopo
       end
 
       def subdivide(count)
-        linestrings = @coordinates.flat_map do |coordinates|
-          coordinates.each_cons(2).each_slice(count).map do |pairs|
+        linestrings = @coordinates.flat_map do |linestring|
+          linestring.each_cons(2).each_slice(count).map do |pairs|
             pairs.inject { |part, (p0, p1)| part << p1 }
           end
         end
         MultiLineString.new linestrings, @properties
+      end
+
+      def trim(amount)
+        explode.map do |feature|
+          feature.trim amount
+        end.reject(&:empty?).sum(MultiLineString.new [])
       end
     end
   end

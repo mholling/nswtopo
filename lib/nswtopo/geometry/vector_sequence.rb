@@ -67,14 +67,6 @@ module VectorSequence
   def crop(length)
     trim(0.5 * (path_length - length))
   end
-
-  def in_sections(count)
-    each_cons(2).each_slice(count).map do |pairs|
-      pairs.inject do |section, (p0, p1)|
-        section << p1
-      end
-    end
-  end
 end
 
 Array.send :include, VectorSequence

@@ -40,6 +40,15 @@ module NSWTopo
       def dissolve_points
         MultiPoint.new @coordinates.flat_map(&:itself)
       end
+
+      def subdivide(count)
+        linestrings = @coordinates.flat_map do |coordinates|
+          coordinates.each_cons(2).each_slice(count).map do |pairs|
+            pairs.inject { |part, (p0, p1)| part << p1 }
+          end
+        end
+        MultiLineString.new linestrings, @properties
+      end
     end
   end
 end

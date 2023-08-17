@@ -163,9 +163,8 @@ module NSWTopo
             content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
 
           when GeoJSON::LineString
-            linestring = feature.coordinates
-            (section ? linestring.in_sections(section) : [linestring]).each do |linestring|
-              content.add_element "path", "fill" => "none", "d" => svg_path_data(linestring, bezier: bezier)
+            (section ? feature.subdivide(section).explode : [feature]).each do |feature|
+              content.add_element "path", "fill" => "none", "d" => svg_path_data(feature.coordinates, bezier: bezier)
             end
 
           when GeoJSON::Polygon

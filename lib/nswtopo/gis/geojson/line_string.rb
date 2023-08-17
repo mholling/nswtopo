@@ -21,7 +21,7 @@ module NSWTopo
         end
       end
 
-      delegate %i[length offset buffer smooth samples] => :multi
+      delegate %i[length offset buffer smooth samples subdivide] => :multi
 
       def bounds
         @coordinates.transpose.map(&:minmax)

@@ -225,10 +225,9 @@ module NSWTopo
               when "minimum-length"
                 next feature unless GeoJSON::MultiLineString === feature
                 distance = Float(arg)
-                feature.coordinates = feature.coordinates.reject do |linestring|
+                feature.reject! do |linestring|
                   linestring.path_length < distance
                 end
-                feature
 
               when "minimum-hole", "remove-holes"
                 area = Float(arg).abs unless true == arg
@@ -253,11 +252,12 @@ module NSWTopo
               when "keep-largest"
                 case feature
                 when GeoJSON::MultiLineString
-                  feature.coordinates = [feature.explode.max_by(&:length).coordinates]
+                  feature.explode.max_by(&:path_length).multi
                 when GeoJSON::MultiPolygon
-                  feature.coordinates = [feature.explode.max_by(&:area).coordinates]
+                  feature.explode.max_by(&:area).multi
+                else
+                  feature
                 end
-                feature
 
               when "trim"
                 next feature unless GeoJSON::MultiLineString === feature
@@ -443,7 +443,7 @@ module NSWTopo
       buffer = 0.5 * font_size
 
       text_length = case collection.text
-      when REXML::Element then feature.coordinates.path_length
+      when REXML::Element then feature.path_length
       when String then Font.glyph_length collection.text, attributes
       end
 

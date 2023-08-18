@@ -111,6 +111,11 @@ module NSWTopo
             raise "heterogenous geometries not implemented"
           end
         end
+
+        def reject!(&block)
+          @coordinates.replace explode.reject(&block).map(&:coordinates)
+          self
+        end
       end
     end
   end

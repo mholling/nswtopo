@@ -37,10 +37,6 @@ module VectorSequence
       memo << v2
     end
   end
-
-  def path_length
-    each_cons(2).sum { |v0, v1| (v1 - v0).norm }
-  end
 end
 
 Array.send :include, VectorSequence

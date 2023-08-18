@@ -28,6 +28,10 @@ module NSWTopo
         @coordinates.transpose.map(&:minmax)
       end
 
+      def path_length
+        each_cons(2).sum { |v0, v1| (v1 - v0).norm }
+      end
+
       def simplify(tolerance)
         chunks, simplified = [@coordinates], []
         while chunk = chunks.pop
@@ -63,7 +67,7 @@ module NSWTopo
 
       def trim(amount)
         return self unless amount > 0
-        ending, total = @coordinates.path_length - amount, 0
+        ending, total = path_length - amount, 0
         trimmed = @coordinates.each_cons(2).with_object [] do |(p0, p1), trimmed|
           delta = (p1 - p0).norm
           case
@@ -82,7 +86,7 @@ module NSWTopo
       end
 
       def crop(length)
-        trim((@coordinates.path_length - length) / 2)
+        trim((path_length - length) / 2)
       end
     end
   end

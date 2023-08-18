@@ -3,8 +3,8 @@ module NSWTopo
     class MultiLineString
       include StraightSkeleton
 
-      def length
-        @coordinates.sum(&:path_length)
+      def path_length
+        explode.sum(&:path_length)
       end
 
       def offset(*margins, **options)
@@ -28,9 +28,9 @@ module NSWTopo
       end
 
       def samples(interval)
-        points = @coordinates.flat_map do |linestring|
+        points = explode.flat_map do |linestring|
           distance = linestring.path_length
-          LineString.sample_at(linestring, interval) do |point, along, angle|
+          linestring.sample_at(interval) do |point, along, angle|
             [point, (2 * along - distance).abs - distance]
           end.entries
         end.sort_by(&:last).map(&:first)

@@ -32,7 +32,7 @@ module NSWTopo
           distance = linestring.path_length
           linestring.sample_at(interval) do |point, along, angle|
             [point, (2 * along - distance).abs - distance]
-          end.entries
+          end
         end.sort_by(&:last).map(&:first)
         MultiPoint.new points, @properties
       end

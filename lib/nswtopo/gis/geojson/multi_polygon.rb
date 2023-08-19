@@ -110,9 +110,9 @@ module NSWTopo
       end
 
       def samples(interval)
-        points = @coordinates.flatten(1).map do |coordinates|
-          LineString.sample_at(coordinates, interval)
-        end.inject(&:+)
+        points = rings.flat_map do |coordinates|
+          linestring.sample_at(interval)
+        end
         MultiPoint.new points, @properties
       end
 

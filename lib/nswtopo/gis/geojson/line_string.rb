@@ -18,7 +18,7 @@ module NSWTopo
             distance = (p1 - p0).norm
             next alpha - distance / interval, along + distance
           end
-        end
+        end.entries
       end
 
       delegate %i[length offset buffer smooth samples subdivide] => :multi

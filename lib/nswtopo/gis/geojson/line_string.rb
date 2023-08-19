@@ -32,6 +32,23 @@ module NSWTopo
         each_cons(2).sum { |v0, v1| (v1 - v0).norm }
       end
 
+      def closed?
+        @coordinates.last == @coordinates.first
+      end
+
+      def signed_area
+        each_cons(2).sum { |v0, v1| v0.cross(v1) } / 2
+      end
+
+      def clockwise?
+        signed_area < 0
+      end
+      alias hole? clockwise?
+
+      def anticlockwise?
+        signed_area >= 0
+      end
+
       def simplify(tolerance)
         chunks, simplified = [@coordinates], []
         while chunk = chunks.pop

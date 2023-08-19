@@ -1,10 +1,12 @@
 module NSWTopo
   module GeoJSON
     class Polygon
-      delegate %i[area skeleton centres centrepoints centrelines buffer centroids samples rings] => :multi
+      delegate %i[area skeleton centres centrepoints centrelines buffer samples] => :multi
 
       def validate!
-        @coordinates.inject(false) do |hole, ring|
+        map do |coordinates|
+          LineString.new coordinates
+        end.inject(false) do |hole, ring|
           ring.reverse! if hole ^ ring.hole?
           true
         end
@@ -20,6 +22,21 @@ module NSWTopo
             point.join(" ")
           end.join(", ").prepend("(").concat(")")
         end.join(", ").prepend("POLYGON (").concat(")")
+      end
+
+      def centroid
+        @coordinates.flat_map do |ring|
+          ring.each_cons(2).map do |p0, p1|
+            next (p0 + p1) * p0.cross(p1), 3 * p0.cross(p1)
+          end
+        end.transpose.then do |centroids_x6, signed_areas_x6|
+          point = centroids_x6.inject(&:+) / signed_areas_x6.inject(&:+)
+          Point.new point, @properties
+        end
+      end
+
+      def rings
+        MultiLineString.new @coordinates, @properties
       end
     end
   end

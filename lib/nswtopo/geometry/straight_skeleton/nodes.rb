@@ -18,7 +18,15 @@ module StraightSkeleton
         end
       end.each.with_index do |points, index|
         closed = points.first == points.last
-        index = nil unless closed && !points.hole?
+        points.each_cons(2).sum do |p0, p1|
+          p0.cross(p1)
+        end.then do |signed_area_x2|
+          index = nil if signed_area_x2 < 0
+        end if closed
+        # # TODO?
+        # linestring = NSWTopo::GeoJSON::LineString.new points
+        # closed = linestring.closed?
+        # index = nil unless closed && !linestring.hole?
         normals = points.each_cons(2).map do |v0, v1|
           (v1 - v0).normalised.perp
         end

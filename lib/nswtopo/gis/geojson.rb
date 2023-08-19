@@ -104,9 +104,9 @@ module NSWTopo
         define_method :+ do |other|
           case other
           when single_class
-            multi_class.new @coordinates + [other.coordinates]
+            multi_class.new @coordinates + [other.coordinates], @properties
           when multi_class
-            multi_class.new @coordinates + other.coordinates
+            multi_class.new @coordinates + other.coordinates, @properties
           else
             raise "heterogenous geometries not implemented"
           end

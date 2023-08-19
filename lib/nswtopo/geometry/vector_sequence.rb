@@ -1,23 +1,4 @@
 module VectorSequence
-  def signed_area
-    0.5 * each_cons(2).sum { |v0, v1| v0.cross(v1) }
-  end
-
-  def clockwise?
-    signed_area < 0
-  end
-  alias hole? clockwise?
-
-  def anticlockwise?
-    signed_area >= 0
-  end
-
-  def centroid
-    each_cons(2).map do |v0, v1|
-      (v0 + v1) * v0.cross(v1)
-    end.inject(&:+) / (6 * signed_area)
-  end
-
   def surrounds?(points)
     points.all? do |point|
       point.within? self

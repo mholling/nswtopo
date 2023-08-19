@@ -55,6 +55,15 @@ module NSWTopo
           feature.trim amount
         end.reject(&:empty?).sum(MultiLineString.new [])
       end
+
+      def to_multipolygon
+        polygons = explode.tap do |rings|
+          rings.each(&:reverse!) if rings.first.clockwise?
+        end.slice_when(&:anticlockwise?).map do |rings|
+          rings.map(&:coordinates)
+        end
+        MultiPolygon.new polygons, @properties
+      end
     end
   end
 end

@@ -4,7 +4,7 @@ module NSWTopo
       include StraightSkeleton
 
       def area
-        @coordinates.flatten(1).sum(&:signed_area)
+        rings.explode.sum(&:signed_area)
       end
 
       def skeleton
@@ -91,22 +91,24 @@ module NSWTopo
         margins.each do |margin|
           nodes.progress limit: -margin, **options.slice(:rounding_angle, :cutoff_angle)
         end
-        interior_rings, exterior_rings = nodes.readout.partition(&:hole?)
-        polygons, foo = exterior_rings.sort_by(&:signed_area).inject [[], interior_rings] do |(polygons, interior_rings), exterior_ring|
-          claimed, unclaimed = interior_rings.partition do |interior_ring|
-            interior_ring.first.within? exterior_ring
+        unclaimed, exterior_rings = nodes.readout.map do |ring|
+          LineString.new ring
+        end.partition(&:hole?)
+        polygons = exterior_rings.sort_by(&:signed_area).each.with_object [] do |exterior_ring, polygons|
+          interior_rings, unclaimed = unclaimed.partition do |ring|
+            ring.coordinates.first.within? exterior_ring.coordinates
           end
-          [polygons << [exterior_ring, *claimed], unclaimed]
+          polygons << [exterior_ring, *interior_rings].map(&:coordinates)
         end
-        MultiPolygon.new polygons.entries, @properties
+        MultiPolygon.new polygons, @properties
       end
 
       def centroids
-        MultiPoint.new @coordinates.map(&:first).map(&:centroid), @properties
+        explode.map(&:centroid).inject(&:+).multi
       end
 
       def rings
-        GeoJSON::MultiLineString.new @coordinates.flatten(1), @properties
+        MultiLineString.new @coordinates.flatten(1), @properties
       end
 
       def samples(interval)

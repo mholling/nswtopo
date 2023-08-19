@@ -79,8 +79,7 @@ module NSWTopo
 
         if @no_depression.nil?
           candidates = contours.select do |feature|
-            feature.coordinates.last == feature.coordinates.first &&
-            feature.coordinates.anticlockwise?
+            feature.closed? && feature.anticlockwise?
           end.each do |feature|
             feature["depression"] = 1
           end

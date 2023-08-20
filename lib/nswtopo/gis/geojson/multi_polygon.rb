@@ -2,6 +2,7 @@ module NSWTopo
   module GeoJSON
     class MultiPolygon
       include StraightSkeleton
+      delegate %i[dissolve_segments] => :rings
 
       def area
         rings.explode.sum(&:signed_area)

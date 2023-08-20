@@ -4,14 +4,23 @@ module NSWTopo
       class Segment
         def initialize(segment, barrier)
           @segment, @barrier = segment, barrier
-          @bounds = @segment.transpose.map(&:minmax).map do |min, max|
+          @bounds = @segment.bounds.map do |min, max|
             [min - barrier.buffer, max + barrier.buffer]
           end
+          @segment = GeoJSON::LineString.new [@segment.coordinates] if GeoJSON::Point === @segment
         end
         attr_reader :barrier, :bounds
 
-        def conflicts_with?(segment, buffer: 0)
-          [@segment, segment].overlap?(@barrier.buffer + buffer)
+        def conflicts_with?(geometry, buffer: 0)
+          case geometry
+          when GeoJSON::MultiLineString # collection of convex hulls (for barrier/point-label conflicts)
+            geometry.explode.any? do |ring|
+              @segment.convex_overlaps? ring, buffer: @barrier.buffer + buffer
+            end
+          when Array # pair of points forming a baseline segment (for barrier/line-label conflicts)
+            segment = GeoJSON::LineString.new geometry
+            @segment.convex_overlaps? segment, buffer: @barrier.buffer + buffer
+          end
         end
       end
 
@@ -23,14 +32,12 @@ module NSWTopo
       def segments
         case @feature
         when GeoJSON::Point
-          [[@feature.coordinates] * 2]
+          @feature
         when GeoJSON::LineString
-          @feature.coordinates.each_cons(2).entries
+          @feature.dissolve_segments
         when GeoJSON::Polygon
-          @feature.coordinates.flat_map do |coordinates|
-            coordinates.each_cons(2).entries
-          end
-        end.map do |segment|
+          @feature.dissolve_segments
+        end.explode.map do |segment|
           Segment.new segment, self
         end
       end

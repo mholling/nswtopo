@@ -2,6 +2,7 @@ module NSWTopo
   module GeoJSON
     class Polygon
       delegate %i[area skeleton centres centrepoints centrelines buffer samples] => :multi
+      delegate %i[dissolve_segments] => :rings
 
       def validate!
         map do |coordinates|
@@ -37,6 +38,13 @@ module NSWTopo
 
       def rings
         MultiLineString.new @coordinates, @properties
+      end
+
+      def surrounds?(geometry)
+        # implementation for simple convex polygons only
+        geometry.dissolve_points.all? do |point|
+          point.within? @coordinates.first
+        end
       end
     end
   end

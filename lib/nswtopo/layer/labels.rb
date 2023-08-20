@@ -3,6 +3,7 @@
 #   (Missae Yamamoto, Gilberto Camara, Luiz Antonio Nogueira Lorena)
 
 require_relative 'labels/barrier'
+require_relative 'labels/label'
 
 module NSWTopo
   module Labels
@@ -290,73 +291,9 @@ module NSWTopo
       end
     end
 
-    class Label
-      def initialize(collection, label_index, feature_index, barrier_count, priority, hulls, attributes, elements, along = nil, fixed = nil)
-        @label_index, @feature_index, @indices = label_index, feature_index, [label_index, feature_index]
-        @collection, @barrier_count, @priority, @hulls, @attributes, @elements, @along, @fixed = collection, barrier_count, priority, hulls, attributes, elements, along, fixed
-        @ordinal = [@barrier_count, @priority]
-        @conflicts = Set.new
-      end
-
-      extend Forwardable
-      delegate %i[text dual layer_name] => :@collection
-      delegate %i[[] dig] => :@attributes
-
-      attr_reader :label_index, :feature_index, :indices
-      attr_reader :barrier_count, :hulls, :elements, :along, :fixed, :conflicts
-      attr_accessor :priority, :ordinal
-
-      def point?
-        @along.nil?
-      end
-
-      def barriers?
-        @barrier_count > 0
-      end
-
-      def optional?
-        @attributes["optional"]
-      end
-
-      def coexists_with?(other)
-        Array(@attributes["coexist"]).include? other.layer_name
-      end
-
-      def <=>(other)
-        self.ordinal <=> other.ordinal
-      end
-
-      alias hash object_id
-      alias eql? equal?
-
-      def bounds
-        @hulls.flatten(1).transpose.map(&:minmax)
-      end
-
-      def self.overlaps?(label1, label2, buffer:)
-        return false if label1 == label2
-        [label1, label2].map(&:hulls).inject(&:product).any? do |hulls|
-          hulls.overlap?(buffer)
-        end
-      end
-
-      def self.overlaps(labels, &block)
-        Enumerator.new do |yielder|
-          next unless labels.any?(&block)
-          index = RTree.load(labels, &:bounds)
-          index.each do |bounds, label|
-            next unless buffer = yield(label)
-            index.search(bounds, buffer: buffer).with_object(label).select do |other, label|
-              overlaps? label, other, buffer: buffer
-            end.inject(yielder, &:<<)
-          end
-        end
-      end
-    end
-
     def labelling_hull
-      # TODO: doesn't account for map insets, need to be replaced with generalised check for non-covex @map.neatline
-      @labelling_hull ||= @map.neatline(mm: -INSET).bbox.coordinates.first
+      # TODO: does not account for non-convex neatline when map insets are present
+      @labelling_hull ||= @map.neatline(mm: -INSET).bbox.first
     end
 
     def barrier_segments
@@ -385,7 +322,7 @@ module NSWTopo
         dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
         next dx, dy, dx * dy == 0 ? 1 : 0.6
       end.uniq.map.with_index do |(dx, dy, f), position_index|
-        text_elements, hulls = lines.map.with_index do |(line, text_length), index|
+        text_elements, rings = lines.map.with_index do |(line, text_length), index|
           anchor = point.dup
           anchor.x += dx * (f * margin + 0.5 * text_length)
           anchor.y += dy * (f * margin + 0.5 * height)
@@ -398,25 +335,20 @@ module NSWTopo
           text_element.add_attribute "y", VALUE % (CENTRELINE_FRACTION * font_size)
           text_element.add_text line
 
-          hull = [text_length, font_size].zip(anchor).map do |size, origin|
+          ring = [text_length, font_size].zip(anchor).map do |size, origin|
             [origin - 0.5 * size, origin + 0.5 * size]
-          end.inject(&:product).map do |x, y|
-            Vector[x, y]
-          end.values_at(0,2,3,1,0)
+          end.inject(&:product).values_at(0,2,3,1,0)
 
-          next text_element, hull
+          next text_element, ring
         end.transpose
 
-        next unless hulls.all? do |hull|
-          labelling_hull.surrounds? hull
-        end
+        hulls = GeoJSON::MultiLineString.new rings
+        next unless labelling_hull.surrounds? hulls
 
-        bounds = hulls.flatten(1).transpose.map(&:minmax)
-        barrier_count = barrier_segments.search(bounds).with_object Set[] do |segment, barriers|
+        barrier_count = barrier_segments.search(hulls.bounds).with_object Set[] do |segment, barriers|
           next if barriers === segment.barrier
-          hulls.any? do |hull|
-            barriers << segment.barrier if segment.conflicts_with? hull
-          end
+          next unless segment.conflicts_with? hulls
+          barriers << segment.barrier
         end.size
         priority = [position_index, feature_index]
         Label.new collection, label_index, feature_index, barrier_count, priority, hulls, attributes, text_elements
@@ -527,6 +459,8 @@ module NSWTopo
         hull = baseline.each_cons(2).zip(offsets, corners).each.with_object [] do |((p0, p1), offset, corner), buffered|
           buffered << p0 + offset << p0 - offset << p1 + offset << p1 - offset
           buffered << p1 + corner if corner
+        end.then do |points|
+          GeoJSON::MultiPoint.new points
         end.convex_hull
         redo unless labelling_hull.surrounds? hull
 
@@ -552,7 +486,7 @@ module NSWTopo
           text_path = text_element.add_element "textPath", "href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
           text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
         end
-        Label.new collection, label_index, feature_index, barrier_count, priority, [hull], attributes, [text_element, path_element], along, fixed
+        Label.new collection, label_index, feature_index, barrier_count, priority, hull, attributes, [text_element, path_element], along, fixed
       end.reject do |candidate|
         candidate.optional? && candidate.barriers?
       end.then do |candidates|
@@ -631,7 +565,7 @@ module NSWTopo
         log_update "compositing %s: choosing label positions" % @name
 
         if Config["debug"]
-          candidates.flat_map(&:hulls).each.with_object("candidate", &debug)
+          candidates.map(&:hulls).flat_map(&:explode).each.with_object("candidate", &debug)
           candidates.clear
         end
 
@@ -642,7 +576,7 @@ module NSWTopo
           end.values.each do |group|
             Label.overlaps(group) do |label|
               label.dig("separation", "self")
-            end.inject(yielder, &:<<)
+            end.each(&yielder)
           end
 
           # separation/same: minimum distance between a label and another label with the same text
@@ -651,7 +585,7 @@ module NSWTopo
           end.values.each do |group|
             Label.overlaps(group) do |label|
               label.dig("separation", "same")
-            end.inject(yielder, &:<<)
+            end.each(&yielder)
           end
 
           candidates.group_by do |candidate|
@@ -663,16 +597,16 @@ module NSWTopo
             index.each do |bounds, label|
               next unless buffer = label.dig("separation", "other")
               index.search(bounds, buffer: buffer).with_object(label).select do |other, label|
-                Label.overlaps? label, other, buffer: buffer
-              end.inject(yielder, &:<<)
+                label.overlaps? other, buffer: buffer
+              end.each(&yielder)
             end
 
             # separation/<layer>: minimum distance between a label and any label from <layer>
             candidates.each do |label|
               next unless buffer = label.dig("separation", layer_name)
               index.search(label.bounds, buffer: buffer).with_object(label).select do |other, label|
-                Label.overlaps? label, other, buffer: buffer
-              end.inject(yielder, &:<<)
+                label.overlaps? other, buffer: buffer
+              end.each(&yielder)
             end
           end
 
@@ -682,7 +616,7 @@ module NSWTopo
           end.values.each do |group|
             Label.overlaps(group) do |label|
               label.dig("separation", "dual")
-            end.inject(yielder, &:<<)
+            end.each(&yielder)
           end
 
           # separation/all: minimum distance between a label and *any* other label
@@ -692,7 +626,7 @@ module NSWTopo
           end.reject do |label1, label2|
             label1.coexists_with?(label2) ||
             label2.coexists_with?(label1)
-          end.inject(yielder, &:<<)
+          end.each(&yielder)
         end.each do |label1, label2|
           label1.conflicts << label2
           label2.conflicts << label1

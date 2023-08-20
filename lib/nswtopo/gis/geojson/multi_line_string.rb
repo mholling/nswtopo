@@ -41,6 +41,10 @@ module NSWTopo
         MultiPoint.new @coordinates.flat_map(&:itself)
       end
 
+      def dissolve_segments
+        explode.map(&:dissolve_segments).inject(&:+)
+      end
+
       def subdivide(count)
         linestrings = @coordinates.flat_map do |linestring|
           linestring.each_cons(2).each_slice(count).map do |pairs|

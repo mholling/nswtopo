@@ -54,9 +54,9 @@ module NSWTopo
             next if label == other.owner
             next if overlaps === [label, other.owner]
             next if overlaps === [other.owner, label]
-            next unless label.hulls.length < 3 || label.hull.overlaps?(other, buffer: buffer)
+            next unless label.hulls.length < 3 || Hull.overlap?(label.hull, other, buffer: buffer)
             next unless label.hulls.any? do |hull|
-              hull.overlaps? other, buffer: buffer
+              Hull.overlap?(hull, other, buffer: buffer)
             end
             overlaps << [label, other.owner]
           end

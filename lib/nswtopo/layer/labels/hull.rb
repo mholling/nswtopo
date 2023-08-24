@@ -30,9 +30,8 @@ module NSWTopo
 
       attr_accessor :owner
 
-      def overlaps?(other, buffer: 0)
+      def self.overlap?(*rings, buffer: 0)
         # implements Gilbert–Johnson–Keerthi
-        rings = [self, other]
         simplex = [rings.map(&:first).inject(&:-)]
         perp = simplex[0].perp
         loop do

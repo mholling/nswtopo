@@ -301,7 +301,7 @@ module NSWTopo
       @barrier_hulls ||= RTree.load(barriers.flat_map(&:hulls), &:bounds)
       @barrier_hulls.search(label_hull.bounds).with_object Set[] do |barrier_hull, barriers|
         next if barriers === barrier_hull.owner
-        next unless barrier_hull.overlaps? label_hull
+        next unless Hull.overlap?(barrier_hull, label_hull)
         barriers << barrier_hull.owner
       end
     end

@@ -46,20 +46,19 @@ module NSWTopo
       end
 
       def self.overlaps(labels, group = labels, &block)
-        Enumerator.new do |yielder|
-          next unless group.any?(&block)
-          index = RTree.load(labels.flat_map(&:hulls), &:bounds)
-          group.each do |label|
-            next unless buffer = yield(label)
-            index.search(label.bounds, buffer: buffer).with_object Set[] do |other, overlaps|
-              next if label == other.owner
-              next if overlaps === other.owner
-              next unless label.hulls.length < 3 || label.hull.overlaps?(other, buffer: buffer)
-              next unless label.hulls.any? do |hull|
-                hull.overlaps? other, buffer: buffer
-              end
-              overlaps << other.owner
-            end.each.with_object(label, &yielder)
+        return Set[] unless group.any?(&block)
+        index = RTree.load(labels.flat_map(&:hulls), &:bounds)
+        group.each.with_object Set[] do |label, overlaps|
+          next unless buffer = yield(label)
+          index.search(label.bounds, buffer: buffer).each do |other|
+            next if label == other.owner
+            next if overlaps === [label, other.owner]
+            next if overlaps === [other.owner, label]
+            next unless label.hulls.length < 3 || label.hull.overlaps?(other, buffer: buffer)
+            next unless label.hulls.any? do |hull|
+              hull.overlaps? other, buffer: buffer
+            end
+            overlaps << [label, other.owner]
           end
         end
       end

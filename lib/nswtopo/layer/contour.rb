@@ -36,7 +36,7 @@ module NSWTopo
     YAML
 
     def margin
-      { mm: [3 * @smooth, 1].min }
+      { mm: [3 * @smooth, 1].max }
     end
 
     def check_geos!
@@ -96,7 +96,7 @@ module NSWTopo
         end
 
         contours.reject! do |feature|
-          feature.coordinates.last == feature.coordinates.first &&
+          feature.closed? &&
           feature.bounds.all? { |min, max| max - min < @knolls }
         end
 

@@ -27,6 +27,7 @@ end
 
 require_relative 'nswtopo/helpers'
 require_relative 'nswtopo/avl_tree'
+require_relative 'nswtopo/svg'
 require_relative 'nswtopo/geometry'
 require_relative 'nswtopo/log'
 require_relative 'nswtopo/safely'

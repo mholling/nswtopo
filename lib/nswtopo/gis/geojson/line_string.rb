@@ -1,6 +1,8 @@
 module NSWTopo
   module GeoJSON
     class LineString
+      include SVG
+
       def self.sample_at(coordinates, interval, offset: 0, &block)
         Enumerator.new do |yielder|
           alpha = (0.5 + Float(offset || 0) / interval) % 1.0
@@ -108,6 +110,34 @@ module NSWTopo
 
       def crop(length)
         trim((path_length - length) / 2)
+      end
+
+      def svg_path_data(bezier: false)
+        if bezier
+          fraction = Numeric === bezier ? bezier.clamp(0, 1) : 1
+          extras = closed? ? [@coordinates[-2], *@coordinates, @coordinates[2]] : [@coordinates.first, *@coordinates, @coordinates.last]
+          midpoints = extras.each_cons(2).map do |p0, p1|
+            (p0 + p1) / 2
+          end
+          distances = extras.each_cons(2).map do |p0, p1|
+            (p1 - p0).norm
+          end
+          offsets = midpoints.zip(distances).each_cons(2).map do |(m0, d0), (m1, d1)|
+            (m0 * d1 + m1 * d0) / (d0 + d1)
+          end.zip(@coordinates).map do |p0, p1|
+            p1 - p0
+          end
+          controls = midpoints.each_cons(2).zip(offsets).flat_map do |(m0, m1), offset|
+            next m0 + offset * fraction, m1 + offset * fraction
+          end.drop(1).each_slice(2).entries.prepend(nil)
+          @coordinates.zip(controls).map do |point, controls|
+            controls ? "C %s %s %s" % [POINT, POINT, POINT] % [*controls.flatten, *point] : "M %s" % POINT % point
+          end.join(" ")
+        else
+          @coordinates.map do |point|
+            POINT % point
+          end.join(" L ").prepend("M ")
+        end
       end
     end
   end

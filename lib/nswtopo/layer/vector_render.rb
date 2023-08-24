@@ -3,6 +3,8 @@ require_relative 'vector_render/knockout'
 
 module NSWTopo
   module VectorRender
+    include SVG
+
     SVG_ATTRIBUTES = %w[
       fill-opacity
       fill
@@ -39,7 +41,6 @@ module NSWTopo
 
     SHIELD_X, SHIELD_Y = 1.0, 0.5
     MARGIN = { mm: 1.0 }
-    VALUE, POINT, ANGLE = "%.5f", "%.5f %.5f", "%.2f"
 
     def create
       @features = get_features.reproject_to(@map.neatline.projection).clip(@map.neatline(**MARGIN))
@@ -76,34 +77,6 @@ module NSWTopo
 
     def categorise(string)
       string.tr_s('^_a-zA-Z0-9', ?-).delete_prefix(?-).delete_suffix(?-)
-    end
-
-    def svg_path_data(points, bezier: false)
-      if bezier
-        fraction = Numeric === bezier ? bezier.clamp(0, 1) : 1
-        extras = points.first == points.last ? [points[-2], *points, points[2]] : [points.first, *points, points.last]
-        midpoints = extras.each_cons(2).map do |p0, p1|
-          (p0 + p1) / 2
-        end
-        distances = extras.each_cons(2).map do |p0, p1|
-          (p1 - p0).norm
-        end
-        offsets = midpoints.zip(distances).each_cons(2).map do |(m0, d0), (m1, d1)|
-          (m0 * d1 + m1 * d0) / (d0 + d1)
-        end.zip(points).map do |p0, p1|
-          p1 - p0
-        end
-        controls = midpoints.each_cons(2).zip(offsets).flat_map do |(m0, m1), offset|
-          next m0 + offset * fraction, m1 + offset * fraction
-        end.drop(1).each_slice(2).entries.prepend(nil)
-        points.zip(controls).map do |point, controls|
-          controls ? "C %s %s %s" % [POINT, POINT, POINT] % [*controls.flatten, *point] : "M %s" % POINT % point
-        end.join(" ")
-      else
-        points.map do |point|
-          POINT % point
-        end.join(" L ").prepend("M ")
-      end
     end
 
     def params_for(categories)
@@ -162,28 +135,19 @@ module NSWTopo
             transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*feature.coordinates, feature.fetch("rotation", @map.rotation) - @map.rotation]
             content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
 
-          when Labels::Hull
-            content.add_element "path", "fill" => "none", "d" => svg_path_data(feature.coordinates) + " Z"
-
           when GeoJSON::LineString
-            (section ? feature.subdivide(section).explode : [feature]).each do |feature|
-              content.add_element "path", "fill" => "none", "d" => svg_path_data(feature.coordinates, bezier: bezier)
+            (section ? feature.subdivide(section) : feature).explode.each do |feature|
+              content.add_element "path", "fill" => "none", "d" => feature.svg_path_data(bezier: bezier)
             end
 
           when GeoJSON::Polygon
-            path_data = feature.coordinates.map do |ring|
-              svg_path_data ring, bezier: bezier
-            end.each.with_object("Z").entries.join(?\s)
-            content.add_element "path", "fill-rule" => "nonzero", "d" => path_data
+            content.add_element "path", "fill-rule" => "nonzero", "d" => feature.svg_path_data
 
           when REXML::Element
             case feature.name
             when "text", "textPath" then content << feature
             when "path" then defs << feature
             end
-
-          when Array
-            content.add_element "path", "fill" => "none", "d" => svg_path_data(feature + feature.take(1))
           end
         end if content
 

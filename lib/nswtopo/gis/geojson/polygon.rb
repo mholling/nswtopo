@@ -1,6 +1,8 @@
 module NSWTopo
   module GeoJSON
     class Polygon
+      include SVG
+
       delegate %i[area skeleton centres centrepoints centrelines buffer samples] => :multi
       delegate %i[dissolve_segments] => :rings
 
@@ -45,6 +47,10 @@ module NSWTopo
         geometry.dissolve_points.all? do |point|
           point.within? @coordinates.first
         end
+      end
+
+      def svg_path_data
+        rings.explode.map(&:svg_path_data).each.with_object("Z").entries.join(?\s)
       end
     end
   end

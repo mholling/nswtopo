@@ -466,7 +466,7 @@ module NSWTopo
 
         path_id = [@name, collection.layer_name, "path", label_index, feature_index, indices.first, indices.last].join ?.
         path_element = REXML::Element.new("path")
-        path_element.add_attributes "id" => path_id, "d" => svg_path_data(baseline.coordinates), "pathLength" => VALUE % text_length
+        path_element.add_attributes "id" => path_id, "d" => baseline.svg_path_data, "pathLength" => VALUE % text_length
         text_element = REXML::Element.new("text")
 
         case collection.text

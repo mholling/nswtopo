@@ -3,26 +3,6 @@ module NSWTopo
     class LineString
       include SVG
 
-      def self.sample_at(coordinates, interval, offset: 0, &block)
-        Enumerator.new do |yielder|
-          alpha = (0.5 + Float(offset || 0) / interval) % 1.0
-          coordinates.each_cons(2).inject [alpha, 0] do |(alpha, along), (p0, p1)|
-            angle = (p1 - p0).angle
-            loop do
-              distance = (p1 - p0).norm
-              fraction = alpha * interval / distance
-              break unless fraction < 1
-              p0 = p1 * fraction + p0 * (1 - fraction)
-              along += alpha * interval
-              yielder << (block_given? ? yield(p0, along, angle) : p0)
-              alpha = 1.0
-            end
-            distance = (p1 - p0).norm
-            next alpha - distance / interval, along + distance
-          end
-        end.entries
-      end
-
       delegate %i[length offset buffer smooth samples subdivide] => :multi
       delegate %i[reverse!] => :@coordinates
 
@@ -70,6 +50,26 @@ module NSWTopo
         end
         simplified << @coordinates.last
         LineString.new simplified, @properties
+      end
+
+      def self.sample_at(coordinates, interval, offset: 0, &block)
+        Enumerator.new do |yielder|
+          alpha = (0.5 + Float(offset || 0) / interval) % 1.0
+          coordinates.each_cons(2).inject [alpha, 0] do |(alpha, along), (p0, p1)|
+            angle = (p1 - p0).angle
+            loop do
+              distance = (p1 - p0).norm
+              fraction = alpha * interval / distance
+              break unless fraction < 1
+              p0 = p1 * fraction + p0 * (1 - fraction)
+              along += alpha * interval
+              yielder << (block_given? ? yield(p0, along, angle) : p0)
+              alpha = 1.0
+            end
+            distance = (p1 - p0).norm
+            next alpha - distance / interval, along + distance
+          end
+        end.entries
       end
 
       def sample_at(interval, **opts, &block)

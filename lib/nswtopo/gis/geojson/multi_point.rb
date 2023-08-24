@@ -8,8 +8,8 @@ module NSWTopo
       end
 
       def convex_hull
-        start = min_by { |x, y| next y, x }
-        points, remaining = uniq.partition { |point| point == start }
+        start = self.min
+        points, remaining = partition { |point| point == start }
         remaining.sort_by do |point|
           next (point - start).angle, (point - start).norm
         end.inject(points) do |points, v2|

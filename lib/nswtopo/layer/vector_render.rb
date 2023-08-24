@@ -162,6 +162,9 @@ module NSWTopo
             transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*feature.coordinates, feature.fetch("rotation", @map.rotation) - @map.rotation]
             content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
 
+          when Labels::Hull
+            content.add_element "path", "fill" => "none", "d" => svg_path_data(feature.coordinates) + " Z"
+
           when GeoJSON::LineString
             (section ? feature.subdivide(section).explode : [feature]).each do |feature|
               content.add_element "path", "fill" => "none", "d" => svg_path_data(feature.coordinates, bezier: bezier)

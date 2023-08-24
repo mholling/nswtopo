@@ -13,20 +13,15 @@ class Vector
     [@x, @y]
   end
 
-  include Enumerable
   extend Forwardable
-  delegate %i[to_json hash each join] => :to_ary
+  delegate %i[to_json hash each join <=>] => :to_ary
+
+  include Enumerable
+  include Comparable
+  alias eql? ==
 
   def inspect
     "{%s, %s}" % [@x, @y]
-  end
-
-  def ==(other)
-    Vector === other and @x == other.x and @y == other.y
-  end
-
-  def eql?(other)
-    Vector === other and @x.eql? other.x and @y.eql? other.y
   end
 
   def to_d

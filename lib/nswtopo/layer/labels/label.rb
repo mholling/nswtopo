@@ -5,7 +5,7 @@ module NSWTopo
         @label_index, @feature_index, @indices = label_index, feature_index, [label_index, feature_index]
         @collection, @barrier_count, @priority, @hulls, @attributes, @elements, @along, @fixed = collection, barrier_count, priority, hulls, attributes, elements, along, fixed
         @ordinal = [@barrier_count, @priority]
-        @conflicts = Set.new
+        @conflicts = Set[]
         @hulls.each { |hull| hull.owner = self }
       end
 
@@ -19,6 +19,10 @@ module NSWTopo
 
       def bounds
         @bounds ||= @hulls.inject(&:+).bounds
+      end
+
+      def hull
+        @hull ||= Hull.new @hulls.inject(:+).dissolve_points
       end
 
       def point?
@@ -41,9 +45,6 @@ module NSWTopo
         self.ordinal <=> other.ordinal
       end
 
-      alias hash object_id
-      alias eql? equal?
-
       def self.overlaps(labels, group = labels, &block)
         Enumerator.new do |yielder|
           next unless group.any?(&block)
@@ -53,7 +54,8 @@ module NSWTopo
             index.search(label.bounds, buffer: buffer).with_object Set[] do |other, overlaps|
               next if label == other.owner
               next if overlaps === other.owner
-              next if label.hulls.none? do |hull|
+              next unless label.hulls.length < 3 || label.hull.overlaps?(other, buffer: buffer)
+              next unless label.hulls.any? do |hull|
                 hull.overlaps? other, buffer: buffer
               end
               overlaps << other.owner

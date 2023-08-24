@@ -343,7 +343,7 @@ module NSWTopo
           hull = Vector[0.5 * text_length, 0].then do |offset|
             GeoJSON::LineString.new [anchor - offset, anchor + offset]
           end.then do |segment|
-            Hull.new segment, buffer
+            Hull.new segment, buffer: buffer
           end
 
           next text_element, hull
@@ -450,10 +450,10 @@ module NSWTopo
         else baseline.coordinates.values_at(0, -1).map(&:x).inject(&:<=)
         end
 
-        # hulls = baseline.dissolve_segments.explode.map do |segment|
-        #   Hull.new segment, buffer
-        # end
-        hulls = [Hull.new(baseline.dissolve_segments, buffer)]
+        # hulls = [Hull.new(baseline.dissolve_segments, buffer: buffer)]
+        hulls = baseline.dissolve_segments.explode.map do |segment|
+          Hull.new segment, buffer: buffer
+        end
 
         redo unless labelling_hull.surrounds? hulls.inject(&:+)
 

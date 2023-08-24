@@ -1,32 +1,31 @@
 module NSWTopo
   module Labels
     class Hull < GeoJSON::LineString
-      def initialize(feature, buffer, owner: nil)
-        ring = case feature
+      def initialize(feature, buffer: nil, owner: nil)
+        @coordinates = case feature
         when GeoJSON::LineString # a single segment from a linestring
           p0, p1 = *feature
           offset = (p1 - p0).perp.normalised * buffer
-          super [p0 - offset, p1 - offset, p1 + offset, p0 + offset, p0 - offset]
+          [p0 - offset, p1 - offset, p1 + offset, p0 + offset]
         when GeoJSON::Point # a point feature barrier
           x, y = *feature
-          super [[x-buffer, y-buffer], [x+buffer, y-buffer], [x+buffer, y+buffer], [x-buffer, y+buffer], [x-buffer, y-buffer]]
-        when GeoJSON::MultiLineString # collection of segments from a linestring
+          [Vector[x-buffer, y-buffer], Vector[x+buffer, y-buffer], Vector[x+buffer, y+buffer], Vector[x-buffer, y+buffer]]
+        when GeoJSON::MultiPoint # dissolved points of a collection of hulls
+          feature.convex_hull.coordinates
+        when GeoJSON::MultiLineString # collection of segments from a linestring (not used)
           offsets = feature.map do |p0, p1|
             (p1 - p0).perp.normalised * buffer
           end
           corners = offsets.each_cons(2).map do |d01, d12|
             (d01 + d12).normalised * (buffer * (d12.cross(d01) <=> 0))
           end
-          feature.zip(offsets, corners).each.with_object [] do |((p0, p1), offset, corner), buffered|
+          points = feature.zip(offsets, corners).each.with_object [] do |((p0, p1), offset, corner), buffered|
             buffered << p0 + offset << p0 - offset << p1 + offset << p1 - offset
             buffered << p1 + corner if corner
-          end.then do |points|
-            GeoJSON::MultiPoint.new(points).convex_hull.coordinates
-          end.then do |ring|
-            super ring + ring.take(1)
           end
+          GeoJSON::MultiPoint.new(points).convex_hull.coordinates
         end
-        @owner = owner
+        @properties, @owner = {}, owner
       end
 
       attr_accessor :owner

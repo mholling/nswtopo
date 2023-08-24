@@ -10,7 +10,7 @@ module NSWTopo
         when GeoJSON::Polygon
           feature.dissolve_segments
         end.explode.map do |feature|
-          Hull.new feature, buffer, owner: self
+          Hull.new feature, buffer: buffer, owner: self
         end
       end
 

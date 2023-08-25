@@ -3,7 +3,7 @@ module NSWTopo
     class LineString
       include SVG
 
-      delegate %i[length offset buffer smooth samples subdivide] => :multi
+      delegate %i[length offset buffer smooth samples subdivide to_polygon] => :multi
       delegate %i[reverse!] => :@coordinates
 
       def bounds

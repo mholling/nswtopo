@@ -105,18 +105,4 @@ class Vector
   def proj(other)
     dot(other) / other.norm
   end
-
-  def within?(ring)
-    ring.map do |point|
-      point - self
-    end.each_cons(2).inject(0) do |winding, (p0, p1)|
-      case
-      when p1.y > 0 && p0.y <= 0 && (p0 - p1).cross(p0) >= 0 then winding + 1
-      when p0.y > 0 && p1.y <= 0 && (p1 - p0).cross(p0) >= 0 then winding - 1
-      when p0.y == 0 && p1.y == 0 && p0.x >= 0 && p1.x < 0 then winding + 1
-      when p0.y == 0 && p1.y == 0 && p1.x >= 0 && p0.x < 0 then winding - 1
-      else winding
-      end
-    end != 0
-  end
 end

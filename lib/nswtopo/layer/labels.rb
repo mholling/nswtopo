@@ -292,9 +292,9 @@ module NSWTopo
       end
     end
 
-    def labelling_hull
-      # TODO: does not account for non-convex neatline when map insets are present
-      @labelling_hull ||= @map.neatline(mm: -INSET).bbox.first
+    def map_contains?(label)
+      @labelling_neatline ||= @map.neatline(mm: -INSET).first
+      @labelling_neatline.contains? label.hull
     end
 
     def barriers_for(label_hull)
@@ -349,8 +349,6 @@ module NSWTopo
           next text_element, hull
         end.transpose
 
-        next unless labelling_hull.surrounds? hulls.inject(&:+)
-
         barrier_count = hulls.map do |hull|
           barriers_for hull
         end.inject(&:merge).size
@@ -359,6 +357,8 @@ module NSWTopo
         Label.new collection, label_index, feature_index, barrier_count, priority, hulls, attributes, text_elements
       end.compact.reject do |candidate|
         candidate.optional? && candidate.barriers?
+      end.select do |candidate|
+        map_contains? candidate
       end.tap do |candidates|
         candidates.combination(2).each do |candidate1, candidate2|
           candidate1.conflicts << candidate2
@@ -455,8 +455,6 @@ module NSWTopo
           Hull.new segment, buffer: buffer
         end
 
-        redo unless labelling_hull.surrounds? hulls.inject(&:+)
-
         barrier_count = barrier_overlaps.values_at(*hulls).inject(&:merge).size
 
         along = distances.values_at(indices.first, indices.last).then do |d0, d1|
@@ -480,6 +478,8 @@ module NSWTopo
         Label.new collection, label_index, feature_index, barrier_count, priority, hulls, attributes, [text_element, path_element], along, fixed
       end.reject do |candidate|
         candidate.optional? && candidate.barriers?
+      end.select do |candidate|
+        map_contains? candidate
       end.then do |candidates|
         neighbours = Hash.new do |hash, candidate|
           hash[candidate] = Set[]

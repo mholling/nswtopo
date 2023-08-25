@@ -42,10 +42,24 @@ module NSWTopo
         MultiLineString.new @coordinates, @properties
       end
 
-      def surrounds?(geometry)
-        # implementation for simple convex polygons only
+      def add_ring(ring)
+        Polygon.new [*@coordinates, ring.coordinates], @properties
+      end
+
+      def contains?(geometry)
+        geometry = Point.new(geometry) if Vector === geometry
         geometry.dissolve_points.all? do |point|
-          point.within? @coordinates.first
+          sum do |ring|
+            ring.each_cons(2).inject(0) do |winding, (p0, p1)|
+              case
+              when p1.y  > point.y && p0.y <= point.y && (p0 - p1).cross(p0 - point) >= 0 then winding + 1
+              when p0.y  > point.y && p1.y <= point.y && (p1 - p0).cross(p0 - point) >= 0 then winding - 1
+              when p0.y == point.y && p1.y == point.y && p0.x >= point.x && p1.x < point.x then winding + 1
+              when p0.y == point.y && p1.y == point.y && p1.x >= point.x && p0.x < point.x then winding - 1
+              else winding
+              end
+            end
+          end.nonzero?
         end
       end
 

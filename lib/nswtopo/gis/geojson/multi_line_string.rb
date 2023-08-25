@@ -60,6 +60,10 @@ module NSWTopo
         end.reject(&:empty?).sum(MultiLineString.new [])
       end
 
+      def to_polygon
+        Polygon.new @coordinates, @properties
+      end
+
       def to_multipolygon
         polygons = explode.tap do |rings|
           rings.each(&:reverse!) if rings.first.clockwise?

@@ -89,8 +89,7 @@ module NSWTopo
             next unless feature["depression"] == 1
             index.search(feature.bounds).none? do |other|
               next if other == feature
-              feature.coordinates.first.within?(other.coordinates) ||
-              other.coordinates.first.within?(feature.coordinates)
+              feature.to_polygon.contains?(other.first) || other.to_polygon.contains?(feature.first)
             end
           end
         end

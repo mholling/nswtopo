@@ -95,13 +95,12 @@ module NSWTopo
         unclaimed, exterior_rings = nodes.readout.map do |ring|
           LineString.new ring
         end.partition(&:hole?)
-        polygons = exterior_rings.sort_by(&:signed_area).each.with_object [] do |exterior_ring, polygons|
+        exterior_rings.sort_by(&:signed_area).map(&:to_polygon).map do |polygon|
           interior_rings, unclaimed = unclaimed.partition do |ring|
-            ring.coordinates.first.within? exterior_ring.coordinates
+            polygon.contains? ring.first
           end
-          polygons << [exterior_ring, *interior_rings].map(&:coordinates)
-        end
-        MultiPolygon.new polygons, @properties
+          interior_rings.inject(polygon, &:add_ring)
+        end.inject(&:+).multi
       end
 
       def centroids

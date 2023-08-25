@@ -39,7 +39,7 @@ class RTree
       next if searched.include? self
       if overlaps? bounds, buffer
         @nodes.each do |node|
-          node.search(bounds, buffer: buffer, searched: searched).inject(yielder, &:<<)
+          node.search(bounds, buffer: buffer, searched: searched).each(&yielder)
         end
         yielder << @object if @nodes.empty?
       end

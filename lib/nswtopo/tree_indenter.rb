@@ -15,7 +15,7 @@ module NSWTopo
           else                       "├─ "
           end if parts
           yielder << [new_parts, item]
-          TreeIndenter.new(group, new_parts, &block).inject(yielder, &:<<)
+          TreeIndenter.new(group, new_parts, &block).each(&yielder)
         end
       end
     end

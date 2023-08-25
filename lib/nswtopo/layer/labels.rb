@@ -328,10 +328,10 @@ module NSWTopo
         next dx, dy, dx * dy == 0 ? 1 : 0.6
       end.uniq.map.with_index do |(dx, dy, f), position_index|
         text_elements, hulls = lines.map.with_index do |(line, text_length), index|
-          anchor = point.dup
-          anchor.x += dx * (f * margin + 0.5 * text_length)
-          anchor.y += dy * (f * margin + 0.5 * height)
-          anchor.y += (index - 0.5) * 0.5 * height unless lines.one?
+          offset_x = dx * (f * margin + 0.5 * text_length)
+          offset_y = dy * (f * margin + 0.5 * height)
+          offset_y += (index - 0.5) * 0.5 * height unless lines.one?
+          anchor = point + Vector[offset_x, offset_y]
 
           text_element = REXML::Element.new("text")
           text_element.add_attribute "transform", "translate(%s)" % POINT % anchor

@@ -13,7 +13,9 @@ module NSWTopo
         false
       end
 
-      delegate :rotate_by_degrees! => :@coordinates
+      def rotate_by_degrees(angle)
+        Point.new @coordinates.rotate_by_degrees(angle), @properties
+      end
     end
   end
 end

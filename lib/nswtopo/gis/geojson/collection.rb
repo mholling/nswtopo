@@ -98,7 +98,7 @@ module NSWTopo
       end
 
       def rotate_by_degrees!(angle)
-        each { |feature| feature.rotate_by_degrees! angle }
+        @features.map! { |feature| feature.rotate_by_degrees(angle) }
       end
 
       def clip(polygon)

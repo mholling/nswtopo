@@ -7,7 +7,7 @@ class Vector
     new x, y
   end
 
-  attr_accessor :x, :y
+  attr_reader :x, :y
 
   def to_ary
     [@x, @y]
@@ -32,10 +32,6 @@ class Vector
     Vector[@x.to_f, @y.to_f]
   end
 
-  def replace(other)
-    tap { @x, @y = other.x, other.y }
-  end
-
   def rotate_by(angle)
     cos = Math::cos(angle)
     sin = Math::sin(angle)
@@ -44,14 +40,6 @@ class Vector
 
   def rotate_by_degrees(angle)
     rotate_by(angle * Math::PI / 180.0)
-  end
-
-  def rotate_by!(angle)
-    replace rotate_by(angle)
-  end
-
-  def rotate_by_degrees!(angle)
-    replace rotate_by_degrees(angle)
   end
 
   def +(other)

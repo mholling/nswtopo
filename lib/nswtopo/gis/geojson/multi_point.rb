@@ -3,8 +3,9 @@ module NSWTopo
     class MultiPoint
       alias dissolve_points itself
 
-      def rotate_by_degrees!(angle)
-        @coordinates.each { |point| point.rotate_by_degrees! angle }
+      def rotate_by_degrees(angle)
+        points = @coordinates.map { |point| point.rotate_by_degrees(angle) }
+        MultiPoint.new points, @properties
       end
 
       def convex_hull
@@ -41,7 +42,7 @@ module NSWTopo
             Math::acos caliper.proj(edge).clamp(-1, 1)
           end.map.with_index.min_by(&:first)
 
-          calipers.each { |caliper| caliper.rotate_by!(angle) }
+          calipers.map! { |caliper| caliper.rotate_by(angle) }
           rotation += angle
 
           break if rotation >= Math::PI / 2

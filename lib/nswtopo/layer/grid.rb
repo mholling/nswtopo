@@ -98,7 +98,7 @@ module NSWTopo
         Math::atan2(*easting.coordinates.values_at(0, -1).inject(&:-)) * 180.0 / Math::PI > @map.rotation
       end.map(&:length).inject(&:>)
       eastings.each do |easting|
-        easting.coordinates.reverse!
+        easting.reverse!
         easting["ends"].map! { |index| 1 - index }
       end if flip_eastings
 

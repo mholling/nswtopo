@@ -23,10 +23,6 @@ module StraightSkeleton
         end.then do |signed_area_x2|
           index = nil if signed_area_x2 < 0
         end if closed
-        # # TODO?
-        # linestring = NSWTopo::GeoJSON::LineString.new points
-        # closed = linestring.closed?
-        # index = nil unless closed && !linestring.interior?
         normals = points.each_cons(2).map do |v0, v1|
           (v1 - v0).normalised.perp
         end

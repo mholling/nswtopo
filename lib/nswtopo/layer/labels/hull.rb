@@ -71,7 +71,7 @@ module NSWTopo
         end
       end
 
-      def svg_path_data
+      def svg_path_data(**)
         super + " Z"
       end
     end

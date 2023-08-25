@@ -60,10 +60,6 @@ module NSWTopo
       def <=>(other)
         self.ordinal <=> other.ordinal
       end
-
-      def bounds(buffer: 0)
-        coordinates.map { |coordinate| [coordinate - buffer, coordinate + buffer] }
-      end
     end
 
     def ordering
@@ -144,7 +140,7 @@ module NSWTopo
 
       candidates.each.with_index do |candidate, index|
         log_update "%s: examining candidates: %.1f%%" % [@name, 100.0 * index  / candidates.length]
-        spatial_index.search(candidate.bounds(buffer: @spacing)).each do |other|
+        spatial_index.search(candidate.bounds, buffer: @spacing).each do |other|
           next if other == candidate
           next if (candidate.coordinates - other.coordinates).norm > @spacing
           candidate.conflicts << other

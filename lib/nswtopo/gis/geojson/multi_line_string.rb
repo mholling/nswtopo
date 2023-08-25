@@ -38,7 +38,7 @@ module NSWTopo
       end
 
       def dissolve_points
-        MultiPoint.new @coordinates.flat_map(&:itself)
+        MultiPoint.new @coordinates.flatten(1), @properties
       end
 
       def dissolve_segments

@@ -119,7 +119,7 @@ module NSWTopo
       end
 
       def dissolve_points
-        MultiPoint.new @coordinates.flatten(1).flat_map(&:itself)
+        MultiPoint.new @coordinates.flatten(2), @properties
       end
     end
   end

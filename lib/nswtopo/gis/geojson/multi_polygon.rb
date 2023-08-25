@@ -94,7 +94,7 @@ module NSWTopo
         end
         unclaimed, exterior_rings = nodes.readout.map do |ring|
           LineString.new ring
-        end.partition(&:hole?)
+        end.partition(&:interior?)
         exterior_rings.sort_by(&:signed_area).map(&:to_polygon).map do |polygon|
           interior_rings, unclaimed = unclaimed.partition do |ring|
             polygon.contains? ring.first

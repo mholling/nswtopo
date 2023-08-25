@@ -25,11 +25,12 @@ module NSWTopo
       def clockwise?
         signed_area < 0
       end
-      alias hole? clockwise?
+      alias interior? clockwise?
 
       def anticlockwise?
         signed_area >= 0
       end
+      alias exterior? anticlockwise?
 
       def dissolve_segments
         MultiLineString.new each_cons(2).entries, @properties

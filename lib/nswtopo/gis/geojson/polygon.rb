@@ -10,7 +10,7 @@ module NSWTopo
         map do |coordinates|
           LineString.new coordinates
         end.inject(false) do |hole, ring|
-          ring.reverse! if hole ^ ring.hole?
+          ring.reverse! if hole ^ ring.interior?
           true
         end
       end

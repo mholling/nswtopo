@@ -66,8 +66,8 @@ module NSWTopo
 
       def to_multipolygon
         polygons = explode.tap do |rings|
-          rings.each(&:reverse!) if rings.first.clockwise?
-        end.slice_when(&:anticlockwise?).map do |rings|
+          rings.each(&:reverse!) if rings.first.interior?
+        end.slice_when(&:exterior?).map do |rings|
           rings.map(&:coordinates)
         end
         MultiPolygon.new polygons, @properties

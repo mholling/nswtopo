@@ -26,7 +26,7 @@ module StraightSkeleton
         # # TODO?
         # linestring = NSWTopo::GeoJSON::LineString.new points
         # closed = linestring.closed?
-        # index = nil unless closed && !linestring.hole?
+        # index = nil unless closed && !linestring.interior?
         normals = points.each_cons(2).map do |v0, v1|
           (v1 - v0).normalised.perp
         end

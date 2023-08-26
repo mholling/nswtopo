@@ -22,7 +22,7 @@ module NSWTopo
       end
 
       def hull
-        @hull ||= Hull.new @hulls.inject(:+).dissolve_points
+        @hull ||= Hull.new @hulls.inject(:+).dissolve_points.convex_hull
       end
 
       def point?

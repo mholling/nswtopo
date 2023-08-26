@@ -19,13 +19,11 @@ module NSWTopo
             (v2 - v0).cross(v1 - v0) < 0 ? break : points.pop
           end
           points << v2
-        end.then do |points|
-          LineString.new points, @properties
         end
       end
 
       def minimum_bbox_angle(*margins)
-        ring = convex_hull.coordinates
+        ring = convex_hull
         return 0 if ring.one?
         indices = [%i[min_by max_by], %i[x y]].inject(:product).map do |min, coord|
           ring.map(&coord).each.with_index.send(min, &:first).last

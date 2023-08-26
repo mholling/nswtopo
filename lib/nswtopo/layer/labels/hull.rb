@@ -1,31 +1,38 @@
 module NSWTopo
   module Labels
     class Hull < GeoJSON::LineString
-      def initialize(feature, buffer: nil, owner: nil)
-        @coordinates = case feature
-        when GeoJSON::LineString # a single segment from a linestring
-          p0, p1 = *feature
-          offset = (p1 - p0).perp.normalised * buffer
-          [p0 - offset, p1 - offset, p1 + offset, p0 + offset]
-        when GeoJSON::Point # a point feature barrier
-          x, y = *feature
-          [Vector[x-buffer, y-buffer], Vector[x+buffer, y-buffer], Vector[x+buffer, y+buffer], Vector[x-buffer, y+buffer]]
-        when GeoJSON::MultiPoint # dissolved points of a collection of hulls
-          feature.convex_hull.coordinates
-        when GeoJSON::MultiLineString # collection of segments from a linestring (not used)
-          offsets = feature.map do |p0, p1|
-            (p1 - p0).perp.normalised * buffer
+      def self.from_geometry(feature, buffer:, **options)
+        case feature
+        when GeoJSON::Polygon then feature.rings
+        when GeoJSON::MultiPolygon then feature.rings
+        else feature
+        end.explode.flat_map do |feature|
+          case feature
+          when GeoJSON::Point # a point feature barrier
+            x, y = *feature
+            [[Vector[x-buffer, y-buffer], Vector[x+buffer, y-buffer], Vector[x+buffer, y+buffer], Vector[x-buffer, y+buffer]]]
+          when GeoJSON::LineString # a linestring label to be broken down into segment hulls
+            offsets = feature.each_cons(2).map do |p0, p1|
+              (p1 - p0).perp.normalised * buffer
+            end
+            corners = offsets.then do |offsets|
+              feature.closed? ? [offsets.last, *offsets, offsets.first] : [offsets.first, *offsets, offsets.last]
+            end.each_cons(2).map do |o01, o12|
+              next if o12.cross(o01) == 0
+              (o01 + o12).normalised * buffer * (o12.cross(o01) <=> 0)
+            end.each_cons(2)
+            feature.each_cons(2).zip(corners, offsets).map do |(p0, p1), (c0, c1), offset|
+              if c0 then [p0 + offset, p0 + c0, p0 - offset] else [p0 + offset, p0 - offset] end +
+              if c1 then [p1 - offset, p1 + c1, p1 + offset] else [p1 - offset, p1 + offset] end
+            end
           end
-          corners = offsets.each_cons(2).map do |d01, d12|
-            (d01 + d12).normalised * (buffer * (d12.cross(d01) <=> 0))
-          end
-          points = feature.zip(offsets, corners).each.with_object [] do |((p0, p1), offset, corner), buffered|
-            buffered << p0 + offset << p0 - offset << p1 + offset << p1 - offset
-            buffered << p1 + corner if corner
-          end
-          GeoJSON::MultiPoint.new(points).convex_hull.coordinates
+        end.map do |coordinates|
+          Hull.new coordinates, **options
         end
-        @properties, @owner = {}, owner
+      end
+
+      def initialize(coordinates, owner: nil)
+        @coordinates, @properties, @owner = coordinates, {}, owner
       end
 
       attr_accessor :owner

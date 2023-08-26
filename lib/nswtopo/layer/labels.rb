@@ -327,7 +327,7 @@ module NSWTopo
         dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
         next dx, dy, dx * dy == 0 ? 1 : 0.6
       end.uniq.map.with_index do |(dx, dy, f), position_index|
-        text_elements, hulls = lines.map.with_index do |(line, text_length), index|
+        text_elements, segments = lines.map.with_index do |(line, text_length), index|
           offset_x = dx * (f * margin + 0.5 * text_length)
           offset_y = dy * (f * margin + 0.5 * height)
           offset_y += (index - 0.5) * 0.5 * height unless lines.one?
@@ -340,15 +340,13 @@ module NSWTopo
           text_element.add_attribute "y", VALUE % (CENTRELINE_FRACTION * font_size)
           text_element.add_text line
 
-          hull = Vector[0.5 * text_length, 0].then do |offset|
-            GeoJSON::LineString.new [anchor - offset, anchor + offset]
-          end.then do |segment|
-            Hull.new segment, buffer: buffer
-          end
+          offset = Vector[0.5 * text_length, 0]
+          segment = GeoJSON::LineString.new [anchor - offset, anchor + offset]
 
-          next text_element, hull
+          next text_element, segment
         end.transpose
 
+        hulls = Hull.from_geometry segments.inject(&:+), buffer: buffer
         barrier_count = hulls.map do |hull|
           barriers_for hull
         end.inject(&:merge).size
@@ -450,11 +448,8 @@ module NSWTopo
         else baseline.coordinates.values_at(0, -1).map(&:x).inject(&:<=)
         end
 
-        # hulls = [Hull.new(baseline.dissolve_segments, buffer: buffer)]
-        hulls = baseline.dissolve_segments.explode.map do |segment|
-          Hull.new segment, buffer: buffer
-        end
-
+        hulls = Hull.from_geometry baseline, buffer: buffer
+        # hulls = [Hull.new(hulls.inject(&:+).dissolve_points.convex_hull)]
         barrier_count = barrier_overlaps.values_at(*hulls).inject(&:merge).size
 
         along = distances.values_at(indices.first, indices.last).then do |d0, d1|

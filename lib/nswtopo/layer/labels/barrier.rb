@@ -2,16 +2,7 @@ module NSWTopo
   module Labels
     class Barrier
       def initialize(feature, buffer)
-        @hulls = case feature
-        when GeoJSON::Point
-          feature
-        when GeoJSON::LineString
-          feature.dissolve_segments
-        when GeoJSON::Polygon
-          feature.dissolve_segments
-        end.explode.map do |feature|
-          Hull.new feature, buffer: buffer, owner: self
-        end
+        @hulls = Hull.from_geometry feature, buffer: buffer, owner: self
       end
 
       attr_reader :hulls

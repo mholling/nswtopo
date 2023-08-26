@@ -2,8 +2,7 @@
 #   Fast Point-Feature Label Placement Algorithm for Real Time Screen Maps
 #   (Missae Yamamoto, Gilberto Camara, Luiz Antonio Nogueira Lorena)
 
-require_relative 'labels/barrier'
-require_relative 'labels/hull'
+require_relative 'labels/convex_hulls'
 require_relative 'labels/label'
 
 module NSWTopo
@@ -298,11 +297,12 @@ module NSWTopo
     end
 
     def barriers_for(label_hull)
-      @barrier_hulls ||= RTree.load(barriers.flat_map(&:hulls), &:bounds)
-      @barrier_hulls.search(label_hull.bounds).with_object Set[] do |barrier_hull, barriers|
-        next if barriers === barrier_hull.owner
-        next unless Hull.overlap?(barrier_hull, label_hull)
-        barriers << barrier_hull.owner
+      @barriers_idx ||= RTree.load(barriers.flat_map(&:explode), &:bounds)
+      @barriers_for ||= Hash[]
+      @barriers_for[label_hull.coordinates] ||= @barriers_idx.search(label_hull.bounds).with_object Set[] do |barrier_hull, barriers|
+        next if barriers === barrier_hull[:source]
+        next unless ConvexHulls.overlap?(barrier_hull, label_hull)
+        barriers << barrier_hull[:source]
       end
     end
 
@@ -313,7 +313,6 @@ module NSWTopo
       font_size   = attributes["font-size"]
 
       point = feature.coordinates
-      buffer = 0.5 * font_size
       lines = Font.in_two collection.text, attributes
       lines = [[collection.text, Font.glyph_length(collection.text, attributes)]] if lines.map(&:first).map(&:length).min == 1
       height = lines.map { font_size }.inject { |total| total + line_height }
@@ -327,7 +326,7 @@ module NSWTopo
         dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
         next dx, dy, dx * dy == 0 ? 1 : 0.6
       end.uniq.map.with_index do |(dx, dy, f), position_index|
-        text_elements, segments = lines.map.with_index do |(line, text_length), index|
+        text_elements, baselines = lines.map.with_index do |(line, text_length), index|
           offset_x = dx * (f * margin + 0.5 * text_length)
           offset_y = dy * (f * margin + 0.5 * height)
           offset_y += (index - 0.5) * 0.5 * height unless lines.one?
@@ -341,18 +340,16 @@ module NSWTopo
           text_element.add_text line
 
           offset = Vector[0.5 * text_length, 0]
-          segment = GeoJSON::LineString.new [anchor - offset, anchor + offset]
+          baseline = GeoJSON::LineString.new [anchor - offset, anchor + offset]
 
-          next text_element, segment
+          next text_element, baseline
         end.transpose
 
-        hulls = Hull.from_geometry segments.inject(&:+), buffer: buffer
-        barrier_count = hulls.map do |hull|
-          barriers_for hull
-        end.inject(&:merge).size
-
         priority = [position_index, feature_index]
-        Label.new collection, label_index, feature_index, barrier_count, priority, hulls, attributes, text_elements
+
+        Label.new baselines.inject(&:+), collection, label_index, feature_index, priority, attributes, text_elements do |hull|
+          barriers_for hull
+        end
       end.compact.reject do |candidate|
         candidate.optional? && candidate.barriers?
       end.select do |candidate|
@@ -376,15 +373,10 @@ module NSWTopo
       font_size   = attributes["font-size"]
 
       closed = feature.closed?
-      buffer = 0.5 * font_size
 
       text_length = case collection.text
       when REXML::Element then feature.path_length
       when String then Font.glyph_length collection.text, attributes
-      end
-
-      barrier_overlaps = Hash.new do |overlaps, hull|
-        overlaps[hull] = barriers_for hull
       end
 
       points, deltas, angles, avoid = feature.coordinates.each_cons(2).flat_map do |v0, v1|
@@ -448,10 +440,6 @@ module NSWTopo
         else baseline.coordinates.values_at(0, -1).map(&:x).inject(&:<=)
         end
 
-        hulls = Hull.from_geometry baseline, buffer: buffer
-        # hulls = [Hull.new(hulls.inject(&:+).dissolve_points.convex_hull)]
-        barrier_count = barrier_overlaps.values_at(*hulls).inject(&:merge).size
-
         along = distances.values_at(indices.first, indices.last).then do |d0, d1|
           (d0 + ((d1 - d0) % total) / 2) % total
         end
@@ -470,7 +458,10 @@ module NSWTopo
           text_path = text_element.add_element "textPath", "href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
           text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
         end
-        Label.new collection, label_index, feature_index, barrier_count, priority, hulls, attributes, [text_element, path_element], along, fixed
+
+        Label.new baseline, collection, label_index, feature_index, priority, attributes, [text_element, path_element], along: along, fixed: fixed do |hull|
+          barriers_for hull
+        end
       end.reject do |candidate|
         candidate.optional? && candidate.barriers?
       end.select do |candidate|
@@ -551,7 +542,7 @@ module NSWTopo
         log_update "compositing %s: choosing label positions" % @name
 
         if Config["debug"]
-          candidates.flat_map(&:hulls).each.with_object("candidate", &debug)
+          candidates.each.with_object("candidate", &debug)
           candidates.clear
         end
 

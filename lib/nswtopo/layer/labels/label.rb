@@ -1,12 +1,14 @@
 module NSWTopo
   module Labels
-    class Label
-      def initialize(collection, label_index, feature_index, barrier_count, priority, hulls, attributes, elements, along = nil, fixed = nil)
+    class Label < ConvexHulls
+      def initialize(baselines, collection, label_index, feature_index, priority, attributes, elements, along: nil, fixed: nil, &block)
+        super baselines, 0.5 * attributes["font-size"]
         @label_index, @feature_index, @indices = label_index, feature_index, [label_index, feature_index]
-        @collection, @barrier_count, @priority, @hulls, @attributes, @elements, @along, @fixed = collection, barrier_count, priority, hulls, attributes, elements, along, fixed
+        @collection, @priority, @attributes, @elements, @along, @fixed = collection, priority, attributes, elements, along, fixed
+        @barrier_count = explode.map(&block).inject(&:merge).size
         @ordinal = [@barrier_count, @priority]
         @conflicts = Set[]
-        @hulls.each { |hull| hull.owner = self }
+        @hull = dissolve_points.convex_hull
       end
 
       extend Forwardable
@@ -14,16 +16,8 @@ module NSWTopo
       delegate %i[[] dig] => :@attributes
 
       attr_reader :label_index, :feature_index, :indices
-      attr_reader :barrier_count, :hulls, :elements, :along, :fixed, :conflicts
+      attr_reader :barrier_count, :elements, :along, :fixed, :conflicts, :hull
       attr_accessor :priority, :ordinal
-
-      def bounds
-        @bounds ||= @hulls.inject(&:+).bounds
-      end
-
-      def hull
-        @hull ||= Hull.new @hulls.inject(:+).dissolve_points.convex_hull
-      end
 
       def point?
         @along.nil?
@@ -47,18 +41,18 @@ module NSWTopo
 
       def self.overlaps(labels, group = labels, &block)
         return Set[] unless group.any?(&block)
-        index = RTree.load(labels.flat_map(&:hulls), &:bounds)
+        index = RTree.load(labels.flat_map(&:explode), &:bounds)
         group.each.with_object Set[] do |label, overlaps|
           next unless buffer = yield(label)
           index.search(label.bounds, buffer: buffer).each do |other|
-            next if label == other.owner
-            next if overlaps === [label, other.owner]
-            next if overlaps === [other.owner, label]
-            next unless label.hulls.length < 3 || Hull.overlap?(label.hull, other, buffer: buffer)
-            next unless label.hulls.any? do |hull|
-              Hull.overlap?(hull, other, buffer: buffer)
+            next if label == other[:source]
+            next if overlaps === [label, other[:source]]
+            next if overlaps === [other[:source], label]
+            next unless label.count < 3 || ConvexHulls.overlap?(label.hull, other, buffer: buffer)
+            next unless label.explode.any? do |hull|
+              ConvexHulls.overlap?(hull, other, buffer: buffer)
             end
-            overlaps << [label, other.owner]
+            overlaps << [label, other[:source]]
           end
         end
       end

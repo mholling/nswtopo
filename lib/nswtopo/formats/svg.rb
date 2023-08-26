@@ -84,7 +84,7 @@ module NSWTopo
             new_knockouts, knockout = [], "map.mask.knockout.#{knockouts.length+1}"
             layer.render(cutouts: cutouts, knockout: knockout) do |object|
               case object
-              when Labels::Barrier then labels << object
+              when Labels::ConvexHulls then labels << object
               when VectorRender::Cutout then cutouts << object
               when VectorRender::Knockout then new_knockouts << object
               when REXML::Element

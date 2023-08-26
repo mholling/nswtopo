@@ -1,8 +1,8 @@
 module NSWTopo
   module Labels
-    class Hull < GeoJSON::LineString
-      def self.from_geometry(feature, buffer:, **options)
-        case feature
+    class ConvexHulls < GeoJSON::MultiLineString
+      def initialize(feature, buffer)
+        @coordinates = case feature
         when GeoJSON::Polygon then feature.rings
         when GeoJSON::MultiPolygon then feature.rings
         else feature
@@ -26,16 +26,13 @@ module NSWTopo
               if c1 then [p1 - offset, p1 + c1, p1 + offset] else [p1 - offset, p1 + offset] end
             end
           end
-        end.map do |coordinates|
-          Hull.new coordinates, **options
         end
+        @properties = { source: self }
       end
 
-      def initialize(coordinates, owner: nil)
-        @coordinates, @properties, @owner = coordinates, {}, owner
+      def svg_path_data
+        explode.map(&:svg_path_data).each.with_object("Z").entries.join(" ")
       end
-
-      attr_accessor :owner
 
       def self.overlap?(*rings, buffer: 0)
         # implements Gilbert–Johnson–Keerthi
@@ -76,10 +73,6 @@ module NSWTopo
             end
           end
         end
-      end
-
-      def svg_path_data(**)
-        super + " Z"
       end
     end
   end

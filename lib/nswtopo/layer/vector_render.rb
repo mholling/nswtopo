@@ -140,6 +140,9 @@ module NSWTopo
               content.add_element "path", "fill" => "none", "d" => feature.svg_path_data(bezier: bezier)
             end
 
+          when Labels::ConvexHulls
+            content.add_element "path", "fill" => "none", "d" => feature.svg_path_data
+
           when GeoJSON::Polygon
             content.add_element "path", "fill-rule" => "nonzero", "d" => feature.svg_path_data
 
@@ -237,7 +240,7 @@ module NSWTopo
             next unless content && args
             buffer = 0.5 * (Numeric === args ? args : Numeric === stroke_width ? stroke_width : 0)
             features.grep_v(REXML::Element).each do |feature|
-              Labels::Barrier.new(feature, buffer).tap(&block)
+              Labels::ConvexHulls.new(feature, buffer).tap(&block)
             end
 
           when "shield"

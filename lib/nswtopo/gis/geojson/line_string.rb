@@ -137,7 +137,9 @@ module NSWTopo
         else
           @coordinates.map do |point|
             POINT % point
-          end.join(" L ").prepend("M ")
+          end.join(" L ").tap do |string|
+            string.concat(" Z") if closed?
+          end.prepend("M ")
         end
       end
     end

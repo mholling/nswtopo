@@ -29,7 +29,7 @@ module NSWTopo
           when :interval
             travel, rings = *args
             samples[travel] = rings.flat_map do |ring|
-              GeoJSON::LineString.sample_at(ring, interval)
+              GeoJSON::LineString.new(ring).sample_at(interval)
             end
           end
         end

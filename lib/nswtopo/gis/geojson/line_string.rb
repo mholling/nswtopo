@@ -53,10 +53,10 @@ module NSWTopo
         LineString.new simplified, @properties
       end
 
-      def self.sample_at(coordinates, interval, offset: 0, &block)
+      def sample_at(interval, offset: 0, &block)
         Enumerator.new do |yielder|
           alpha = (0.5 + Float(offset || 0) / interval) % 1.0
-          coordinates.each_cons(2).inject [alpha, 0] do |(alpha, along), (p0, p1)|
+          each_cons(2).inject [alpha, 0] do |(alpha, along), (p0, p1)|
             angle = (p1 - p0).angle
             loop do
               distance = (p1 - p0).norm
@@ -64,7 +64,7 @@ module NSWTopo
               break unless fraction < 1
               p0 = p1 * fraction + p0 * (1 - fraction)
               along += alpha * interval
-              yielder << (block_given? ? yield(p0, along, angle) : p0)
+              block_given? ? yielder << block.call(p0, along, angle) : yielder << p0
               alpha = 1.0
             end
             distance = (p1 - p0).norm
@@ -73,12 +73,8 @@ module NSWTopo
         end.entries
       end
 
-      def sample_at(interval, **opts, &block)
-        LineString.sample_at(@coordinates, interval, **opts, &block)
-      end
-
       def segmentise(interval)
-        LineString.new sample_at(interval).entries.push(@coordinates.last), @properties
+        LineString.new sample_at(interval).push(@coordinates.last), @properties
       end
 
       def smooth_window(window)

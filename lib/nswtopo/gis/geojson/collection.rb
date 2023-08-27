@@ -94,7 +94,7 @@ module NSWTopo
       end
 
       def union
-        Collection.new projection: @projection, name: @name, features: [inject(&:+)]
+        Collection.new projection: @projection, name: @name, features: any? ? [inject(&:+)] : []
       end
 
       def rotate_by_degrees!(angle)

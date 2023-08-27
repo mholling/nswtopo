@@ -5,7 +5,7 @@ module NSWTopo
         super baselines, 0.5 * attributes["font-size"]
         @label_index, @feature_index, @indices = label_index, feature_index, [label_index, feature_index]
         @collection, @priority, @attributes, @elements, @along, @fixed = collection, priority, attributes, elements, along, fixed
-        @barrier_count = explode.map(&block).inject(&:merge).size
+        @barrier_count = map(&block).inject(&:merge).size
         @ordinal = [@barrier_count, @priority]
         @conflicts = Set[]
         @hull = dissolve_points.convex_hull
@@ -48,8 +48,8 @@ module NSWTopo
             next if label == other[:source]
             next if overlaps === [label, other[:source]]
             next if overlaps === [other[:source], label]
-            next unless label.count < 3 || ConvexHulls.overlap?(label.hull, other, buffer: buffer)
-            next unless label.explode.any? do |hull|
+            next unless label.coordinates.length < 3 || ConvexHulls.overlap?(label.hull, other, buffer: buffer)
+            next unless label.any? do |hull|
               ConvexHulls.overlap?(hull, other, buffer: buffer)
             end
             overlaps << [label, other[:source]]

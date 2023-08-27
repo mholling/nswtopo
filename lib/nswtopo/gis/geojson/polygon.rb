@@ -7,20 +7,18 @@ module NSWTopo
       delegate %i[dissolve_segments] => :rings
 
       def validate!
-        map do |coordinates|
-          LineString.new coordinates
-        end.inject(false) do |hole, ring|
-          ring.reverse! if hole ^ ring.interior?
+        inject(false) do |hole, ring|
+          ring.reverse! if hole ^ LineString.new(ring).interior?
           true
         end
       end
 
       def bounds
-        @coordinates.first.transpose.map(&:minmax)
+        first.transpose.map(&:minmax)
       end
 
       def wkt
-        @coordinates.map do |ring|
+        map do |ring|
           ring.map do |point|
             point.join(" ")
           end.join(", ").prepend("(").concat(")")
@@ -28,7 +26,7 @@ module NSWTopo
       end
 
       def centroid
-        @coordinates.flat_map do |ring|
+        flat_map do |ring|
           ring.each_cons(2).map do |p0, p1|
             next (p0 + p1) * p0.cross(p1), 3 * p0.cross(p1)
           end
@@ -48,7 +46,7 @@ module NSWTopo
 
       def contains?(geometry)
         geometry = Point.new(geometry) if Vector === geometry
-        geometry.dissolve_points.all? do |point|
+        geometry.dissolve_points.coordinates.all? do |point|
           sum do |ring|
             ring.each_cons(2).inject(0) do |winding, (p0, p1)|
               case
@@ -64,7 +62,7 @@ module NSWTopo
       end
 
       def svg_path_data
-        rings.explode.map(&:svg_path_data).each.with_object("Z").entries.join(?\s)
+        rings.map(&:svg_path_data).each.with_object("Z").entries.join(?\s)
       end
     end
   end

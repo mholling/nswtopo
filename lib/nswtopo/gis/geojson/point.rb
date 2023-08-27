@@ -6,7 +6,7 @@ module NSWTopo
       end
 
       def bounds
-        @coordinates.zip.map(&:minmax)
+        zip.map(&:minmax)
       end
 
       def empty?

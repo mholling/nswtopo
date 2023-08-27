@@ -4,7 +4,7 @@ module NSWTopo
       include StraightSkeleton
 
       def path_length
-        explode.sum(&:path_length)
+        sum(&:path_length)
       end
 
       def offset(*margins, **options)
@@ -28,13 +28,13 @@ module NSWTopo
       end
 
       def samples(interval)
-        points = explode.flat_map do |linestring|
+        sampled = flat_map do |linestring|
           distance = linestring.path_length
           linestring.sample_at(interval) do |point, along, angle|
             [point, (2 * along - distance).abs - distance]
           end
         end.sort_by(&:last).map(&:first)
-        MultiPoint.new points, @properties
+        MultiPoint.new sampled, @properties
       end
 
       def dissolve_points
@@ -42,20 +42,20 @@ module NSWTopo
       end
 
       def dissolve_segments
-        explode.map(&:dissolve_segments).inject(&:+)
+        map(&:dissolve_segments).inject(&:+)
       end
 
       def subdivide(count)
-        linestrings = @coordinates.flat_map do |linestring|
+        subdivided = flat_map do |linestring|
           linestring.each_cons(2).each_slice(count).map do |pairs|
             pairs.inject { |part, (p0, p1)| part << p1 }
           end
         end
-        MultiLineString.new linestrings, @properties
+        MultiLineString.new subdivided, @properties
       end
 
       def trim(amount)
-        explode.map do |feature|
+        map do |feature|
           feature.trim amount
         end.reject(&:empty?).sum(MultiLineString.new [])
       end
@@ -65,12 +65,10 @@ module NSWTopo
       end
 
       def to_multipolygon
-        polygons = explode.tap do |rings|
-          rings.each(&:reverse!) if rings.first.interior?
-        end.slice_when(&:exterior?).map do |rings|
-          rings.map(&:coordinates)
-        end
-        MultiPolygon.new polygons, @properties
+        each(&:reverse!) if first.interior?
+        slice_when(&:exterior?).map do |rings|
+          rings.inject(&:+).multi.to_polygon
+        end.inject(&:+).multi
       end
     end
   end

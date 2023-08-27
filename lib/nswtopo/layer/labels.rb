@@ -233,7 +233,7 @@ module NSWTopo
 
               when "minimum-hole", "remove-holes"
                 area = Float(arg).abs unless true == arg
-                feature.coordinates = feature.explode.map do |polygon|
+                feature.coordinates = feature.map do |polygon|
                   polygon.rings.reject do |ring|
                     true == area ? ring.signed_area < 0 : (-area...0) === ring.signed_area
                   end.map(&:coordinates)
@@ -254,9 +254,9 @@ module NSWTopo
               when "keep-largest"
                 case feature
                 when GeoJSON::MultiLineString
-                  feature.explode.max_by(&:path_length).multi
+                  feature.max_by(&:path_length).multi
                 when GeoJSON::MultiPolygon
-                  feature.explode.max_by(&:area).multi
+                  feature.max_by(&:area).multi
                 else
                   feature
                 end

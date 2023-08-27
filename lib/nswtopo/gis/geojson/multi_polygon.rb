@@ -104,7 +104,7 @@ module NSWTopo
       end
 
       def centroids
-        explode.map(&:centroid).inject(&:+).multi
+        map(&:centroid).inject(&:+).multi
       end
 
       def rings

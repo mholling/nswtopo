@@ -69,7 +69,7 @@ module NSWTopo
                 rings = geometry["rings"]
                 next unless rings&.any?
                 polys = GeoJSON::MultiLineString.new(rings, properties).to_multipolygon
-                next @mixed && polys.one? ? polys.explode.first : polys
+                next @mixed && polys.one? ? polys.first : polys
               else
                 raise "unsupported ArcGIS geometry type: #{@geometry_type}"
               end

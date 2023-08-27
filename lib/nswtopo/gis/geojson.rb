@@ -27,10 +27,10 @@ module NSWTopo
           }
         end
 
-        extend Forwardable
         include Enumerable
+        extend Forwardable
         delegate %i[[] []= fetch values_at key? store clear] => :@properties
-        delegate %i[empty? each] => :@coordinates
+        delegate %i[empty?] => :@coordinates
       end
 
       const_set type, klass
@@ -72,9 +72,8 @@ module NSWTopo
       [Polygon,    MultiPolygon   ]
     ].each do |single_class, multi_class|
       single_class.class_eval do
-        def explode
-          [self]
-        end
+        def explode = [self]
+        delegate %i[each] => :@coordinates
 
         define_method :multi do
           multi_class.new [@coordinates], @properties
@@ -85,18 +84,19 @@ module NSWTopo
       end
 
       multi_class.class_eval do
-        define_method :explode do
-          @coordinates.map do |coordinates|
-            single_class.new coordinates, @properties
+        define_method :each do |&block|
+          @coordinates.each do |coordinates|
+            single_class.new(coordinates, @properties).tap(&block)
           end
         end
+        def explode = entries
 
         def validate!
           explode.each &:validate!
         end
 
         def bounds
-          explode.map(&:bounds).transpose.map(&:flatten).map(&:minmax)
+          map(&:bounds).transpose.map(&:flatten).map(&:minmax)
         end
 
         alias multi dup

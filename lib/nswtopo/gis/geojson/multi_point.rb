@@ -4,13 +4,15 @@ module NSWTopo
       alias dissolve_points itself
 
       def rotate_by_degrees(angle)
-        points = @coordinates.map { |point| point.rotate_by_degrees(angle) }
-        MultiPoint.new points, @properties
+        rotated = @coordinates.map do |point|
+          point.rotate_by_degrees(angle)
+        end
+        MultiPoint.new rotated, @properties
       end
 
       def convex_hull
-        start = self.min
-        points, remaining = partition { |point| point == start }
+        start = @coordinates.min
+        points, remaining = @coordinates.partition { |point| point == start }
         remaining.sort_by do |point|
           next (point - start).angle, (point - start).norm
         end.inject(points) do |points, v2|

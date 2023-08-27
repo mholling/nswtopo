@@ -88,7 +88,7 @@ module NSWTopo
       def trim(amount)
         return self unless amount > 0
         ending, total = path_length - amount, 0
-        trimmed = @coordinates.each_cons(2).with_object [] do |(p0, p1), trimmed|
+        trimmed = each_cons(2).with_object [] do |(p0, p1), trimmed|
           delta = (p1 - p0).norm
           case
           when total >= ending then break trimmed
@@ -127,11 +127,11 @@ module NSWTopo
           controls = midpoints.each_cons(2).zip(offsets).flat_map do |(m0, m1), offset|
             next m0 + offset * fraction, m1 + offset * fraction
           end.drop(1).each_slice(2).entries.prepend(nil)
-          @coordinates.zip(controls).map do |point, controls|
+          zip(controls).map do |point, controls|
             controls ? "C %s %s %s" % [POINT, POINT, POINT] % [*controls.flatten, *point] : "M %s" % POINT % point
           end.join(" ")
         else
-          @coordinates.map do |point|
+          map do |point|
             POINT % point
           end.join(" L ").tap do |string|
             string.concat(" Z") if closed?

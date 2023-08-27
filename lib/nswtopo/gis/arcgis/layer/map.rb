@@ -150,7 +150,7 @@ module NSWTopo
                 next GeoJSON::MultiLineString.new coords, properties
               when "esriGeometryPolygon"
                 polys = GeoJSON::MultiLineString.new(coords, properties).to_multipolygon
-                next @mixed && polys.one? ? polys.explode.first : polys
+                next @mixed && polys.one? ? polys.first : polys
               end
             end.tap do |features|
               yielder << GeoJSON::Collection.new(projection: projection, name: @name, features: features)

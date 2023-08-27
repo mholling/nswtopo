@@ -119,7 +119,8 @@ module NSWTopo
         use.tap(&block)
 
         category_params = params_for(categories)
-        font_size, stroke_width, bezier, section = category_params.values_at "font-size", "stroke-width", "bezier", "section"
+        font_size, stroke_width, bezier = category_params.values_at "font-size", "stroke-width", "bezier"
+        subdivide = category_params.slice("subdivide", "section").values.first
 
         category_params.slice(*SVG_ATTRIBUTES).tap do |svg_attributes|
           svg_attributes.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
@@ -136,7 +137,7 @@ module NSWTopo
             content.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
 
           when GeoJSON::LineString
-            (section ? feature.subdivide(section) : feature).explode.each do |feature|
+            (subdivide ? feature.subdivide(subdivide) : feature).explode.each do |feature|
               content.add_element "path", "fill" => "none", "d" => feature.svg_path_data(bezier: bezier)
             end
 

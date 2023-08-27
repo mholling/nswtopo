@@ -29,7 +29,7 @@ module NSWTopo
           when :interval
             travel, rings = *args
             samples[travel] = rings.flat_map do |ring|
-              GeoJSON::LineString.new(ring).sample_at(interval)
+              LineString.new(ring).sample_at(interval)
             end
           end
         end
@@ -93,7 +93,7 @@ module NSWTopo
           nodes.progress limit: -margin, **options.slice(:rounding_angle, :cutoff_angle)
         end
         unclaimed, exterior_rings = nodes.readout.map do |ring|
-          LineString.new ring
+          LineString.new ring, @properties
         end.partition(&:interior?)
         exterior_rings.sort_by(&:signed_area).map(&:to_polygon).map do |polygon|
           interior_rings, unclaimed = unclaimed.partition do |ring|

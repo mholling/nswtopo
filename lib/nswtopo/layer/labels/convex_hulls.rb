@@ -30,10 +30,6 @@ module NSWTopo
         @properties = { source: self }
       end
 
-      def svg_path_data
-        explode.map(&:svg_path_data).each.with_object("Z").entries.join(" ")
-      end
-
       def self.overlap?(*rings, buffer: 0)
         # implements Gilbert–Johnson–Keerthi
         simplex = [rings.map(&:first).inject(&:-)]

@@ -140,9 +140,6 @@ module NSWTopo
               content.add_element "path", "fill" => "none", "d" => feature.svg_path_data(bezier: bezier)
             end
 
-          when Labels::ConvexHulls
-            content.add_element "path", "fill" => "none", "d" => feature.svg_path_data
-
           when GeoJSON::Polygon
             content.add_element "path", "fill-rule" => "nonzero", "d" => feature.svg_path_data
 

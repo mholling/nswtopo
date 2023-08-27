@@ -542,7 +542,9 @@ module NSWTopo
         log_update "compositing %s: choosing label positions" % @name
 
         if Config["debug"]
-          candidates.each.with_object("candidate", &debug)
+          candidates.flat_map(&:explode).map do |ring|
+            GeoJSON::LineString.new [*ring, ring.first]
+          end.each.with_object("candidate", &debug)
           candidates.clear
         end
 

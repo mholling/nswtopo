@@ -39,10 +39,6 @@ module NSWTopo
       end
       alias exterior? anticlockwise?
 
-      def dissolve_segments
-        MultiLineString.new each_cons(2).entries, @properties
-      end
-
       def simplify(tolerance)
         chunks, simplified = [@coordinates], []
         while chunk = chunks.pop

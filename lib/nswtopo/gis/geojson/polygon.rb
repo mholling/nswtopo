@@ -12,7 +12,6 @@ module NSWTopo
       end
 
       delegate %i[area skeleton centres centrepoints centrelines buffer samples] => :multi
-      delegate %i[dissolve_segments] => :rings
 
       def bounds
         first.transpose.map(&:minmax)

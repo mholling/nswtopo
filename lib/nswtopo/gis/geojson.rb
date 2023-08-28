@@ -103,6 +103,9 @@ module NSWTopo
         def empty_points = MultiPoint.new([], @properties)
         def empty_linestrings = MultiLineString.new([], @properties)
         def empty_polygons = MultiPolygon.new([], @properties)
+        define_method :empty do
+          multi_class.new([], @properties)
+        end
 
         define_method :+ do |other|
           case other
@@ -113,11 +116,6 @@ module NSWTopo
           else
             raise "heterogenous geometries not implemented"
           end
-        end
-
-        def reject!(&block)
-          @coordinates.replace explode.reject(&block).map(&:coordinates)
-          self
         end
       end
     end

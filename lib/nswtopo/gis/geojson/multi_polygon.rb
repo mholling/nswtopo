@@ -118,7 +118,7 @@ module NSWTopo
           polygon.rings.reject do |ring|
             ring.interior? && (block_given? ? block.call(ring) : true)
           end.inject(empty_linestrings, &:+).to_polygon
-        end.inject(empty_polygons,&:+)
+        end.inject(empty, &:+)
       end
     end
   end

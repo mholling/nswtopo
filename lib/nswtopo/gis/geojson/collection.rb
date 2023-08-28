@@ -56,11 +56,10 @@ module NSWTopo
       def to_h
         {
           "type" => "FeatureCollection",
+          "name" => @name,
           "crs" => { "type" => "name", "properties" => { "name" => @projection } },
           "features" => map(&:to_h)
-        }.tap do |hash|
-          hash["name"] = @name if @name
-        end
+        }.compact
       end
 
       extend Forwardable

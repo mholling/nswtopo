@@ -53,22 +53,22 @@ module NSWTopo
               when "esriGeometryPoint"
                 point = geometry.values_at "x", "y"
                 next unless point.all?
-                next GeoJSON::Point.new point, properties
+                next GeoJSON::Point[point, properties]
               when "esriGeometryMultipoint"
                 points = geometry["points"]
                 next unless points&.any?
-                next GeoJSON::MultiPoint.new points.transpose.take(2).transpose, properties
+                next GeoJSON::MultiPoint[points.transpose.take(2).transpose, properties]
               when "esriGeometryPolyline"
                 raise "ArcGIS curve geometries not supported" if geometry.key? "curvePaths"
                 paths = geometry["paths"]
                 next unless paths&.any?
-                next GeoJSON::LineString.new paths[0], properties if @mixed && paths.one?
-                next GeoJSON::MultiLineString.new paths, properties
+                next GeoJSON::LineString[paths[0], properties] if @mixed && paths.one?
+                next GeoJSON::MultiLineString[paths, properties]
               when "esriGeometryPolygon"
                 raise "ArcGIS curve geometries not supported" if geometry.key? "curveRings"
                 rings = geometry["rings"]
                 next unless rings&.any?
-                polys = GeoJSON::MultiLineString.new(rings, properties).to_multipolygon
+                polys = GeoJSON::MultiLineString[rings, properties].to_multipolygon
                 next @mixed && polys.one? ? polys.first : polys
               else
                 raise "unsupported ArcGIS geometry type: #{@geometry_type}"

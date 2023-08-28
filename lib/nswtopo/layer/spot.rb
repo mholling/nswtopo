@@ -125,7 +125,7 @@ module NSWTopo
         elevations = raster_values dem_hr_path, pixels
 
         locations.zip(elevations, knolls).map do |coordinates, elevation, knoll|
-          GeoJSON::Point.new(coordinates).tap do |feature|
+          GeoJSON::Point[coordinates].tap do |feature|
             feature.extend Candidate, ordering
             feature.knoll, feature.elevation = knoll, elevation
             feature["label"] = elevation.round

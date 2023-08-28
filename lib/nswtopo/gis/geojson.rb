@@ -7,13 +7,15 @@ module NSWTopo
 
     CLASSES = TYPES.map do |type|
       klass = Class.new do
-        def initialize(coordinates, properties = {})
-          properties ||= {}
-          @coordinates, @properties = self.class.vectorise!(coordinates), properties
+        def initialize(coordinates, properties = nil)
+          @coordinates, @properties = coordinates, properties || {}
           raise Error, "invalid feature properties" unless Hash === @properties
-          raise Error, "invalid feature geometry" unless Array === @coordinates || Vector === @coordinates
-          validate!
         end
+
+        def self.[](coordinates, properties = nil)
+          new(coordinates, properties).tap(&:sanitise!)
+        end
+
         attr_accessor :coordinates, :properties
 
         define_method :to_h do
@@ -27,7 +29,6 @@ module NSWTopo
           }
         end
 
-        include Enumerable
         extend Forwardable
         delegate %i[[] []= fetch values_at key? store clear] => :@properties
         delegate %i[empty?] => :@coordinates
@@ -37,8 +38,8 @@ module NSWTopo
     end
 
     CLASSES.zip(TYPES).each do |klass, type|
-      Collection.define_method "add_#{type}".downcase do |coordinates, properties = {}|
-        self << klass.new(coordinates, properties)
+      Collection.define_method "add_#{type}".downcase do |coordinates, properties = nil|
+        self << klass[coordinates, properties]
       end
 
       Collection.define_method "#{type}s".downcase do
@@ -49,21 +50,8 @@ module NSWTopo
         one? && klass === first
       end
 
-      define_singleton_method type.downcase do |coordinates, projection: DEFAULT_PROJECTION, name: nil, properties: {}|
-        Collection.new(projection: projection, name: name) << klass.new(coordinates, properties)
-      end
-    end
-
-    [ [Polygon, MultiPolygon],
-      [LineString, Polygon],
-      [LineString, MultiLineString],
-      [Point, LineString],
-      [Point, MultiPoint]
-    ].each do |element_class, sequence_class|
-      sequence_class.class_eval do
-        define_singleton_method :vectorise! do |coordinates|
-          coordinates.map! &element_class.method(:vectorise!)
-        end
+      define_singleton_method type.downcase do |coordinates, projection: DEFAULT_PROJECTION, name: nil, properties: nil|
+        Collection.new(projection: projection, name: name) << klass[coordinates, properties]
       end
     end
 
@@ -72,28 +60,32 @@ module NSWTopo
       [Polygon,    MultiPolygon   ]
     ].each do |single_class, multi_class|
       single_class.class_eval do
-        def explode = [self]
+        include Enumerable
         delegate %i[each] => :@coordinates
+
+        def explode = [self]
 
         define_method :multi do
           multi_class.new [@coordinates], @properties
         end
 
         delegate %i[clip dissolve_points +] => :multi
-        alias validate! itself
       end
 
       multi_class.class_eval do
+        include Enumerable
         define_method :each do |&block|
-          @coordinates.each do |coordinates|
-            single_class.new(coordinates, @properties).tap(&block)
+          Enumerator.new do |yielder|
+            @coordinates.each do |coordinates|
+              yielder << single_class.new(coordinates, @properties)
+            end
+          end.then do |enum|
+            block ? enum.each(&block) : enum
           end
         end
-        def explode = entries
 
-        def validate!
-          explode.each &:validate!
-        end
+        def sanitise! = each(&:sanitise!)
+        def explode = entries
 
         def bounds
           map(&:bounds).transpose.map(&:flatten).map(&:minmax)

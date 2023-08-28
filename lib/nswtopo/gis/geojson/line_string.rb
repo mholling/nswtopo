@@ -6,6 +6,13 @@ module NSWTopo
       delegate %i[length offset buffer smooth samples subdivide to_polygon] => :multi
       delegate %i[reverse!] => :@coordinates
 
+      def sanitise!
+        sanitised = @coordinates.map do |point|
+          Vector === point ? point : Vector[*point]
+        end.chunk(&:itself).map(&:first)
+        @coordinates.replace sanitised
+      end
+
       def bounds
         @coordinates.transpose.map(&:minmax)
       end

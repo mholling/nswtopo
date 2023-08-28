@@ -1,8 +1,8 @@
 module NSWTopo
   module GeoJSON
     class Point
-      def self.vectorise!(coordinates)
-        Vector === coordinates ? coordinates : Vector[*coordinates]
+      def sanitise!
+        @coordinates = Vector[*@coordinates] unless Vector === @coordinates
       end
 
       def bounds

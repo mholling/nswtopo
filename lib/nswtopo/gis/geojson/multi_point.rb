@@ -1,6 +1,12 @@
 module NSWTopo
   module GeoJSON
     class MultiPoint
+      def sanitise!
+        @coordinates.map! do |point|
+          Vector === point ? point : Vector[*point]
+        end
+      end
+
       alias dissolve_points itself
 
       def rotate_by_degrees(angle)

@@ -112,7 +112,7 @@ module NSWTopo
           fraction = text_length / (v1 - v0).norm
           v01 = v1 * fraction + v0 * (1 - fraction)
           coordinates = [v0, v01].send(order)
-          GeoJSON::LineString.new coordinates, "label" => text_path
+          GeoJSON::LineString[coordinates, "label" => text_path]
         end
       end
     end

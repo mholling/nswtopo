@@ -3,15 +3,16 @@ module NSWTopo
     class Polygon
       include SVG
 
-      delegate %i[area skeleton centres centrepoints centrelines buffer samples] => :multi
-      delegate %i[dissolve_segments] => :rings
-
-      def validate!
-        inject(false) do |hole, ring|
-          ring.reverse! if hole ^ LineString.new(ring).interior?
-          true
+      def sanitise!
+        rings.each.with_index do |ring, index|
+          ring.sanitise!
+          ring.coordinates << ring.first unless ring.closed?
+          ring.reverse! if index.zero? ^ ring.exterior?
         end
       end
+
+      delegate %i[area skeleton centres centrepoints centrelines buffer samples] => :multi
+      delegate %i[dissolve_segments] => :rings
 
       def bounds
         first.transpose.map(&:minmax)

@@ -53,7 +53,7 @@ module NSWTopo
       def trim(amount)
         map do |feature|
           feature.trim amount
-        end.reject(&:empty?).sum(MultiLineString.new [])
+        end.reject(&:empty?).sum(MultiLineString[[], @properties])
       end
 
       def to_polygon

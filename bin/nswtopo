@@ -538,4 +538,7 @@ rescue Interrupt
   log_abort "interrupted"
 rescue RuntimeError => error
   log_abort error.message
+rescue StandardError
+  print "\r\e[2K" if $stdout.tty?
+  raise
 end

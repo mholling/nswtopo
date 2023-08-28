@@ -19,7 +19,7 @@ module NSWTopo
         else
           feature
         end
-      end.each do |feature|
+      end.map! do |feature|
         styles, folder, name = feature.values_at "styles", "folder", "name"
         styles ||= GPX_STYLES
         case feature
@@ -32,9 +32,10 @@ module NSWTopo
         categories = [folder, name].compact.reject(&:empty?).map(&method(:categorise))
         keys = styles.keys - params_for(categories.to_set).keys
         styles = styles.slice *keys
+        categories << feature.object_id
 
-        feature.replace_properties("category" => categories << feature.object_id)
         @params[categories.join(?\s)] = styles if styles.any?
+        feature.with_properties("category" => categories)
       end
     end
 

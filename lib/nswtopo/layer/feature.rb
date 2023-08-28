@@ -45,7 +45,7 @@ module NSWTopo
         when String then options[:rotation]
         end
 
-        collection.each do |feature|
+        collection.map! do |feature|
           categories = [*options[:category]].flat_map do |category|
             Hash === category ? [*category] : [category]
           end.map do |attribute, substitutions|
@@ -93,7 +93,7 @@ module NSWTopo
           properties["draw"] = false if @name =~ /[-_]labels$/ && !options.key?(:draw)
           properties["rotation"] = rotation if rotation
 
-          feature.replace_properties(**properties)
+          feature.with_properties(properties)
         end
       end.map(&:first).inject(&:merge).rename(@name)
     end

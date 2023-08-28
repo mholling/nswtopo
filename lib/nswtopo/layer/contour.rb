@@ -99,9 +99,9 @@ module NSWTopo
           feature.bounds.all? { |min, max| max - min < @knolls }
         end
 
-        contours.each do |feature|
+        contours.map! do |feature|
           id, elevation, depression = feature.values_at "ID", "elevation", "depression"
-          feature.replace_properties("id" => id, "elevation" => elevation, "modulo" => elevation % @index, "depression" => depression || 0)
+          feature.with_properties("id" => id, "elevation" => elevation, "modulo" => elevation % @index, "depression" => depression || 0)
         end
 
         contours.reject! do |feature|
@@ -206,7 +206,7 @@ module NSWTopo
         end
 
         json = OS.ogr2ogr "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", db_path, "contour"
-        GeoJSON::Collection.load(json, projection: @map.projection).each do |feature|
+        GeoJSON::Collection.load(json, projection: @map.projection).map! do |feature|
           elevation, modulo, depression = feature.values_at "elevation", "modulo", "depression"
           category = case
           when @auxiliary && elevation % (2 * @interval) != 0 then %w[Auxiliary]
@@ -219,7 +219,7 @@ module NSWTopo
           properties["elevation"] = elevation
           properties["category"] = category
           properties["label"] = elevation.to_i.to_s if modulo.zero?
-          feature.replace_properties(**properties)
+          feature.with_properties(properties)
         end
       end
     end

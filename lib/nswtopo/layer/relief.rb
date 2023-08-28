@@ -44,8 +44,8 @@ module NSWTopo
             Shapefile::Source.new(url_or_path).layer(**options, geometry: cutline).features
           else
             raise "unrecognised elevation data source: #{url_or_path}"
-          end.each do |feature|
-            feature.replace_properties("elevation" => feature.fetch(attribute, attribute).to_f)
+          end.map! do |feature|
+            feature.with_properties("elevation" => feature.fetch(attribute, attribute).to_f)
           end.reproject_to(@map.projection)
         end.inject(&:merge)
 

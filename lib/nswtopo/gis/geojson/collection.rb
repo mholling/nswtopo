@@ -19,8 +19,8 @@ module NSWTopo
           geometry, properties = feature.values_at "geometry", "properties"
           type, coordinates = geometry.values_at "type", "coordinates"
           raise Error, "unsupported geometry type: #{type}" unless TYPES === type
-          GeoJSON.const_get(type).new coordinates, properties
-        end.each(&:sanitise!).then do |features|
+          GeoJSON.const_get(type)[coordinates, properties]
+        end.then do |features|
           new projection: projection, features: features, name: name
         end
       rescue JSON::ParserError
@@ -63,7 +63,7 @@ module NSWTopo
       end
 
       extend Forwardable
-      delegate %i[coordinates properties replace_properties wkt area] => :first
+      delegate %i[coordinates properties wkt area] => :first
       delegate %i[reject! select! length] => :@features
 
       def to_json(**extras)

@@ -33,8 +33,8 @@ module NSWTopo
         delegate %i[[] []= fetch values_at key?] => :@properties
         delegate %i[empty?] => :@coordinates
 
-        def replace_properties(**properties)
-          tap { @properties = properties }
+        define_method :with_properties do |properties|
+          klass.new @coordinates, properties
         end
       end
 

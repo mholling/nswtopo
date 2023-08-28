@@ -431,11 +431,12 @@ module NSWTopo
         redo if curved && indices.length < 3
         redo if avoid.values_at(*interior).any?
 
-        baseline = GeoJSON::LineString.new(points.values_at *indices).crop(text_length)
-        baseline.reverse! unless case orientation
-        when "uphill", "anticlockwise" then true
-        when "downhill", "clockwise" then false
-        else baseline.coordinates.values_at(0, -1).map(&:x).inject(&:<=)
+        baseline = GeoJSON::LineString.new(points.values_at *indices).crop(text_length).then do |baseline|
+          case orientation
+          when "uphill", "anticlockwise" then true
+          when "downhill", "clockwise" then false
+          else baseline.coordinates.values_at(0, -1).map(&:x).inject(&:<=)
+          end ? baseline : baseline.reverse
         end
 
         along = distances.values_at(indices.first, indices.last).then do |d0, d1|

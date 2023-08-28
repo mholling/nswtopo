@@ -4,7 +4,6 @@ module NSWTopo
       include SVG
 
       delegate %i[length offset buffer smooth samples subdivide to_polygon] => :multi
-      delegate %i[reverse!] => :@coordinates
 
       def sanitise!
         sanitised = @coordinates.map do |point|
@@ -15,6 +14,10 @@ module NSWTopo
 
       def bounds
         @coordinates.transpose.map(&:minmax)
+      end
+
+      def reverse
+        LineString.new @coordinates.reverse, @properties
       end
 
       def path_length

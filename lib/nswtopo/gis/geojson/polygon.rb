@@ -7,7 +7,7 @@ module NSWTopo
         rings.each.with_index do |ring, index|
           ring.sanitise!
           ring.coordinates << ring.first unless ring.closed?
-          ring.reverse! if index.zero? ^ ring.exterior?
+          ring.coordinates.reverse! if index.zero? ^ ring.exterior?
         end
       end
 

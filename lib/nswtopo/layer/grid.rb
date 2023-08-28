@@ -88,22 +88,21 @@ module NSWTopo
       inset = INSET + font_size * 0.5 * Math::sin(@map.rotation.abs * Math::PI / 180)
       inset_geometry = @map.neatline(mm: -inset)
 
-      gridlines = features.select do |linestring|
+      eastings, northings = features.select do |linestring|
         linestring["label"]
-      end
-      eastings = gridlines.select do |gridline|
+      end.partition do |gridline|
         gridline["category"] == "easting"
       end
 
       flip_eastings = eastings.partition do |easting|
         Math::atan2(*easting.coordinates.values_at(0, -1).inject(&:-)) * 180.0 / Math::PI > @map.rotation
       end.map(&:length).inject(&:>)
-      eastings.each do |easting|
-        easting.reverse!
-        easting["ends"].map! { |index| 1 - index }
-      end if flip_eastings
 
-      gridlines.inject(GeoJSON::Collection.new(projection: @map.neatline.projection)) do |collection, gridline|
+      eastings.each do |easting|
+        easting["ends"].map! { |index| 1 - index }
+      end.map!(&:reverse) if flip_eastings
+
+      eastings.concat(northings).inject(GeoJSON::Collection.new(projection: @map.neatline.projection)) do |collection, gridline|
         collection << gridline.offset(offset, splits: false)
       end.clip(inset_geometry).explode.flat_map do |gridline|
         label, ends = gridline.values_at "label", "ends"

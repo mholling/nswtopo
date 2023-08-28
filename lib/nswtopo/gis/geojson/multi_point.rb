@@ -7,6 +7,10 @@ module NSWTopo
         end
       end
 
+      def bounds
+        @coordinates.transpose.map(&:minmax)
+      end
+
       alias dissolve_points itself
 
       def rotate_by_degrees(angle)

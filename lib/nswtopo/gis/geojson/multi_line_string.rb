@@ -53,7 +53,7 @@ module NSWTopo
       def trim(amount)
         map do |feature|
           feature.trim amount
-        end.reject(&:empty?).sum(MultiLineString[[], @properties])
+        end.reject(&:empty?).inject(empty_linestrings, &:+)
       end
 
       def to_polygon
@@ -67,7 +67,7 @@ module NSWTopo
             polygon.contains? ring.first
           end
           interior_rings.inject(polygon, &:add_ring)
-        end.inject(&:+).multi
+        end.inject(empty_polygons, &:+)
       end
     end
   end

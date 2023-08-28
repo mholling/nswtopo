@@ -91,11 +91,11 @@ module NSWTopo
           nodes.progress limit: -margin, **options.slice(:rounding_angle, :cutoff_angle)
         end.readout.map do |ring|
           LineString.new ring, @properties
-        end.inject(&:+).multi.to_multipolygon
+        end.inject(empty_linestrings, &:+).to_multipolygon
       end
 
       def centroids
-        map(&:centroid).inject(&:+).multi
+        map(&:centroid).inject(empty_points, &:+)
       end
 
       def rings
@@ -117,8 +117,8 @@ module NSWTopo
         map do |polygon|
           polygon.rings.reject do |ring|
             ring.interior? && (block_given? ? block.call(ring) : true)
-          end.inject(&:+).multi.to_polygon
-        end.inject(&:+).multi
+          end.inject(empty_linestrings, &:+).to_polygon
+        end.inject(empty_polygons,&:+)
       end
     end
   end

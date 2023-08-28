@@ -96,6 +96,10 @@ module NSWTopo
           map(&:bounds).transpose.map(&:flatten).map(&:minmax)
         end
 
+        def empty_points = MultiPoint.new([], @properties)
+        def empty_linestrings = MultiLineString.new([], @properties)
+        def empty_polygons = MultiPolygon.new([], @properties)
+
         define_method :+ do |other|
           case other
           when single_class

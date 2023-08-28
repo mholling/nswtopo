@@ -85,7 +85,7 @@ module NSWTopo
           end
 
           categories = categories.map(&:to_s).reject(&:empty?).map(&method(:categorise))
-          properties = {}
+          properties = Hash[]
           properties["category"] = categories if categories.any?
           properties["label"] = labels if labels.any?
           properties["dual"] = dual if dual
@@ -93,7 +93,7 @@ module NSWTopo
           properties["draw"] = false if @name =~ /[-_]labels$/ && !options.key?(:draw)
           properties["rotation"] = rotation if rotation
 
-          feature.properties.replace properties
+          feature.replace_properties(**properties)
         end
       end.map(&:first).inject(&:merge).rename(@name)
     end

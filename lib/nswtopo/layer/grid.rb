@@ -53,7 +53,7 @@ module NSWTopo
         next unless @border
         mm = -0.5 * @params["stroke-width"]
         @map.neatline(mm: mm).reproject_to_wgs84.tap do |border|
-          border.properties.replace "category" => "edge"
+          border.replace_properties("category" => "edge")
           collections << border
         end
       end.inject(&:merge)

@@ -16,8 +16,7 @@ module NSWTopo
           new(coordinates, properties).tap(&:sanitise!)
         end
 
-        attr_reader :coordinates
-        attr_accessor :properties
+        attr_reader :coordinates, :properties
 
         define_method :to_h do
           {
@@ -31,8 +30,12 @@ module NSWTopo
         end
 
         extend Forwardable
-        delegate %i[[] []= fetch values_at key? store clear] => :@properties
+        delegate %i[[] []= fetch values_at key?] => :@properties
         delegate %i[empty?] => :@coordinates
+
+        def replace_properties(**properties)
+          tap { @properties = properties }
+        end
       end
 
       const_set type, klass

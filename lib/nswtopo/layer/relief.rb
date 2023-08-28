@@ -45,7 +45,7 @@ module NSWTopo
           else
             raise "unrecognised elevation data source: #{url_or_path}"
           end.each do |feature|
-            feature.properties.replace "elevation" => feature.fetch(attribute, attribute).to_f
+            feature.replace_properties("elevation" => feature.fetch(attribute, attribute).to_f)
           end.reproject_to(@map.projection)
         end.inject(&:merge)
 

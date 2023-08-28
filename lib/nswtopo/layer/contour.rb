@@ -101,7 +101,7 @@ module NSWTopo
 
         contours.each do |feature|
           id, elevation, depression = feature.values_at "ID", "elevation", "depression"
-          feature.properties.replace("id" => id, "elevation" => elevation, "modulo" => elevation % @index, "depression" => depression || 0)
+          feature.replace_properties("id" => id, "elevation" => elevation, "modulo" => elevation % @index, "depression" => depression || 0)
         end
 
         contours.reject! do |feature|
@@ -214,10 +214,12 @@ module NSWTopo
           else %w[Standard]
           end
           category << "Depression" if depression == 1
-          feature.clear
-          feature["elevation"] = elevation
-          feature["category"] = category
-          feature["label"] = elevation.to_i.to_s if modulo.zero?
+
+          properties = Hash[]
+          properties["elevation"] = elevation
+          properties["category"] = category
+          properties["label"] = elevation.to_i.to_s if modulo.zero?
+          feature.replace_properties(**properties)
         end
       end
     end

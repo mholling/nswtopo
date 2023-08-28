@@ -63,7 +63,7 @@ module NSWTopo
       end
 
       extend Forwardable
-      delegate %i[coordinates properties wkt area] => :first
+      delegate %i[coordinates properties replace_properties wkt area] => :first
       delegate %i[reject! select! length] => :@features
 
       def to_json(**extras)

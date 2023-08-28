@@ -270,10 +270,10 @@ module NSWTopo
           rescue ArgumentError
             raise "invalid label transform: %s: %s" % [transform, [arg, *args].join(?,)]
           end.reject(&:empty?).each do |feature|
-            feature.properties = case feature
-            when GeoJSON::MultiPoint      then point_attributes
-            when GeoJSON::MultiLineString then line_attributes
-            when GeoJSON::MultiPolygon    then line_attributes
+            case feature
+            when GeoJSON::MultiPoint      then feature.replace_properties(**point_attributes)
+            when GeoJSON::MultiLineString then feature.replace_properties(**line_attributes)
+            when GeoJSON::MultiPolygon    then feature.replace_properties(**line_attributes)
             end
           end.then do |features|
             GeoJSON::Collection.new(projection: @map.neatline.projection, features: features).explode.extend(LabelFeatures)

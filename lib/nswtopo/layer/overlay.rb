@@ -33,8 +33,7 @@ module NSWTopo
         keys = styles.keys - params_for(categories.to_set).keys
         styles = styles.slice *keys
 
-        feature.clear
-        feature["category"] = categories << feature.object_id
+        feature.replace_properties("categories" => categories << feature.object_id)
         @params[categories.join(?\s)] = styles if styles.any?
       end
     end

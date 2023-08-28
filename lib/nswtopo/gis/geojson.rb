@@ -16,7 +16,8 @@ module NSWTopo
           new(coordinates, properties).tap(&:sanitise!)
         end
 
-        attr_accessor :coordinates, :properties
+        attr_reader :coordinates
+        attr_accessor :properties
 
         define_method :to_h do
           {

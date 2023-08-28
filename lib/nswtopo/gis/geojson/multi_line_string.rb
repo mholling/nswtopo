@@ -65,9 +65,12 @@ module NSWTopo
       end
 
       def to_multipolygon
-        each(&:reverse!) if first.interior?
-        slice_when(&:exterior?).map do |rings|
-          rings.inject(&:+).multi.to_polygon
+        unclaimed, exterior_rings = partition(&:interior?)
+        exterior_rings.sort_by(&:signed_area).map(&:to_polygon).map do |polygon|
+          interior_rings, unclaimed = unclaimed.partition do |ring|
+            polygon.contains? ring.first
+          end
+          interior_rings.inject(polygon, &:add_ring)
         end.inject(&:+).multi
       end
     end

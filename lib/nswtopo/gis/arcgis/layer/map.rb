@@ -149,7 +149,7 @@ module NSWTopo
                 next GeoJSON::LineString[coords[0], properties] if @mixed && coords.one?
                 next GeoJSON::MultiLineString[coords, properties]
               when "esriGeometryPolygon"
-                polys = GeoJSON::MultiLineString[coords, properties].to_multipolygon
+                polys = GeoJSON::MultiLineString[coords.map(&:reverse), properties].to_multipolygon
                 next @mixed && polys.one? ? polys.first : polys
               end
             end.tap do |features|

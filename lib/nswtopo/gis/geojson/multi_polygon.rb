@@ -88,19 +88,11 @@ module NSWTopo
       end
 
       def buffer(*margins, **options)
-        nodes = Nodes.new @coordinates.flatten(1)
-        margins.each do |margin|
+        margins.each.with_object(Nodes.new @coordinates.flatten(1)) do |margin, nodes|
           nodes.progress limit: -margin, **options.slice(:rounding_angle, :cutoff_angle)
-        end
-        unclaimed, exterior_rings = nodes.readout.map do |ring|
+        end.readout.map do |ring|
           LineString.new ring, @properties
-        end.partition(&:interior?)
-        exterior_rings.sort_by(&:signed_area).map(&:to_polygon).map do |polygon|
-          interior_rings, unclaimed = unclaimed.partition do |ring|
-            polygon.contains? ring.first
-          end
-          interior_rings.inject(polygon, &:add_ring)
-        end.inject(&:+).multi
+        end.inject(&:+).multi.to_multipolygon
       end
 
       def centroids

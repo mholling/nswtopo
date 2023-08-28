@@ -68,7 +68,7 @@ module NSWTopo
                 raise "ArcGIS curve geometries not supported" if geometry.key? "curveRings"
                 rings = geometry["rings"]
                 next unless rings&.any?
-                polys = GeoJSON::MultiLineString[rings, properties].to_multipolygon
+                polys = GeoJSON::MultiLineString[rings.map(&:reverse), properties].to_multipolygon
                 next @mixed && polys.one? ? polys.first : polys
               else
                 raise "unsupported ArcGIS geometry type: #{@geometry_type}"

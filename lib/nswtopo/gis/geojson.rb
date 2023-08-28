@@ -89,13 +89,12 @@ module NSWTopo
         end
 
         def sanitise! = each(&:sanitise!)
-        def explode = entries
+        alias explode entries
+        alias multi itself
 
         def bounds
           map(&:bounds).transpose.map(&:flatten).map(&:minmax)
         end
-
-        alias multi dup
 
         define_method :+ do |other|
           case other

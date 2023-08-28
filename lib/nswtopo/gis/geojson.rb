@@ -7,13 +7,17 @@ module NSWTopo
 
     CLASSES = TYPES.map do |type|
       klass = Class.new do
-        def initialize(coordinates, properties = nil)
+        def initialize(coordinates, properties = nil, &block)
           @coordinates, @properties = coordinates, properties || {}
           raise Error, "invalid feature properties" unless Hash === @properties
+          yield self if block_given?
         end
 
-        def self.[](coordinates, properties = nil)
-          new(coordinates, properties).tap(&:sanitise!)
+        def self.[](coordinates, properties = nil, &block)
+          new(coordinates, properties) do |feature|
+            yield feature if block_given?
+            feature.sanitise!
+          end
         end
 
         attr_reader :coordinates, :properties

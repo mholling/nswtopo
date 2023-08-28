@@ -39,7 +39,7 @@ module NSWTopo
     end
 
     module Candidate
-      attr_accessor :elevation, :knoll
+      attr_accessor :elevation, :knoll, :conflicts
 
       module PreferKnolls
         def ordinal; [conflicts.size, -elevation] end
@@ -51,10 +51,6 @@ module NSWTopo
 
       module PreferNeither
         def ordinal; conflicts.size end
-      end
-
-      def conflicts
-        @conflicts ||= Set[]
       end
 
       def <=>(other)
@@ -125,9 +121,9 @@ module NSWTopo
         elevations = raster_values dem_hr_path, pixels
 
         locations.zip(elevations, knolls).map do |coordinates, elevation, knoll|
-          GeoJSON::Point[coordinates, "label" => elevation.round].tap do |feature|
+          GeoJSON::Point[coordinates, "label" => elevation.round] do |feature|
             feature.extend Candidate, ordering
-            feature.knoll, feature.elevation = knoll, elevation
+            feature.knoll, feature.elevation, feature.conflicts = knoll, elevation, Set[]
           end
         end
       end

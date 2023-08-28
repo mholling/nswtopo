@@ -112,6 +112,14 @@ module NSWTopo
       def dissolve_points
         MultiPoint.new @coordinates.flatten(2), @properties
       end
+
+      def remove_holes(&block)
+        map do |polygon|
+          polygon.rings.reject do |ring|
+            ring.interior? && (block_given? ? block.call(ring) : true)
+          end.inject(&:+).multi.to_polygon
+        end.inject(&:+).multi
+      end
     end
   end
 end

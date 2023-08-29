@@ -76,6 +76,12 @@ module NSWTopo
       multi_class.class_eval do
         include Enumerable
 
+        def freeze!
+          each { }
+          @coordinates.freeze
+          freeze
+        end
+
         alias explode entries
         alias multi itself
 
@@ -104,12 +110,6 @@ module NSWTopo
           end
         end
         block ? enum.each(&block) : enum
-      end
-
-      multi_class.define_method :freeze! do
-        each { }
-        @coordinates.freeze
-        freeze
       end
 
       multi_class.define_method :empty do

@@ -23,24 +23,24 @@ module NSWTopo
 
         attr_reader :coordinates, :properties
 
-        define_method :to_h do
-          {
-            "type" => "Feature",
-            "geometry" => {
-              "type" => type,
-              "coordinates" => @coordinates
-            },
-            "properties" => @properties
-          }
-        end
-
         extend Forwardable
         delegate %i[[] []= fetch values_at key?] => :@properties
         delegate %i[empty?] => :@coordinates
+      end
 
-        define_method :with_properties do |properties|
-          klass.new @coordinates, properties
-        end
+      klass.define_method :to_h do
+        {
+          "type" => "Feature",
+          "geometry" => {
+            "type" => type,
+            "coordinates" => @coordinates
+          },
+          "properties" => @properties
+        }
+      end
+
+      klass.define_method :with_properties do |properties|
+        klass.new @coordinates, properties
       end
 
       const_set type, klass
@@ -71,36 +71,20 @@ module NSWTopo
       single_class.class_eval do
         include Enumerable
         delegate %i[each] => :@coordinates
+        delegate %i[clip dissolve_points +] => :multi
 
         def explode = [self]
+      end
 
-        define_method :multi do
-          multi_class.new [@coordinates], @properties
-        end
-
-        delegate %i[clip dissolve_points +] => :multi
+      single_class.define_method :multi do
+        multi_class.new [@coordinates], @properties
       end
 
       multi_class.class_eval do
         include Enumerable
-        define_method :each do |&block|
-          Enumerator.new do |yielder|
-            @coordinates.each do |coordinates|
-              yielder << single_class.new(coordinates, @properties)
-            end
-          end.then do |enum|
-            block ? enum.each(&block) : enum
-          end
-        end
 
         alias explode entries
         alias multi itself
-
-        define_method :sanitise! do
-          @coordinates.each do |coordinates|
-            single_class[coordinates]
-          end
-        end
 
         def bounds
           map(&:bounds).transpose.map(&:flatten).map(&:minmax)
@@ -109,19 +93,41 @@ module NSWTopo
         def empty_points = MultiPoint.new([], @properties)
         def empty_linestrings = MultiLineString.new([], @properties)
         def empty_polygons = MultiPolygon.new([], @properties)
-        define_method :empty do
-          multi_class.new([], @properties)
-        end
+      end
 
-        define_method :+ do |other|
-          case other
-          when single_class
-            multi_class.new @coordinates + [other.coordinates], @properties
-          when multi_class
-            multi_class.new @coordinates + other.coordinates, @properties
-          else
-            raise "heterogenous geometries not implemented"
+      multi_class.define_method :each do |&block|
+        enum = Enumerator.new do |yielder|
+          @coordinates.each do |coordinates|
+            yielder << single_class.new(coordinates, @properties)
           end
+        end
+        block ? enum.each(&block) : enum
+      end
+
+      multi_class.define_method :sanitise! do
+        @coordinates.each do |coordinates|
+          single_class[coordinates]
+        end
+      end
+
+      multi_class.define_method :freeze! do
+        each { }
+        @coordinates.freeze
+        freeze
+      end
+
+      multi_class.define_method :empty do
+        multi_class.new([], @properties)
+      end
+
+      multi_class.define_method :+ do |other|
+        case other
+        when single_class
+          multi_class.new @coordinates + [other.coordinates], @properties
+        when multi_class
+          multi_class.new @coordinates + other.coordinates, @properties
+        else
+          raise "heterogenous geometries not implemented"
         end
       end
     end

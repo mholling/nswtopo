@@ -38,7 +38,11 @@ module NSWTopo
       end
 
       def map!(&block)
-        block_given? ? tap { @features.map!(&block) } : @features.map!
+        tap { @features.map!(&block) }
+      end
+
+      def reject!(&block)
+        tap { @features.reject!(&block) }
       end
 
       def reproject_to(projection)
@@ -64,7 +68,7 @@ module NSWTopo
 
       extend Forwardable
       delegate %i[coordinates properties wkt area] => :first
-      delegate %i[reject! select! length] => :@features
+      delegate %i[length] => :@features
 
       def to_json(**extras)
         to_h.merge(extras).to_json
@@ -97,7 +101,7 @@ module NSWTopo
       end
 
       def rotate_by_degrees!(angle)
-        @features.map! { |feature| feature.rotate_by_degrees(angle) }
+        map! { |feature| feature.rotate_by_degrees(angle) }
       end
 
       def clip(polygon)

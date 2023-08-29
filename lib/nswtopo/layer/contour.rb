@@ -97,14 +97,10 @@ module NSWTopo
         contours.reject! do |feature|
           feature.closed? &&
           feature.bounds.all? { |min, max| max - min < @knolls }
-        end
-
-        contours.map! do |feature|
+        end.map! do |feature|
           id, elevation, depression = feature.values_at "ID", "elevation", "depression"
           feature.with_properties("id" => id, "elevation" => elevation, "modulo" => elevation % @index, "depression" => depression || 0)
-        end
-
-        contours.reject! do |feature|
+        end.reject! do |feature|
           feature["elevation"].zero?
         end
 

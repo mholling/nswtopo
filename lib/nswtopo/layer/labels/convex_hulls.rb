@@ -30,6 +30,8 @@ module NSWTopo
         @properties = { source: self }
       end
 
+      delegate :length => :@coordinates
+
       def self.overlap?(*rings, buffer: 0)
         # implements Gilbert–Johnson–Keerthi
         simplex = [rings.map(&:first).inject(&:-)]

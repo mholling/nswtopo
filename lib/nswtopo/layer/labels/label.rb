@@ -56,7 +56,7 @@ module NSWTopo
             next if label == other[:source]
             next if overlaps === [label, other[:source]]
             next if overlaps === [other[:source], label]
-            next unless label.coordinates.length < 3 || ConvexHulls.overlap?(label.hull, other, buffer: buffer)
+            next unless label.length < 3 || ConvexHulls.overlap?(label.hull, other, buffer: buffer)
             next unless label.any? do |hull|
               ConvexHulls.overlap?(hull, other, buffer: buffer)
             end

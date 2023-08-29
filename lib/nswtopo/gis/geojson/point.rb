@@ -5,6 +5,8 @@ module NSWTopo
         @coordinates = Vector[*@coordinates] unless Vector === @coordinates
       end
 
+      alias freeze! freeze
+
       def bounds
         zip.map(&:minmax)
       end

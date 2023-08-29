@@ -1,6 +1,7 @@
 class Vector
   def initialize(x, y)
     @x, @y = x, y
+    freeze
   end
 
   def self.[](x, y)

@@ -12,6 +12,11 @@ module NSWTopo
         @coordinates.replace sanitised
       end
 
+      def freeze!
+        @coordinates.freeze
+        freeze
+      end
+
       def bounds
         @coordinates.transpose.map(&:minmax)
       end

@@ -4,11 +4,17 @@ module NSWTopo
       include SVG
 
       def sanitise!
-        rings.each.with_index do |ring, index|
-          ring.sanitise!
-          ring.coordinates << ring.first unless ring.closed?
-          ring.coordinates.reverse! if index.zero? ^ ring.exterior?
+        @coordinates.each.with_index do |coordinates, index|
+          LineString[coordinates] do |ring|
+            ring.coordinates << ring.first unless ring.closed?
+            ring.coordinates.reverse! if index.zero? ^ ring.exterior?
+          end
         end
+      end
+
+      def freeze!
+        @coordinates.freeze.each(&:freeze)
+        freeze
       end
 
       delegate %i[area skeleton centres centrepoints centrelines buffer samples] => :multi

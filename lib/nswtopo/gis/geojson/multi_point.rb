@@ -7,6 +7,11 @@ module NSWTopo
         end
       end
 
+      def freeze!
+        @coordinates.freeze
+        freeze
+      end
+
       def bounds
         @coordinates.transpose.map(&:minmax)
       end

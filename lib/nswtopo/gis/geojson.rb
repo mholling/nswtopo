@@ -11,12 +11,13 @@ module NSWTopo
           @coordinates, @properties = coordinates, properties || {}
           raise Error, "invalid feature properties" unless Hash === @properties
           yield self if block_given?
+          freeze!
         end
 
         def self.[](coordinates, properties = nil, &block)
           new(coordinates, properties) do |feature|
-            yield feature if block_given?
             feature.sanitise!
+            yield feature if block_given?
           end
         end
 
@@ -92,9 +93,14 @@ module NSWTopo
           end
         end
 
-        def sanitise! = each(&:sanitise!)
         alias explode entries
         alias multi itself
+
+        define_method :sanitise! do
+          @coordinates.each do |coordinates|
+            single_class[coordinates]
+          end
+        end
 
         def bounds
           map(&:bounds).transpose.map(&:flatten).map(&:minmax)

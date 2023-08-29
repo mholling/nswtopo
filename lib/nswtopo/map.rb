@@ -302,9 +302,8 @@ module NSWTopo
     def info(empty: nil, json: false, proj: false, wkt: false)
       case
       when json
-        bbox = @neatline.reproject_to_wgs84.first
-        bbox.properties.merge! dimensions: @dimensions, scale: @scale, rotation: @rotation, layers: layers.map(&:name)
-        JSON.pretty_generate bbox.to_h
+        properties = { dimensions: @dimensions, scale: @scale, rotation: @rotation, layers: layers.map(&:name) }
+        JSON.pretty_generate @neatline.reproject_to_wgs84.first.with_properties(properties)
       when proj
         OS.gdalsrsinfo("-o", "proj4", "--single-line", @projection)
       when wkt

@@ -509,11 +509,14 @@ module NSWTopo
     def label_candidates(&debug)
       label_features.flat_map.with_index do |collection, label_index|
         log_update "compositing %s: feature %i of %i" % [@name, label_index + 1, label_features.length]
-        collection.each do |feature|
+        collection.map do |feature|
           font_size = feature.properties["font-size"]
-          feature.properties.slice(*FONT_SCALED_ATTRIBUTES).each do |key, value|
-            feature.properties[key] = value.to_i * font_size * 0.01 if /^\d+%$/ === value
+          properties = feature.properties.slice(*FONT_SCALED_ATTRIBUTES).transform_values do |value|
+            /^\d+%$/ === value ? value.to_i * font_size * 0.01 : value
+          end.then do |scaled_properties|
+            feature.properties.except(*FONT_SCALED_ATTRIBUTES).merge(scaled_properties)
           end
+          feature.with_properties(properties)
         end.flat_map do |feature|
           case feature
           when GeoJSON::Point, GeoJSON::LineString

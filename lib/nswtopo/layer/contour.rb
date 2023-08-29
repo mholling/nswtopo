@@ -75,13 +75,15 @@ module NSWTopo
 
         log_update "%s: generating contour lines" % @name
         json = OS.gdal_contour "-q", "-a", "elevation", "-i", @interval, "-f", "GeoJSON", "-lco", "RFC7946=NO", blur_path, "/vsistdout/"
-        contours = GeoJSON::Collection.load json, projection: @map.projection
+        contours = GeoJSON::Collection.load(json, projection: @map.projection).map! do |feature|
+          id, elevation = feature.values_at "ID", "elevation"
+          properties = { "id" => id, "elevation" => elevation, "modulo" => elevation % @index, "depression" => feature.closed? && feature.anticlockwise? ? 1 : 0}
+          feature.with_properties(properties)
+        end
 
         if @no_depression.nil?
           candidates = contours.select do |feature|
-            feature.closed? && feature.anticlockwise?
-          end.each do |feature|
-            feature["depression"] = 1
+            feature["depression"] == 1
           end
           index = RTree.load(candidates, &:bounds)
 
@@ -97,9 +99,6 @@ module NSWTopo
         contours.reject! do |feature|
           feature.closed? &&
           feature.bounds.all? { |min, max| max - min < @knolls }
-        end.map! do |feature|
-          id, elevation, depression = feature.values_at "ID", "elevation", "depression"
-          feature.with_properties("id" => id, "elevation" => elevation, "modulo" => elevation % @index, "depression" => depression || 0)
         end.reject! do |feature|
           feature["elevation"].zero?
         end

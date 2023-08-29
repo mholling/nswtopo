@@ -133,20 +133,16 @@ module NSWTopo
       def decode(attributes)
         attributes.map do |name, value|
           [name, @revalue[name, value, attributes]]
-        end.to_h.slice(*@fields).then do |decoded|
-          attributes.replace decoded
-        end
-      end
-
-      def transform(feature)
-        decode(feature.properties).transform_keys!(&@rename)
+        end.to_h.slice(*@fields)
       end
 
       def paged(per_page: nil)
         per_page = [*per_page, *@layer["maxRecordCount"], 500].min
         Enumerator::Lazy.new pages(per_page) do |yielder, page|
-          page.each(&method(:transform))
-          yielder << page
+          page.map! do |feature|
+            decoded = decode(feature.properties).transform_keys!(&@rename)
+            feature.with_properties decoded
+          end.then(&yielder)
         end
       end
 
@@ -173,9 +169,9 @@ module NSWTopo
       end
 
       def counts
-        classify(*@fields, *extra_field).each do |attributes, count|
+        classify(*@fields, *extra_field).group_by do |attributes, count|
           decode attributes
-        end.group_by(&:first).map do |attributes, attributes_counts|
+        end.map do |attributes, attributes_counts|
           [attributes, attributes_counts.sum(&:last)]
         end
       end

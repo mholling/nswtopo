@@ -67,7 +67,7 @@ module NSWTopo
     def labeling_features
       features.select do |feature|
         feature["label"]
-      end.map(&:dup)
+      end
     end
 
     def to_s

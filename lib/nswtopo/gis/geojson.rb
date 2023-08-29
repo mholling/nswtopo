@@ -11,14 +11,16 @@ module NSWTopo
           @coordinates, @properties = coordinates, properties || {}
           raise Error, "invalid feature properties" unless Hash === @properties
           instance_eval(&block) if block_given?
+          @properties.freeze
           freeze!
         end
 
         attr_reader :coordinates, :properties
 
         extend Forwardable
-        delegate %i[[] []= fetch values_at key?] => :@properties
+        delegate %i[[] fetch values_at key?] => :@properties
         delegate %i[empty?] => :@coordinates
+        delegate %i[to_json] => :to_h
       end
 
       klass.define_method :to_h do

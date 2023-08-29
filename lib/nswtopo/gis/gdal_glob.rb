@@ -28,14 +28,14 @@ module NSWTopo
         end
       end.entries.tap do |paths|
         total = paths.length
-      end.map.with_index do |path, index|
+      end.filter_map.with_index do |path, index|
         yield [index + 1, total] if block_given?
         info = JSON.parse OS.gdalinfo("-json", path)
         next unless info["geoTransform"]
         next unless wkt = info.dig("coordinateSystem", "wkt")
         next path, info
       rescue JSON::ParserError
-      end.compact
+      end
     end
   end
 end

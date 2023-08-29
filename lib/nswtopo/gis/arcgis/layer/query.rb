@@ -45,7 +45,7 @@ module NSWTopo
               get_json "#{@id}/query", outFields: out_fields, objectIds: objectids.take(per_page).join(?,)
             rescue Connection::Error
               (per_page /= 2) > 0 ? retry : raise
-            end.fetch("features", []).map do |feature|
+            end.fetch("features", []).filter_map do |feature|
               next unless geometry = feature["geometry"]
               properties = feature.fetch("attributes", {})
 
@@ -73,7 +73,7 @@ module NSWTopo
               else
                 raise "unsupported ArcGIS geometry type: #{@geometry_type}"
               end
-            end.compact.tap do |features|
+            end.tap do |features|
               yielder << GeoJSON::Collection.new(projection: projection, features: features, name: @name)
             end
             objectids.shift per_page

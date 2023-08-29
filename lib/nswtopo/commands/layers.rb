@@ -6,7 +6,7 @@ module NSWTopo
     log_warn "no layers installed" if paths.none?
 
     TreeIndenter.new(paths) do |paths|
-      paths.map do |path|
+      paths.filter_map do |path|
         case
         when path.glob("**/*.yml").any?
           [path.basename.sub_ext(""), path.children.sort]
@@ -14,7 +14,7 @@ module NSWTopo
         when path.extname == ".yml"
           path.basename.sub_ext("")
         end
-      end.compact
+      end
     end.each do |indents, name|
       puts [*indents, name].join
     end

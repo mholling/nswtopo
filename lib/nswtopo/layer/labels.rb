@@ -348,7 +348,7 @@ module NSWTopo
         Label.new baselines.inject(&:+), collection, label_index, feature_index, priority, attributes, text_elements do |hull|
           barriers_for hull
         end
-      end.compact.reject do |candidate|
+      end.reject do |candidate|
         candidate.optional? && candidate.barriers?
       end.select do |candidate|
         map_contains? candidate

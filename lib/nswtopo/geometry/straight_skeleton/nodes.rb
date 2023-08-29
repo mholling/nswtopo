@@ -89,7 +89,7 @@ module StraightSkeleton
       bounds = node.project(@limit).zip(node.point).map do |centre, coord|
         [coord, centre - @limit, centre + @limit].minmax
       end if @limit
-      @index.search(bounds).map do |edge|
+      @index.search(bounds).filter_map do |edge|
         p0, p1, p2 = [*edge, node].map(&:point)
         t0, t1, t2 = [*edge, node].map(&:travel)
         (n00, n01), (n10, n11), (n20, n21) = [*edge, node].map(&:normals)
@@ -106,7 +106,7 @@ module StraightSkeleton
         next if @limit && travel.abs > @limit.abs
         next if (point - p0).dot(n01) * @direction < 0
         Split.new self, point, travel, node, edge[0]
-      end.compact.each do |split|
+      end.each do |split|
         @candidates << split
       end
     end

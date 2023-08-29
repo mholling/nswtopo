@@ -509,9 +509,7 @@ module NSWTopo
           when GeoJSON::Point, GeoJSON::LineString
             feature
           when GeoJSON::Polygon
-            feature.coordinates.map do |ring|
-              GeoJSON::LineString.new ring, feature.properties
-            end
+            feature.rings.explode
           end
         end.tap do |features|
           features.each.with_object("feature", &debug) if Config["debug"]

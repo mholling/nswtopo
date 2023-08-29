@@ -294,12 +294,12 @@ module NSWTopo
       @labelling_neatline.contains? label.hull
     end
 
-    def barriers_for(label_hull)
+    def barriers_for(label_hull, buffer)
       @barriers_idx ||= RTree.load(barriers.flat_map(&:explode), &:bounds)
       @barriers_for ||= Hash[]
-      @barriers_for[label_hull.coordinates] ||= @barriers_idx.search(label_hull.bounds).with_object Set[] do |barrier_hull, barriers|
+      @barriers_for[[buffer, label_hull.coordinates]] ||= @barriers_idx.search(label_hull.bounds, buffer: buffer).with_object Set[] do |barrier_hull, barriers|
         next if barriers === barrier_hull[:source]
-        next unless ConvexHulls.overlap?(barrier_hull, label_hull)
+        next unless ConvexHulls.overlap?(barrier_hull, label_hull, buffer: buffer)
         barriers << barrier_hull[:source]
       end
     end
@@ -345,8 +345,8 @@ module NSWTopo
 
         priority = [position_index, feature_index]
 
-        Label.new baselines.inject(&:+), collection, label_index, feature_index, priority, attributes, text_elements do |hull|
-          barriers_for hull
+        Label.new baselines.inject(&:+), collection, label_index, feature_index, priority, attributes, text_elements do |hull, buffer|
+          barriers_for hull, buffer
         end
       end.reject do |candidate|
         candidate.optional? && candidate.barriers?
@@ -458,8 +458,8 @@ module NSWTopo
           text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
         end
 
-        Label.new baseline, collection, label_index, feature_index, priority, attributes, [text_element, path_element], along: along, fixed: fixed do |hull|
-          barriers_for hull
+        Label.new baseline, collection, label_index, feature_index, priority, attributes, [text_element, path_element], along: along, fixed: fixed do |hull, buffer|
+          barriers_for hull, buffer
         end
       end.reject do |candidate|
         candidate.optional? && candidate.barriers?

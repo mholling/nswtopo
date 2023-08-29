@@ -2,8 +2,7 @@ module NSWTopo
   module VectorRender
     class Knockout
       def initialize(element, buffer)
-        buffer = Config["knockout"] || 0.3 if buffer == true
-        @buffer = Float(buffer)
+        @buffer = Labels::Label.knockout(buffer)
         @href = "#" + element.attributes["id"]
       end
       attr_reader :buffer

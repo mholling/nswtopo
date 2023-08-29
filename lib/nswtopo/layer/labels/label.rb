@@ -1,11 +1,15 @@
 module NSWTopo
   module Labels
     class Label < ConvexHulls
+      def self.knockout(value)
+        Float(Numeric === value ? value : value ? Config.fetch("knockout", 0.3) : 0)
+      end
+
       def initialize(baselines, collection, label_index, feature_index, priority, attributes, elements, along: nil, fixed: nil, &block)
         super baselines, 0.5 * attributes["font-size"]
         @label_index, @feature_index, @indices = label_index, feature_index, [label_index, feature_index]
         @collection, @priority, @attributes, @elements, @along, @fixed = collection, priority, attributes, elements, along, fixed
-        @barrier_count = map(&block).inject(&:merge).size
+        @barrier_count = each.with_object(knockout).map(&block).inject(&:merge).size
         @ordinal = [@barrier_count, @priority]
         @conflicts = Set[]
         @hull = dissolve_points.convex_hull
@@ -29,6 +33,10 @@ module NSWTopo
 
       def optional?
         @attributes["optional"]
+      end
+
+      def knockout
+        Label.knockout @attributes["knockout"]
       end
 
       def coexists_with?(other)

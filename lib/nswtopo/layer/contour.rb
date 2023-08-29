@@ -54,7 +54,7 @@ module NSWTopo
       @index ||= 10 * @interval
       @params = {
         "Index" => { "stroke-width" => 2 * @params["stroke-width"] },
-        "labels" => { "fill" => @fill || @params["stroke"] }
+        "labels" => { "fill" => @fill || "black" }
       }.deep_merge(@params)
 
       check_geos! if @thin

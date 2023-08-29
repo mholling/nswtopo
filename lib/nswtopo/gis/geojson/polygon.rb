@@ -3,12 +3,15 @@ module NSWTopo
     class Polygon
       include SVG
 
-      def sanitise!
-        @coordinates.each.with_index do |coordinates, index|
-          LineString[coordinates] do |ring|
-            ring.coordinates << ring.first unless ring.closed?
-            ring.coordinates.reverse! if index.zero? ^ ring.exterior?
+      def self.[](coordinates, properties = nil, &block)
+        new(coordinates, properties) do
+          @coordinates.each.with_index do |coordinates, index|
+            LineString[coordinates] do |ring|
+              ring.coordinates << ring.first unless ring.closed?
+              ring.coordinates.reverse! if index.zero? ^ ring.exterior?
+            end
           end
+          block.call self if block_given?
         end
       end
 

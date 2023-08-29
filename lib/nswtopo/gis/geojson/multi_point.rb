@@ -1,9 +1,12 @@
 module NSWTopo
   module GeoJSON
     class MultiPoint
-      def sanitise!
-        @coordinates.map! do |point|
-          Vector === point ? point : Vector[*point]
+      def self.[](coordinates, properties = nil, &block)
+        new(coordinates, properties) do
+          @coordinates.map! do |point|
+            Vector === point ? point : Vector[*point]
+          end
+          block.call self if block_given?
         end
       end
 

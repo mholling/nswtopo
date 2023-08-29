@@ -1,8 +1,11 @@
 module NSWTopo
   module GeoJSON
     class Point
-      def sanitise!
-        @coordinates = Vector[*@coordinates] unless Vector === @coordinates
+      def self.[](coordinates, properties = nil, &block)
+        new(coordinates, properties) do
+          @coordinates = Vector[*@coordinates] unless Vector === @coordinates
+          block.call self if block_given?
+        end
       end
 
       alias freeze! freeze

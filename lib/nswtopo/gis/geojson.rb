@@ -10,15 +10,8 @@ module NSWTopo
         def initialize(coordinates, properties = nil, &block)
           @coordinates, @properties = coordinates, properties || {}
           raise Error, "invalid feature properties" unless Hash === @properties
-          yield self if block_given?
+          instance_eval(&block) if block_given?
           freeze!
-        end
-
-        def self.[](coordinates, properties = nil, &block)
-          new(coordinates, properties) do |feature|
-            feature.sanitise!
-            yield feature if block_given?
-          end
         end
 
         attr_reader :coordinates, :properties
@@ -95,6 +88,15 @@ module NSWTopo
         def empty_polygons = MultiPolygon.new([], @properties)
       end
 
+      multi_class.define_singleton_method :[] do |coordinates, properties = nil, &block|
+        multi_class.new(coordinates, properties) do
+          @coordinates.each do |coordinates|
+            single_class[coordinates]
+          end
+          block&.call self
+        end
+      end
+
       multi_class.define_method :each do |&block|
         enum = Enumerator.new do |yielder|
           @coordinates.each do |coordinates|
@@ -102,12 +104,6 @@ module NSWTopo
           end
         end
         block ? enum.each(&block) : enum
-      end
-
-      multi_class.define_method :sanitise! do
-        @coordinates.each do |coordinates|
-          single_class[coordinates]
-        end
       end
 
       multi_class.define_method :freeze! do

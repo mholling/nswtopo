@@ -5,11 +5,14 @@ module NSWTopo
 
       delegate %i[length offset buffer smooth samples subdivide to_polygon] => :multi
 
-      def sanitise!
-        sanitised = @coordinates.map do |point|
-          Vector === point ? point : Vector[*point]
-        end.chunk(&:itself).map(&:first)
-        @coordinates.replace sanitised
+      def self.[](coordinates, properties = nil, &block)
+        new(coordinates, properties) do
+          sanitised = @coordinates.map do |point|
+            Vector === point ? point : Vector[*point]
+          end.chunk(&:itself).map(&:first)
+          @coordinates.replace sanitised
+          block.call self if block_given?
+        end
       end
 
       def freeze!

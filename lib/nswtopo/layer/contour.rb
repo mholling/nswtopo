@@ -80,6 +80,7 @@ module NSWTopo
           properties = { "id" => id, "elevation" => elevation, "modulo" => elevation % @index, "depression" => feature.closed? && feature.anticlockwise? ? 1 : 0}
           feature.with_properties(properties)
         end
+        raise "no elevation data found in map area" unless contours.any?
 
         if @no_depression.nil?
           candidates = contours.select do |feature|

@@ -116,6 +116,7 @@ module NSWTopo
         pixels, knolls = pixels_knolls(dem_hr_path) do |col, row|
           !mask.include? [(col * @mm_per_px / low_resolution).floor, (row * @mm_per_px / low_resolution).floor]
         end.entries.transpose
+        raise "no elevation data found in map area" unless pixels
 
         locations = raster_locations dem_hr_path, pixels
         elevations = raster_values dem_hr_path, pixels

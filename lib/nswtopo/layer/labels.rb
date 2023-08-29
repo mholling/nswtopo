@@ -232,11 +232,11 @@ module NSWTopo
                 end.inject(feature.empty, &:+)
 
               when "minimum-hole", "remove-holes"
+                next feature unless GeoJSON::MultiPolygon === feature
                 area = Float(arg).abs unless true == arg
-                feature = feature.remove_holes do |ring|
+                feature.remove_holes do |ring|
                   area ? (-area...0) === ring.signed_area : true
-                end if GeoJSON::MultiPolygon === feature
-                feature
+                end
 
               when "remove"
                 remove = [arg, *args].any? do |value|

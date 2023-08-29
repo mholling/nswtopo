@@ -7,6 +7,7 @@ module NSWTopo
     GPX_STYLES = YAML.load <<~YAML
       stroke: black
       stroke-width: 0.4
+      barrier: true
     YAML
 
     def get_features

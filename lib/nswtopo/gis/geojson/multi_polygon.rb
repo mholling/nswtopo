@@ -3,6 +3,11 @@ module NSWTopo
     class MultiPolygon
       include StraightSkeleton
 
+      def freeze!
+        each { }
+        freeze
+      end
+
       def area
         rings.explode.sum(&:signed_area)
       end

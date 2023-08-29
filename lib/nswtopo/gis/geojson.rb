@@ -11,9 +11,12 @@ module NSWTopo
           @coordinates, @properties = coordinates, properties || {}
           raise Error, "invalid feature properties" unless Hash === @properties
           instance_eval(&block) if block_given?
+          @coordinates.freeze
           @properties.freeze
           freeze!
         end
+
+        alias freeze! freeze
 
         attr_reader :coordinates, :properties
 
@@ -77,12 +80,6 @@ module NSWTopo
 
       multi_class.class_eval do
         include Enumerable
-
-        def freeze!
-          each { }
-          @coordinates.freeze
-          freeze
-        end
 
         alias explode entries
         alias multi itself

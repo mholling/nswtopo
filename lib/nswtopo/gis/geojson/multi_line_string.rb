@@ -3,6 +3,11 @@ module NSWTopo
     class MultiLineString
       include StraightSkeleton
 
+      def freeze!
+        each { }
+        freeze
+      end
+
       def path_length
         sum(&:path_length)
       end

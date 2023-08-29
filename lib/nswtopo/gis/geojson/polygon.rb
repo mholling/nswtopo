@@ -16,7 +16,7 @@ module NSWTopo
       end
 
       def freeze!
-        @coordinates.freeze.each(&:freeze)
+        @coordinates.each(&:freeze)
         freeze
       end
 

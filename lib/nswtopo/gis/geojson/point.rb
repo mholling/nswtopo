@@ -8,8 +8,6 @@ module NSWTopo
         end
       end
 
-      alias freeze! freeze
-
       def bounds
         zip.map(&:minmax)
       end

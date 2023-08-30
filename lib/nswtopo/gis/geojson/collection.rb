@@ -82,6 +82,15 @@ module NSWTopo
         Collection.new projection: @projection, name: name, features: @features
       end
 
+      def with_sql(sql, name: @name)
+        json = OS.ogr2ogr *%w[-f GeoJSON -lco RFC7946=NO /vsistdout/ GeoJSON:/vsistdin/ -dialect SQLite -sql], sql do |stdin|
+          stdin.puts to_json
+        end
+        Collection.load(json, projection: @projection).with_name(name)
+      rescue OS::Error
+        raise "GDAL with SQLite support required"
+      end
+
       def explode
         with_features flat_map(&:explode)
       end

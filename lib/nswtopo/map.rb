@@ -15,7 +15,7 @@ module NSWTopo
     extend Forwardable
     delegate %i[write mtime read uptodate?] => :@archive
 
-    def self.init(archive, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, inset: [], margins: nil)
+    def self.init(archive, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, margins: nil, **neatline_options)
       points = case
       when dimensions && margins
         raise "can't specify both margins and map dimensions"
@@ -72,31 +72,42 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      insets = inset.map do |inset|
-        inset.each_slice(2).entries.transpose.map(&:sort)
-      end.each.with_object GeoJSON::Collection.new(projection: projection, name: "insets") do |bounds, collection|
-        dimensions.zip(bounds).each do |dimension, (min, max)|
-          raise OptionParser::InvalidArgument, "inset falls outside map dimensions" unless max > 0 && min < dimension
+      ring = [0, 0].zip(dimensions).inject(&:product).values_at(0,2,3,1,0)
+      neatline = GeoJSON.polygon [ring], projection: projection, name: "neatline"
+
+      neatline_options.each do |key, value|
+        case key
+        when :radius
+          neatline = neatline.with_sql(<<~SQL, name: "neatline").explode
+            SELECT ST_Buffer(ST_Buffer(ST_Buffer(geometry, #{-value}, 9), #{2*value}, 9), #{-value}, 9)
+            FROM neatline
+          SQL
+
+          raise OptionParser::InvalidArgument, "radius too big" unless neatline.one?
+        when :inset
+          value.map do |corners|
+            corners.each_slice(2).entries.transpose.map(&:sort)
+          end.flat_map do |bounds|
+            dimensions.zip(bounds)
+          end.each do |dimension, (min, max)|
+            raise OptionParser::InvalidArgument, "inset falls outside map area" unless max > 0 && min < dimension
+          end
+
+          values = value.map do |corners|
+            %Q[(BuildMBR(#{corners.join ?,}))]
+          end
+
+          neatline = neatline.with_sql(<<~SQL, name: "neatline").explode
+            WITH insets(geometry) AS (VALUES #{values.join ?,})
+            SELECT ST_Difference(neatline.geometry, ST_Union(insets.geometry)) AS geometry
+            FROM neatline JOIN insets
+          SQL
+
+          raise OptionParser::InvalidArgument, "inset too big" if neatline.none?
+          raise OptionParser::InvalidArgument, "inset creates non-contiguous map" unless neatline.one?
         end
-        collection.add_polygon [bounds.inject(&:product).values_at(0,2,3,1,0)]
       end
 
-      neatline = if insets.any?
-        OS.ogr2ogr *%w[-f GeoJSON -lco RFC7946=NO /vsistdout/ GeoJSON:/vsistdin/ -dialect sqlite -sql], <<~SQL do |stdin|
-          SELECT ST_Difference(BuildMbr(0,0,#{dimensions.join ?,}), ST_Union(geometry)) AS geometry
-          FROM insets
-        SQL
-          stdin.puts insets.to_json
-        end.then do |json|
-          GeoJSON::Collection.load(json, projection: projection, name: "neatline").explode
-        end
-      else
-        ring = [[0, 0], dimensions].transpose.inject(&:product).values_at(0,2,3,1,0)
-        GeoJSON.polygon [ring], projection: projection, name: "neatline"
-      end
-
-      raise OptionParser::InvalidArgument, "inset covers map" if neatline.none?
-      raise OptionParser::InvalidArgument, "inset creates non-contiguous map" unless neatline.one?
       new(archive, neatline: neatline, centre: centre, dimensions: dimensions, scale: scale, rotation: rotation).save
     end
 

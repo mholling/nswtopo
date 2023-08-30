@@ -208,16 +208,17 @@ begin
         *nswtopo* *init* - initialise map bounds and scale
           usage: _nswtopo_ _init_ [~options~] <map.tgz>
       EOF
-      parser.on "-s", "--scale       <scale>",        PositiveInt, "scale of map (default 25000)"
-      parser.on "-b", "--bounds      <bounds.kml>",   Pathname,    "bounds for map as KML or GPX file"
-      parser.on "-c", "--coords      <x1,y1,...>",    CoordList,   "bounds for map as one or more WGS84",
-                                                                   "longitude/latitude pairs" 
-      parser.on "-d", "--dimensions  <width,height>", Dimensions,  "map dimensions in mm"
-      parser.on "-r", "--rotation    <rotation>",     Rotation,    "map rotation angle in clockwise",
-                                                                   "degrees, 'auto' or 'magnetic'"
-      parser.on "-m", "--margins     <x[,y]>",        Margins,     "map margins in mm"
-      parser.on "-i", "--inset       <x1,y1,x2,y2>",  Inset,       "map inset coordinates in mm"
-      parser.on "-o", "--overwrite",                               "overwrite existing map file"
+      parser.on "-s", "--scale       <scale>",        PositiveInt,   "scale of map (default 25000)"
+      parser.on "-b", "--bounds      <bounds.kml>",   Pathname,      "bounds for map as KML or GPX file"
+      parser.on "-c", "--coords      <x1,y1,...>",    CoordList,     "bounds for map as one or more WGS84",
+                                                                     "longitude/latitude pairs" 
+      parser.on "-d", "--dimensions  <width,height>", Dimensions,    "map dimensions in mm"
+      parser.on "-r", "--rotation    <rotation>",     Rotation,      "map rotation angle in clockwise",
+                                                                     "degrees, 'auto' or 'magnetic'"
+      parser.on "-m", "--margins     <x[,y]>",        Margins,       "map margins in mm"
+      parser.on "-i", "--inset       <x1,y1,x2,y2>",  Inset,         "map inset coordinates in mm"
+      parser.on       "--radius      <radius>",       PositiveFloat, "map corner radius in mm"
+      parser.on "-o", "--overwrite",                                 "overwrite existing map file"
 
     when "info"
       parser.banner = <<~EOF

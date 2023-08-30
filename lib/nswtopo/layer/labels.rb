@@ -214,13 +214,13 @@ module NSWTopo
                 area = Float(arg)
                 case feature
                 when GeoJSON::MultiLineString
-                  feature.reject do |linestring|
+                  feature.reject_linestrings do |linestring|
                     linestring.closed? && linestring.signed_area.abs < area
-                  end.inject(feature.linestrings, &:+)
+                  end
                 when GeoJSON::MultiPolygon
-                  feature.reject do |polygon|
+                  feature.reject_polygons do |polygon|
                     polygon.signed_area < area
-                  end.inject(feature.polygons, &:+)
+                  end
                 else
                   feature
                 end
@@ -228,9 +228,9 @@ module NSWTopo
               when "minimum-length"
                 next feature unless GeoJSON::MultiLineString === feature
                 distance = Float(arg)
-                feature.reject do |linestring|
+                feature.reject_linestrings do |linestring|
                   linestring.path_length < distance
-                end.inject(feature.linestrings, &:+)
+                end
 
               when "minimum-hole", "remove-holes"
                 next feature unless GeoJSON::MultiPolygon === feature

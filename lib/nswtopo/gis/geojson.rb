@@ -41,10 +41,10 @@ module NSWTopo
         klass.new @coordinates, properties
       end
 
-      const_set type, klass
+      next type, const_set(type, klass)
     end
 
-    CLASSES.zip(TYPES).each do |klass, type|
+    CLASSES.each do |type, klass|
       Collection.define_method "add_#{type}".downcase do |coordinates, properties = nil|
         self << klass[coordinates, properties]
       end
@@ -119,6 +119,13 @@ module NSWTopo
           multi_class.new @coordinates + other.coordinates, @properties
         else
           raise "heterogenous geometries not implemented"
+        end
+      end
+
+      single_type, _ = CLASSES.rassoc(single_class)
+      %i[select reject].each do |verb|
+        multi_class.define_method "#{verb}_#{single_type}s".downcase do |&block|
+          send(verb, &block).inject(multi_class.new([], @properties), &:+)
         end
       end
     end

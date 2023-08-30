@@ -78,6 +78,10 @@ module NSWTopo
         Collection.new projection: @projection, name: @name, features: features
       end
 
+      def with_name(name)
+        Collection.new projection: @projection, name: name, features: @features
+      end
+
       def explode
         with_features flat_map(&:explode)
       end
@@ -123,10 +127,6 @@ module NSWTopo
         end.then do |features|
           with_features features
         end
-      end
-
-      def rename(name = nil)
-        tap { @name = name }
       end
 
       # TODO: what about empty collections?

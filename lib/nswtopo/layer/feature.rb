@@ -95,7 +95,7 @@ module NSWTopo
 
           feature.with_properties(properties)
         end
-      end.map(&:first).inject(&:merge).rename(@name)
+      end.map(&:first).inject(&:merge).with_name(@name)
     end
   end
 end

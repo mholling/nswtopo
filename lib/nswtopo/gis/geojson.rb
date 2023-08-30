@@ -88,9 +88,9 @@ module NSWTopo
           map(&:bounds).transpose.map(&:flatten).map(&:minmax)
         end
 
-        def points = MultiPoint.new([], @properties)
-        def linestrings = MultiLineString.new([], @properties)
-        def polygons = MultiPolygon.new([], @properties)
+        def empty_points = MultiPoint.new([], @properties)
+        def empty_linestrings = MultiLineString.new([], @properties)
+        def empty_polygons = MultiPolygon.new([], @properties)
       end
 
       multi_class.define_singleton_method :[] do |coordinates, properties = nil, &block|

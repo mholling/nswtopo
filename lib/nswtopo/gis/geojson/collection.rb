@@ -74,17 +74,21 @@ module NSWTopo
         to_h.merge(extras).to_json
       end
 
+      def with_features(features)
+        Collection.new projection: @projection, name: @name, features: features
+      end
+
       def explode
-        Collection.new projection: @projection, name: @name, features: flat_map(&:explode)
+        with_features flat_map(&:explode)
       end
 
       def multi
-        Collection.new projection: @projection, name: @name, features: map(&:multi)
+        with_features map(&:multi)
       end
 
       def merge(other)
         raise Error, "can't merge different projections" unless @projection == other.projection
-        Collection.new projection: @projection, name: @name, features: @features + other.features
+        with_features @features + other.features
       end
 
       def merge!(other)
@@ -93,11 +97,12 @@ module NSWTopo
       end
 
       def dissolve_points
-        Collection.new projection: @projection, name: @name, features: map(&:dissolve_points)
+        with_features map(&:dissolve_points)
       end
 
       def union
-        Collection.new projection: @projection, name: @name, features: any? ? [inject(&:+)] : []
+        return self if none?
+        with_features [inject(&:+)]
       end
 
       def rotate_by_degrees!(angle)
@@ -116,7 +121,7 @@ module NSWTopo
         map do |feature|
           feature.buffer(*margins, **options)
         end.then do |features|
-          Collection.new projection: @projection, name: @name, features: features
+          with_features features
         end
       end
 

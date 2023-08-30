@@ -28,8 +28,7 @@ module NSWTopo
       j_max = (radius / col_spacing).ceil
       i_max = (radius / row_spacing).ceil
 
-      collection = GeoJSON::Collection.new(projection: @map.neatline.projection)
-      (-j_max..j_max).each do |j|
+      (-j_max..j_max).each.with_object(GeoJSON::Collection.new(projection: @map.neatline.projection)) do |j, collection|
         x = j * col_spacing + col_offset
         coordinates = [radius, -radius].map do |y|
           Vector[x, y].rotate_by_degrees(declination - @map.rotation) + Vector[*@map.dimensions] / 2
@@ -41,7 +40,6 @@ module NSWTopo
           collection.add_point coordinates, "rotation" => declination
         end
       end
-      collection
     end
 
     def to_s

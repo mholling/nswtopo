@@ -71,7 +71,7 @@ module NSWTopo
       end
 
       def svg_path_data
-        rings.map(&:svg_path_data).each.with_object("Z").entries.join(?\s)
+        rings.map(&:svg_path_data).join(?\s)
       end
     end
   end

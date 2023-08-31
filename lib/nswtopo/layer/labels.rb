@@ -523,7 +523,7 @@ module NSWTopo
         end.tap do |candidates|
           candidates.reject!(&:point?) unless candidates.all?(&:point?)
         end.sort.each.with_index do |candidate, index|
-          candidate.priority = index
+          candidate.priority.replace [index]
         end
       end.tap do |candidates|
         log_update "compositing %s: choosing label positions" % @name
@@ -648,7 +648,7 @@ module NSWTopo
 
           unless candidate.ordinal == ordinal
             ordered.delete candidate
-            candidate.ordinal = ordinal
+            candidate.ordinal.replace ordinal
             ordered.insert candidate
           end
         end

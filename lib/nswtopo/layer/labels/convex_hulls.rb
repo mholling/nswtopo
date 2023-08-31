@@ -1,8 +1,8 @@
 module NSWTopo
   module Labels
     class ConvexHulls < GeoJSON::MultiLineString
-      def initialize(feature, buffer)
-        @coordinates = case feature
+      def initialize(feature, buffer, &block)
+        coordinates = case feature
         when GeoJSON::Polygon then feature.rings
         when GeoJSON::MultiPolygon then feature.rings
         else feature
@@ -27,7 +27,7 @@ module NSWTopo
             end
           end
         end
-        @properties = { source: self }
+        super coordinates, source: self, &block
       end
 
       delegate :length => :@coordinates

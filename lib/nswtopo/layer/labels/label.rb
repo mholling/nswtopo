@@ -6,13 +6,14 @@ module NSWTopo
       end
 
       def initialize(baselines, collection, label_index, feature_index, priority, attributes, elements, along: nil, fixed: nil, &block)
-        super baselines, 0.5 * attributes["font-size"]
-        @label_index, @feature_index, @indices = label_index, feature_index, [label_index, feature_index]
-        @collection, @priority, @attributes, @elements, @along, @fixed = collection, priority, attributes, elements, along, fixed
-        @barrier_count = each.with_object(knockout).map(&block).inject(&:merge).size
-        @ordinal = [@barrier_count, @priority]
-        @conflicts = Set[]
-        @hull = dissolve_points.convex_hull
+        super baselines, 0.5 * attributes["font-size"] do
+          @label_index, @feature_index, @indices = label_index, feature_index, [label_index, feature_index]
+          @collection, @priority, @attributes, @elements, @along, @fixed = collection, priority, attributes, elements, along, fixed
+          @barrier_count = each.with_object(knockout).map(&block).inject(&:merge).size
+          @ordinal = [@barrier_count, @priority]
+          @conflicts = Set[]
+          @hull = dissolve_points.convex_hull
+        end
       end
 
       extend Forwardable
@@ -21,7 +22,7 @@ module NSWTopo
 
       attr_reader :label_index, :feature_index, :indices
       attr_reader :barrier_count, :elements, :along, :fixed, :conflicts, :hull
-      attr_accessor :priority, :ordinal
+      attr_reader :priority, :ordinal
 
       def point?
         @along.nil?

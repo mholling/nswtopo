@@ -155,7 +155,7 @@ module StraightSkeleton
     attr_reader :direction
 
     def progress(limit: nil, rounding_angle: DEFAULT_ROUNDING_ANGLE, cutoff_angle: nil, interval: nil, splits: true, &block)
-      return self if limit && limit.zero?
+      return self if limit&.zero?
 
       nodeset.tap do
         @active.clear
@@ -176,7 +176,7 @@ module StraightSkeleton
         end
       end if @limit
 
-      @candidates, @travel, @limit, @direction = AVLTree.new, 0, limit && limit.to_d, limit ? limit <=> 0 : 1
+      @candidates, @travel, @limit, @direction = AVLTree.new, 0, limit&.to_d, limit ? limit <=> 0 : 1
 
       rounding_angle *= Math::PI / 180
       cutoff_angle *= Math::PI / 180 if cutoff_angle

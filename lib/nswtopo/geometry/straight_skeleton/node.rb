@@ -39,7 +39,7 @@ module StraightSkeleton
     def project(travel)
       det = normals.inject(&:cross) if normals.all?
       case
-      when det && det.nonzero?
+      when det&.nonzero?
         x = normals.map { |normal| travel - @travel + normal.dot(point) }
         (normals[0].perp * x[1] - normals[1].perp * x[0]) / det
       when normals[0] then normals[0] * (travel - @travel) + point

@@ -3,6 +3,7 @@
 #   (Missae Yamamoto, Gilberto Camara, Luiz Antonio Nogueira Lorena)
 
 require_relative 'labels/barriers'
+require_relative 'labels/convex_hull'
 require_relative 'labels/convex_hulls'
 require_relative 'labels/label'
 

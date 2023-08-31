@@ -54,14 +54,14 @@ module NSWTopo
         group.each.with_object Set[] do |label, overlaps|
           next unless buffer = yield(label)
           index.search(label.bounds, buffer: buffer).each do |other|
-            next if label == other[:source]
-            next if overlaps === [label, other[:source]]
-            next if overlaps === [other[:source], label]
+            next if label == other.source
+            next if overlaps === [label, other.source]
+            next if overlaps === [other.source, label]
             next unless label.length < 3 || ConvexHulls.overlap?(label.hull, other, buffer: buffer)
             next unless label.any? do |hull|
               ConvexHulls.overlap?(hull, other, buffer: buffer)
             end
-            overlaps << [label, other[:source]]
+            overlaps << [label, other.source]
           end
         end
       end

@@ -12,9 +12,9 @@ module NSWTopo
         @index ||= RTree.load(@barriers.flat_map(&:explode), &:bounds)
         @proc ||= lambda do |label_hull, buffer|
           @cache[[buffer, label_hull.coordinates]] ||= @index.search(label_hull.bounds, buffer: buffer).with_object Set[] do |barrier_hull, barriers|
-            next if barriers === barrier_hull[:source]
+            next if barriers === barrier_hull.source
             next unless ConvexHulls.overlap?(barrier_hull, label_hull, buffer: buffer)
-            barriers << barrier_hull[:source]
+            barriers << barrier_hull.source
           end
         end
       end

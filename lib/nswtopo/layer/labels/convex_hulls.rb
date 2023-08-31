@@ -27,10 +27,19 @@ module NSWTopo
             end
           end
         end
-        super coordinates, source: self, &block
+        super coordinates, &block
       end
 
       delegate :length => :@coordinates
+
+      def each(&block)
+        enum = Enumerator.new do |yielder|
+          @coordinates.each do |coordinates|
+            yielder << ConvexHull.new(self, coordinates)
+          end
+        end
+        block_given? ? enum.each(&block) : enum
+      end
 
       def self.overlap?(*rings, buffer: 0)
         # implements Gilbert–Johnson–Keerthi

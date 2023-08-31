@@ -120,9 +120,7 @@ module NSWTopo
 
       def remove_holes(&block)
         map do |polygon|
-          polygon.rings.reject do |ring|
-            ring.interior? && (block_given? ? block.call(ring) : true)
-          end.inject(empty_linestrings, &:+).to_polygon
+          polygon.remove_holes(&block)
         end.inject(empty_polygons, &:+)
       end
     end

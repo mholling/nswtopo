@@ -53,6 +53,12 @@ module NSWTopo
         Polygon.new [*@coordinates, ring.coordinates], @properties
       end
 
+      def remove_holes(&block)
+        rings.reject do |ring|
+          ring.interior? && (block_given? ? block.call(ring) : true)
+        end.inject(&:+).to_polygon
+      end
+
       def contains?(geometry)
         geometry = Point.new(geometry) if Vector === geometry
         geometry.dissolve_points.coordinates.all? do |point|

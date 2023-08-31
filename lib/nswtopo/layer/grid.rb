@@ -86,7 +86,7 @@ module NSWTopo
       font_size = label_params["font-size"]
       offset = -0.85 * font_size
       inset = INSET + font_size * 0.5 * Math::sin(@map.rotation.abs * Math::PI / 180)
-      inset_geometry = @map.neatline(mm: -inset)
+      inset_geometry = @map.neatline(mm: -inset).map!(&:remove_holes)
 
       eastings, northings = features.select do |linestring|
         linestring["label"]

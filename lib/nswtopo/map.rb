@@ -78,8 +78,9 @@ module NSWTopo
       neatline_options.each do |key, value|
         case key
         when :radius
+          radius, segments = [*value, 9]
           neatline = neatline.with_sql(<<~SQL, name: "neatline").explode
-            SELECT ST_Buffer(ST_Buffer(ST_Buffer(geometry, #{-value}, 9), #{2*value}, 9), #{-value}, 9)
+            SELECT ST_Buffer(ST_Buffer(ST_Buffer(geometry, #{-radius}, #{segments}), #{2*radius}, #{segments}), #{-radius}, #{segments})
             FROM neatline
           SQL
 

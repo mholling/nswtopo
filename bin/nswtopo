@@ -56,6 +56,7 @@ begin
   NonNegFloat   = Class.new
   Dimensions    = Class.new
   Inset         = Class.new
+  Radius        = Class.new
   Margins       = Class.new
   CoordList     = Class.new
   Rotation      = Class.new
@@ -88,6 +89,13 @@ begin
 
   OptionParser.accept Inset, /\A#{quad}(?:,#{quad})*\z/ do |string|
     string.split(?,).map(&:to_f).each_slice(4).entries
+  end
+
+  OptionParser.accept Radius, /\A#{float}(?:,#{digits})*\z/ do |string|
+    radius, segments = string.split(?,)
+    raise OptionParser::InvalidArgument, string unless radius.to_f.positive?
+    raise OptionParser::InvalidArgument, string if segments && segments.to_i.zero?
+    segments ? [radius.to_f, segments.to_i] : radius.to_f
   end
 
   OptionParser.accept Margins, /\A#{float}(?:,#{float})?\z/ do |string|
@@ -208,17 +216,17 @@ begin
         *nswtopo* *init* - initialise map bounds and scale
           usage: _nswtopo_ _init_ [~options~] <map.tgz>
       EOF
-      parser.on "-s", "--scale       <scale>",        PositiveInt,   "scale of map (default 25000)"
-      parser.on "-b", "--bounds      <bounds.kml>",   Pathname,      "bounds for map as KML or GPX file"
-      parser.on "-c", "--coords      <x1,y1,...>",    CoordList,     "bounds for map as one or more WGS84",
-                                                                     "longitude/latitude pairs" 
-      parser.on "-d", "--dimensions  <width,height>", Dimensions,    "map dimensions in mm"
-      parser.on "-r", "--rotation    <rotation>",     Rotation,      "map rotation angle in clockwise",
-                                                                     "degrees, 'auto' or 'magnetic'"
-      parser.on "-m", "--margins     <x[,y]>",        Margins,       "map margins in mm"
-      parser.on "-i", "--inset       <x1,y1,x2,y2>",  Inset,         "map inset coordinates in mm"
-      parser.on       "--radius      <radius>",       PositiveFloat, "map corner radius in mm"
-      parser.on "-o", "--overwrite",                                 "overwrite existing map file"
+      parser.on "-s", "--scale       <scale>",        PositiveInt, "scale of map (default 25000)"
+      parser.on "-b", "--bounds      <bounds.kml>",   Pathname,    "bounds for map as KML or GPX file"
+      parser.on "-c", "--coords      <x1,y1,...>",    CoordList,   "bounds for map as one or more WGS84",
+                                                                   "longitude/latitude pairs" 
+      parser.on "-d", "--dimensions  <width,height>", Dimensions,  "map dimensions in mm"
+      parser.on "-r", "--rotation    <rotation>",     Rotation,    "map rotation angle in clockwise",
+                                                                   "degrees, 'auto' or 'magnetic'"
+      parser.on "-m", "--margins     <x[,y]>",        Margins,     "map margins in mm"
+      parser.on "-i", "--inset       <x1,y1,x2,y2>",  Inset,       "map inset coordinates in mm"
+      parser.on       "--radius      <radius>",       Radius,      "map corner radius in mm"
+      parser.on "-o", "--overwrite",                               "overwrite existing map file"
 
     when "info"
       parser.banner = <<~EOF

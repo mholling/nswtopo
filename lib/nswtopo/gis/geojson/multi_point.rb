@@ -28,12 +28,12 @@ module NSWTopo
         points, remaining = @coordinates.partition { |point| point == start }
         remaining.sort_by do |point|
           next (point - start).angle, (point - start).norm
-        end.inject(points) do |points, v2|
+        end.inject(points) do |points, p2|
           while points.length > 1 do
-            v0, v1 = points.last(2)
-            (v2 - v0).cross(v1 - v0) < 0 ? break : points.pop
+            p0, p1 = points.last(2)
+            (p2 - p0).cross(p1 - p0) < 0 ? break : points.pop
           end
-          points << v2
+          points << p2
         end.then do |points|
           LineString.new points, @properties
         end

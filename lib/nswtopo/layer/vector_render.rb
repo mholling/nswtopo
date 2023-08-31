@@ -218,8 +218,8 @@ module NSWTopo
               when "inpoint"  then [line.first(2)]
               when "outpoint" then [line.last(2).rotate]
               when "endpoint" then [line.first(2), line.last(2).rotate]
-              end.each do |v0, v1|
-                transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*v0, 180.0 * (v1 - v0).angle / Math::PI]
+              end.each do |p0, p1|
+                transform = "translate(%s) rotate(%s)" % [POINT, ANGLE] % [*p0, 180.0 * (p1 - p0).angle / Math::PI]
                 use.add_element "use", "transform" => transform, "href" => "#%s" % symbol_id
               end
             end

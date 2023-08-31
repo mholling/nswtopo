@@ -23,8 +23,8 @@ module StraightSkeleton
         end.then do |signed_area_x2|
           index = nil if signed_area_x2 < 0
         end if closed
-        normals = points.each_cons(2).map do |v0, v1|
-          (v1 - v0).normalised.perp
+        normals = points.each_cons(2).map do |p0, p1|
+          (p1 - p0).normalised.perp
         end
         points.map do |point|
           Vertex.new self, point

@@ -24,7 +24,7 @@ module NSWTopo
       end
 
       def path_length
-        each_cons(2).sum { |v0, v1| (v1 - v0).norm }
+        each_cons(2).sum { |p0, p1| (p1 - p0).norm }
       end
 
       def closed?
@@ -32,7 +32,7 @@ module NSWTopo
       end
 
       def signed_area
-        each_cons(2).sum { |v0, v1| v0.cross(v1) } / 2
+        each_cons(2).sum { |p0, p1| p0.cross(p1) } / 2
       end
 
       def clockwise?

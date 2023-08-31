@@ -366,24 +366,24 @@ module NSWTopo
       when String then Font.glyph_length collection.text, attributes
       end
 
-      points, deltas, angles, avoid = feature.coordinates.each_cons(2).flat_map do |v0, v1|
-        next [v0] if REXML::Element === collection.text
-        distance = (v1 - v0).norm
-        next [v0] if curved && distance >= text_length
+      points, deltas, angles, avoid = feature.coordinates.each_cons(2).flat_map do |p0, p1|
+        next [p0] if REXML::Element === collection.text
+        distance = (p1 - p0).norm
+        next [p0] if curved && distance >= text_length
         (0...1).step(sample/distance).map do |fraction|
-          v0 * (1 - fraction) + v1 * fraction
+          p0 * (1 - fraction) + p1 * fraction
         end
       end.then do |points|
         if closed
-          v0, v2 = points.last, points.first
-          points.unshift(v0).push(v2)
+          p0, p2 = points.last, points.first
+          points.unshift(p0).push(p2)
         else
           points.push(feature.coordinates.last).unshift(nil).push(nil)
         end
-      end.each_cons(3).map do |v0, v1, v2|
-        next v1, 0, 0, false unless v0
-        next v1, (v1 - v0).norm, 0, false unless v2
-        o01, o12, o20 = v1 - v0, v2 - v1, v0 - v2
+      end.each_cons(3).map do |p0, p1, p2|
+        next p1, 0, 0, false unless p0
+        next p1, (p1 - p0).norm, 0, false unless p2
+        o01, o12, o20 = p1 - p0, p2 - p1, p0 - p2
         l01, l12, l20 = o01.norm, o12.norm, o20.norm
         h01, h12 = o01 / l01, o12 / l12
         angle = Math::atan2 h01.cross(h12), h01.dot(h12)
@@ -391,7 +391,7 @@ module NSWTopo
         area_squared = [0, semiperimeter * (semiperimeter - l01) * (semiperimeter - l12) * (semiperimeter - l20)].max
         curvature = 4 * Math::sqrt(area_squared) / (l01 * l12 * l20)
         avoid = angle.abs > max_angle || min_radius * (curvature || 0) > 1
-        next v1, l01, angle, avoid
+        next p1, l01, angle, avoid
       end.transpose
 
       total, distances = deltas.inject([0, []]) do |(total, distances), delta|

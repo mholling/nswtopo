@@ -102,6 +102,12 @@ module NSWTopo
       @label_features ||= []
     end
 
+    def conflicts
+      @conflicts ||= Hash.new do |conflicts, label|
+        conflicts[label] = Set[]
+      end
+    end
+
     module LabelFeatures
       attr_accessor :text, :dual, :layer_name
     end
@@ -344,8 +350,8 @@ module NSWTopo
         map_contains? candidate
       end.tap do |candidates|
         candidates.combination(2).each do |candidate1, candidate2|
-          candidate1.conflicts << candidate2
-          candidate2.conflicts << candidate1
+          conflicts[candidate1] << candidate2
+          conflicts[candidate2] << candidate1
         end
       end
     end
@@ -486,8 +492,8 @@ module NSWTopo
               candidate2 = sorted[index2]
               offset = candidate2.along - candidate1.along
               break unless offset % total < separation || (closed && -offset % total < separation)
-              candidate2.conflicts << candidate1
-              candidate1.conflicts << candidate2
+              conflicts[candidate2] << candidate1
+              conflicts[candidate1] << candidate2
             end
           end
         end
@@ -587,8 +593,8 @@ module NSWTopo
             label2.coexists_with?(label1)
           end.each(&yielder)
         end.each do |label1, label2|
-          label1.conflicts << label2
-          label2.conflicts << label1
+          conflicts[label1] << label2
+          conflicts[label2] << label1
         end
       end
     end
@@ -598,10 +604,6 @@ module NSWTopo
       candidates = label_candidates do |feature, category|
         debug_features << [feature, Set["debug", category]]
       end
-
-      conflicts = candidates.map do |candidate|
-        [candidate, candidate.conflicts.dup]
-      end.to_h
 
       ordered, unlabeled = AVLTree.new, Hash.new(true)
       remaining = candidates.to_set.classify(&:label_index)
@@ -632,7 +634,7 @@ module NSWTopo
           end.delete(candidate.label_index).size
           conflict_count += candidate.barrier_count
 
-          unsafe = candidate.conflicts.classify(&:label_index).any? do |label_index, conflicts|
+          unsafe = conflicts[candidate].classify(&:label_index).any? do |label_index, conflicts|
             next false unless unlabeled[label_index]
             others = remaining[label_index].reject(&:optional?)
             others.any? && others.all?(conflicts)
@@ -661,7 +663,7 @@ module NSWTopo
           labels.select(&:point?).each do |label|
             labels.delete label
             labels << grouped[label.indices].min_by do |candidate|
-              [(labels & candidate.conflicts - Set[label]).count, candidate.priority]
+              [(labels & conflicts[candidate] - Set[label]).count, candidate.priority]
             end
           end
         end

@@ -11,7 +11,6 @@ module NSWTopo
           @collection, @priority, @attributes, @elements, @along, @fixed = collection, priority, attributes, elements, along, fixed
           @barrier_count = each.with_object(knockout).map(&block).inject(&:merge).size
           @ordinal = [@barrier_count, @priority]
-          @conflicts = Set[]
           @hull = dissolve_points.convex_hull
         end
       end
@@ -21,7 +20,7 @@ module NSWTopo
       delegate %i[[] dig] => :@attributes
 
       attr_reader :label_index, :feature_index, :indices
-      attr_reader :barrier_count, :elements, :along, :fixed, :conflicts, :hull
+      attr_reader :barrier_count, :elements, :along, :fixed, :hull
       attr_reader :priority, :ordinal
 
       def point?

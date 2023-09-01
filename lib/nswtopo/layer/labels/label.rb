@@ -7,25 +7,19 @@ module NSWTopo
 
       def initialize(baselines, feature, priority, elements, along: nil, fixed: nil, &block)
         super baselines, 0.5 * feature["font-size"] do
-          @feature, @priority, @elements, @along, @fixed = feature, priority, elements, along, fixed
-          knockout = Label.knockout feature["knockout"]
-          @barrier_count = each.with_object(knockout).map(&block).inject(&:merge).size
-          @ordinal = [@barrier_count, @priority]
+          @categories, @text, @dual, @layer_name, @label_index, @feature_index = feature.values_at(:categories, :text, :dual, :layer_name, :label_index, :feature_index)
+          @indices = [@label_index, @feature_index]
+          @priority, @elements, @along, @fixed = priority, elements, along, fixed
           @hull = dissolve_points.convex_hull
+          @optional, @coexist, knockout = feature.values_at("optional", "coexist", "knockout")
+          @barrier_count = each.with_object(Label.knockout(knockout)).map(&block).inject(&:merge).size
+          @ordinal = [@barrier_count, @priority]
+          @separation = feature.fetch("separation", {})
         end
       end
 
-      attr_reader :priority, :elements, :along, :fixed, :barrier_count, :ordinal, :hull
-
-      extend Forwardable
-      delegate %i[[] dig] => :@feature
-
-      def text          = @feature[:text]
-      def dual          = @feature[:dual]
-      def layer_name    = @feature[:layer_name]
-      def label_index   = @feature[:label_index]
-      def feature_index = @feature[:feature_index]
-      def indices       = @feature.values_at(:label_index, :feature_index)
+      attr_reader :categories, :text, :dual, :layer_name, :label_index, :feature_index, :indices
+      attr_reader :priority, :elements, :along, :fixed, :hull, :barrier_count, :ordinal, :separation
 
       def point?
         @along.nil?
@@ -36,11 +30,11 @@ module NSWTopo
       end
 
       def optional?
-        @feature["optional"]
+        @optional
       end
 
       def coexists_with?(other)
-        Array(@feature["coexist"]).include? other.layer_name
+        Array(@coexist).include? other.layer_name
       end
 
       def <=>(other)

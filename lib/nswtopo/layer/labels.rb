@@ -542,7 +542,7 @@ module NSWTopo
             label.label_index
           end.values.each do |group|
             Label.overlaps(group) do |label|
-              label.dig("separation", "self")
+              label.separation["self"]
             end.each(&yielder)
           end
 
@@ -551,7 +551,7 @@ module NSWTopo
             [label.layer_name, label.text]
           end.values.each do |group|
             Label.overlaps(group) do |label|
-              label.dig("separation", "same")
+              label.separation["same"]
             end.each(&yielder)
           end
 
@@ -560,12 +560,12 @@ module NSWTopo
           end.each do |layer_name, group|
             # separation/other: minimum distance between a label and another label from the same layer
             Label.overlaps(group) do |label|
-              label.dig("separation", "other")
+              label.separation["other"]
             end.each(&yielder)
 
             # separation/<layer>: minimum distance between a label and any label from <layer>
             Label.overlaps(group, candidates) do |label|
-              label.dig("separation", layer_name)
+              label.separation[layer_name]
             end.each(&yielder)
           end
 
@@ -574,14 +574,14 @@ module NSWTopo
             [label.layer_name, Set[label.text, label.dual]]
           end.values.each do |group|
             Label.overlaps(group) do |label|
-              label.dig("separation", "dual")
+              label.separation["dual"]
             end.each(&yielder)
           end
 
           # separation/all: minimum distance between a label and *any* other label
           Label.overlaps(candidates) do |label|
             # default of zero prevents any two labels overlapping
-            label.dig("separation", "all") || 0
+            label.separation["all"] || 0
           end.reject do |label1, label2|
             label1.coexists_with?(label2) ||
             label2.coexists_with?(label1)
@@ -662,7 +662,7 @@ module NSWTopo
           end
         end
       end.flat_map do |label|
-        label.elements.map.with_object(label[:categories]).entries
+        label.elements.map.with_object(label.categories).entries
       end.tap do |result|
         next unless debug_features.any?
         @params = DEBUG_PARAMS.deep_merge @params

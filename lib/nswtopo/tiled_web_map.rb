@@ -28,7 +28,7 @@ module NSWTopo
         png_path = yield(resolution: max_level.resolution)
       end.tap do |levels|
         log_update "#{extension}: creating zoom levels %s" % levels.map(&:zoom).minmax.uniq.join(?-)
-      end.each.concurrently do |level|
+      end.inject(ThreadPool.new, &:<<).each do |level|
         OS.gdalwarp "-t_srs", "EPSG:3857", "-ts", *level.ts, "-te", *level.te, "-r", "cubic", "-dstalpha", png_path, level.tif_path
       end.flat_map do |level|
         cols, rows = level.indices
@@ -40,11 +40,11 @@ module NSWTopo
         end
       end.tap do |tiles|
         log_update "#{extension}: creating %i tiles" % tiles.length
-      end.each.concurrently do |tile|
+      end.inject(ThreadPool.new, &:<<).each do |tile|
         OS.gdal_translate *tile.args
       end.entries.tap do |tiles|
         log_update "#{extension}: optimising %i tiles" % tiles.length
-        tiles.map(&:path).each.concurrent_groups do |paths|
+        tiles.map(&:path).inject(ThreadPool.new, &:<<).in_groups do |*paths|
           dither *paths
         rescue Dither::Missing
         end

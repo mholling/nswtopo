@@ -58,15 +58,18 @@ module NSWTopo
       png_path = yield(ppi: ppi)
 
       Dir.mktmppath do |temp_dir|
+        log_update "kmz: resizing image pyramid"
         pyramid = (0..max_zoom).map do |zoom|
           resolution = degree_resolution * 2**(max_zoom - zoom)
-          degrees_per_tile = resolution * Kmz::TILE_SIZE
-
           tif_path = temp_dir / "#{name}.kmz.zoom.#{zoom}.tif"
+          next zoom, resolution, tif_path
+        end.inject(ThreadPool.new, &:<<).each do |zoom, resolution, tif_path|
           OS.gdalwarp "-t_srs", "EPSG:4326", "-tr", resolution, resolution, "-r", "bilinear", "-dstalpha", png_path, tif_path
-
+        end.map do |zoom, resolution, tif_path|
+          degrees_per_tile = resolution * Kmz::TILE_SIZE
           corners = JSON.parse(OS.gdalinfo "-json", tif_path)["cornerCoordinates"]
           top_left = corners["upperLeft"]
+
           counts = corners.values.transpose.map(&:minmax).map do |min, max|
             (max - min) / degrees_per_tile
           end.map(&:ceil)
@@ -78,9 +81,8 @@ module NSWTopo
             tile_bounds.each.with_index.entries
           end.inject(:product).map(&:transpose).map(&:reverse).to_h
 
-          log_update "kmz: resizing image pyramid: %i%%" % (100 * (2**(zoom + 1) - 1) / (2**(max_zoom + 1) - 1))
-          { zoom => [indices_bounds, tif_path] }
-        end.inject({}, &:merge)
+          next zoom, [indices_bounds, tif_path]
+        end.to_h
 
         kmz_dir = temp_dir.join("#{name}.kmz").tap(&:mkpath)
         pyramid.flat_map do |zoom, (indices_bounds, tif_path)|
@@ -119,9 +121,9 @@ module NSWTopo
           end
         end.tap do |tiles|
           log_update "kmz: creating %i tiles" % tiles.length
-        end.each.concurrently do |args|
+        end.inject(ThreadPool.new, &:<<).each do |*args|
           OS.gdal_translate "--config", "GDAL_PAM_ENABLED", "NO", *args
-        end.map(&:last).each.concurrent_groups do |tile_png_paths|
+        end.map(&:last).inject(ThreadPool.new, &:<<).in_groups do |*tile_png_paths|
           dither *tile_png_paths
         rescue Dither::Missing
         end

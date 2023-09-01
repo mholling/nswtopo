@@ -22,7 +22,7 @@ module NSWTopo
           end
           img_path = index.zero? ? png_path : temp_dir / "map.#{level}.png"
           next level, outsize, img_path
-        end.each.concurrently do |level, outsize, img_path|
+        end.inject(ThreadPool.new, &:<<).each do |level, outsize, img_path|
           OS.gdal_translate *%w[-r bicubic -outsize], *outsize, png_path, img_path unless img_path.exist?
         end.flat_map do |level, outsize, img_path|
           outsize.map do |px|
@@ -34,11 +34,11 @@ module NSWTopo
           end
         end.tap do |tiles|
           log_update "zip: creating %i tiles" % tiles.length
-        end.each.concurrently do |args|
+        end.inject(ThreadPool.new, &:<<).each do |*args|
           OS.gdal_translate *args
         end.map(&:last).tap do |tile_paths|
           log_update "zip: optimising %i tiles" % tile_paths.length
-        end.each.concurrent_groups do |tile_paths|
+        end.inject(ThreadPool.new, &:<<).in_groups do |*tile_paths|
           dither *tile_paths
         rescue Dither::Missing
         end

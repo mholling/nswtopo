@@ -9,6 +9,7 @@ module NSWTopo
         super baselines, 0.5 * attributes["font-size"] do
           @label_index, @feature_index, @indices = label_index, feature_index, [label_index, feature_index]
           @collection, @priority, @attributes, @elements, @along, @fixed = collection, priority, attributes, elements, along, fixed
+          knockout = Label.knockout @attributes["knockout"]
           @barrier_count = each.with_object(knockout).map(&block).inject(&:merge).size
           @ordinal = [@barrier_count, @priority]
           @hull = dissolve_points.convex_hull
@@ -33,10 +34,6 @@ module NSWTopo
 
       def optional?
         @attributes["optional"]
-      end
-
-      def knockout
-        Label.knockout @attributes["knockout"]
       end
 
       def coexists_with?(other)

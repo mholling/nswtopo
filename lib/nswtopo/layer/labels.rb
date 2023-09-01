@@ -108,10 +108,6 @@ module NSWTopo
       end
     end
 
-    module LabelFeatures
-      attr_accessor :text, :dual, :layer_name
-    end
-
     extend Forwardable
     delegate :<< => :barriers
 
@@ -152,7 +148,7 @@ module NSWTopo
         attributes, point_attributes, line_attributes = [nil, "point", "line"].map do |extra_category|
           categories | Set[*extra_category]
         end.map do |categories|
-          params_for(categories).slice(*LABEL_ATTRIBUTES).merge("categories" => categories)
+          params_for(categories).slice(*LABEL_ATTRIBUTES).merge(categories: categories)
         end
 
         features.map do |feature|
@@ -166,6 +162,7 @@ module NSWTopo
           dual = feature["dual"]
           text.upcase! if String === text && attributes["upcase"]
           dual.upcase! if String === dual && attributes["upcase"]
+          feature_attributes = { text: text, dual: dual, layer_name: layer.name }
 
           transforms.inject([feature]) do |features, (transform, (arg, *args))|
             next features unless arg
@@ -277,22 +274,18 @@ module NSWTopo
             raise "invalid label transform: %s: %s" % [transform, [arg, *args].join(?,)]
           end.reject(&:empty?).map do |feature|
             case feature
-            when GeoJSON::MultiPoint      then feature.with_properties(point_attributes)
-            when GeoJSON::MultiLineString then feature.with_properties(line_attributes)
-            when GeoJSON::MultiPolygon    then feature.with_properties(line_attributes)
+            when GeoJSON::MultiPoint      then feature.with_properties(**feature_attributes, **point_attributes)
+            when GeoJSON::MultiLineString then feature.with_properties(**feature_attributes, **line_attributes)
+            when GeoJSON::MultiPolygon    then feature.with_properties(**feature_attributes, **line_attributes)
             end
-          end.then do |features|
-            GeoJSON::Collection.new(projection: @map.neatline.projection, features: features).explode.extend(LabelFeatures)
-          end.tap do |collection|
-            collection.text, collection.dual, collection.layer_name = text, dual, layer.name
-          end
-        end.then do |collections|
-          next collections unless label_params["collate"]
-          collections.group_by(&:text).map do |text, collections|
-            collections.inject(&:merge!)
-          end
-        end.each do |collection|
-          label_features << collection
+          end.flat_map(&:explode)
+        end.then do |features|
+          next features unless label_params["collate"]
+          features.flatten.group_by do |feature|
+            feature[:text]
+          end.values
+        end.each do |features|
+          label_features << features
         end
       end
     end
@@ -302,22 +295,22 @@ module NSWTopo
       @labelling_neatline.contains? label.hull
     end
 
-    def point_candidates(collection, label_index, feature_index, feature)
-      attributes  = feature.properties
-      margin      = attributes["margin"]
-      line_height = attributes["line-height"]
-      font_size   = attributes["font-size"]
+    def point_candidates(feature)
+      margin      = feature["margin"]
+      line_height = feature["line-height"]
+      font_size   = feature["font-size"]
+      text        = feature[:text]
 
       point = feature.coordinates
-      lines = Font.in_two collection.text, attributes
-      lines = [[collection.text, Font.glyph_length(collection.text, attributes)]] if lines.map(&:first).map(&:length).min == 1
+      lines = Font.in_two text, feature.properties
+      lines = [[text, Font.glyph_length(text, feature.properties)]] if lines.map(&:first).map(&:length).min == 1
       height = lines.map { font_size }.inject { |total| total + line_height }
-      # if attributes["shield"]
+      # if feature["shield"]
       #   width += SHIELD_X * font_size
       #   height += SHIELD_Y * font_size
       # end
 
-      [*attributes["position"] || "over"].map do |position|
+      [*feature["position"] || "over"].map do |position|
         dx = position =~ /right$/ ? 1 : position =~ /left$/  ? -1 : 0
         dy = position =~ /^below/ ? 1 : position =~ /^above/ ? -1 : 0
         next dx, dy, dx * dy == 0 ? 1 : 0.6
@@ -341,9 +334,8 @@ module NSWTopo
           next text_element, baseline
         end.transpose
 
-        priority = [position_index, feature_index]
-
-        Label.new baselines.inject(&:+), collection, label_index, feature_index, priority, attributes, text_elements, &barriers
+        priority = [position_index, feature[:feature_index]]
+        Label.new baselines.inject(&:+), feature, priority, text_elements, &barriers
       end.reject do |candidate|
         candidate.optional? && candidate.barriers?
       end.select do |candidate|
@@ -356,25 +348,25 @@ module NSWTopo
       end
     end
 
-    def line_string_candidates(collection, label_index, feature_index, feature)
-      attributes  = feature.properties
-      orientation = attributes["orientation"]
-      max_turn    = attributes["max-turn"] * Math::PI / 180
-      min_radius  = attributes["min-radius"]
-      max_angle   = attributes["max-angle"] * Math::PI / 180
-      curved      = attributes["curved"]
-      sample      = attributes["sample"]
-      font_size   = attributes["font-size"]
+    def line_string_candidates(feature)
+      orientation = feature["orientation"]
+      max_turn    = feature["max-turn"] * Math::PI / 180
+      min_radius  = feature["min-radius"]
+      max_angle   = feature["max-angle"] * Math::PI / 180
+      curved      = feature["curved"]
+      sample      = feature["sample"]
+      font_size   = feature["font-size"]
+      text        = feature[:text]
 
       closed = feature.closed?
 
-      text_length = case collection.text
+      text_length = case text
       when REXML::Element then feature.path_length
-      when String then Font.glyph_length collection.text, attributes
+      when String then Font.glyph_length text, feature.properties
       end
 
       points, deltas, angles, avoid = feature.coordinates.each_cons(2).flat_map do |p0, p1|
-        next [p0] if REXML::Element === collection.text
+        next [p0] if REXML::Element === text
         distance = (p1 - p0).norm
         next [p0] if curved && distance >= text_length
         (0...1).step(sample/distance).map do |fraction|
@@ -440,21 +432,21 @@ module NSWTopo
         end
         priority = [angle_square_sum, (total - 2 * along).abs / total]
 
-        path_id = [@name, collection.layer_name, "path", label_index, feature_index, indices.first, indices.last].join ?.
+        path_id = [@name, "path", *feature.values_at(:layer_name, :label_index, :feature_index), indices.first, indices.last].join ?.
         path_element = REXML::Element.new("path")
         path_element.add_attributes "id" => path_id, "d" => baseline.svg_path_data, "pathLength" => VALUE % text_length
         text_element = REXML::Element.new("text")
 
-        case collection.text
+        case text
         when REXML::Element
           fixed = true
-          text_element.add_element collection.text, "href" => "#%s" % path_id
+          text_element.add_element text, "href" => "#%s" % path_id
         when String
           text_path = text_element.add_element "textPath", "href" => "#%s" % path_id, "textLength" => VALUE % text_length, "spacing" => "auto"
-          text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(collection.text)
+          text_path.add_element("tspan", "dy" => VALUE % (CENTRELINE_FRACTION * font_size)).add_text(text)
         end
 
-        Label.new baseline, collection, label_index, feature_index, priority, attributes, [text_element, path_element], along: along, fixed: fixed, &barriers
+        Label.new baseline, feature, priority, [text_element, path_element], along: along, fixed: fixed, &barriers
       end.reject do |candidate|
         candidate.optional? && candidate.barriers?
       end.select do |candidate|
@@ -481,7 +473,7 @@ module NSWTopo
           removed.merge neighbours[candidate]
           sampled << candidate
         end.tap do |candidates|
-          next unless separation = attributes.dig("separation", "along")
+          next unless separation = feature.dig("separation", "along")
           separation += text_length
           sorted = candidates.sort_by(&:along)
           sorted.each.with_index do |candidate1, index1|
@@ -501,16 +493,16 @@ module NSWTopo
     end
 
     def label_candidates(&debug)
-      label_features.flat_map.with_index do |collection, label_index|
+      label_features.flat_map.with_index do |features, label_index|
         log_update "compositing %s: feature %i of %i" % [@name, label_index + 1, label_features.length]
-        collection.map do |feature|
-          font_size = feature.properties["font-size"]
-          properties = feature.properties.slice(*FONT_SCALED_ATTRIBUTES).transform_values do |value|
+        features.map do |feature|
+          font_size = feature["font-size"]
+          properties = feature.slice(*FONT_SCALED_ATTRIBUTES).transform_values do |value|
             /^\d+%$/ === value ? value.to_i * font_size * 0.01 : value
           end.then do |scaled_properties|
-            feature.properties.except(*FONT_SCALED_ATTRIBUTES).merge(scaled_properties)
+            feature.except(*FONT_SCALED_ATTRIBUTES).merge(scaled_properties)
           end
-          feature.with_properties(properties)
+          feature.with_properties(**properties)
         end.flat_map do |feature|
           case feature
           when GeoJSON::Point, GeoJSON::LineString
@@ -520,12 +512,14 @@ module NSWTopo
           end
         end.tap do |features|
           features.each.with_object("feature", &debug) if Config["debug"]
-        end.flat_map.with_index do |feature, feature_index|
+        end.map.with_index do |feature, feature_index|
+          feature.add_properties label_index: label_index, feature_index: feature_index
+        end.flat_map do |feature|
           case feature
           when GeoJSON::Point
-            point_candidates(collection, label_index, feature_index, feature)
+            point_candidates(feature)
           when GeoJSON::LineString
-            line_string_candidates(collection, label_index, feature_index, feature)
+            line_string_candidates(feature)
           end
         end.tap do |candidates|
           candidates.reject!(&:point?) unless candidates.all?(&:point?)
@@ -668,7 +662,7 @@ module NSWTopo
           end
         end
       end.flat_map do |label|
-        label.elements.map.with_object(label["categories"]).entries
+        label.elements.map.with_object(label[:categories]).entries
       end.tap do |result|
         next unless debug_features.any?
         @params = DEBUG_PARAMS.deep_merge @params

@@ -21,7 +21,7 @@ module NSWTopo
         attr_reader :coordinates, :properties
 
         extend Forwardable
-        delegate %i[[] fetch values_at key?] => :@properties
+        delegate %i[[] fetch values_at key? slice except dig] => :@properties
         delegate %i[empty?] => :@coordinates
         delegate %i[to_json] => :to_h
       end
@@ -38,7 +38,11 @@ module NSWTopo
       end
 
       klass.define_method :with_properties do |properties|
-        klass.new @coordinates, properties
+        klass.new @coordinates, **properties
+      end
+
+      klass.define_method :add_properties do |properties|
+        klass.new @coordinates, **@properties, **properties
       end
 
       next type, const_set(type, klass)

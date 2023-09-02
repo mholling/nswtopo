@@ -1,5 +1,6 @@
 module NSWTopo
   class Archive
+    using Helpers
     extend Safely
     include Enumerable
     Invalid = Class.new RuntimeError

@@ -19,7 +19,7 @@ require_relative 'layer/labels'
 
 module NSWTopo
   class Layer
-    using DeepMerge
+    using Helpers
     TYPES = Set[Vegetation, Import, ColourMask, ArcGISRaster, Feature, Contour, Spot, Overlay, Relief, Grid, Declination, Control, Labels]
 
     def initialize(name, map, params)

@@ -1,5 +1,6 @@
 module NSWTopo
   module Raster
+    using Helpers
     def create
       Dir.mktmppath do |temp_dir|
         args = ["-t_srs", @map.projection, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin/", "-te", *@map.te, "-of", "GTiff", "-co", "TILED=YES"]

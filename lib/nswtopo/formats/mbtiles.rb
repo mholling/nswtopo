@@ -1,5 +1,6 @@
 module NSWTopo
   module Formats
+    using Helpers
     def render_mbtiles(mbtiles_path, name:, **options, &block)
       wgs84_bounds = @cutline.reproject_to_wgs84.bounds
       sql = <<~SQL

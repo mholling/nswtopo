@@ -1,5 +1,6 @@
 module NSWTopo
   module Formats
+    using Helpers
     def render_gemf(gemf_path, name:, **options, &block)
       Dir.mktmppath do |temp_dir|
         ranges = tiled_web_map(temp_dir, **options, extension: "gemf", &block).sort_by do |tile|

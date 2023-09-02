@@ -3,7 +3,7 @@ require_relative 'vector_render/knockout'
 
 module NSWTopo
   module VectorRender
-    using DeepMerge
+    using Helpers
     include SVG
 
     SVG_ATTRIBUTES = %w[

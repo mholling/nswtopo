@@ -1,5 +1,6 @@
 module NSWTopo
   module Formats
+    using Helpers
     def render_zip(zip_path, name:, ppi: PPI, **options)
       Dir.mktmppath do |temp_dir|
         zip_dir = temp_dir.join("zip").tap(&:mkpath)

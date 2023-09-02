@@ -1,5 +1,6 @@
 module NSWTopo
   module Formats
+    using Helpers
     def render_pdf(pdf_path, ppi: nil, background:, **options)
       if ppi
         OS.gdal_translate "-of", "PDF", "-co", "DPI=#{ppi}", "-co", "MARGIN=0", "-co", "CREATOR=nswtopo", "-co", "GEO_ENCODING=ISO32000", yield(ppi: ppi), pdf_path

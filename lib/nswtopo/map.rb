@@ -1,5 +1,6 @@
 module NSWTopo
   class Map
+    using Helpers
     include Formats, Dither, Zip, Log, Safely, TiledWebMap
 
     def initialize(archive, neatline:, centre:, dimensions:, scale:, rotation:, layers: {})

@@ -1,7 +1,8 @@
 module NSWTopo
   module Control
-    using DeepMerge
+    using Helpers
     include VectorRender
+
     CREATE = %w[diameter spot font-size colour]
     DEFAULTS = YAML.load <<~YAML
       diameter: 7.0

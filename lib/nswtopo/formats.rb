@@ -8,7 +8,9 @@ require_relative 'formats/svgz'
 
 module NSWTopo
   module Formats
+    using Helpers
     include Log
+
     PPI = 300
     TILE = 1500
     CHROME_ARGS = %w[--force-gpu-mem-available-mb=4096]

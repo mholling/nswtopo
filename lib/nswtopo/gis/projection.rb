@@ -10,7 +10,7 @@ module NSWTopo
     alias to_str wkt2
 
     def ==(other)
-      wkt2 == other.wkt2
+      super || wkt2 == other.wkt2
     end
 
     extend Forwardable

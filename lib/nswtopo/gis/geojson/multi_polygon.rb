@@ -8,13 +8,21 @@ module NSWTopo
         freeze
       end
 
+      def rings
+        MultiLineString.new @coordinates.flatten(1), @properties
+      end
+
       def area
         rings.explode.sum(&:signed_area)
       end
 
+      def nodes
+        Nodes.new rings
+      end
+
       def skeleton
         segments = []
-        Nodes.new(@coordinates.flatten(1)).progress do |event, node0, node1|
+        nodes.progress do |event, node0, node1|
           segments << [node0.point.to_f, node1.point.to_f]
         end
         MultiLineString.new segments, @properties
@@ -24,7 +32,7 @@ module NSWTopo
         neighbours = Hash.new { |neighbours, node| neighbours[node] = [] }
         samples, tails, node1 = {}, {}, nil
 
-        Nodes.new(@coordinates.flatten(1)).progress(interval: interval) do |event, *args|
+        nodes.progress(interval: interval) do |event, *args|
           case event
           when :nodes
             node0, node1 = *args
@@ -92,19 +100,11 @@ module NSWTopo
       end
 
       def buffer(*margins, **options)
-        margins.each.with_object(Nodes.new @coordinates.flatten(1)) do |margin, nodes|
-          nodes.progress limit: -margin, **options.slice(:rounding_angle, :cutoff_angle)
-        end.readout.map do |ring|
-          LineString.new ring, @properties
-        end.inject(empty_linestrings, &:+).to_multipolygon
+        rings.offset(*margins.map(&:-@), **options).to_multipolygon
       end
 
       def centroids
         map(&:centroid).inject(empty_points, &:+)
-      end
-
-      def rings
-        MultiLineString.new @coordinates.flatten(1), @properties
       end
 
       def samples(interval)

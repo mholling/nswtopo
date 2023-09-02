@@ -12,8 +12,12 @@ module NSWTopo
         sum(&:path_length)
       end
 
+      def nodes
+        Nodes.new self
+      end
+
       def offset(*margins, **options)
-        linestrings = margins.inject Nodes.new(@coordinates) do |nodes, margin|
+        linestrings = margins.inject nodes do |nodes, margin|
           nodes.progress limit: margin, **options.slice(:rounding_angle, :cutoff_angle)
         end.readout
         MultiLineString.new linestrings, @properties
@@ -24,7 +28,7 @@ module NSWTopo
       end
 
       def smooth(margin, **options)
-        linestrings = Nodes.new(@coordinates).tap do |nodes|
+        linestrings = nodes.tap do |nodes|
           nodes.progress **options.slice(:rounding_angle).merge(limit: margin)
           nodes.progress **options.slice(:rounding_angle, :cutoff_angle).merge(limit: -2 * margin)
           nodes.progress **options.slice(:rounding_angle, :cutoff_angle).merge(limit: margin)

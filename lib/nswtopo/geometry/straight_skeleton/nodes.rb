@@ -294,9 +294,7 @@ module StraightSkeleton
           node.project(travel).to_f
         end
       end.map do |points|
-        points.each_cons(2).reject do |p0, p1|
-          p0 == p1
-        end.map(&:last).unshift(points.first)
+        points.chunk(&:itself).map(&:first)
       end.reject(&:one?)
     end
 

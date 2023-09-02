@@ -9,6 +9,7 @@ require_relative 'labels/label'
 
 module NSWTopo
   module Labels
+    using DeepMerge
     include VectorRender, Log
     CENTRELINE_FRACTION = 0.35
     DEFAULT_SAMPLE = 5

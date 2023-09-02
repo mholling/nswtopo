@@ -1,5 +1,6 @@
 module NSWTopo
   module Config
+    using DeepMerge
     include Log
     singleton_class.attr_writer :extra_path
 

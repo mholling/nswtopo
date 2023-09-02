@@ -7,7 +7,7 @@ Gem::Specification.new do |spec|
   spec.homepage              = "https://github.com/mholling/nswtopo"
   spec.license               = "AGPL-3.0"
   spec.files                 = Dir["lib/**/*.rb", "bin/nswtopo", "docs/**/*.md", "COPYING"]
-  spec.required_ruby_version = ">= 3.0.4"
+  spec.required_ruby_version = ">= 3.1.4"
   spec.executables  << "nswtopo"
   spec.requirements << "GDAL >= v3.4"
   spec.requirements << "Google Chrome >= v112"

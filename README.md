@@ -14,7 +14,7 @@ The preferred operating system for *nswtopo* is a Unix-style OS such as Linux or
 
 The following software is required in order to run *nswtopo*:
 
-* The [*Ruby* programming language](https://www.ruby-lang.org). You'll need at least Ruby 3.0.4.
+* The [*Ruby* programming language](https://www.ruby-lang.org). You'll need at least Ruby 3.1.4.
 * The [*GDAL*](https://gdal.org) command-line utilities, version 3.4 or later, for geospatial data processing.
 * The [*Google Chrome*](https://www.google.com/chrome) or [*Chromium*](https://www.chromium.org/) web browser.
 

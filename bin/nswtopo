@@ -37,8 +37,8 @@ begin
   end
 
   case
-  when (RUBY_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [3,0,4]) < 0
-    log_abort "ruby 3.0.4 or greater required"
+  when (RUBY_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [3,1,4]) < 0
+    log_abort "ruby 3.1.4 or greater required"
   when !Zlib.const_defined?(:GzipFile)
     log_abort "ruby with GZIP_SUPPORT required"
   when (GDAL_VERSION.split(/\D+/).take(3).map(&:to_i) <=> [3,4]) < 0

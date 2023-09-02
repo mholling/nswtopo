@@ -21,7 +21,7 @@ module NSWTopo
         yield entry unless @entries.key? entry.full_name
       end
       @entries.each do |filename, entry|
-        yield entry if entry
+        yield entry.tap(&:rewind) if entry
       end
     end
 

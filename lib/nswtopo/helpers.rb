@@ -5,7 +5,6 @@ module Helpers
   refine Dir.singleton_class do
     def mktmppath
       mktmpdir("nswtopo_") do |path|
-        puts path
         yield Pathname.new(path)
       end
     end

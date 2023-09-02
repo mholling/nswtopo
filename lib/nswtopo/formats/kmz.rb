@@ -1,8 +1,8 @@
 module NSWTopo
   module Formats
-    module Kmz
-      using Helpers
+    using Helpers
 
+    module Kmz
       TILE_SIZE = 512
       EARTH_RADIUS = 6378137.0
       TILT = 0 # 40 * Math::PI / 180.0

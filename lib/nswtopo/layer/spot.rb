@@ -2,6 +2,7 @@ module NSWTopo
   module Spot
     using Helpers
     include VectorRender, DEM, Log
+
     CREATE = %w[spacing smooth prefer extent]
     DEFAULTS = YAML.load <<~YAML
       spacing: 15

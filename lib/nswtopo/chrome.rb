@@ -111,8 +111,8 @@ module NSWTopo
       @id, @data_dir = 0, Dir.mktmpdir("nswtopo_headless_chrome_")
       ObjectSpace.define_finalizer self, Chrome.rmdir(@data_dir)
 
-      args << "--disable-gpu" if Config["gpu"] == false
-      args << "--user-data-dir=#{@data_dir}"
+      args = [*args, "--disable-gpu"] if Config["gpu"] == false
+      args = [*args, "--user-data-dir=#{@data_dir}"]
 
       input, @input, @output, output = *IO.pipe, *IO.pipe
       input.nonblock, output.nonblock = false, false

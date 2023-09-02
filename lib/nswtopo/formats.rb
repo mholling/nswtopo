@@ -11,7 +11,8 @@ module NSWTopo
     include Log
     PPI = 300
     TILE = 1500
-    ARGS = %w[--force-gpu-mem-available-mb=4096]
+    CHROME_ARGS = %w[--force-gpu-mem-available-mb=4096]
+    CHROME_INSTANCES = (ThreadPool::CORES / 4).clamp(1, 6)
 
     def self.extensions
       instance_methods.grep(/^render_([a-z]+)/) { $1 }
@@ -73,44 +74,40 @@ module NSWTopo
         megapixels = raster_size.inject(&:*) / 1024.0 / 1024.0
 
         raster_info = "%i×%i (%.1fMpx) map raster at %s" % [*raster_size, megapixels, ppi_info]
-        chrome_message = "chrome: creating #{raster_info}"
-        log_update chrome_message
+        log_update "chrome: creating #{raster_info}"
 
-        NSWTopo::Chrome.with_browser "file://#{svg_path}", width: TILE, height: TILE, args: ARGS do |browser|
-          svg = browser.query_selector "svg"
-          svg[:width], svg[:height] = nil, nil
-          svg[:viewBox].split.map(&:to_f).last(2).map do |mm|
-            (0...(mm / mm_per_px).ceil).step(TILE).map do |px|
-              [px, px * mm_per_px]
-            end
-          end.inject(&:product).map(&:transpose).tap do |grid|
-            chrome_message += " (tile %i of #{grid.size})"
-          end.map.with_index do |(raster_offset, viewport_offset), index|
-            log_update chrome_message % [index + 1]
-
-            tile_path = temp_dir.join("tile.%i.%i.png" % raster_offset)
-            viewbox = [*viewport_offset, *viewport_size].join(?\s)
-
-            svg[:viewBox] = viewbox
-            browser.screenshot tile_path
-
-            REXML::Document.new(OS.gdal_translate "-of", "VRT", tile_path, "/vsistdout/").tap do |vrt|
-              vrt.elements.each("VRTDataset/VRTRasterBand/SimpleSource/DstRect") do |dst_rect|
-                dst_rect.add_attributes "xOff" => raster_offset[0], "yOff" => raster_offset[1]
-              end
-            end
-          end.inject do |vrt, tile_vrt|
-            vrt.elements["VRTDataset/VRTRasterBand[@band='1']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='1']/SimpleSource"]
-            vrt.elements["VRTDataset/VRTRasterBand[@band='2']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='2']/SimpleSource"]
-            vrt.elements["VRTDataset/VRTRasterBand[@band='3']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='3']/SimpleSource"]
-            vrt.elements["VRTDataset/VRTRasterBand[@band='4']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='4']/SimpleSource"]
-            vrt
-          end.tap do |vrt|
-            vrt.elements.each("VRTDataset/VRTRasterBand/@blockYSize", &:remove)
-            vrt.elements.each("VRTDataset/Metadata", &:remove)
-            vrt.elements["VRTDataset"].add_attributes "rasterXSize" => raster_size[0], "rasterYSize" => raster_size[1]
-            File.write vrt_path, vrt
+        REXML::Document.new(svg_path.read).elements["svg/@viewBox"].value.split.map(&:to_f).last(2).map do |mm|
+          (0...(mm / mm_per_px).ceil).step(TILE).map do |px|
+            [px, px * mm_per_px]
           end
+        end.inject(&:product).map(&:transpose).map do |raster_offset, viewport_offset|
+          next raster_offset, viewport_offset, temp_dir.join("tile.%i.%i.png" % raster_offset)
+        end.inject(ThreadPool.new(CHROME_INSTANCES), &:<<).in_groups do |*grid|
+          NSWTopo::Chrome.with_browser "file://#{svg_path}", width: TILE, height: TILE, args: CHROME_ARGS do |browser|
+            svg = browser.query_selector "svg"
+            svg[:width], svg[:height] = nil, nil
+            grid.each do |raster_offset, viewport_offset, tile_path|
+              svg[:viewBox] = [*viewport_offset, *viewport_size].join(?\s)
+              browser.screenshot tile_path
+            end
+          end
+        end.map do |raster_offset, viewport_offset, tile_path|
+          REXML::Document.new(OS.gdal_translate "-of", "VRT", tile_path, "/vsistdout/").tap do |vrt|
+            vrt.elements.each("VRTDataset/VRTRasterBand/SimpleSource/DstRect") do |dst_rect|
+              dst_rect.add_attributes "xOff" => raster_offset[0], "yOff" => raster_offset[1]
+            end
+          end
+        end.inject do |vrt, tile_vrt|
+          vrt.elements["VRTDataset/VRTRasterBand[@band='1']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='1']/SimpleSource"]
+          vrt.elements["VRTDataset/VRTRasterBand[@band='2']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='2']/SimpleSource"]
+          vrt.elements["VRTDataset/VRTRasterBand[@band='3']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='3']/SimpleSource"]
+          vrt.elements["VRTDataset/VRTRasterBand[@band='4']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='4']/SimpleSource"]
+          vrt
+        end.tap do |vrt|
+          vrt.elements.each("VRTDataset/VRTRasterBand/@blockYSize", &:remove)
+          vrt.elements.each("VRTDataset/Metadata", &:remove)
+          vrt.elements["VRTDataset"].add_attributes "rasterXSize" => raster_size[0], "rasterYSize" => raster_size[1]
+          File.write vrt_path, vrt
         end
 
         log_update "nswtopo: finalising #{raster_info}"

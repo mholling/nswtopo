@@ -19,6 +19,7 @@ module NSWTopo
     YAML
 
     def get_features
+      @params["edge"]["stroke-width"] ||= 2 * @params["stroke-width"]
       Projection.utm_zones(@map.neatline).flat_map do |zone|
         utm, utm_geometry = Projection.utm(zone), Projection.utm_geometry(zone)
         map_geometry = @map.neatline(**MARGIN).reproject_to_wgs84
@@ -51,8 +52,7 @@ module NSWTopo
         [eastings, northings, boundary]
       end.tap do |collections|
         next unless @border
-        mm = -0.5 * @params["stroke-width"]
-        @map.neatline(mm: mm).reproject_to_wgs84.map! do |border|
+        @map.neatline.reproject_to_wgs84.map! do |border|
           border.with_properties("category" => "edge")
         end.tap do |border|
           collections << border

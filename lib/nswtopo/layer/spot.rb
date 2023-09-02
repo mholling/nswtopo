@@ -82,7 +82,7 @@ module NSWTopo
           aspect.ncols.times do |col|
             offsets.map!(&:next)
             next if row < 1 || col < 1 || row >= aspect.nrows - 1 || col >= aspect.ncols - 1
-            next if block&.call col, row
+            next if block_given? && block.call(col, row)
             ccw, cw = offsets.each_cons(2).inject([true, true]) do |(ccw, cw), (o1, o2)|
               break unless ccw || cw
               a1, a2 = aspect.values.values_at o1, o2

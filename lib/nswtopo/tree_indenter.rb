@@ -3,7 +3,7 @@ module NSWTopo
     def initialize(items, parts = nil, &block)
       @enum = Enumerator.new do |yielder|
         next unless items
-        grouped = block ? block.(items) : items
+        grouped = block_given? ? block.call(items) : items
         grouped.each.with_index do |(item, group), index|
           *new_parts, last_part = parts
           case last_part

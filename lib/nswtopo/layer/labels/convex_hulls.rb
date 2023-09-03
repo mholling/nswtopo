@@ -41,9 +41,9 @@ module NSWTopo
         block_given? ? enum.each(&block) : enum
       end
 
-      def self.overlap?(*rings, buffer: 0)
+      def self.overlap?(ring0, ring1, buffer)
         # implements Gilbert–Johnson–Keerthi
-        simplex = [rings.map(&:first).inject(&:-)]
+        simplex = [ring0.first - ring1.first]
         perp = simplex[0].perp
         loop do
           return true unless case
@@ -52,8 +52,8 @@ module NSWTopo
           when simplex.inject(&:-).dot(simplex[0]) < 0 then simplex[0].norm
           else simplex.inject(&:cross).abs / simplex.inject(&:-).norm
           end > buffer
-          max = rings[0].max_by { |point| perp.cross point }
-          min = rings[1].min_by { |point| perp.cross point }
+          max = ring0.max_by { |point| perp.cross point }
+          min = ring1.min_by { |point| perp.cross point }
           support = max - min
           return false unless (simplex[0] - support).cross(perp) > 0
           rays = simplex.map { |point| point - support }

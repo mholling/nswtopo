@@ -32,11 +32,11 @@ class RTree
     end
   end
 
-  def search(bounds, buffer: 0)
+  def search(bounds, buffer = 0)
     Enumerator.new do |yielder|
       if overlaps? bounds, buffer
         @nodes.each do |node|
-          node.search(bounds, buffer: buffer).each(&yielder)
+          node.search(bounds, buffer).each(&yielder)
         end
         yielder << @object if @nodes.empty?
       end

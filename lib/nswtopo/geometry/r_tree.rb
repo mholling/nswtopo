@@ -3,6 +3,8 @@ class RTree
     @nodes, @bounds, @object = nodes, bounds, object
   end
 
+  attr_reader :bounds
+
   def overlaps?(bounds, buffer)
     return false if @bounds.empty?
     return true unless bounds
@@ -27,7 +29,7 @@ class RTree
           load bounds_objects
         end
       end.then do |nodes|
-        RTree.new nodes, bounds_objects.map(&:first).transpose.map(&:flatten).map(&:minmax)
+        RTree.new nodes, nodes.map(&:bounds).transpose.map(&:flatten).map(&:minmax)
       end
     end
   end

@@ -6,10 +6,8 @@ class RTree
   def overlaps?(bounds, buffer)
     return false if @bounds.empty?
     return true unless bounds
-    bounds.zip(@bounds).all? do |bound1, bound2|
-      bound1.zip(bound2.rotate).each.with_index.all? do |limits, index|
-        limits.rotate(index).inject(&:-) <= buffer
-      end
+    bounds.zip(@bounds).all? do |(min1, max1), (min2, max2)|
+      max1 + buffer >= min2 && max2 + buffer >= min1
     end
   end
 
@@ -34,16 +32,14 @@ class RTree
     end
   end
 
-  def search(bounds, buffer: 0, searched: Set.new)
+  def search(bounds, buffer: 0)
     Enumerator.new do |yielder|
-      next if searched.include? self
       if overlaps? bounds, buffer
         @nodes.each do |node|
-          node.search(bounds, buffer: buffer, searched: searched).each(&yielder)
+          node.search(bounds, buffer: buffer).each(&yielder)
         end
         yielder << @object if @nodes.empty?
       end
-      searched << self
     end
   end
 

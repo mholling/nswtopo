@@ -3,7 +3,7 @@ module NSWTopo
     using Helpers
     include VectorRender, DEM, Log
 
-    CREATE = %w[spacing smooth prefer extent]
+    CREATE = %w[spacing smooth prefer extent epsg]
     DEFAULTS = YAML.load <<~YAML
       spacing: 15
       smooth: 0.2

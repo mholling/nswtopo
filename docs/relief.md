@@ -14,9 +14,8 @@ No configuration is needed to get good results from ELVIS data. Use the followin
 * **resolution**: resolution for the DEM data; a lower value will reduce file size but yields a smoother effect
 * **opacity**: overall layer opacity
 * **altitude**: raking angle of the light from the horizon
-* **azimuth**: azimuth angle of the light, clockwise from north; deviation from the 315° default can be counter-intuitive
-* **sources**: number of light sources to use for multi-directional shading
-* **yellow**: amount of yellow illumination to apply as a fraction of grey shading
 * **factor**: vertical exaggeration factor
 
 Opacity and exaggeration can both be used to adjust the subtly of the shading effect.
+
+Use the `--epsg` option to override the EPSG projection code for the DEM, in case of missing metadata (e.g. ACT 2015 DEM tiles).

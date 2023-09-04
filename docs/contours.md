@@ -14,6 +14,8 @@ Noise in raw elevation data usually produces unsuitably rough contour lines. Som
 
 DEM tiles are normally processed at their maximumum native resolution. Change this using the `--resolution` option. A reduced resolution (say 5 metres) can markedly improve processing speed for 1- and 2-metre tiles.
 
+Use the `--epsg` option to override the EPSG projection code for the DEM, in case of missing metadata (e.g. ACT 2015 DEM tiles).
+
 # Layer Position
 
 Use an `--after`, `--before` or `--replace` option to insert the contours in an appropriate layer position. You will most likely want to replace an existing contour layer:

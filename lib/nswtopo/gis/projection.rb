@@ -29,6 +29,10 @@ module NSWTopo
       new("EPSG:4326")
     end
 
+    def self.epsg(epsg)
+      new("EPSG:#{epsg}")
+    end
+
     def self.from(**params)
       params.map do |key, value|
         "+#{key}=#{value}"

@@ -3,7 +3,7 @@ module NSWTopo
     using Helpers
     include VectorRender, DEM, Log
 
-    CREATE = %w[interval index auxiliary smooth simplify thin density min-length no-depression knolls fill]
+    CREATE = %w[interval index auxiliary smooth simplify thin density min-length no-depression knolls fill epsg]
     DEFAULTS = YAML.load <<~YAML
       interval: 5
       smooth: 0.2

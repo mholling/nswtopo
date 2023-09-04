@@ -1,7 +1,7 @@
 module NSWTopo
   module Relief
     include Raster, MaskRender, DEM, Log
-    CREATE = %w[method azimuth factor smooth contours]
+    CREATE = %w[method azimuth factor smooth contours epsg]
     DEFAULTS = YAML.load <<~YAML
       shade: rgb(0,0,48)
       method: combined

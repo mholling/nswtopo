@@ -16,7 +16,7 @@ module NSWTopo
         raise "no elevation data found at specified path" if rasters.none?
         log_update "%s: extracting DEM raster" % @name
       end.group_by do |path, info|
-        Projection.new info.dig("coordinateSystem", "wkt")
+        @epsg ? Projection.epsg(@epsg) : Projection.new(info.dig("coordinateSystem", "wkt"))
       end.map.with_index do |(projection, rasters), index|
         raise "DEM data not in planar projection with metre units" unless projection.metres?
 

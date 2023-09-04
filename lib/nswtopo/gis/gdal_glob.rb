@@ -32,7 +32,7 @@ module NSWTopo
         yield [index + 1, total] if block_given?
         info = JSON.parse OS.gdalinfo("-json", path)
         next unless info["geoTransform"]
-        next unless wkt = info.dig("coordinateSystem", "wkt")
+        next unless @epsg || info.dig("coordinateSystem", "wkt")
         next path, info
       rescue JSON::ParserError
       end

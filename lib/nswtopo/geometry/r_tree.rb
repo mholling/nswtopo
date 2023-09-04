@@ -1,4 +1,6 @@
 class RTree
+  using Helpers
+
   def initialize(nodes, bounds, object = nil)
     @nodes, @bounds, @object = nodes, bounds, object
   end
@@ -13,24 +15,22 @@ class RTree
     end
   end
 
-  def self.load(bounds_objects, &block)
-    case
-    when block_given? then load bounds_objects.map(&block).zip(bounds_objects)
-    when bounds_objects.one? then RTree.new [], *bounds_objects.first
-    else
-      sorted_x = bounds_objects.sort_by do |bounds, object|
-        bounds[0].inject(&:+)
+  def self.load(objects, &bounds)
+    load! objects.map(&bounds).zip(objects)
+  end
+
+  def self.load!(bounds_objects, range = 0...bounds_objects.length)
+    return RTree.new([], *bounds_objects[range.begin]) if range.one?
+    bounds_objects.median_partition!(range) do |bounds, object|
+      bounds[0].sum
+    end.flat_map do |range|
+      bounds_objects.median_partition!(range) do |bounds, object|
+        bounds[1].sum
       end
-      sorted_x.each_slice(1 + [sorted_x.length - 1, 0].max / 2).flat_map do |bounds_objects|
-        sorted_y = bounds_objects.sort_by do |bounds, object|
-          bounds[1].inject(&:+)
-        end
-        sorted_y.each_slice(1 + [sorted_y.length - 1, 0].max / 2).map do |bounds_objects|
-          load bounds_objects
-        end
-      end.then do |nodes|
-        RTree.new nodes, nodes.map(&:bounds).transpose.map(&:flatten).map(&:minmax)
-      end
+    end.filter_map do |range|
+      load!(bounds_objects, range) if range.any?
+    end.then do |nodes|
+      RTree.new nodes, nodes.map(&:bounds).transpose.map(&:flatten).map(&:minmax)
     end
   end
 

@@ -264,7 +264,7 @@ module StraightSkeleton
       end.map do |edge|
         [edge.map(&:point).transpose.map(&:minmax), edge]
       end.tap do |bounds_edges|
-        @index = RTree.load bounds_edges
+        @index = RTree.load! bounds_edges
       end
 
       @active.select(&:splits?).each do |node|

@@ -13,7 +13,7 @@ module NSWTopo
       end
 
       def area
-        rings.explode.sum(&:signed_area)
+        rings.sum(&:signed_area)
       end
 
       def nodes

@@ -20,7 +20,7 @@ module NSWTopo
         freeze
       end
 
-      delegate %i[area skeleton centres centrepoints centrelines buffer samples] => :multi
+      delegate %i[skeleton centres centrepoints centrelines buffer samples] => :multi
 
       def bounds
         first.transpose.map(&:minmax)
@@ -51,6 +51,10 @@ module NSWTopo
 
       def add_ring(ring)
         Polygon.new [*@coordinates, ring.coordinates], @properties
+      end
+
+      def area
+        rings.sum(&:signed_area)
       end
 
       def remove_holes(&block)

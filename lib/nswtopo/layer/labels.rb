@@ -225,7 +225,7 @@ module NSWTopo
                   end
                 when GeoJSON::MultiPolygon
                   feature.reject_polygons do |polygon|
-                    polygon.signed_area < area
+                    polygon.area < area
                   end
                 else
                   feature

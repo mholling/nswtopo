@@ -58,9 +58,9 @@ module NSWTopo
       end
 
       def remove_holes(&block)
-        rings.reject do |ring|
+        rings.reject_linestrings do |ring|
           ring.interior? && (block_given? ? block.call(ring) : true)
-        end.inject(&:+).to_polygon
+        end.to_polygon
       end
 
       def contains?(geometry)

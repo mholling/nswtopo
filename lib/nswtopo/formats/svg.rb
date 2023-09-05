@@ -17,14 +17,6 @@ module NSWTopo
   end
 
   module Formats
-    def neatline_path_data
-      @neatline.coordinates.map do |ring|
-        ring.map do |point|
-          point.join(" ")
-        end.join(" L ").prepend("M ").concat(" Z")
-      end.join(" ")
-    end
-
     def render_svg(svg_path, background:, **options)
       if uptodate?("map.svg", "map.yml")
         log_update "nswtopo: reading existing map SVG"
@@ -63,7 +55,7 @@ module NSWTopo
         # add defs for map filters and masks
         defs = svg.add_element("defs", "id" => "map.defs")
         defs.add_element("rect", "id" => "map.rect", "width" => width, "height" => height)
-        defs.add_element("path", "id" => "map.neatline", "d" => neatline_path_data)
+        defs.add_element("path", "id" => "map.neatline", "d" => @neatline.svg_path_data)
         defs.add_element("clipPath", "id" => "map.clip").add_element("use", "href" => "#map.neatline")
 
         # add a filter converting alpha channel to cutout mask

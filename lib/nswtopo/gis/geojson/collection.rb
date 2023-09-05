@@ -67,7 +67,7 @@ module NSWTopo
       end
 
       extend Forwardable
-      delegate %i[coordinates properties wkt area] => :first
+      delegate %i[coordinates properties wkt area svg_path_data] => :first
       delegate %i[length] => :@features
 
       def to_json(**extras)

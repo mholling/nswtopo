@@ -78,8 +78,8 @@ module NSWTopo
         raster_info = "%i×%i (%.1fMpx) map raster at %s" % [*raster_size, megapixels, ppi_info]
         log_update "chrome: creating #{raster_info}"
 
-        REXML::Document.new(svg_path.read).elements["svg/@viewBox"].value.split.map(&:to_f).last(2).map do |mm|
-          (0...(mm / mm_per_px).ceil).step(TILE).map do |px|
+        raster_size.map do |px|
+          (0...px).step(TILE).map do |px|
             [px, px * mm_per_px]
           end
         end.inject(&:product).map(&:transpose).map do |raster_offset, viewport_offset|

@@ -701,6 +701,7 @@ summary,
   overflow: hidden;
   padding: 0;
   position: absolute;
+  display: none;
 }
 .carousel > input:nth-of-type(1):checked ~ ul.slides > li.slide:first-of-type { margin-left:    0%; }
 .carousel > input:nth-of-type(2):checked ~ ul.slides > li.slide:first-of-type { margin-left: -100%; }

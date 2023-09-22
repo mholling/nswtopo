@@ -34,7 +34,7 @@ module NSWTopo
         [cols, rows].zip(tile_sizes).map do |indices, tile_size|
           indices.map { |index| index * tile_size * tile_resolution }
         end.transpose.map do |corner|
-          Vector[*corner] + Vector[*origin]
+          corner.zip(origin).map(&:sum)
         end.transpose.then do |bounds|
           ring = bounds.inject(&:product).values_at(0,2,3,1,0)
           ullr = bounds.inject(&:product).values_at(1,2).flatten

@@ -26,17 +26,15 @@ module NSWTopo
       end || lods.last
       tile_level, tile_resolution = lod.values_at "level", "resolution"
 
-      target_bbox.coordinates.first.map do |corner|
-        corner - origin
-      end.transpose.map(&:minmax).zip(tile_sizes).map do |bound, tile_size|
-        bound / tile_resolution / tile_size
+      target_bbox.bounds.zip(origin, tile_sizes).map do |(min, max), origin, tile_size|
+        [(min - origin) / tile_resolution / tile_size, (max - origin) / tile_resolution / tile_size]
       end.map do |min, max|
         (min.floor..max.ceil).each_cons(2).to_a
       end.inject(&:product).inject(GeoJSON::Collection.new(projection: service.projection)) do |tiles, (cols, rows)|
         [cols, rows].zip(tile_sizes).map do |indices, tile_size|
           indices.map { |index| index * tile_size * tile_resolution }
         end.transpose.map do |corner|
-          corner + origin
+          Vector[*corner] + Vector[*origin]
         end.transpose.then do |bounds|
           ring = bounds.inject(&:product).values_at(0,2,3,1,0)
           ullr = bounds.inject(&:product).values_at(1,2).flatten

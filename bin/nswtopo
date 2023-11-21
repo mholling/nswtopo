@@ -220,6 +220,7 @@ begin
       parser.on "-b", "--bounds      <bounds.kml>",   Pathname,    "bounds for map as KML or GPX file"
       parser.on "-c", "--coords      <x1,y1,...>",    CoordList,   "bounds for map as one or more WGS84",
                                                                    "longitude/latitude pairs" 
+      parser.on "-n", "--neatline    <neatline.kml>", Pathname,    "neatline for map as KML file"
       parser.on "-d", "--dimensions  <width,height>", Dimensions,  "map dimensions in mm"
       parser.on "-r", "--rotation    <rotation>",     Rotation,    "map rotation angle in clockwise",
                                                                    "degrees, 'auto' or 'magnetic'"

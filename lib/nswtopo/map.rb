@@ -16,12 +16,18 @@ module NSWTopo
     extend Forwardable
     delegate %i[write mtime read uptodate?] => :@archive
 
-    def self.init(archive, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, dimensions: nil, margins: nil, **neatline_options)
+    def self.init(archive, scale: 25000, rotation: 0.0, bounds: nil, coords: nil, neatline: nil, dimensions: nil, margins: nil, **neatline_options)
       points = case
       when dimensions && margins
         raise "can't specify both margins and map dimensions"
+      when dimensions && neatline
+        raise "can't specify both neatline and map dimensions"
+      when bounds && neatline
+        raise "can't specify both bounds and neatline"
+      when coords && neatline
+        raise "can't specify both neatline and map coordinates"
       when coords && bounds
-        raise "can't specify both bounds file and map coordinates"
+        raise "can't specify both bounds and map coordinates"
       when coords
         GeoJSON.multipoint(coords)
       when bounds
@@ -29,6 +35,10 @@ module NSWTopo
           margins ||= [15, 15] unless dimensions || gps.polygons.any?
           raise "no features found in %s" % bounds if gps.none?
         end
+      when neatline
+        neatline = GPS.load(neatline)
+        raise "neatline must be a single polygon" unless neatline.polygon?
+        neatline
       else
         raise "no bounds file or map coordinates specified"
       end.dissolve_points
@@ -73,8 +83,12 @@ module NSWTopo
         raise "not enough information to calculate map size – check bounds file, or specify map dimensions or margins"
       end
 
-      ring = [0, 0].zip(dimensions).inject(&:product).values_at(0,2,3,1,0)
-      neatline = GeoJSON.polygon [ring], projection: projection, name: "neatline"
+      if neatline
+        neatline = neatline.reproject_to projection
+      else
+        ring = [0, 0].zip(dimensions).inject(&:product).values_at(0,2,3,1,0)
+        neatline = GeoJSON.polygon [ring], projection: projection, name: "neatline"
+      end
 
       neatline_options.each do |key, value|
         case key

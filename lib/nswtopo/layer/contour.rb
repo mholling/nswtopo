@@ -42,7 +42,7 @@ module NSWTopo
     end
 
     def check_geos!
-      json = OS.ogr2ogr "-dialect", "SQLite", "-sql", "SELECT geos_version() AS version", "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "/vsistdin/" do |stdin|
+      json = OS.ogr2ogr "-dialect", "SQLite", "-sql", "SELECT geos_version() AS version", "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "GeoJSON:/vsistdin?buffer_limit=-1" do |stdin|
         stdin.write GeoJSON::Collection.new.to_json
       end
       raise unless version = JSON.parse(json).dig("features", 0, "properties", "version")
@@ -107,7 +107,7 @@ module NSWTopo
         end
 
         contours.each_slice(100).inject(nil) do |update, features|
-          OS.ogr2ogr "-a_srs", @map.projection, "-nln", "contour", *update, "-simplify", @simplify, *db_flags, db_path, "GeoJSON:/vsistdin/" do |stdin|
+          OS.ogr2ogr "-a_srs", @map.projection, "-nln", "contour", *update, "-simplify", @simplify, *db_flags, db_path, "GeoJSON:/vsistdin?buffer_limit=-1" do |stdin|
             stdin.write contours.with_features(features).to_json
           end
           %w[-update -append]

@@ -3,7 +3,7 @@ module NSWTopo
     using Helpers
     def create
       Dir.mktmppath do |temp_dir|
-        args = ["-t_srs", @map.projection, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin/", "-te", *@map.te, "-of", "GTiff", "-co", "TILED=YES"]
+        args = ["-t_srs", @map.projection, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin?buffer_limit=-1", "-te", *@map.te, "-of", "GTiff", "-co", "TILED=YES"]
         args += ["-tr", @mm_per_px, @mm_per_px] if Numeric === @mm_per_px
         OS.gdalwarp *args, get_raster(temp_dir), "/vsistdout/" do |stdin|
           stdin.puts @map.cutline.to_json
@@ -31,7 +31,7 @@ module NSWTopo
         end.then do |(width, height), (_, mm_per_px, *)|
           image.add_attributes "width" => width, "height" => height, "transform" => "scale(#{mm_per_px})"
         end
-        OS.gdal_translate "-of", "PNG", "-co", "ZLEVEL=9", "/vsistdin/", "/vsistdout/" do |stdin|
+        OS.gdal_translate "-of", "PNG", "-co", "ZLEVEL=9", "/vsistdin?buffer_limit=-1", "/vsistdout/" do |stdin|
           stdin.binmode.write tif
         end.then do |png|
           image.add_attributes "href" => "data:image/png;base64,#{Base64.encode64 png}", "image-rendering" => "optimizeQuality"
@@ -40,7 +40,7 @@ module NSWTopo
     end
 
     def to_s
-      OS.gdalinfo "-json", "/vsistdin/" do |stdin|
+      OS.gdalinfo "-json", "/vsistdin?buffer_limit=-1" do |stdin|
         stdin.binmode.write @map.read(filename)
       end.then do |json|
         JSON.parse(json).values_at "size", "geoTransform"

@@ -47,7 +47,7 @@ module NSWTopo
 
       def reproject_to(projection)
         return self if self.projection == projection
-        json = OS.ogr2ogr "-t_srs", projection, "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "GeoJSON:/vsistdin/" do |stdin|
+        json = OS.ogr2ogr "-t_srs", projection, "-f", "GeoJSON", "-lco", "RFC7946=NO", "/vsistdout/", "GeoJSON:/vsistdin?buffer_limit=-1" do |stdin|
           stdin.puts to_json
         end
         Collection.load json, projection: projection
@@ -83,7 +83,7 @@ module NSWTopo
       end
 
       def with_sql(sql, name: @name)
-        json = OS.ogr2ogr *%w[-f GeoJSON -lco RFC7946=NO /vsistdout/ GeoJSON:/vsistdin/ -dialect SQLite -sql], sql do |stdin|
+        json = OS.ogr2ogr *%w[-f GeoJSON -lco RFC7946=NO /vsistdout/ GeoJSON:/vsistdin?buffer_limit=-1 -dialect SQLite -sql], sql do |stdin|
           stdin.puts to_json
         end
         Collection.load(json, projection: @projection).with_name(name)
@@ -123,7 +123,7 @@ module NSWTopo
       end
 
       def clip(polygon)
-        OS.ogr2ogr "-f", "GeoJSON", "-lco", "RFC7946=NO", "-clipsrc", polygon.wkt, "/vsistdout/", "GeoJSON:/vsistdin/" do |stdin|
+        OS.ogr2ogr "-f", "GeoJSON", "-lco", "RFC7946=NO", "-clipsrc", polygon.wkt, "/vsistdout/", "GeoJSON:/vsistdin?buffer_limit=-1" do |stdin|
           stdin.puts to_json
         end.then do |json|
           Collection.load json, projection: @projection

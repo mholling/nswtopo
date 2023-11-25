@@ -9,6 +9,6 @@ Gem::Specification.new do |spec|
   spec.files                 = Dir["lib/**/*.rb", "bin/nswtopo", "docs/**/*.md", "COPYING"]
   spec.required_ruby_version = ">= 3.1.4"
   spec.executables  << "nswtopo"
-  spec.requirements << "GDAL >= v3.4"
+  spec.requirements << "GDAL >= v3.8"
   spec.requirements << "Google Chrome >= v112"
 end

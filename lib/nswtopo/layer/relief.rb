@@ -50,7 +50,7 @@ module NSWTopo
         end.inject(&:merge)
 
         log_update "%s: calculating DEM" % @name
-        OS.gdal_grid "-a", "linear:radius=0:nodata=-9999", "-zfield", "elevation", "-ot", "Float32", "-txe", *bounds[0], "-tye", *bounds[1], "-outsize", *outsize, "/vsistdin/", dem_path do |stdin|
+        OS.gdal_grid "-a", "linear:radius=0:nodata=-9999", "-zfield", "elevation", "-ot", "Float32", "-txe", *bounds[0], "-tye", *bounds[1], "-outsize", *outsize, "GeoJSON:/vsistdin?buffer_limit=-1", dem_path do |stdin|
           stdin.puts collection.to_json
         end
 
@@ -64,7 +64,7 @@ module NSWTopo
       begin
         log_update "%s: generating shaded relief" % @name
         OS.gdaldem *%W[hillshade -q -compute_edges -s #{@map.scale / 1000.0} -z #{@factor} -az #{@azimuth} -#{@method}], dem_path, raw_path
-        OS.gdalwarp "-t_srs", @map.projection, "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline", raw_path, tif_path do |stdin|
+        OS.gdalwarp "-t_srs", @map.projection, "-cutline", "GeoJSON:/vsistdin?buffer_limit=-1", "-crop_to_cutline", raw_path, tif_path do |stdin|
           stdin.puts cutline.to_json
         end
       rescue OS::Error

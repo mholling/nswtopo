@@ -29,7 +29,7 @@ module NSWTopo
     queue = Queue.new
     thread = Thread.new do
       while page = queue.pop
-        *, status = Open3.capture3 *%W[ogr2ogr #{path} /vsistdin/], *flags, *format_flags, stdin_data: page.to_json
+        *, status = Open3.capture3 *%W[ogr2ogr #{path} /vsistdin?buffer_limit=-1], *flags, *format_flags, stdin_data: page.to_json
         format_flags = %w[-update -append]
         queue.close unless status.success?
       end

@@ -30,7 +30,7 @@ module NSWTopo
 
         indexed_dem_path = temp_dir / "dem.#{index}.tif"
         OS.gdalbuildvrt "-overwrite", "-allow_projection_difference", "-a_srs", projection, "-input_file_list", txt_path, vrt_path
-        OS.gdalwarp "-t_srs", @map.projection, "-tr", @mm_per_px, @mm_per_px, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin/", "-crop_to_cutline", vrt_path, indexed_dem_path do |stdin|
+        OS.gdalwarp "-t_srs", @map.projection, "-tr", @mm_per_px, @mm_per_px, "-r", "bilinear", "-cutline", "GeoJSON:/vsistdin?buffer_limit=-1", "-crop_to_cutline", vrt_path, indexed_dem_path do |stdin|
           stdin.puts cutline.to_json
         end
         indexed_dem_path
@@ -64,7 +64,7 @@ module NSWTopo
       end
 
       log_update "%s: smoothing DEM raster" % @name
-      OS.gdal_translate "/vsistdin/", blur_path do |stdin|
+      OS.gdal_translate "/vsistdin?buffer_limit=-1", blur_path do |stdin|
         stdin.write xml
       end
     end

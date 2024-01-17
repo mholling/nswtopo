@@ -436,7 +436,7 @@ begin
     when "inspect"
       parser.banner = <<~EOF
         *nswtopo* *inspect* - inspect data from an ArcGIS REST endpoint or local data source
-          usage: _nswtopo_ inspect [~options~] <url-or-path>
+          usage: _nswtopo_ _inspect_ [~options~] <url-or-path>
       EOF
       parser.on "-l", "--layer      <layer>",       String,    "name of layer"
       parser.on "-i", "--id         <id>",          Integer,   "id number of layer"

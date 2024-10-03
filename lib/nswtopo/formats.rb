@@ -98,12 +98,22 @@ module NSWTopo
             vrt.elements.each("VRTDataset/VRTRasterBand/SimpleSource/DstRect") do |dst_rect|
               dst_rect.add_attributes "xOff" => raster_offset[0], "yOff" => raster_offset[1]
             end
+            vrt.elements["VRTDataset/VRTRasterBand[@band='1']"].deep_clone.then do |band|
+              vrt.elements["VRTDataset"].add_element(band)
+              band.add_attribute("band", 4)
+              band.elements["ColorInterp"].text = "Alpha"
+              band.elements["SimpleSource"]
+            end.then do |source|
+              source.name = "ComplexSource"
+              source.add_element("ScaleRatio").add_text("0")
+              source.add_element("ScaleOffset").add_text("255")
+            end unless vrt.elements["VRTDataset/VRTRasterBand[@band='4']"]
           end
         end.inject do |vrt, tile_vrt|
           vrt.elements["VRTDataset/VRTRasterBand[@band='1']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='1']/SimpleSource"]
           vrt.elements["VRTDataset/VRTRasterBand[@band='2']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='2']/SimpleSource"]
           vrt.elements["VRTDataset/VRTRasterBand[@band='3']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='3']/SimpleSource"]
-          vrt.elements["VRTDataset/VRTRasterBand[@band='4']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='4']/SimpleSource"]
+          vrt.elements["VRTDataset/VRTRasterBand[@band='4']"].add_element tile_vrt.elements["VRTDataset/VRTRasterBand[@band='4']/*[self::SimpleSource|self::ComplexSource]"]
           vrt
         end.tap do |vrt|
           vrt.elements.each("VRTDataset/VRTRasterBand/@blockYSize", &:remove)

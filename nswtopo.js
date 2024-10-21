@@ -18,7 +18,8 @@ window.addEventListener('DOMContentLoaded', event => {
 				const sheets = xhr.response.features.map(feature => {
 					return {
 						type: feature['properties']['type'],
-						url: feature['properties']['url'],
+						url: 'https://www.avenzamaps.com/maps/' + feature['properties']['id'],
+						qr: 'avenza-mapstore://product_details/' + feature['properties']['id'],
 						state: feature['properties']['state'],
 						title: feature['properties']['title'],
 						corners: feature['geometry']['coordinates'][0].map(pair => pair.reverse()),
@@ -69,11 +70,12 @@ window.addEventListener('DOMContentLoaded', event => {
 						fillOpacity: 0.05,
 						pane: sheet.type + ',' + sheet.state,
 					}).on('click', event => {
+						console.log(sheet.url);
 						window.open(sheet.url);
 					}).on('mouseover', event => {
 						event.target.setStyle({weight: 4});
 						if ('ontouchstart' in document.documentElement) return;
-						new QRCode(qrCodeContainer, {text: sheet.url, width: 128, height: 128});
+						new QRCode(qrCodeContainer, {text: sheet.qr, width: 128, height: 128});
 					}).on('mouseout', event => {
 						event.target.setStyle({weight: weight});
 						if ('ontouchstart' in document.documentElement) return;

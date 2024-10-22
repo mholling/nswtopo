@@ -70,7 +70,6 @@ window.addEventListener('DOMContentLoaded', event => {
 						fillOpacity: 0.05,
 						pane: sheet.type + ',' + sheet.state,
 					}).on('click', event => {
-						console.log(sheet.url);
 						window.open(sheet.url);
 					}).on('mouseover', event => {
 						event.target.setStyle({weight: 4});

@@ -56,9 +56,10 @@ window.addEventListener('DOMContentLoaded', event => {
 				};
 				types.forEach(type => addToggle(type, 'types'));
 				Array.from(states).filter(state => !state.includes(',')).forEach(state => addToggle(state, 'states'));
-				const qrCodeContainer = document.getElementById('qrcode');
+				const qrCodeCanvas = document.getElementById('qrcode');
+				var qrCode = new QRious({element: qrCodeCanvas});
 				const qrCodeControl = L.control({position: 'bottomleft'});
-				qrCodeControl.onAdd = map => qrCodeContainer;
+				qrCodeControl.onAdd = map => qrCodeCanvas;
 				qrCodeControl.addTo(map);
 				sheets.forEach(sheet => {
 					const weight = sheet.type === 'bundle' ? 2 : 1;
@@ -73,11 +74,12 @@ window.addEventListener('DOMContentLoaded', event => {
 					}).on('mouseover', event => {
 						event.target.setStyle({weight: 4});
 						if ('ontouchstart' in document.documentElement) return;
-						new QRCode(qrCodeContainer, {text: sheet.url, width: 128, height: 128});
+						qrCode.value = sheet.url;
+						qrCodeCanvas.style.visibility = 'visible';
 					}).on('mouseout', event => {
 						event.target.setStyle({weight: weight});
 						if ('ontouchstart' in document.documentElement) return;
-						qrCodeContainer.innerHTML = null;
+						qrCodeCanvas.style.visibility = 'hidden';
 					}).bindTooltip(sheet.title, {
 						direction: 'top',
 						opacity: 0.9,

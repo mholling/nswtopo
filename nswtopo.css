@@ -821,6 +821,7 @@ form.buy > input.shipping:checked ~ button.overseas {
   font-size: smaller;
 }
 .map #qrcode {
-  width: 128px;
-  height: 128px;
+  width: 75px;
+  height: 75px;
+  visibility: hidden;
 }

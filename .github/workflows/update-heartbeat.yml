@@ -1,0 +1,21 @@
+name: Update Heartbeat
+on:
+  workflow_dispatch:
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        ref: gh-pages
+    - name: Create heartbeat.json
+      run: |
+        echo "{\"date\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > heartbeat.json
+    - name: Commit and deploy
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add heartbeat.json
+        git commit -m "update heartbeat" || echo "No changes to commit"
+        git push

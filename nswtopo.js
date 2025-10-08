@@ -143,4 +143,23 @@ window.addEventListener('DOMContentLoaded', event => {
 			}
 		}, {passive: true});
 	});
+
+	fetch('heartbeat.json').then(response => {
+		if (!response.ok)
+			throw new Error('Failed to load heartbeat file');
+		return response.json();
+	}).then(data => {
+		const hearbeat = new Date(data.date);
+		const today = new Date();
+		const days = (today - hearbeat) / (1000 * 60 * 60 * 24);
+
+		if (days > 21) {
+			document.querySelectorAll('button').forEach(button => {
+				button.disabled = true;
+				button.textContent = "temporarily unavailable";
+			});
+		}
+	}).catch(error => {
+		console.error('Error checking heartbeat:', error);
+	});
 });

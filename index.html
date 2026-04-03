@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>nswtopo</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta name="description" content="topographic maps in digital and paper media">
+		<meta name="keywords" content="8927-3N CORANG, 8927-2N MILTON, 8927-4S ENDRICK, 8927-1S TIANJARA, 8927-4N NERRIGA, 8927-1N SASSAFRAS">
+		<link rel="stylesheet" href="nswtopo.css">
+		<link rel="stylesheet" href="https://api.mapbox.com/mapbox.js/v3.3.1/mapbox.css" media="print" onload="this.media='all'">
+		<link rel="preload" as="font" href="font/QuattrocentoSans.woff2" type="font/woff2" crossorigin>
+		<script defer src="qrious.min.js"></script>
+		<script defer src="nswtopo.js"></script>
+		<link rel="icon" href="img/icon.svg" type="image/svg+xml" sizes="any">
+		<link rel="alternate" type="application/vnd.geo+json" href="maps.json">
+	</head>
+	<body>
+		<main>
+			<h1 id="banner">
+				<picture>
+					<source type="image/svg+xml" srcset="img/banner.svg">
+					<source type="image/png" srcset="img/banner@1x.png 1x, img/banner@2x.png 2x">
+					<img src="img/banner@1x.png" width="700" height="140" alt="nswtopo: maps for print and screen">
+				</picture>
+			</h1>
+			<details id="larapinta">
+				<summary>Larapinta Trail Map</summary>
+				<p>
+					<cite>West MacDonnell Ranges and the Larapinta Trail</cite> is a four-part topographic trail map for Central Australia’s iconic Larapinta Trail.
+				</p>
+				<div class="carousel">
+					<input type="radio" name="larapinta-slides" id="larapinta-slide-1" aria-label="slide 1" checked>
+					<input type="radio" name="larapinta-slides" id="larapinta-slide-2" aria-label="slide 2">
+					<input type="radio" name="larapinta-slides" id="larapinta-slide-3" aria-label="slide 3">
+					<input type="radio" name="larapinta-slides" id="larapinta-slide-4" aria-label="slide 4">
+					<input type="radio" name="larapinta-slides" id="larapinta-slide-5" aria-label="slide 5">
+					<ul class="slides" tabindex="-1">
+						<li class="slide">
+							<picture>
+								<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-1@510x1.webp 510w, img/larapinta-1@700x1.webp 700w, img/larapinta-1@510x2.webp 1020w, img/larapinta-1@700x2.webp 1400w">
+								<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-1@510x1.jpg  510w, img/larapinta-1@700x1.jpg  700w, img/larapinta-1@510x2.jpg  1020w, img/larapinta-1@700x2.jpg  1400w">
+								<img src="img/larapinta-1@700x1.jpg" width="700" height="700" alt="cover panels of maps 1 and 4">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-2@510x1.webp 510w, img/larapinta-2@700x1.webp 700w, img/larapinta-2@510x2.webp 1020w, img/larapinta-2@700x2.webp 1400w">
+								<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-2@510x1.jpg  510w, img/larapinta-2@700x1.jpg  700w, img/larapinta-2@510x2.jpg  1020w, img/larapinta-2@700x2.jpg  1400w">
+								<img src="img/larapinta-2@700x1.jpg" width="700" height="700" alt="cover panels of maps 2 and 3">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-3@510x1.webp 510w, img/larapinta-3@700x1.webp 700w, img/larapinta-3@510x2.webp 1020w, img/larapinta-3@700x2.webp 1400w">
+								<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-3@510x1.jpg  510w, img/larapinta-3@700x1.jpg  700w, img/larapinta-3@510x2.jpg  1020w, img/larapinta-3@700x2.jpg  1400w">
+								<img src="img/larapinta-3@700x1.jpg" width="700" height="700" alt="closeup view of map detail">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-4@510x1.webp 510w, img/larapinta-4@700x1.webp 700w, img/larapinta-4@510x2.webp 1020w, img/larapinta-4@700x2.webp 1400w">
+								<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-4@510x1.jpg  510w, img/larapinta-4@700x1.jpg  700w, img/larapinta-4@510x2.jpg  1020w, img/larapinta-4@700x2.jpg  1400w">
+								<img src="img/larapinta-4@700x1.jpg" width="700" height="700" alt="rear panel showing map legend">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-5@510x1.webp 510w, img/larapinta-5@700x1.webp 700w, img/larapinta-5@510x2.webp 1020w, img/larapinta-5@700x2.webp 1400w">
+								<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-5@510x1.jpg  510w, img/larapinta-5@700x1.jpg  700w, img/larapinta-5@510x2.jpg  1020w, img/larapinta-5@700x2.jpg  1400w">
+								<img src="img/larapinta-5@700x1.jpg" width="700" height="700" alt="map overview panel">
+							</picture>
+						</li>
+					</ul>
+					<ul class="thumbnails">
+						<li class="thumbnail">
+							<label for="larapinta-slide-1">
+								<picture>
+									<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-1@510x1.webp 510w, img/larapinta-1@700x1.webp 700w, img/larapinta-1@510x2.webp 1020w, img/larapinta-1@700x2.webp 1400w">
+									<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-1@510x1.jpg  510w, img/larapinta-1@700x1.jpg  700w, img/larapinta-1@510x2.jpg  1020w, img/larapinta-1@700x2.jpg  1400w">
+									<img src="img/larapinta-1@700x1.jpg" width="700" height="700" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="larapinta-slide-2">
+								<picture>
+									<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-2@510x1.webp 510w, img/larapinta-2@700x1.webp 700w, img/larapinta-2@510x2.webp 1020w, img/larapinta-2@700x2.webp 1400w">
+									<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-2@510x1.jpg  510w, img/larapinta-2@700x1.jpg  700w, img/larapinta-2@510x2.jpg  1020w, img/larapinta-2@700x2.jpg  1400w">
+									<img src="img/larapinta-2@700x1.jpg" width="700" height="700" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="larapinta-slide-3">
+								<picture>
+									<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-3@510x1.webp 510w, img/larapinta-3@700x1.webp 700w, img/larapinta-3@510x2.webp 1020w, img/larapinta-3@700x2.webp 1400w">
+									<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-3@510x1.jpg  510w, img/larapinta-3@700x1.jpg  700w, img/larapinta-3@510x2.jpg  1020w, img/larapinta-3@700x2.jpg  1400w">
+									<img src="img/larapinta-3@700x1.jpg" width="700" height="700" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="larapinta-slide-4">
+								<picture>
+									<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-4@510x1.webp 510w, img/larapinta-4@700x1.webp 700w, img/larapinta-4@510x2.webp 1020w, img/larapinta-4@700x2.webp 1400w">
+									<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-4@510x1.jpg  510w, img/larapinta-4@700x1.jpg  700w, img/larapinta-4@510x2.jpg  1020w, img/larapinta-4@700x2.jpg  1400w">
+									<img src="img/larapinta-4@700x1.jpg" width="700" height="700" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="larapinta-slide-5">
+								<picture>
+									<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-5@510x1.webp 510w, img/larapinta-5@700x1.webp 700w, img/larapinta-5@510x2.webp 1020w, img/larapinta-5@700x2.webp 1400w">
+									<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/larapinta-5@510x1.jpg  510w, img/larapinta-5@700x1.jpg  700w, img/larapinta-5@510x2.jpg  1020w, img/larapinta-5@700x2.jpg  1400w">
+									<img src="img/larapinta-5@700x1.jpg" width="700" height="700" alt="">
+								</picture>
+							</label>
+						</li>
+					</ul>
+				</div>
+				<p>
+					Digital maps are great, but there’s nothing like a fold-out paper map for observing the lay of the land.
+					The <cite>West MacDonnell Ranges and the Larapinta Trail</cite> map is just what you need when you’re taking on this epic 230 km trail.
+					Features include:
+				</p>
+				<ul>
+					<li>Four large maps, printed on two sheets of durable, weatherproof synthetic paper.</li>
+					<li>Coverage of the entire Larapinta Trail and most of the West MacDonnell Ranges.</li>
+					<li>Topographic detail at 1:40 000 scale.
+					<li>Locations of all designated campsites and amenities.</li>
+					<li>An overview showing major campsites, access points, and your progress along the trail.</li>
+					<li>All recent track realignments and new shelters.</li>
+					<li>Folded size: 109 mm × 234 mm.</li>
+					<li>Unfolded size: 936 mm × 655 mm.</li>
+					<li>Weight: 67 g per map, 134 g for the set.</li>
+					<li>ISBN: 978-0-6454420-2-1.</li>
+				</ul>
+				<form method="get" rel="external" class="buy">
+					<input type="checkbox" class="shipping" id="larapinta-shipping" role="switch">
+					<label for="larapinta-shipping" class="shipping">international shipping</label>
+					<button type="submit" class="domestic" formaction="https://buy.stripe.com/dR63dG6Ny2oNd4keUU">Buy Now — $48.95</button>
+					<button type="submit" class="overseas" formaction="https://buy.stripe.com/7sIbKc4Fq3sR7K0289">Buy Now — $48.95 + shipping</button>
+				</form>
+			</details>
+			<details id="budawangs">
+				<summary>Budawangs Trail Map</summary>
+				<p>
+					<cite>The Budawangs: A Bushwalker’s Guide</cite> is a comprehensive, two-part topographic trail map for the Budawang Wilderness in the south-east of New South Wales.
+				</p>
+				<div class="carousel">
+					<input type="radio" name="budawangs-slides" id="budawangs-slide-1" aria-label="slide 1" checked>
+					<input type="radio" name="budawangs-slides" id="budawangs-slide-2" aria-label="slide 2">
+					<input type="radio" name="budawangs-slides" id="budawangs-slide-3" aria-label="slide 3">
+					<input type="radio" name="budawangs-slides" id="budawangs-slide-4" aria-label="slide 4">
+					<input type="radio" name="budawangs-slides" id="budawangs-slide-5" aria-label="slide 5">
+					<ul class="slides" tabindex="-1">
+						<li class="slide">
+							<picture>
+								<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-1@510x1.webp 510w, img/budawangs-1@700x1.webp 700w, img/budawangs-1@510x2.webp 1020w, img/budawangs-1@700x2.webp 1400w">
+								<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-1@510x1.jpg  510w, img/budawangs-1@700x1.jpg  700w, img/budawangs-1@510x2.jpg  1020w, img/budawangs-1@700x2.jpg  1400w">
+								<img src="img/budawangs-1@700x1.jpg" width="700" height="700" alt="cover panel of the map">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-2@510x1.webp 510w, img/budawangs-2@700x1.webp 700w, img/budawangs-2@510x2.webp 1020w, img/budawangs-2@700x2.webp 1400w">
+								<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-2@510x1.jpg  510w, img/budawangs-2@700x1.jpg  700w, img/budawangs-2@510x2.jpg  1020w, img/budawangs-2@700x2.jpg  1400w">
+								<img src="img/budawangs-2@700x1.jpg" width="700" height="700" alt="close-up of map detail around Styles Creek">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-3@510x1.webp 510w, img/budawangs-3@700x1.webp 700w, img/budawangs-3@510x2.webp 1020w, img/budawangs-3@700x2.webp 1400w">
+								<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-3@510x1.jpg  510w, img/budawangs-3@700x1.jpg  700w, img/budawangs-3@510x2.jpg  1020w, img/budawangs-3@700x2.jpg  1400w">
+								<img src="img/budawangs-3@700x1.jpg" width="700" height="700" alt="close-up of map detail around Corang Peak">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-4@510x1.webp 510w, img/budawangs-4@700x1.webp 700w, img/budawangs-4@510x2.webp 1020w, img/budawangs-4@700x2.webp 1400w">
+								<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-4@510x1.jpg  510w, img/budawangs-4@700x1.jpg  700w, img/budawangs-4@510x2.jpg  1020w, img/budawangs-4@700x2.jpg  1400w">
+								<img src="img/budawangs-4@700x1.jpg" width="700" height="700" alt="rear panel, showing map legend">
+							</picture>
+						</li>
+						<li class="slide">
+							<picture>
+								<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-5@510x1.webp 510w, img/budawangs-5@700x1.webp 700w, img/budawangs-5@510x2.webp 1020w, img/budawangs-5@700x2.webp 1400w">
+								<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-5@510x1.jpg  510w, img/budawangs-5@700x1.jpg  700w, img/budawangs-5@510x2.jpg  1020w, img/budawangs-5@700x2.jpg  1400w">
+								<img src="img/budawangs-5@700x1.jpg" width="700" height="700" alt="map in half-folded arrangement">
+							</picture>
+						</li>
+					</ul>
+					<ul class="thumbnails">
+						<li class="thumbnail">
+							<label for="budawangs-slide-1">
+								<picture>
+									<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-1@510x1.webp 510w, img/budawangs-1@700x1.webp 700w, img/budawangs-1@510x2.webp 1020w, img/budawangs-1@700x2.webp 1400w">
+									<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-1@510x1.jpg  510w, img/budawangs-1@700x1.jpg  700w, img/budawangs-1@510x2.jpg  1020w, img/budawangs-1@700x2.jpg  1400w">
+									<img src="img/budawangs-1@700x1.jpg" width="700" height="700" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="budawangs-slide-2">
+								<picture>
+									<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-2@510x1.webp 510w, img/budawangs-2@700x1.webp 700w, img/budawangs-2@510x2.webp 1020w, img/budawangs-2@700x2.webp 1400w">
+									<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-2@510x1.jpg  510w, img/budawangs-2@700x1.jpg  700w, img/budawangs-2@510x2.jpg  1020w, img/budawangs-2@700x2.jpg  1400w">
+									<img src="img/budawangs-2@700x1.jpg" width="700" height="700" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="budawangs-slide-3">
+								<picture>
+									<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-3@510x1.webp 510w, img/budawangs-3@700x1.webp 700w, img/budawangs-3@510x2.webp 1020w, img/budawangs-3@700x2.webp 1400w">
+									<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-3@510x1.jpg  510w, img/budawangs-3@700x1.jpg  700w, img/budawangs-3@510x2.jpg  1020w, img/budawangs-3@700x2.jpg  1400w">
+									<img src="img/budawangs-3@700x1.jpg" width="700" height="700" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="budawangs-slide-4">
+								<picture>
+									<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-4@510x1.webp 510w, img/budawangs-4@700x1.webp 700w, img/budawangs-4@510x2.webp 1020w, img/budawangs-4@700x2.webp 1400w">
+									<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-4@510x1.jpg  510w, img/budawangs-4@700x1.jpg  700w, img/budawangs-4@510x2.jpg  1020w, img/budawangs-4@700x2.jpg  1400w">
+									<img src="img/budawangs-4@700x1.jpg" width="700" height="700" alt="">
+								</picture>
+							</label>
+						</li>
+						<li class="thumbnail">
+							<label for="budawangs-slide-5">
+								<picture>
+									<source type="image/webp" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-5@510x1.webp 510w, img/budawangs-5@700x1.webp 700w, img/budawangs-5@510x2.webp 1020w, img/budawangs-5@700x2.webp 1400w">
+									<source type="image/jpeg" sizes="(min-width: 768px) 700px, (min-width: 576px) 510px, calc(100vw-2rem)" srcset="img/budawangs-5@510x1.jpg  510w, img/budawangs-5@700x1.jpg  700w, img/budawangs-5@510x2.jpg  1020w, img/budawangs-5@700x2.jpg  1400w">
+									<img src="img/budawangs-5@700x1.jpg" width="700" height="700" alt="">
+								</picture>
+							</label>
+						</li>
+					</ul>
+				</div>
+				<p>
+					The Budawangs stands as one of Australia’s most spectacular and distinctive wilderness areas.
+					Using modern elevation, vegetation and trail data,
+					<cite>The Budawangs</cite> finally delivers a map of quality and accuracy befitting this renowned bushwalking destination.
+					Key features include:
+				</p>
+				<ul>
+					<li>Two large maps, printed back-to-back on durable, weatherproof synthetic paper.</li>
+					<li>Extensive coverage equivalent to five standard NSW map sheets.</li>
+					<li>Clear marking of frequently used walking tracks and campsites.</li>
+					<li>Locations of all trailheads, including Long Gully, Wog Wog, Nerriga, Sassafras, Little Forest Plateau and Pigeon House Mountain.</li>
+					<li>Insets for the southernmost peaks of Currockbilly Mountain and Mount Budawang.</li>
+					<li>Accurate contours, canopy and vegetation, sourced from high-resolution lidar survey.</li>
+					<li>Topographic detail at 1:30 000 scale.
+					<li>Folded size: 116 mm × 250 mm.</li>
+					<li>Unfolded size: 695 mm × 1000 mm.</li>
+					<li>Weight: 64 g.</li>
+					<li>ISBN: 978-0-6454420-3-8.</li>
+				</ul>
+				<form method="get" rel="external" class="buy">
+					<input type="checkbox" class="shipping" id="budawangs-shipping" role="switch">
+					<label for="budawangs-shipping" class="shipping">international shipping</label>
+					<button type="submit" class="domestic" formaction="https://buy.stripe.com/aEUeWo8VGgfD6FW4gi">Buy Now — $26.95</button>
+					<button type="submit" class="overseas" formaction="https://buy.stripe.com/bIY9C43Bm5AZ3tK28b">Buy Now — $26.95 + shipping</button>
+				</form>
+			</details>
+			<details id="avenza">
+				<summary>Digital Topographic Maps</summary>
+				<p>
+					We provide a large selection of cheap digital topographic maps for most Australian states.
+					These maps are easy to purchase and use on any iPhone or Android device, using the <a href="https://www.avenzamaps.com/">Avenza Maps</a> app.
+					Maps reside on your device and work without an internet connection.
+				</p>
+				<p>
+					Find and install the topographic maps you need using the index map below.
+				</p>
+				<div class="map">
+					<div id="map"><noscript>Index map requires JavaScript.</noscript></div>
+					<div class="toggles">
+						<fieldset class="states"></fieldset>
+						<fieldset class="types"></fieldset>
+					</div>
+					<canvas id="qrcode"></canvas>
+				</div>
+			</details>
+			<details id="software">
+				<summary>Cartographic Software</summary>
+				<p>
+					Our maps are made using in-house, open-source cartographic software.
+					Read more about the software at the <cite>nswtopo</cite> <a href="https://github.com/mholling/nswtopo">GitHub page</a>.
+				</p>
+			</details>
+			<details id="services">
+				<summary>Cartographic Services</summary>
+				<p>
+					Using our software, we're able to provide bespoke topographic and other mapping services.
+					We're particularly familiar with NSW data sources, and can readily produce quality maps for rogaines and other events.
+					Contact us at <a class="obf"></a> to enquire about a custom topographic map for your next outdoor event.
+				</p>
+			</details>
+			<details id="about">
+				<summary>About Us</summary>
+				<p>
+					I’m a self-taught cartographer with a love of maps and the landscapes they represent.
+					I’m also a programmer, and found that these two areas have a fascinating intersection in the field of geospatial software.
+				</p>
+				<p>
+					I first developed map-making software for the navigational sport of rogaining.
+					While improving the software, I began creating statewide topographic map series for use with smartphones.
+					I’ve now diversified into printed maps—a more traditional pursuit which benefits greatly from modern tools and data.
+				</p>
+				<p>
+					In my printed maps, I aim to provide an optimal balance of detail and coverage, with no space wasted and an eye to aesthetics.
+					I hope they’ll be a great addition to your kit.
+				</p>
+				<ul>
+					<li>Contact us at <a class="obf"></a> for after-sales support and commercial enquiries.</li>
+					<li>See our <a href="terms">terms of service</a>.</li>
+					<li>ABN 38 719 828 657</li>
+				</ul>
+			</details>
+		</main>
+	</body>
+</html>

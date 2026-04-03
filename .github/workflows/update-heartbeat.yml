@@ -9,18 +9,15 @@ jobs:
       uses: actions/checkout@v3
       with:
         ref: gh-pages
-    - name: Create heartbeat.json
-      run: |
-        echo "{\"date\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > heartbeat.json
     - name: Commit and deploy
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add heartbeat.json
         LAST_MSG=$(git log -1 --pretty=%s)
         if [ "$LAST_MSG" = "update heartbeat" ]; then
-          git commit --amend -m "update heartbeat"
-        else
-          git commit -m "update heartbeat"
+          git reset --soft HEAD~1
         fi
+        echo "{\"date\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > heartbeat.json
+        git add heartbeat.json
+        git commit -m "update heartbeat"
         git push --force-with-lease
